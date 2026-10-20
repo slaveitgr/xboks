@@ -1,51 +1,26 @@
 # xboks
 
-Independent Linux desktop client based on https://github.com/domsvoboda/xodus-nexus.
-The application source and its original MIT license are in `xodus-nexus/`.
+Independent Linux client derived from [Xodus Nexus](https://github.com/domsvoboda/xodus-nexus), using the Xodus/Nexus backend and runtime foundation.
 
-## Direction
+## Product direction
 
-The Windows Xbox client screenshots are the visual source of truth. Nexus/Xodus
-provides the backend only: do not add backend health labels or implementation
-controls to the main navigation or top bar. Keep diagnostics in Settings.
+The user-supplied Windows Xbox app 2610.1001.20.0 screenshots in Xbox mode are the visual source of truth. Target 1:1 appearance and interaction. The reference uses a compact **vertical 68 px icon rail**, not horizontal main navigation. Xodus/Nexus are the backend foundation; keep diagnostics in Settings and omit backend health/development controls from the main top bar.
 
-Reference selected by the user: **Xbox full screen / Xbox mode**.
-Official reference: https://news.xbox.com/en-us/2026/04/30/xbox-mode-pc-windows-11/
-
-Match Xbox mode's layout and interaction patterns: dark neutral
-surfaces, green active indicators, persistent navigation, global search, game art,
-library filters, game details and download management. Use horizontal navigation,
-large game cards and controller focus indicators. Keep Nexus authentication,
-ownership checks, installation and runtime integration connected to real data.
-
-This is an unofficial project. It does not imply Microsoft affiliation or that
-every Windows Xbox feature or game is supported on Linux.
-
-## First implementation
-
-- Cloned the upstream application rather than replacing its backend with mocks.
-- Established neutral dark surfaces, green navigation selection, rectangular
-  search and a larger home spotlight as the first desktop visual pass.
-- Kept upstream licensing and product identity while the new identity is decided.
-- Added horizontal Xbox mode navigation, larger controls/cards, controller focus
-  outlines, responsive handheld layout and a full screen toggle.
+Current implementation and limitations: [README](README.md).
+Detailed reconstruction work: [UI specification](docs/analysis/windows-ui-spec.md).
+Package evidence: [analysis](docs/analysis/xbox-2610-initial.md) and [inventory](docs/analysis/xbox-package-inventory.json).
 
 ## Development
 
 ```sh
-cd xboks
 npm ci
 npm run dev
 ```
 
-Validation: `npm run build`. AppImage packaging: `npm run dist`.
-For upstream sample data: `XODUS_DEMO=1 npm run dev`.
-Demo data is for visual review; it does not verify Microsoft login or game launch.
+Visual preview: `XODUS_DEMO=1 npm run dev`. Sample data is not account/game validation.
+Type checks: `npm run typecheck`. Full validation/build: `npm run build`.
+AppImage: `npm run dist` after validation.
 
-## Remaining work
+## Scope and attribution
 
-1. Compare the Xbox mode reference screenshots screen by screen.
-2. Rebuild Home, Library, Store and game details to match those references.
-3. Validate real account login, owned/Game Pass catalog, queue and supported game launch.
-4. Decide scope for friends/chat, cloud gaming and remote play after checking available APIs.
-5. Choose project branding and produce a tested Linux package.
+Preserve the upstream MIT notice and credit Xodus and Xodus Nexus. xboks is unofficial and independently maintained. Real account authentication, installation and game launch require separate validation. Original Microsoft package files and personal screenshots stay in ignored `work/reference`; they are not distributed.

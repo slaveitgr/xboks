@@ -7,7 +7,7 @@ Reference: Microsoft.GamingApp 2610.1001.20.0, x64.
 - Downloaded bundle: 433,446,690 bytes; ZIP CRC check passed (not a signature verification).
 - SHA-256: `7205c87463c4deccbe196bec94af8a5ac6bd677defc483cb5976b02764b1f805`.
 - x64 package: 967 archive entries.
-- `Bundle/index.bundle`: 19,267,652 bytes, binary rather than readable JavaScript. React Native strings occur in it; this is evidence of React Native components, not a complete architecture determination.
+- `Bundle/index.bundle`: 19,267,652 bytes, Hermes bytecode version 96 (magic/header verified), rather than readable JavaScript. React Native strings support a React Native UI inference, not a complete architecture determination.
 - Compiled XAML (`.xbf`), PRI resources, bundled fonts and native Windows executables are present.
 - Main manifest application: `XboxPcAppCE.exe`, Windows.FullTrustApplication.
 - Companion processes include XboxPcApp, XboxPcAppFT, XboxPcAppAdminServer, XboxPcTray, XboxPartyChatHost and XboxGameBarWidgets.
@@ -38,3 +38,7 @@ Reference: Microsoft.GamingApp 2610.1001.20.0, x64.
 - No decompiled source was copied into xboks. The UI is independently implemented from screenshots.
 - Settings modal, Game Pass navigation, social/notification overlays and product details remain to be rebuilt.
 - Linux integration for system controls and Xbox social APIs remains unverified.
+
+## Follow-up analysis
+
+See the [reproducible inventory](xbox-package-inventory.json) and [screen-by-screen reconstruction specification](windows-ui-spec.md). The Hermes identification supersedes the initial unknown-binary classification.

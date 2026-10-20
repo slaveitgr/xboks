@@ -1,0 +1,90 @@
+{
+  "bundle": {
+    "bytes": 433446690,
+    "sha256": "7205c87463c4deccbe196bec94af8a5ac6bd677defc483cb5976b02764b1f805"
+  },
+  "identity": {
+    "Name": "Microsoft.GamingApp",
+    "ProcessorArchitecture": "x64",
+    "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    "Version": "2610.1001.20.0"
+  },
+  "x64_package": "XboxAppPackage_2610.1001.20.0_x64.msix",
+  "entry_count": 967,
+  "extensions": {
+    ".appxbundle": 1,
+    ".bin": 1,
+    ".bundle": 1,
+    ".cat": 1,
+    ".dat": 1,
+    ".dll": 48,
+    ".exe": 7,
+    ".ico": 1,
+    ".jpg": 15,
+    ".json": 1,
+    ".mp3": 12,
+    ".mp4": 1,
+    ".p7x": 1,
+    ".png": 518,
+    ".pri": 3,
+    ".sccd": 1,
+    ".svg": 278,
+    ".ttf": 17,
+    ".wav": 6,
+    ".winmd": 39,
+    ".xbf": 11,
+    ".xml": 3
+  },
+  "dependencies": [
+    {
+      "Name": "Microsoft.VCLibs.140.00",
+      "MinVersion": "14.0.33519.0",
+      "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    {
+      "Name": "Microsoft.VCLibs.140.00.UWPDesktop",
+      "MinVersion": "14.0.33728.0",
+      "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    {
+      "Name": "Microsoft.UI.Xaml.2.8",
+      "MinVersion": "8.2310.30001.0",
+      "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    {
+      "Name": "Microsoft.WindowsAppRuntime.2",
+      "MinVersion": "2.1.1.0",
+      "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    }
+  ],
+  "executables": [
+    "XboxGameBarWidgets.exe",
+    "XboxPartyChatHost.exe",
+    "XboxPcApp.exe",
+    "XboxPcAppAdminServer.exe",
+    "XboxPcAppCE.exe",
+    "XboxPcAppFT.exe",
+    "XboxPcTray.exe"
+  ],
+  "compiled_xaml": [
+    "AchievementsRecapView.xbf",
+    "CapturesRecapView.xbf",
+    "GameEventsView.xbf",
+    "ImageBox.xbf",
+    "MenuControl.xbf",
+    "RecapView.xbf",
+    "Resources.xbf",
+    "SessionRecapView.xbf",
+    "SessionReviewView.xbf",
+    "SvgIcon.xbf",
+    "TitleBar.xbf"
+  ],
+  "source_maps": [],
+  "ui_bundle": {
+    "bytes": 19267652,
+    "magic_hex": "0x1f1903c103bc1fc6",
+    "hermes_magic_matches": true,
+    "bytecode_version": 96
+  },
+  "scope": "Static metadata inspection only; no Windows code executed; no signature verification."
+}
