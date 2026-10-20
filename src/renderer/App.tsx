@@ -210,20 +210,35 @@ export function HomePage({ data, go, action, openGame }: {
 }
 
 function XboxFullButton({ onError }: { onError: (message: string) => void }) {
-  const [full, setFull] = useState(() => Boolean(document.fullscreenElement));
+  const [full, setFull] = useState(() => document.documentElement.hasAttribute('data-fullscreen-experience'));
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    const changed = () => setFull(Boolean(document.fullscreenElement));
+    const changed = () => {
+      if (!document.fullscreenElement && document.documentElement.hasAttribute('data-fullscreen-experience')) {
+        document.documentElement.removeAttribute('data-fullscreen-experience');
+        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: false }));
+      }
+      setFull(Boolean(document.fullscreenElement) && document.documentElement.hasAttribute('data-fullscreen-experience'));
+    };
     document.addEventListener('fullscreenchange', changed);
     return () => document.removeEventListener('fullscreenchange', changed);
   }, []);
   async function toggle() {
     setBusy(true);
-    try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
-    catch (error) { onError(errorMessage(error)); }
+    try {
+      if (full) {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        document.documentElement.removeAttribute('data-fullscreen-experience'); setFull(false);
+        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: false }));
+      } else {
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        document.documentElement.setAttribute('data-fullscreen-experience', ''); setFull(true);
+        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: true }));
+      }
+    } catch (error) { onError(errorMessage(error)); }
     finally { setBusy(false); }
   }
-  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Open Fullscreen Experience'} onClick={() => void toggle()}>
+  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Fullscreen Experience with controller navigation'} onClick={() => void toggle()}>
     {full ? <Minimize /> : <Maximize />}<span>{full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'}</span>
   </button>;
 }

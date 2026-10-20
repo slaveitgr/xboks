@@ -120,3 +120,7 @@ The initial raw printable-string scan produced concatenated fragments from a pac
 The reference-size settings dialog is now implemented (800×950 px at 1920×1080), with the 230 px category rail. Account actions, inherited Nexus backend/runtime installation, downloads, storage and diagnostics remain functional within categories. Audio uses the Linux guide audio bridge. Background and motion preferences are saved locally. Modal isolation, focus restoration, Escape/B close, controller section switching and unsaved-form confirmation are implemented. Full-screen control moved into Application settings.
 
 Managed Proton is integrated through the existing runtime manager, which downloads/verifies a compatible Nexus runtime, validates Wine and activates its pointer. This is on-demand runtime management, **not a Proton binary bundled inside the launcher installer**. Actual game launch still needs account/game validation. Subscription billing is an external Microsoft link; social notifications and third-party extensions remain explicitly unconnected. This is not yet full Windows UI or feature parity.
+
+## Deep static analysis
+
+The [reverse-engineering dossier](xbox-reverse-engineering.md) adds verified v96 string/instruction indexing, native PE inventory and a separate app-level Fullscreen Experience/controller contract. Its evidence supersedes the earlier unstructured string-fragment scan.

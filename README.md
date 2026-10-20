@@ -86,6 +86,10 @@ npm run dist
 
 The packaging configuration writes output to `release/`. Upstream Nexus downloads and installation scripts install **Nexus**, not xboks.
 
+### Fullscreen Experience
+
+The **Fullscreen Experience** button enters fullscreen and activates controller-focused navigation. D-pad/left stick moves focus, A selects, B goes back and LB/RB changes pages or sections in the active Guide/Settings dialog. Mouse and keyboard remain available. A future Linux-distribution adapter can connect this app feature to a gaming session; no system-wide shell replacement is claimed.
+
 ### Game Bar-style overlay
 
 Open the guide with **Ctrl+G**, the top-bar guide button, or the controller Guide button when the operating system exposes it. LB/RB switch sections and B/Escape closes the panel. System volume/mute requires PipeWire/WirePlumber (`wpctl`). Captures save the xboks window as PNG in `Pictures/xboks`. This first version does not overlay external games, record video or provide Xbox party/chat.
@@ -107,7 +111,7 @@ See the [Game Bar package analysis](docs/analysis/gamebar-7.326.md).
 - [ ] Validate authentication, downloads and supported game launch with real accounts.
 - [ ] Publish a tested xboks Linux package.
 
-See the [package analysis](docs/analysis/xbox-2610-initial.md) and [UI reconstruction specification](docs/analysis/windows-ui-spec.md) for evidence, measurements and implementation gaps.
+See the [reverse-engineering dossier](docs/analysis/xbox-reverse-engineering.md), [package analysis](docs/analysis/xbox-2610-initial.md) and [UI reconstruction specification](docs/analysis/windows-ui-spec.md) for evidence, measurements and implementation gaps.
 
 ## Built on open source
 

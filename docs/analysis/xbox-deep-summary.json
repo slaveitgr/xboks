@@ -1,0 +1,222 @@
+{
+  "hermes": {
+    "version": 96,
+    "strings": 103136,
+    "utf16_strings": 11047,
+    "functions": 68878,
+    "instructions": 2541891,
+    "opcode_definitions": 206,
+    "instruction_errors": 0,
+    "footer_sha1_matches": true
+  },
+  "taxonomy": {
+    "fullscreen": {
+      "matching_function_names": 39
+    },
+    "controller": {
+      "matching_function_names": 63
+    },
+    "navigation": {
+      "matching_function_names": 139
+    },
+    "settings": {
+      "matching_function_names": 11
+    },
+    "collections": {
+      "matching_function_names": 157
+    },
+    "installation": {
+      "matching_function_names": 7
+    },
+    "social": {
+      "matching_function_names": 50
+    }
+  },
+  "pe": {
+    "xbox_files": 94,
+    "xbox_errors": 0,
+    "gamebar_files": 19,
+    "gamebar_errors": 0,
+    "xbox_native_executables": [
+      "XboxGameBarWidgets.exe",
+      "XboxPartyChatHost.exe",
+      "XboxPcApp.exe",
+      "XboxPcAppAdminServer.exe",
+      "XboxPcAppCE.exe",
+      "XboxPcAppFT.exe",
+      "XboxPcTray.exe"
+    ]
+  },
+  "screenshots": [
+    {
+      "reference": "1-36000.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-35998.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-35997.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-35999.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-35996.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-35995.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-35994.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-35992.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-35991.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-35990.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-36015.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-36014.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-36013.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-36012.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-36011.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-36020.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-36019.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-36018.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-36017.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-36016.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-36005.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-36004.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-36003.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-36002.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-36001.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-36010.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-36009.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-36008.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-36007.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "5-36006.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "1-35993.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "2-35987.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "3-35988.png",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "reference": "4-35989.png",
+      "width": 1920,
+      "height": 1080
+    }
+  ]
+}

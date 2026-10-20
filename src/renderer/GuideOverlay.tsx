@@ -61,7 +61,7 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
       <label><span>System volume <b>{volume}%</b></span><input aria-label="System volume" type="range" min="0" max="100" value={volume} disabled={busy} onChange={event => setVolume(Number(event.target.value))} onPointerUp={() => void updateAudio({ volume })} onKeyUp={event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) void updateAudio({ volume }); }} onBlur={() => { if (volume !== audio.volume) void updateAudio({ volume }); }} /></label>
     </div> : <p className="guide-note">{audio.reason}</p>}
   </>;
-  return <div ref={root} className="guide-overlay" role="dialog" aria-modal="true" aria-label="xboks Game Bar" onMouseDown={event => { if (event.target === event.currentTarget) close(); }} onKeyDown={event => {
+  return <div ref={root} className="guide-overlay" data-gamepad-sections role="dialog" aria-modal="true" aria-label="xboks Game Bar" onMouseDown={event => { if (event.target === event.currentTarget) close(); }} onKeyDown={event => {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
     if (event.key === 'Tab') {
       const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled)') ?? []).filter(el => el.getClientRects().length > 0);

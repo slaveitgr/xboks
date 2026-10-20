@@ -28,7 +28,7 @@ export function SettingsFrame({ active, select, close, busy, children }: { activ
   }, [active, select]);
   useEffect(() => { const content = root.current?.querySelector('.xbox-settings-content'); if (content) content.scrollTop = 0; }, [active]);
   return <div className="xbox-settings-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}>
-    <div ref={root} className="xbox-settings-dialog" role="dialog" aria-modal="true" aria-label="Settings" onKeyDown={event => {
+    <div ref={root} className="xbox-settings-dialog" data-gamepad-sections role="dialog" aria-modal="true" aria-label="Settings" onKeyDown={event => {
       if (event.key === 'Escape' && !busy) { event.preventDefault(); event.stopPropagation(); close(); }
       if (event.key !== 'Tab') return;
       const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),select:not(:disabled),a[href],summary') ?? []).filter(el => el.getClientRects().length);

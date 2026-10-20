@@ -360,6 +360,8 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       // Shoulder buttons change only the active gallery, never the page behind it.
       const target = scope.querySelector<HTMLElement>(value === 'previous-page' ? '[data-gamepad-gallery-previous]' : '[data-gamepad-gallery-next]');
       if (target && enabled(target)) target.click();
+    } else if (scope instanceof HTMLElement && scope.hasAttribute('data-gamepad-sections')) {
+      options.page(value === 'previous-page' ? -1 : 1);
     } else if (scope === doc) {
       options.page(value === 'previous-page' ? -1 : 1);
       pageFocus();
@@ -400,6 +402,13 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     } catch { blur(); inputs.clear(); } // Unsupported browser/device must not break mouse UI.
     frame = win.requestAnimationFrame(tick);
   };
+  const experienceChanged = (event: Event) => {
+    const enabled = (event as CustomEvent<boolean>).detail === true;
+    inputs.forEach(input => input.reset());
+    if (enabled) { setMode(true); scope = currentScope(); focus(initial(scope), false); ensureFocus(); }
+    else setMode(false);
+  };
+  win.addEventListener('xboks-fullscreen-experience', experienceChanged);
   win.addEventListener('pointerdown', pointer, true);
   win.addEventListener('pointermove', pointerMove, true);
   win.addEventListener('keydown', keyboard, true);
@@ -411,6 +420,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     win.removeEventListener('pointerdown', pointer, true);
     win.removeEventListener('pointermove', pointerMove, true);
     win.removeEventListener('keydown', keyboard, true);
+    win.removeEventListener('xboks-fullscreen-experience', experienceChanged);
     win.removeEventListener('blur', blur); doc.removeEventListener('visibilitychange', blur);
   };
 }
