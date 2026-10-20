@@ -223,8 +223,8 @@ function XboxFullButton({ onError }: { onError: (message: string) => void }) {
     catch (error) { onError(errorMessage(error)); }
     finally { setBusy(false); }
   }
-  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Xbox Full' : 'Xbox Full'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Open Xbox Full in full screen'} onClick={() => void toggle()}>
-    {full ? <Minimize /> : <Maximize />}<span>{full ? 'Exit Xbox Full' : 'Xbox Full'}</span>
+  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Open Fullscreen Experience'} onClick={() => void toggle()}>
+    {full ? <Minimize /> : <Maximize />}<span>{full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'}</span>
   </button>;
 }
 
