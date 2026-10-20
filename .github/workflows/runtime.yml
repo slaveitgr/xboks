@@ -1,0 +1,229 @@
+name: Nexus runtime build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      needed: ${{ steps.diff.outputs.needed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+          FORCE_RUNTIME: ${{ github.event_name == 'workflow_dispatch' }}
+        run: node scripts/ci/runtime-needed.mjs
+  media:
+    needs: changes
+    if: needs.changes.outputs.needed == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build portable pinned LGPL FFmpeg libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential curl xz-utils
+          node scripts/build-runtime-media.mjs --work "$PWD/media-build" --jobs 4
+          node scripts/ci/check-media-glibc.mjs media-build/media-manifest.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-runtime-media
+          path: media-build/media-bundle.tar.xz
+          if-no-files-found: error
+          retention-days: 3
+  build:
+    needs: [changes, media]
+    if: needs.changes.outputs.needed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install build and test prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential gcc-mingw-w64-x86-64 flex bison autoconf automake libtool libjson-perl wine64-tools cmake \
+            pkg-config python3 perl rsync file gh curl tar xz-utils openssl xvfb xauth ripgrep \
+            libfreetype-dev libgnutls28-dev libvulkan1 libx11-6 \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-0
+          # Ubuntu installs the unversioned Wine tools outside the default PATH.
+          test -x /usr/lib/wine/widl
+          echo /usr/lib/wine >> "$GITHUB_PATH"
+
+      - name: Build all shared components from pinned clean checkouts
+        run: node scripts/build-shared-runtime.mjs --work "$PWD/shared-build" --jobs 4
+
+      - name: Upload clean-build components and provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-runtime-components
+          path: |
+            shared-build/components/
+            shared-build/tests/
+            scripts/runtime-patches.lock.json
+            scripts/runtime-base.lock.json
+            scripts/SHARED_RUNTIME.md
+          retention-days: 3
+
+      - name: Unpack portable media build
+        uses: actions/download-artifact@v4
+        with:
+          name: nexus-runtime-media
+          path: shared-build
+
+      - name: Verify media build provenance
+        run: |
+          mkdir shared-build/media
+          tar -xJf shared-build/media-bundle.tar.xz -C shared-build/media
+          node scripts/ci/check-media-glibc.mjs shared-build/media/media-manifest.json
+
+      - name: Resolve exact official Proton snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id=$(node -p 'require("./scripts/runtime-base.lock.json").runId')
+          proton_commit=$(node -p 'require("./scripts/runtime-base.lock.json").commit')
+          snapshot_tar=$(node -p 'require("./scripts/runtime-base.lock.json").archive')
+          snapshot_sum=$(node -p 'require("./scripts/runtime-base.lock.json").checksum')
+          base_name=$(node -p 'require("./scripts/runtime-base.lock.json").directory')
+          [[ "$run_id" =~ ^[0-9]+$ && "$proton_commit" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$snapshot_tar" =~ ^proton-[a-zA-Z0-9._-]+\.tar\.xz$ && "$snapshot_sum" =~ ^proton-[a-zA-Z0-9._-]+\.sha512sum$ ]]
+          [[ "$base_name" =~ ^proton-[a-zA-Z0-9._-]+$ ]]
+          run_commit=$(gh api "repos/xodus-gaming/Proton/actions/runs/$run_id" --jq '.head_sha')
+          [[ "$run_commit" == "$proton_commit" ]] || { echo "Pinned snapshot run mismatch."; exit 1; }
+          mkdir snapshot
+          gh run download "$run_id" --repo xodus-gaming/Proton --name "$snapshot_tar" --dir snapshot
+          gh run download "$run_id" --repo xodus-gaming/Proton --name "$snapshot_sum" --dir snapshot
+          (cd snapshot && sha512sum -c "$snapshot_sum")
+          node --input-type=module -e '
+            import fs from "node:fs"; import crypto from "node:crypto";
+            const lock=JSON.parse(fs.readFileSync("scripts/runtime-base.lock.json"));
+            const hash=crypto.createHash("sha512").update(fs.readFileSync("snapshot/"+lock.archive)).digest("hex");
+            if(hash!==lock.archiveSha512) throw Error("Snapshot differs from the tested base.");
+          '
+          tar -tJf "snapshot/$snapshot_tar" > snapshot/listing.txt
+          [[ "$(head -n1 snapshot/listing.txt | cut -d/ -f1)" == "$base_name" ]]
+          if rg '(^/|(^|/)\.\.(/|$))' snapshot/listing.txt; then exit 1; fi
+          tar -xJf "snapshot/$snapshot_tar" -C snapshot
+          node scripts/verify-runtime-base.mjs "snapshot/$base_name"
+          echo "PROTON_COMMIT=$proton_commit" >> "$GITHUB_ENV"
+          echo "base_name=$base_name" >> "$GITHUB_ENV"
+          echo "snapshot_archive=$snapshot_tar" >> "$GITHUB_ENV"
+
+      - name: Assemble the single shared runtime
+        run: |
+          node scripts/assemble-shared-runtime.mjs \
+            --base "$PWD/snapshot/$base_name" --components "$PWD/shared-build/components" \
+            --media "$PWD/shared-build/media" \
+            --output "$PWD/shared-build/runtime"
+
+      - name: Verify native queue, async, WinRT JSON and HTTP/2 contracts
+        run: |
+          xvfb-run -a node scripts/runtime-tests/run-contract-probes.mjs \
+            shared-build/runtime shared-build/tests shared-build
+          xvfb-run -a node scripts/runtime-tests/run-http2-suite.mjs \
+            shared-build/runtime shared-build
+          node scripts/runtime-tests/run-media-suite.mjs \
+            shared-build/runtime shared-build/media-tests
+
+      - name: Package verified runtime and corresponding source
+        env:
+          XZ_OPT: '-T2'
+        run: |
+          set -euo pipefail
+          nexus_version="11.0-$(date -u +%Y%m%d)-g${GITHUB_SHA:0:8}"
+          nexus_name="xodus-nexus-runtime-$nexus_version"
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const file="shared-build/runtime/XODUS_NEXUS_PATCH.json";
+            const metadata=JSON.parse(fs.readFileSync(file));
+            metadata.baseProtonCommit=process.env.PROTON_COMMIT;
+            metadata.baseSnapshot=process.env.snapshot_archive;
+            metadata.patchState=process.env.GITHUB_SHA;
+            fs.writeFileSync(file,JSON.stringify(metadata,null,2)+"\n");
+          '
+          mv shared-build/runtime "shared-build/$nexus_name"
+          (cd shared-build && tar -cJf "$nexus_name-x86_64.tar.xz" "$nexus_name")
+          (cd shared-build && sha512sum "$nexus_name-x86_64.tar.xz" > "$nexus_name-x86_64.sha512sum")
+          tar --exclude=.git -cJf "shared-build/$nexus_name-source.tar.xz" \
+            shared-build/wine-src shared-build/nghttp2-src shared-build/vkd3d-src \
+            shared-build/vulkan-headers shared-build/spirv-headers \
+            shared-build/media/ffmpeg-4.4.8.tar.xz shared-build/media/media-manifest.json \
+            LICENSE assets scripts/runtime-patches.lock.json scripts/runtime-media.lock.json \
+            scripts/runtime-base.lock.json scripts/verify-runtime-base.mjs scripts/runtime-tests scripts/runtime-compat \
+            scripts/build-shared-runtime.mjs scripts/build-runtime-media.mjs \
+            scripts/assemble-shared-runtime.mjs scripts/SHARED_RUNTIME.md
+          echo "nexus_version=$nexus_version" >> "$GITHUB_ENV"
+          echo "nexus_name=$nexus_name" >> "$GITHUB_ENV"
+
+      - name: Upload verified runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-test-results
+          path: |
+            shared-build/runtime-contract-*/results.json
+            shared-build/runtime-http2-*/results.json
+            shared-build/media-tests/results.json
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Bind candidate to source and checksums
+        run: node scripts/ci/artifact-manifest.mjs write runtime shared-build
+
+      - name: Upload runtime candidate (never publish)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexus-runtime
+          path: |
+            shared-build/${{ env.nexus_name }}-x86_64.tar.xz
+            shared-build/${{ env.nexus_name }}-x86_64.sha512sum
+            shared-build/${{ env.nexus_name }}-source.tar.xz
+            shared-build/${{ env.nexus_name }}-source.sha512sum
+            shared-build/candidate.json
+          if-no-files-found: error
+          retention-days: 7
+
+  runtime-gate:
+    runs-on: ubuntu-24.04
+    needs: [changes, media, build]
+    if: always()
+    steps:
+      - env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          BUILD_NEEDED: ${{ needs.changes.outputs.needed }}
+          MEDIA_RESULT: ${{ needs.media.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+        run: |
+          test "$CHANGES_RESULT" = success
+          if [ "$BUILD_NEEDED" = true ]; then
+            test "$MEDIA_RESULT" = success
+            test "$BUILD_RESULT" = success
+          fi

@@ -1,0 +1,142 @@
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -33,6 +33,8 @@
+     ULONGLONG due;
+     XTaskQueuePort logical_port;
+     BOOL termination;
++    XTaskQueueTerminatedCallback *terminated_callback;
++    HANDLE finished_event;
+ };
+ 
+ struct monitor_context
+@@ -104,8 +106,6 @@
+     ULONG public_refs;
+     XTaskQueuePortHandle work;
+     XTaskQueuePortHandle completion;
+-    XTaskQueueTerminatedCallback *terminatedCallback;
+-    void *terminatedContext;
+     BOOL composite;
+     LONG terminated;
+     CRITICAL_SECTION cs;
+@@ -113,6 +113,7 @@
+     HANDLE cancel_event;
+     HANDLE finished_event;
+     struct task_context *termination_entry;
++    LONG termination_pending;
+     struct port_binding work_binding, completion_binding;
+     struct
+     {
+@@ -676,13 +677,20 @@
+         queue->termination_entry = NULL;
+     }
+     LeaveCriticalSection( &queue->cs );
+-    if (entry && FAILED(enqueue_entry( entry )))
+-    {
+-        /* Never run the final callback on a different dispatch port. */
+-        ERR( "Cannot schedule queue termination notification.\n" );
+-        EnterCriticalSection( &queue->cs );
+-        queue->termination_entry = entry;
+-        LeaveCriticalSection( &queue->cs );
++    while (entry)
++    {
++        struct task_context *next = entry->next;
++        entry->next = NULL;
++        if (FAILED(enqueue_entry( entry )))
++        {
++            /* Never run the final callback on a different dispatch port. */
++            ERR( "Cannot schedule queue termination notification.\n" );
++            EnterCriticalSection( &queue->cs );
++            entry->next = queue->termination_entry;
++            queue->termination_entry = entry;
++            LeaveCriticalSection( &queue->cs );
++        }
++        entry = next;
+     }
+ }
+ 
+@@ -690,12 +698,15 @@
+ {
+     XTaskQueueHandle queue = entry->queue;
+     XTaskQueuePortHandle port = entry->port;
++    HANDLE finished_event = entry->finished_event;
+     TRACE( "executing queue %p port %p callback %p context %p.\n", queue, port, entry->callback, entry->callbackContext );
+     if (entry->termination)
+     {
+         TRACE( "queue %p drained; notifying on completion port.\n", queue );
+-        if (queue->terminatedCallback) queue->terminatedCallback( queue->terminatedContext );
+-        SetEvent( queue->finished_event );
++        if (entry->terminated_callback) entry->terminated_callback( entry->callbackContext );
++        EnterCriticalSection( &queue->cs );
++        if (!--queue->termination_pending) SetEvent( queue->finished_event );
++        LeaveCriticalSection( &queue->cs );
+     }
+     else
+     {
+@@ -708,6 +719,9 @@
+     free( entry );
+     IUnknown_Release( &port->IUnknown_iface );
+     IUnknown_Release( &queue->IUnknown_iface );
++    /* wait=true belongs to this request, not an earlier queue notification.
++     * Release the entry and its references before waking its waiter. */
++    if (finished_event) SetEvent( finished_event );
+ }
+ 
+ static void CALLBACK work_handler( TP_CALLBACK_INSTANCE *instance, void *context )
+@@ -1091,27 +1105,33 @@
+ 
+ static HRESULT WINAPI x_threading_XTaskQueueTerminate( IXThreadingImpl *iface, XTaskQueueHandle queue, BOOLEAN wait, void *context, XTaskQueueTerminatedCallback *callback )
+ {
+-    struct task_context *entry;
++    struct task_context *entry, **tail;
++    HANDLE finished_event = NULL;
+     TRACE( "queue %p, wait %d, context %p, callback %p.\n", queue, wait, context, callback );
+     if (!queue) return E_POINTER;
+     if (!(entry = calloc( 1, sizeof(*entry) ))) return E_OUTOFMEMORY;
++    if (wait && !(finished_event = CreateEventW( NULL, TRUE, FALSE, NULL )))
++    {
++        HRESULT hr = HRESULT_FROM_WIN32( GetLastError() );
++        free( entry );
++        return hr;
++    }
+     IUnknown_AddRef( &queue->IUnknown_iface );
+     EnterCriticalSection( &queue->cs );
+-    if (queue->terminated)
+-    {
+-        LeaveCriticalSection( &queue->cs );
+-        free( entry );
+-        IUnknown_Release( &queue->IUnknown_iface );
+-        return E_ABORT;
+-    }
++    /* Repeated termination requests each receive their own notification,
++     * including requests made after the queue has finished draining. */
+     queue->terminated = TRUE;
+-    queue->terminatedContext = context;
+-    queue->terminatedCallback = callback;
++    ++queue->termination_pending;
++    ResetEvent( queue->finished_event );
+     entry->queue = queue;
+     entry->port = queue->completion;
+     entry->logical_port = XTaskQueuePort_Completion;
+     entry->termination = TRUE;
+-    queue->termination_entry = entry;
++    entry->callbackContext = context;
++    entry->terminated_callback = callback;
++    entry->finished_event = finished_event;
++    for (tail = &queue->termination_entry; *tail; tail = &(*tail)->next) ;
++    *tail = entry;
+     IUnknown_AddRef( &queue->IUnknown_iface );
+     IUnknown_AddRef( &queue->completion->IUnknown_iface );
+     SetEvent( queue->cancel_event );
+@@ -1121,7 +1141,11 @@
+     queue_maybe_finish( queue );
+     /* As on the GDK, manual ports must be pumped by another thread when
+      * requesting synchronous termination. Do not dispatch on the wrong thread. */
+-    if (wait) WaitForSingleObject( queue->finished_event, INFINITE );
++    if (wait)
++    {
++        WaitForSingleObject( finished_event, INFINITE );
++        CloseHandle( finished_event );
++    }
+     IUnknown_Release( &queue->IUnknown_iface );
+     return S_OK;
+ }

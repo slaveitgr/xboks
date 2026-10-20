@@ -1,0 +1,178 @@
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -1349,17 +1349,33 @@
+ 
+ struct XUserGetGamerPictureContext
+ {
++    LONG refs, canceled;
+     XUserHandle user;
+     XUserGamerPictureSize pictureSize;
+     SIZE_T bufferSize;
+     BYTE *buffer;
+ };
+ 
+-static HRESULT WINAPI XUserGetGamerPictureProvider( XAsyncOp op, const XAsyncProviderData *data )
++static void gamer_picture_release( struct XUserGetGamerPictureContext *context )
++{
++    if (!InterlockedDecrement( &context->refs ))
++    {
++        IUser_Release( &context->user->IUser_iface );
++        free( context->buffer );
++        free( context );
++    }
++}
++
++static HRESULT WINAPI gamer_picture_phase( XAsyncOp op, const XAsyncProviderData *data )
+ {
+     IJsonObject *object = NULL, *profile = NULL, *setting = NULL;
+     static const WCHAR *accept[] = { L"image/png", NULL };
+     WCHAR *auth = NULL, *headers = NULL, *url = NULL;
++    WCHAR signatureW[104] = {0};
++    char *authA = NULL, signature[104];
++    struct endpoint info;
++    static const char profileUrlA[] = "https://profile.xboxlive.com/users/me/profile/settings?settings=PublicGamerpic";
++    static const WCHAR profileUrlW[] = L"https://profile.xboxlive.com/users/me/profile/settings?settings=PublicGamerpic";
+     IJsonArray *profiles = NULL, *settings = NULL;
+     struct XUserGetGamerPictureContext *context;
+     const WCHAR *suffix, *valueBuffer;
+@@ -1405,14 +1421,37 @@
+             }
+ 
+             if (FAILED(hr = IUser_GetAuthorization( &context->user->IUser_iface, L"http://xboxlive.com", &auth ))) goto cleanup;
+-            if (!(headers = calloc( wcslen( L"Authorization: " ) + wcslen( auth ) + 1, sizeof(WCHAR) )))
++            /* This internal call needs the same proof-of-possession signature
++             * as title requests, and the profile service's v2 contract. Never
++             * forward the Xbox credential or signature to the image CDN. */
++            if (FAILED(hr = IUser_GetEndpointInfo( &context->user->IUser_iface, profileUrlA, &info ))) goto cleanup;
++            if (info.policy)
++            {
++                int authLength = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, -1, NULL, 0, NULL, NULL );
++                if (!authLength) { hr = HRESULT_FROM_WIN32( GetLastError() ); goto cleanup; }
++                if (!(authA = calloc( authLength, 1 ))) { hr = E_OUTOFMEMORY; goto cleanup; }
++                if (!WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, -1, authA, authLength, NULL, NULL ))
++                { hr = HRESULT_FROM_WIN32( GetLastError() ); goto cleanup; }
++                if (FAILED(hr = IUser_GetSignature( &context->user->IUser_iface, info.policy->version,
++                        "GET", profileUrlA, authA, 0, NULL, signature ))) goto cleanup;
++                if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, signature, 104, signatureW, 104 ))
++                { hr = HRESULT_FROM_WIN32( GetLastError() ); goto cleanup; }
++            }
++            if (!(headers = calloc( wcslen( auth ) + wcslen( signatureW ) + 96, sizeof(WCHAR) )))
+             {
+                 hr = E_OUTOFMEMORY;
+                 goto cleanup;
+             }
+             wcscpy( headers, L"Authorization: " );
+             wcscat( headers, auth );
+-            if (FAILED(hr = http_request( L"GET", L"https://profile.xboxlive.com/users/me/profile/settings?settings=PublicGamerpic", NULL, headers, ACCEPT_JSON, &buffer, &size ))) goto cleanup;
++            wcscat( headers, L"\r\nx-xbl-contract-version: 2\r\n" );
++            if (signatureW[0])
++            {
++                wcscat( headers, L"Signature: " );
++                wcscat( headers, signatureW );
++                wcscat( headers, L"\r\n" );
++            }
++            if (FAILED(hr = http_request( L"GET", profileUrlW, NULL, headers, ACCEPT_JSON, &buffer, &size ))) goto cleanup;
+             if (FAILED(hr = parse_json( (char *)buffer, size, &object ))) goto cleanup;
+             if (FAILED(hr = get_json_array( object, L"profileUsers", &profiles ))) goto cleanup;
+             if (FAILED(hr = IJsonArray_GetObjectAt( profiles, 0, &profile ))) goto cleanup;
+@@ -1428,6 +1467,7 @@
+ 
+             wcscpy( url, valueBuffer );
+             wcscat( url, suffix );
++            if (!wcschr( valueBuffer, '?' )) url[wcslen( valueBuffer )] = '?';
+             hr = http_request( L"GET", url, NULL, NULL, accept, &context->buffer, &context->bufferSize );
+ 
+         cleanup:
+@@ -1441,17 +1481,17 @@
+             if (headers) free( headers );
+             if (buffer) free( buffer );
+             if (auth) free( auth );
++            free( authA );
+             if (url) free( url );
+             hr = S_OK;
+             break;
+ 
+         case XAsyncOp_Cleanup:
+-            IUser_Release( &context->user->IUser_iface );
+-            if (context->buffer) free( context->buffer );
+-            free( context );
++            gamer_picture_release( context );
+             break;
+ 
+         case XAsyncOp_Cancel:
++            InterlockedExchange( &context->canceled, TRUE );
+             break;
+     }
+ 
+@@ -1459,6 +1499,51 @@
+     return hr;
+ }
+ 
++struct gamer_picture_worker
++{
++    XAsyncProviderData data;
++    IXThreadingImpl *threading;
++};
++
++static DWORD WINAPI gamer_picture_worker_thread( void *arg )
++{
++    struct gamer_picture_worker *worker = arg;
++    struct XUserGetGamerPictureContext *context = worker->data.context;
++    HRESULT hr, com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    hr = InterlockedCompareExchange( &context->canceled, 0, 0 ) ? E_ABORT :
++        gamer_picture_phase( XAsyncOp_DoWork, &worker->data );
++    if (FAILED(hr)) IXThreadingImpl_XAsyncComplete( worker->threading, worker->data.async, hr, 0 );
++    if (SUCCEEDED(com)) CoUninitialize();
++    gamer_picture_release( context );
++    IXThreadingImpl_Release( worker->threading );
++    free( worker );
++    return 0;
++}
++
++static HRESULT WINAPI XUserGetGamerPictureProvider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct XUserGetGamerPictureContext *context = data->context;
++    struct gamer_picture_worker *worker;
++    HANDLE thread;
++    HRESULT hr;
++    if (op != XAsyncOp_DoWork) return gamer_picture_phase( op, data );
++    if (!(worker = calloc( 1, sizeof(*worker) ))) return E_OUTOFMEMORY;
++    worker->data = *data;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&worker->threading )))
++    { free( worker ); return hr; }
++    InterlockedIncrement( &context->refs );
++    if (!(thread = CreateThread( NULL, 0, gamer_picture_worker_thread, worker, 0, NULL )))
++    {
++        hr = HRESULT_FROM_WIN32( GetLastError() );
++        gamer_picture_release( context );
++        IXThreadingImpl_Release( worker->threading );
++        free( worker );
++        return hr;
++    }
++    CloseHandle( thread );
++    return E_PENDING;
++}
++
+ static HRESULT WINAPI x_user_XUserGetGamerPictureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGamerPictureSize pictureSize, XAsyncBlock *async )
+ {
+     struct XUserGetGamerPictureContext *context;
+@@ -1475,16 +1560,18 @@
+         return E_OUTOFMEMORY;
+     }
+ 
++    context->refs = 1;
+     context->pictureSize = pictureSize;
+     if (FAILED(hr = IXUserImpl6_XUserDuplicateHandle( iface, user, &context->user )))
+     {
+         IXThreadingImpl_Release( xthreading );
++        free( context );
+         return hr;
+     }
+ 
+     hr = IXThreadingImpl_XAsyncBegin( xthreading, async, context, NULL, "XUserGetGamerPictureAsync", XUserGetGamerPictureProvider );
+     IXThreadingImpl_Release( xthreading );
+-    if (FAILED(hr)) free( context );
++    if (FAILED(hr)) gamer_picture_release( context );
+     return hr;
+ }
+ 

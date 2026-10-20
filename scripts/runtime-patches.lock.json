@@ -1,0 +1,252 @@
+{
+  "schema": 1,
+  "status": "development",
+  "sources": {
+    "wine": {
+      "url": "https://github.com/xodus-gaming/wine.git",
+      "commit": "b1dd32734a34472a28eb5be9922df06e07ac0834"
+    },
+    "xgameruntime": {
+      "url": "https://github.com/xodus-gaming/xgameruntime.git",
+      "commit": "64aebcabb8c66121eae25d3bf0ace4b582ebb0da"
+    },
+    "nghttp2": {
+      "url": "https://github.com/nghttp2/nghttp2.git",
+      "commit": "85e300c79fb6dbcfa9c1013215c8710c1c2cd3d2",
+      "version": "1.70.0"
+    },
+    "vkd3d": {
+      "url": "https://codeberg.org/vkd3d/vkd3d.git",
+      "commit": "be62407e706ca155a36e7f7dd4422b479bca32a9",
+      "version": "2.0"
+    },
+    "vulkan-headers": {
+      "url": "https://github.com/KhronosGroup/Vulkan-Headers.git",
+      "commit": "31aa7f634b052d87ede4664053e85f3f4d1d50d3"
+    },
+    "spirv-headers": {
+      "url": "https://github.com/KhronosGroup/SPIRV-Headers.git",
+      "commit": "6cae8216a6ea19ff3f237af01e54378c1ff81fcd"
+    }
+  },
+  "patches": [
+    {
+      "file": "assets/xgameruntime-shared-foundation.patch",
+      "sha256": "7b2b0d5b4145c44699ecc9f58ee4965c3cd777580c2ef64ceae91ae61cad290c"
+    },
+    {
+      "file": "assets/xgameruntime-taskqueue-lifecycle-experimental.patch",
+      "sha256": "1246b44e9ea56fa9ed784c5eb8940284a0d186012bddd36e9a04ae29748c1d4d"
+    },
+    {
+      "file": "assets/xgameruntime-async-provider-experimental.patch",
+      "sha256": "fd449495b2d2cf97343816e891962e6d34dcecd42abfd2a7315f399ccb285539"
+    },
+    {
+      "file": "assets/wine-winhttp-http2.patch",
+      "sha256": "9c123a95a43120a239669faa45358fe94828125f53aa34ff34b0ce9e60189b3e"
+    },
+    {
+      "file": "assets/wine-winhttp-private-diagnostics-disabled.patch",
+      "sha256": "f7ec44ddd9629ad73cd6c74a8e30611bddb71800ef28fbfdaced5f0a61ae06c0"
+    },
+    {
+      "file": "assets/wine-mscoree-mono-path-bounds.patch",
+      "sha256": "b9ba21027ad489b8c364c4c3c919722bbdd38d75a28add1df27951978139803a"
+    },
+    {
+      "file": "assets/wine-winhttp-gdk-options.patch",
+      "sha256": "53f7121ece52bd096e0c69ab8219c2e0c449a1479cb4e71988e1abbf29030c9b"
+    },
+    {
+      "file": "assets/xgameruntime-network-async-experimental.patch",
+      "sha256": "51b8fec258be9d695429a37ec009ba9da15a0a628bb6e6f87268aba5fc4dbc73"
+    },
+    {
+      "file": "assets/xgameruntime-user-signin.patch",
+      "sha256": "d4c7a1ca0a86c6fd7cc69d538f5b673c8c4d70cd351c61e61c9a87d6c20414ea"
+    },
+    {
+      "file": "assets/xgameruntime-package-identity.patch",
+      "sha256": "711aade072bb9a566d2bdebd816b6af63f995bb00c1e27da8176d4f7583ecef5"
+    },
+    {
+      "file": "assets/xgameruntime-store-updates.patch",
+      "sha256": "1532f4e9de02510ef401f09631ca3de0e551e4fafbec52d6d7cc218e736abbc4"
+    },
+    {
+      "file": "assets/xgameruntime-token-worker.patch",
+      "sha256": "295e03ffbcbb6884e34d53cf7240d7a66cba57c88986fb96cff4fb177861f78e"
+    },
+    {
+      "file": "assets/xgameruntime-init-config-contract.patch",
+      "sha256": "12c261ae35b0619e25a762abcad0df696f5b0cec4ec550ccc04783b8c239f541"
+    },
+    {
+      "file": "assets/xgameruntime-async-schedule-validation.patch",
+      "sha256": "56a0d773adfa306d04596ba838c88ce391efadd35d88c960aaae355cd5aec774"
+    },
+    {
+      "file": "assets/xgameruntime-gamesave-files.patch",
+      "sha256": "10181b31b0f67f2b00dbf34ed0eaf085da820b26f2d2fc703c59a9dcedf9ea48"
+    },
+    {
+      "file": "assets/xgameruntime-shutdown-drain.patch",
+      "sha256": "bc4605b0ce6a6025cd633bd4375ad2b073cffe938f72e93c4e70b6eafde97445"
+    },
+    {
+      "file": "assets/xgameruntime-profile-request.patch",
+      "sha256": "c2dd47e259a9f06e4c3acf5022e95db55394ca97ec69c37479d8e0067f7c5e86"
+    },
+    {
+      "file": "assets/xgameruntime-gamesave-background-upload.patch",
+      "sha256": "3c30273f82434a3fff2c99b7516f6c446bfaa2299d458d170f7472cff0f24ac9"
+    },
+    {
+      "file": "assets/xgameruntime-async-cleanup.patch",
+      "sha256": "5d904002da3a23d143fdc716959335c4b32fd1b37ad001c0f2a7b9d034ac946f"
+    },
+    {
+      "file": "assets/xgameruntime-store-entitlements.patch",
+      "sha256": "146e4f1fa1e794a0e332bfc58115f58185573fa9c2ad2b300e60fc9ad4ee6ea5"
+    },
+    {
+      "file": "assets/xgameruntime-package-content.patch",
+      "sha256": "3e782aef2ae05c39e3ecfec24f8319406818a76619263f7e70521a90e7ea9d7e"
+    },
+    {
+      "file": "assets/xgameruntime-package-license.patch",
+      "sha256": "e4a9c68e272719f5ad2d2baa7ffcad2542df25cb93163c1b00b081d4594ee407"
+    },
+    {
+      "file": "assets/xgameruntime-taskqueue-dispatch-exit.patch",
+      "sha256": "e28f50f94389eae960afd4814c68fca1be70400d14e53fe16a94ee833348fd48"
+    },
+    {
+      "file": "assets/xgameruntime-package-chunk-order.patch",
+      "sha256": "5f61165dfd8ed5beb604b45a587a4e517982358850cf503a50802384123ec3c7"
+    },
+    {
+      "file": "assets/xgameruntime-game-license-events.patch",
+      "sha256": "a97084c5ca22cf14d35538e9add8a2d820388f4133dbe158c74160034fe3be83"
+    },
+    {
+      "file": "assets/xgameruntime-manifest-comments.patch",
+      "sha256": "9f9d4469ab1358db1a3e0146c279c2614b076ebcbe7d67027b504eb8810296df"
+    },
+    {
+      "file": "assets/wine-winhttp-response-options.patch",
+      "sha256": "d4cb1475159e36e27d324ab61a7f2a9e7b695f193e037583587b4524b9eccb98"
+    },
+    {
+      "file": "assets/xgameruntime-package-legacy.patch",
+      "sha256": "6414ee338c717b855beb700824b96bc4f583c05a9d19f713378022998fead946"
+    },
+    {
+      "file": "assets/xgameruntime-package-chunks.patch",
+      "sha256": "1bad3c2e91be112f7b703be53561b0ac13d2f46c3979a2868bcadc25f47f281d"
+    },
+    {
+      "file": "assets/xgameruntime-package-monitors.patch",
+      "sha256": "3ef25340642e82ea1abb156a492003a508de92ce5a3738959ec9f8015ffdf6cc"
+    },
+    {
+      "file": "assets/xgameruntime-device-id.patch",
+      "sha256": "10ae43af64d816f1b7a72b577560508e2a2c04dff2b2e7b405bd7400f971462a"
+    },
+    {
+      "file": "assets/xgameruntime-user-privilege.patch",
+      "sha256": "10bd2caf5a6788038bacc84978abfcb78c0dc9f6317b27ee2a048ded549d2fac"
+    },
+    {
+      "file": "assets/xgameruntime-device-association.patch",
+      "sha256": "1b8081b1e86ed6006a4ac28f55497c93f6d3bb8702e3a9ca7b7c9e0a5ac189d6"
+    },
+    {
+      "file": "assets/wine-hlsl-state-keywords.patch",
+      "repository": "vkd3d",
+      "sha256": "181e2708a9c95269bd89091c194d88dec5136d480be4ee9ef7c005f6abd91016"
+    },
+    {
+      "file": "assets/wine-appstate-registration.patch",
+      "sha256": "90d564fdadd25043ed03ec1279fa43b7717c43183ffb2d2dbee2a03158e4f090"
+    },
+    {
+      "file": "assets/xgameruntime-taskqueue-handle-lifetime.patch",
+      "sha256": "71b03c151786233956161feb5b5f0ce369101d353d5cab8b86eb717381b8c96c"
+    },
+    {
+      "file": "assets/xgameruntime-taskqueue-repeat-termination.patch",
+      "sha256": "0dd3bc5e8e32f546de2b060eaa6bc8c90197d9dd522d3ae150451a93900880d0"
+    }
+  ],
+  "expectedWineSources": {
+    "dlls/twinapi.appcore/main.c": "867b24b1a57331b9d28ba1355033e7b3a6f899bcccd6af024ea43c21b24c722e",
+    "dlls/twinapi.appcore/appstate-registration.h": "f011a711a77fd91a7d30d63f91adebcc31a2c161130af1160cd2b960f812f016"
+  },
+  "expectedVkd3dSources": {
+    "libs/vkd3d-shader/hlsl.l": "4bcde7ac8e4e43ea848483ca78dce9be0c2bf431398a912f53d339c6581791d5"
+  },
+  "expectedXgameruntimeSources": {
+    "dlls/xgameruntime/Makefile.in": "703a51c5f2a25deb15543b43cf4136260c06118f20e921db617f183c76a2ea6f",
+    "dlls/xgameruntime/main.c": "aa854f8dab809f887d204acd16042ad571dbdb5c99720401aada12a003033699",
+    "dlls/xgameruntime/private.h": "1355dc60dc8a7925cd737e06700e90c195a83b2f29aeebba3462f091f533aa6a",
+    "dlls/xgameruntime/xerror.c": "f0dc4b456af5c4cfdcc1036f1dd422848a1ce97abd6cd1722bf654c51927b694",
+    "dlls/xgameruntime/xgame.c": "7d7edff91a839cac522f910c54d4625d8efa61121c7a32f4bd3665cca184abae",
+    "dlls/xgameruntime/xgameactivation.c": "48a729040d7be7aac3e28b27aa06f8285bcef3f27767fa79ddfbe33c7b629dbc",
+    "dlls/xgameruntime/xgameinvite.c": "43c3459101f7da3a4bc6569d361f2d5f63f6a0e70006a0472c4ccb6f9bece41f",
+    "dlls/xgameruntime/xgameprotocol.c": "6936d5e24532832ee2e6928ea3a9a5217f8df830588b2e6e92920dd2cf1532d3",
+    "dlls/xgameruntime/xgameruntime.spec": "8e77261cdc459d2fe688c210c8024ee8eeb09057e679c3a38de941fde1a00d73",
+    "dlls/xgameruntime/xgamesave.c": "5d78ee9c7b102c24a8e3c08dae66ed88f3de529ede9d182cf2f0635d79ad90d0",
+    "dlls/xgameruntime/xgamesave.idl": "544319e88951f65b21c74f785fb9376c10cac8b1d57e98c7aa3079348162ccab",
+    "dlls/xgameruntime/xnetworking.c": "cfd8d0110b7ebd622f62317d3134dd866e6538e4a697b06912fa752517fe7caa",
+    "dlls/xgameruntime/xpackage.c": "5aa7f3a1431963c2d5f2371f1ad85c052fc589bf2bb759154ae62300e91233b7",
+    "dlls/xgameruntime/xpackage_content.h": "d3addb58053e44848bfb2be29d3568019196568ad98b605544b3506c03ed1c2f",
+    "dlls/xgameruntime/xpackage.idl": "189df1454b50e4cdf874592c6c5309985419c0ec20c5bf3dc69dba4bb62accde",
+    "dlls/xgameruntime/xpersistentlocalstorage.c": "48111212dcfe4ef328fa482dc8b426ef853b7c961d575aefeaa3b559788809b2",
+    "dlls/xgameruntime/xstore.c": "323183e6c7b6f627888dcd6c7d9be90bc1bf43cb8677b3be4fb06a1539947a5b",
+    "dlls/xgameruntime/xstore_entitled.h": "cae87da7943d625664c94b7179b47f1eedf2cd3dfd3192f99bd1a252b273e289",
+    "dlls/xgameruntime/xstore_receipts.h": "637cc315d72bb1ad20ce5529dfb6be4ef01ae8fd08a321aa5e852c1557c1d280",
+    "dlls/xgameruntime/xstore_package_license.h": "678f109e0a0af3f5e87951666f7c891af3999658f8698eb8855387ea355e2a31",
+    "dlls/xgameruntime/xsystem.c": "a3c151c5d05875b68f49c534aae9d40e3f15ec800af0f85e159ede7c95401880",
+    "dlls/xgameruntime/xsystemanalytics.c": "189e99c83273b429325ecefa2b9246c45863c22f0c4006a791ec57b8f7b9d384",
+    "dlls/xgameruntime/xthreading.c": "2cf262d75eb6da156f14f2702ccd3d59953da5bc8f4b898709c25d5489383361",
+    "dlls/xgameruntime/xuser.c": "74667ccfbde1cf063b477f53b335b4b9d07057998187a49384e7e39ba51d3ed1",
+    "dlls/xgameruntime/xuser_device_events.h": "ed3b6ac25510b7bff288e36859781811e7de3985d418159ce25a2b00bc6d35cb",
+    "dlls/xgameruntime/xuser_privilege.h": "4aa9a2736b59feb4d86cb86d95d99119ab1ccb6ab07b6b9a53c7da61acd0a77b",
+    "dlls/xgameruntime/util.c": "aebf1a7ebef0dff89d3a1683bc40e16c821eaeb5cc1160ce474b905d14d7cb5c",
+    "dlls/xgameruntime/util.h": "b739dba8a69a36103e72afc8dcaeaf324470d9ed47a5a7dd81b18e4e511ae69a",
+    "dlls/xgameruntime/userprovider.idl": "66fb09670b7dabfc55257475094239018ea9a19ec2be348e56cf2b17ef615d7a",
+    "dlls/xgameruntime/xgamesavefiles.h": "5f21c809107e8c67659899a43f98143a4cbba744be5731cc5c68c177fdc7956a",
+    "dlls/xgameruntime/xstore_game_license.h": "8bcc2fd256c3e08ba59d9d5211ffb6f70e01a95cef6d0272ddf61bb8d284bffb",
+    "dlls/xgameruntime/xpackage_chunks.h": "50fd27e2bcf43479eb8280e94e7a76b61299ab8590bc3129ce7ac16757698296",
+    "dlls/xgameruntime/xpackage_monitors.h": "4a279231a0a170f06ba956fbe18c3f540cc479139280ea34ba6fe65bd74e3112"
+  },
+  "runtimeCompatibilitySources": {
+    "scripts/runtime-compat/build.mjs": "ac150747020a3a29d1d436c2e2af879e66ea2fe9104d4d330534d6128ba3ea19",
+    "scripts/runtime-compat/playfab-save-folder.c": "fa63ceff1c77e2a1cdac5daae134ad46c29a20bf889208b5d73cfa808d53d56f",
+    "scripts/runtime-compat/playfab-save-folder.def": "a6f34058988f103cda4ae4f8774683a3ccbdf146fcc54af750b12335fc08cf8a",
+    "scripts/runtime-compat/wine-launcher.c": "b93a9669cc5b8420a79c74ecaee619d699c0105e54d1237770cdfed4ea7fe2a7",
+    "scripts/runtime-compat/gaming-services-version.c": "3410efcc5c862085684323034b41131ce1bc6d44c36fb013ecc4b9dc197dd128",
+    "scripts/runtime-compat/playfab-session.c": "b52994538c05e98e758d82dd7d69d29aca8093303e2c503c72f016158621f4ec",
+    "scripts/runtime-compat/playfab-session.h": "a7bf5c391f58314439925e4095c31b6e93776609c0563a5df0198012799b80e3"
+  },
+  "requiresBackendVersion": "0.2.1",
+  "limitations": [
+    "App-state and app-constrained notifications support registration and unregistration for desktop processes. Wine has no app-container lifecycle event source, so no suspend/resume or constrained-state notifications are synthesized.",
+    "Device-association subscriptions retain registration state and task queues. Device-to-Xbox-user association discovery and event delivery are unavailable; no controller association changes are synthesized.",
+    "Privilege resolution refreshes authenticated XSTS claims for the requested user. Missing or denied privileges fail; account restriction and subscription remediation UI is not implemented.",
+    "Application-specific device-ID queries return the documented unavailable-ID sentinel, not a unique platform identifier or hardware-attestation token.",
+    "PlayFab in-process fallback supports the verified x64 40-export SDK ABI; missing device/conflict/failure UI and final upload before normal SDK cleanup are provided. Forced process termination is not a successful cloud sync. Default-on Gaming Services version metadata is not a Microsoft service implementation.",
+    "Store update queries support the verified current-game no-update case; DLC, mandatory updates and downloads remain unsupported",
+    "Entitled-product queries verify fresh signed Store receipts for the current game and config-declared related products, with public catalog metadata. Online access is required; other Store queries, purchase/download APIs and consumable quantities are not supplied by this increment.",
+    "Installed Content discovery supports extracted PC packages with matching config/Appx identity, dependency, allowed parent and layout/file presence. It checks nearby installation directories and optional XODUS_CONTENT_ROOTS paths, not an OS-wide registry or full payload integrity. PublisherContent and content mounting remain unsupported; disk metadata never grants a license.",
+    "Package license acquire/result/valid/close requires fresh verified signed proof for an installed current/related nontrial Durable package. Handles are bounded by proof/SKU expiry; lost callbacks report expiry only, not account, network or concurrency revocations. Other acquisition variants and mounting remain unsupported.",
+    "Game-license change callbacks support registration, queue dispatch and safe unregistration/close. Events reflect changed verified current-title SKU receipts observed during entitlement refresh, not an OS purchase/revocation feed; initial, failed, missing or filtered observations emit no event.",
+    "Incomplete XAsync cancellation/resource reclamation",
+    "Partial package/event/privilege APIs are not complete GDK implementations",
+    "Single HTTP/2 stream per connection; chunked uploads and proxy/client-certificate transport gaps",
+    "Wine assertion observed after manual game exit; cause unresolved",
+    "No multiplayer match or all-title compatibility claim"
+  ]
+}

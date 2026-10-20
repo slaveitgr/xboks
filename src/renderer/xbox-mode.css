@@ -1,0 +1,42 @@
+/* Xbox mode foundation: horizontal navigation and controller-sized targets. */
+.xbox-mode.app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.xbox-mode .sidebar { flex-direction: row; align-items: center; gap: 24px; padding: 18px 4vw; border: 0; background: #171717; }
+.xbox-mode .account-summary { width: 190px; flex-shrink: 0; margin: 0; }
+.xbox-mode .sidebar nav { display: flex; gap: 12px; }
+.xbox-mode .sidebar .nav-item { display: flex; gap: 10px; width: auto; min-height: 52px; padding: 0 18px; font-size: 16px; }
+.xbox-mode .nav-item.active { background: #333; }
+.xbox-mode .nav-item.active::before { left: 18px; right: 18px; bottom: 0; width: auto; height: 3px; }
+.xbox-mode .recents { display: none; }
+.xbox-mode .sidebar-bottom { display: flex; align-items: center; gap: 12px; margin: 0 0 0 auto; padding: 0; border: 0; }
+.xbox-mode .queue-summary { min-width: 150px; }
+.xbox-mode .queue-preview { left: auto; right: 0; top: 100%; bottom: auto; padding: 12px 0 0; }
+.xbox-mode .content-shell { grid-template-rows: 64px minmax(0, 1fr); }
+.xbox-mode .topbar { justify-content: flex-start; gap: 18px; padding: 0 4vw; }
+.xbox-mode .search-box { width: min(560px, 48vw); height: 42px; }
+.xbox-mode .page { max-width: 1920px; padding: 24px 4vw 90px; }
+.xbox-mode .spotlight { min-height: clamp(300px, 42vh, 560px); border: 0; border-radius: 12px; }
+.xbox-mode .spotlight-copy { padding: 40px; }
+.xbox-mode .spotlight h1 { font-size: clamp(36px, 4.5vw, 72px); }
+.xbox-mode .poster-row { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; }
+.xbox-mode .poster-card .game-cover, .xbox-mode .poster-card .cover-placeholder { border-radius: 10px; }
+.xbox-mode button.primary, .xbox-mode button.secondary { min-height: 48px; padding: 0 22px; font-size: 14px; }
+.xbox-mode .section-title h2 { font-size: 26px; }
+.xbox-mode button:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
+html[data-gamepad-navigation] .xbox-mode [data-gamepad-focus] { outline: 3px solid var(--green) !important; outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .xbox-mode .sidebar { gap: 12px; padding: 12px 3vw; }
+  .xbox-mode .account-summary { width: 48px; }
+  .xbox-mode .sidebar .nav-item { padding: 0 12px; }
+  .xbox-mode .sidebar .nav-item span { display: inline; }
+  .xbox-mode .queue-summary { min-width: 48px; }
+}
+@media (max-width: 700px) {
+  .xbox-mode .sidebar { flex-wrap: wrap; gap: 8px; }
+  .xbox-mode .sidebar nav { order: 3; width: 100%; justify-content: center; }
+  .xbox-mode .sidebar-bottom { margin-left: auto; }
+  .xbox-mode .topbar { gap: 8px; }
+  .xbox-mode .search-box { width: auto; flex: 1; min-width: 0; }
+  .xbox-mode .fullscreen-toggle { font-size: 0 !important; padding: 0 12px !important; }
+  .xbox-mode .spotlight-copy { padding: 24px; }
+  .xbox-mode .poster-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

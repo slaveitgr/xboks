@@ -1,0 +1,89 @@
+# Changelog
+
+## Unreleased
+
+- Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
+- Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
+
+## Backend 0.2.7
+
+- Keep independently verified account-library records available when other license records are invalid or conflicting.
+- Add safe library error codes and HTTP status diagnostics without recording account or credential contents.
+
+## 0.3.7
+
+- Keep independently verified library games available when individual license records are invalid, with a warning when results are incomplete.
+- Add a local backend diagnostic log with safe error codes, an in-app viewer and a Copy log button.
+- Improve spacing around action buttons in Advanced / Diagnostics.
+
+## Backend 0.2.6
+
+- Prevent sign-in and installation panics when stored credentials are invalid, verify keyring writes and show actionable sign-in errors. Thanks @jordanfaz for reporting the issue.
+- Include nested dependency source directories in the corresponding-source archive for offline builds.
+
+## 0.3.6
+
+- Prevent repeated task-queue closes from releasing pending work or crashing during game shutdown.
+- Support app-state notification registration during game startup.
+- Accept SKU-qualified product IDs when requesting genuine Store license receipts.
+- Fix LIMBO failing to start with a pixel shader compiler error.
+- Fix Brotato installation failing while reading package metadata. Thanks @Techzilla44 for reporting the issue.
+- Fix Kingdom Come: Deliverance II crashing during startup. Thanks @TinyRoar-Basti for reporting the issue.
+- Support asynchronous multiplayer privilege resolution using authenticated Xbox account permissions. Account restrictions still require resolution through Xbox settings.
+- Fix PowerWash Simulator 2 getting stuck on the initial loading screen.
+- Deliver installation-progress notifications, fixing Indiana Jones and the Great Circle crashing after the opening logos.
+- Enumerate installed package chunks, languages, tags and features from layout metadata.
+- Support a legacy XPackage interface and its installed-package metadata queries.
+- Clear My Library search on restart while remembering Access and Play state filters.
+- Add gamepad navigation for the launcher, including directional focus, dialogs and game options, while preserving mouse and touch controls. Thanks @Techzilla44 for the suggestion.
+- Support gzip response decompression and server certificate-chain queries in the shared runtime's WinHTTP implementation.
+- Prevent doubled keyboard input in Steam Game Mode without changing game input settings. Thanks @Techzilla44 for reporting the issue.
+- Search all pages of the account library automatically instead of only the games already loaded.
+- Open the selected game from Most recent and library search results.
+- Delete uninstalled game files directly instead of moving them to Trash, with an explicit permanent-deletion warning and an option to keep the files.
+- Preview installation progress when hovering over Install Queue and show a desktop notification when a download completes.
+- Allow removing an unrelated game while another game downloads, keeping active installation folders protected.
+- Ignore commented-out manifest examples when importing games and reading runtime package metadata.
+
+## 0.3.5
+
+- Add an optional per-game DualSense compatibility mode for controllers not detected through native HIDRAW input.
+- Prevent automatic display sleep while a game is running, including when playing with a controller.
+- Keep library cards in place when loading more games and fix opening game options with a single click or tap. Thanks @Techzilla44 for reporting these issues.
+- Queue multiple game installations and download other games while playing. Keep queued installations cancellable.
+- Preserve cover proportions in Steam portrait library cards.
+- Add games and Nexus to Steam with library artwork, including while Steam is running.
+- Fix access to the KDE keyring when launching game shortcuts in Steam Game Mode.
+- Fix launcher startup from Steam Game Mode when the Steam overlay is injected.
+- Support Store game-license change subscriptions in the shared runtime.
+- Support Google Chrome installed through Discover/Flatpak for browser sign-in. Thanks @quentingeorgel for reporting the issue.
+- Fix games remaining active after a normal exit.
+- Fix games exiting during speech initialization when using the bundled runtime.
+- Support chunk-order requests for verified installed packages in the runtime.
+
+## 0.3.4
+
+- Fix games failing to launch with a WINEPREFIX error when no custom launch options or overlays are enabled.
+- Correct the demo's version display and use wide Store artwork for banners and game details.
+
+## 0.3.3
+
+- Offer Continue in browser when Microsoft passkey sign-in is waiting, including during first-time setup. Requires Google Chrome installed on the computer; other browsers are not supported.
+- Let users cancel a waiting passkey request without closing Microsoft sign-in.
+- Bundle a fallback font to prevent font-related startup crashes on minimal Linux installations.
+- Keep My Library filters after restarting Nexus and close search suggestions when leaving the search field or changing pages.
+- Fix desktop game shortcuts reporting an invalid profile path when Nexus is already running.
+- Show an installation package picker for Store offers with multiple downloads instead of waiting for terminal input. Requires the updated Nexus backend.
+- Name game shortcut files after the game, with safe handling of duplicate titles.
+- Add per-game MangoHud, gamescope and custom command-prefix settings.
+- Align the game details with the library grid and give installed and installable cards matching heights.
+- Use Store covers and wide detail artwork instead of small package icons, with a local-image fallback.
+- Use wide Store artwork for the Home banner instead of stretching package icons.
+- Make the library refresh control compact and aligned with the filters.
+
+## 0.3.2
+
+- Fix Microsoft sign-in on SteamOS without installing WebKitGTK or changing the system partition. Start the built-in KDE keyring automatically when needed.
+- Keep My Library's Access, Play state and search filters when switching between tabs.
+
+The updated sign-in backend requires launcher 0.3.2 or newer. Update both the launcher and Nexus backend.

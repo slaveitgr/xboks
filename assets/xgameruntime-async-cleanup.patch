@@ -1,0 +1,58 @@
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -237,6 +237,7 @@
+     XTaskQueueHandle retained_queue;
+     BOOL completion_finished;
+     BOOL provider_cleanup_finished;
++    DWORD completion_thread;
+ };
+ 
+ static inline struct async_state *async_state( XAsyncBlock *asyncBlock )
+@@ -323,9 +324,13 @@
+     TRACE( "iface %p, asyncBlock %p, wait %d.\n", iface, asyncBlock, wait );
+     if (!asyncBlock || !asyncBlock->internal[0] || !asyncBlock->internal[3]) return E_INVALIDARG;
+     state = async_state( asyncBlock );
+-    /* Polling reports the work result. Waiting also waits for the completion
+-     * callback to return, so the caller can observe its final side effects. */
+-    if (wait && WaitForSingleObject( state->provider_block.internal[3], INFINITE ) == WAIT_FAILED)
++    /* External waiters still wait for callback side effects. A completion
++     * callback may query its own result with wait=true (XBL/HC cleanup does
++     * this); waiting for that same callback to return would deadlock. */
++    EnterCriticalSection( &state->cs );
++    BOOL own_callback = state->completion_thread == GetCurrentThreadId();
++    LeaveCriticalSection( &state->cs );
++    if (wait && !own_callback && WaitForSingleObject( state->provider_block.internal[3], INFINITE ) == WAIT_FAILED)
+         return HRESULT_FROM_WIN32( GetLastError() );
+     EnterCriticalSection( &state->cs );
+     result = state->status;
+@@ -350,11 +355,13 @@
+ 
+ static void WINAPI x_threading_XAsyncCancel( IXThreadingImpl *iface, XAsyncBlock *asyncBlock )
+ {
+-    /* XAsyncCancel is best-effort and asynchronous: a block may still
+-     * complete normally after a successful cancel. The providers here do
+-     * not carry a cancel op, so cancelling is accepted and any in-flight
+-     * work simply runs to its normal completion. */
+     TRACE( "iface %p, asyncBlock %p.\n", iface, asyncBlock );
++    if (!asyncBlock || !asyncBlock->internal[0]) return;
++    /* Cancellation is best-effort: notify the actual provider, which owns
++     * cancellation/completion of its IO. Do not fabricate terminal success or
++     * force E_ABORT over a provider's already completed result. Provider call
++     * lifetime defers Cleanup if cancellation races in-flight work. */
++    async_invoke_provider( async_state( asyncBlock ), XAsyncOp_Cancel );
+ }
+ 
+ static HRESULT WINAPI run_provider( XAsyncOp op, const XAsyncProviderData *data )
+@@ -485,8 +492,12 @@
+ static void CALLBACK async_completion_callback( struct async_state *state, BOOLEAN canceled )
+ {
+     if (canceled) async_invoke_provider( state, XAsyncOp_Cancel );
++    EnterCriticalSection( &state->cs );
++    state->completion_thread = GetCurrentThreadId();
++    LeaveCriticalSection( &state->cs );
+     if (!canceled) state->callback( state->user_block );
+     EnterCriticalSection( &state->cs );
++    state->completion_thread = 0;
+     state->completion_finished = TRUE;
+     LeaveCriticalSection( &state->cs );
+     SetEvent( state->provider_block.internal[3] );

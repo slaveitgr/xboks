@@ -1,0 +1,139 @@
+name: Game launch or gameplay problem
+description: Report a specific game failing to launch, crashing, or having gameplay or online problems.
+title: "[Game] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for **Xodus Nexus**, an independent, unofficial project, not upstream Xodus.
+        Report **one game per issue**. For installation or ownership errors, use **Launcher, account or download problem**.
+
+        Reproduce the failure, then attach both:
+        - **Backend log:** Settings → Xodus backend → Open backend diagnostic log → Copy log. Save as `backend.txt`.
+        - **Game log:** open the game page, expand **Launch failed** or **Game exited**, then choose **Open diagnostic log**.
+          Copy the text and save as `game.txt`. For a crash, temporarily enable **Settings → Advanced → Game logging →
+          Verbose game logs**, click **Save diagnostics**, reproduce once, then turn verbose logging off again.
+
+  - type: input
+    id: game
+    attributes:
+      label: Game, edition and Store product ID
+      description: Include the exact edition, game version and Microsoft Store product ID if known. Do not substitute a Steam edition.
+      placeholder: "Game: ...; edition: ...; version: ...; Store product ID: ..."
+    validations:
+      required: true
+  - type: dropdown
+    id: access
+    attributes:
+      label: How do you access this game?
+      options:
+        - Purchased Microsoft Store PC copy
+        - PC Game Pass subscription
+        - Another subscription (describe below)
+        - Imported local game (describe its source below)
+        - Unknown (explain below)
+    validations:
+      required: true
+  - type: input
+    id: launcher-version
+    attributes:
+      label: Launcher version
+      description: Copy the exact version from Settings, not "latest".
+      placeholder: 0.3.8
+    validations:
+      required: true
+  - type: input
+    id: backend-version
+    attributes:
+      label: Nexus backend version
+      description: Settings → Xodus backend. This is updated separately from the launcher.
+      placeholder: 0.2.8
+    validations:
+      required: true
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Nexus runtime version
+      description: Copy the active runtime name/version from Settings, not "latest". Describe any custom runtime below.
+      placeholder: Exact active runtime name/version
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and version
+      placeholder: "SteamOS, Bazzite, CachyOS, etc. Include the version or image release."
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Handheld model or desktop/laptop model, CPU, GPU and RAM. Include the GPU driver version if known. No serial numbers.
+      placeholder: "Device/model: ...; CPU: ...; GPU: ...; RAM: ...; GPU driver: ..."
+    validations:
+      required: true
+      min_length: 15
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session used when the problem occurs
+      options:
+        - Desktop (Wayland)
+        - Desktop (X11)
+        - Steam Gaming Mode
+        - Other or unknown (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Launcher installation
+      options:
+        - AppImage from Nexus GitHub Releases
+        - Built from source (include commit below)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the exact error and where it happens (before a window, menu, loading, gameplay, online sign-in or exit). Mention any custom settings or modifications.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Explain how to reach the failure, whether it happens every time, and whether the game previously worked with Nexus.
+      placeholder: "1. Launch ...\n2. Choose ...\n3. The error appears ..."
+    validations:
+      required: true
+      min_length: 20
+  - type: upload
+    id: logs
+    attributes:
+      label: Game log and backend diagnostic log
+      description: Attach game.txt (or the game .log) and backend.txt from the failing attempt. A .zip containing both is also accepted. Review and remove private information first.
+    validations:
+      required: true
+      accept: ".log,.txt,.zip"
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Optional screenshots
+      description: Hide account information. Screenshots do not replace logs.
+    validations:
+      required: false
+      accept: ".png,.jpg,.jpeg,.webp"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and included the exact component versions.
+          required: true
+        - label: I attached logs from the failing attempt and reviewed them for private information.
+          required: true

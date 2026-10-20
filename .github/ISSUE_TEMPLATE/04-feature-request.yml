@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement to Xodus Nexus. Logs and hardware details are not required.
+title: "[Feature] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest an improvement to **Xodus Nexus**, an independent, unofficial project, not upstream Xodus.
+        Search existing requests first. For broken functionality or a game that does not work, use a bug form instead.
+        Do not include private account information.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case and who would benefit.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed improvement
+      description: Explain the behavior you would like and how it would help.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and additional context
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this request.
+          required: true

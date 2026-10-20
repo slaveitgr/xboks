@@ -1,0 +1,998 @@
+--- a/dlls/xgameruntime/xgamesave.c
++++ b/dlls/xgameruntime/xgamesave.c
+@@ -23,6 +23,7 @@
+ #include <stdio.h>
+ #include "private.h"
+ #include "util.h"
++#include <bcrypt.h>
+ 
+ struct x_game_save
+ {
+@@ -105,11 +106,13 @@
+ {
+     XUserHandle user;
+     char *scid;
+-    char root[MAX_PATH];
++    char root[2048];
+     char base[512];
+     char *auth;
+     BOOL cloud;
+     BOOL locked;
++    BOOL files;
++    BOOL session_lock;
+     INT64 quota;
+     UINT32 downloaded;
+     UINT32 uploaded;
+@@ -340,14 +343,42 @@
+     return filetime_to_unix( &ft );
+ }
+ 
++static BOOL save_wide_path( const char *path, WCHAR out[4096] )
++{
++    if (path[0] && path[1] == ':')
++    {
++        wcscpy( out, L"\\\\?\\" );
++        return MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, out + 4, 4092 ) != 0;
++    }
++    return MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, out, 4096 ) != 0;
++}
++
++static HANDLE save_find_first( const char *path, WIN32_FIND_DATAA *out )
++{
++    WCHAR wide[4096];
++    WIN32_FIND_DATAW data;
++    HANDLE find;
++    if (!save_wide_path( path, wide )) return INVALID_HANDLE_VALUE;
++    find = FindFirstFileW( wide, &data );
++    if (find != INVALID_HANDLE_VALUE)
++    {
++        memcpy( out, &data, offsetof(WIN32_FIND_DATAA, cFileName) );
++        WideCharToMultiByte( CP_UTF8, 0, data.cFileName, -1, out->cFileName, sizeof(out->cFileName), NULL, NULL );
++    }
++    return find;
++}
++
+ static HRESULT read_file( const char *path, BYTE **data, SIZE_T *size )
+ {
+-    HANDLE file = CreateFileA( path, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL );
++    WCHAR wide[4096];
++    HANDLE file;
+     LARGE_INTEGER li;
+     DWORD read;
+ 
+     *data = NULL;
+     *size = 0;
++    if (!save_wide_path( path, wide )) return HRESULT_FROM_WIN32( GetLastError() );
++    file = CreateFileW( wide, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL );
+     if (file == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32( GetLastError() );
+     if (!GetFileSizeEx( file, &li ) || !(*data = calloc( 1, li.QuadPart + 1 )))
+     {
+@@ -368,46 +399,40 @@
+ 
+ static HRESULT write_file( const char *path, const void *data, SIZE_T size )
+ {
+-    char tmp[MAX_PATH + 8];
++    char tmp[2048 + 8];
++    WCHAR wide[4096], temporary[4096];
+     HANDLE file;
+     DWORD written;
+     BOOL ok;
+ 
+     snprintf( tmp, sizeof(tmp), "%s.tmp", path );
+-    file = CreateFileA( tmp, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL );
++    if (!save_wide_path( path, wide ) || !save_wide_path( tmp, temporary )) return HRESULT_FROM_WIN32( GetLastError() );
++    file = CreateFileW( temporary, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, 0, NULL );
+     if (file == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32( GetLastError() );
+     ok = (!size || (WriteFile( file, data, size, &written, NULL ) && written == size)) && FlushFileBuffers( file );
+     CloseHandle( file );
+-    if (!ok || !MoveFileExA( tmp, path, MOVEFILE_REPLACE_EXISTING ))
++    if (!ok || !MoveFileExW( temporary, wide, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ))
+     {
+-        DeleteFileA( tmp );
++        DeleteFileW( temporary );
+         return HRESULT_FROM_WIN32( GetLastError() );
+     }
+     return S_OK;
+ }
+ 
++static HRESULT files_mkdir( const char *path );
+ static void create_directories( const char *path )
+ {
+-    char buf[MAX_PATH];
+-    lstrcpynA( buf, path, sizeof(buf) );
+-    for (char *p = buf + 3; *p; p++)
+-        if (*p == '\\')
+-        {
+-            *p = 0;
+-            CreateDirectoryA( buf, NULL );
+-            *p = '\\';
+-        }
+-    CreateDirectoryA( buf, NULL );
++    files_mkdir( path );
+ }
+ 
+ static void delete_directory( const char *path )
+ {
+-    char pattern[MAX_PATH], child[MAX_PATH];
++    char pattern[2048], child[2048];
+     WIN32_FIND_DATAA data;
+     HANDLE find;
+ 
+     snprintf( pattern, sizeof(pattern), "%s\\*", path );
+-    if ((find = FindFirstFileA( pattern, &data )) != INVALID_HANDLE_VALUE)
++    if ((find = save_find_first( pattern, &data )) != INVALID_HANDLE_VALUE)
+     {
+         do
+         {
+@@ -421,20 +446,33 @@
+     RemoveDirectoryA( path );
+ }
+ 
++static char *files_cache_key( const char *name )
++{
++    BCRYPT_ALG_HANDLE algorithm;
++    BYTE digest[32];
++    char *hex;
++    if (BCryptOpenAlgorithmProvider( &algorithm, BCRYPT_SHA256_ALGORITHM, NULL, 0 )) return NULL;
++    NTSTATUS status = BCryptHash( algorithm, NULL, 0, (BYTE *)name, strlen(name), digest, sizeof(digest) );
++    BCryptCloseAlgorithmProvider( algorithm, 0 );
++    if (status || !(hex = malloc(65))) return NULL;
++    for (UINT i = 0; i < 32; i++) sprintf( hex + i * 2, "%02x", digest[i] );
++    return hex;
++}
++
+ static BOOL container_dir( struct XGameSaveProvider *provider, const char *name, char *out, SIZE_T size )
+ {
+-    char *hex = hex_encode( name );
++    char *hex = provider->files ? files_cache_key( name ) : hex_encode( name );
+     if (!hex) return FALSE;
+-    snprintf( out, size, "%s\\%s", provider->root, hex );
++    if (snprintf( out, size, "%s\\%s", provider->root, hex ) >= size) { free( hex ); return FALSE; }
+     free( hex );
+     return TRUE;
+ }
+ 
+ static BOOL blob_path( struct XGameSaveProvider *provider, const char *container, const char *blob, char *out, SIZE_T size )
+ {
+-    char dir[MAX_PATH], *hex = hex_encode( blob );
++    char dir[2048], *hex = provider->files ? files_cache_key( blob ) : hex_encode( blob );
+     BOOL ok = hex && container_dir( provider, container, dir, sizeof(dir) );
+-    if (ok) snprintf( out, size, "%s\\b_%s", dir, hex );
++    if (ok) ok = snprintf( out, size, "%s\\b_%s", dir, hex ) < size;
+     free( hex );
+     return ok;
+ }
+@@ -486,7 +524,7 @@
+ 
+ static HRESULT load_state( struct XGameSaveProvider *provider, const char *name, struct container_state *state )
+ {
+-    char dir[MAX_PATH], path[MAX_PATH];
++    char dir[2048], path[2048];
+     char *line, *next, *text;
+     SIZE_T size;
+     BYTE *data;
+@@ -500,14 +538,14 @@
+     text = (char *)data;
+     for (line = text; line && *line; line = next)
+     {
+-        char a[128] = { 0 }, b[128] = { 0 };
++        char a[1024] = { 0 }, b[128] = { 0 };
+         unsigned int blobSize = 0;
+         if ((next = strchr( line, '\n' ))) *next++ = 0;
+         if (!strncmp( line, "display ", 8 )) state->display = hex_decode( line + 8 );
+         else if (!strncmp( line, "time ", 5 )) state->time = _strtoui64( line + 5, NULL, 10 );
+         else if (!strncmp( line, "remote ", 7 )) lstrcpynA( state->remote, strcmp( line + 7, "-" ) ? line + 7 : "", sizeof(state->remote) );
+         else if (!strncmp( line, "dirty ", 6 )) state->dirty = atoi( line + 6 );
+-        else if (sscanf( line, "blob %127s %u %127s", a, &blobSize, b ) == 3)
++        else if (sscanf( line, "blob %1023s %u %127s", a, &blobSize, b ) == 3)
+         {
+             char *blobName = hex_decode( a );
+             struct blob_entry *entry = blobName ? add_blob( state, blobName ) : NULL;
+@@ -523,8 +561,8 @@
+ 
+ static HRESULT save_state( struct XGameSaveProvider *provider, const struct container_state *state )
+ {
+-    char dir[MAX_PATH], path[MAX_PATH], *hex, *text;
+-    SIZE_T size = 256 + (state->display ? strlen( state->display ) * 2 : 0), len = 0;
++    char dir[2048], path[2048], *hex, *text;
++    SIZE_T size = 256 + (provider->files ? strlen(state->name) * 2 + 8 : 0) + (state->display ? strlen( state->display ) * 2 : 0), len = 0;
+     HRESULT hr;
+ 
+     for (UINT32 i = 0; i < state->count; i++) size += strlen( state->blobs[i].name ) * 2 + 80;
+@@ -534,6 +572,14 @@
+     hex = hex_encode( state->display ? state->display : "" );
+     len += snprintf( text + len, size - len, "display %s\ntime %I64u\nremote %s\ndirty %d\n", hex ? hex : "", state->time, state->remote[0] ? state->remote : "-", state->dirty );
+     free( hex );
++    if (provider->files)
++    {
++        hex = hex_encode( state->name );
++        if (!hex) { free( text ); return E_OUTOFMEMORY; }
++        /* Persist file-provider metadata separately from the exposed files. */
++        len += snprintf( text + len, size - len, "name %s\n", hex );
++        free( hex );
++    }
+     for (UINT32 i = 0; i < state->count; i++)
+     {
+         hex = hex_encode( state->blobs[i].name );
+@@ -550,20 +596,37 @@
+ 
+ static void enumerate_local( struct XGameSaveProvider *provider, container_callback callback, void *context )
+ {
+-    char pattern[MAX_PATH], index[MAX_PATH];
++    char pattern[2048], index[2048];
+     WIN32_FIND_DATAA data;
+     HANDLE find;
+ 
+     snprintf( pattern, sizeof(pattern), "%s\\*", provider->root );
+-    if ((find = FindFirstFileA( pattern, &data )) == INVALID_HANDLE_VALUE) return;
++    if ((find = save_find_first( pattern, &data )) == INVALID_HANDLE_VALUE) return;
+     do
+     {
+         char *name;
+         BOOL more;
+         if (!(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || data.cFileName[0] == '.') continue;
+         snprintf( index, sizeof(index), "%s\\%s\\index", provider->root, data.cFileName );
+-        if (GetFileAttributesA( index ) == INVALID_FILE_ATTRIBUTES) continue;
+-        if (!(name = hex_decode( data.cFileName ))) continue;
++        if (provider->files)
++        {
++            BYTE *text;
++            SIZE_T size;
++            char *line, *end;
++            /* Hash directories are indexes, not container names. Recovery
++             * backups/incomplete downloads must never enter the cloud set. */
++            if (strlen(data.cFileName) != 64 || strspn(data.cFileName, "0123456789abcdef") != 64) continue;
++            if (FAILED(read_file( index, &text, &size ))) continue;
++            line = strstr( (char *)text, "\nname " );
++            if (!line || !(end = strchr( line + 6, '\n' ))) { free(text); continue; }
++            *end = 0; name = hex_decode( line + 6 ); free(text);
++            if (!name) continue;
++        }
++        else
++        {
++            if (GetFileAttributesA( index ) == INVALID_FILE_ATTRIBUTES) continue;
++            if (!(name = hex_decode( data.cFileName ))) continue;
++        }
+         more = callback( provider, name, context );
+         free( name );
+         if (!more) break;
+@@ -594,6 +657,7 @@
+     DWORD status;
+     HRESULT hr;
+ 
++    if (provider->session_lock && provider->locked) return TRUE;
+     hr = cloud_request( provider, "PUT", "/lock?friendlyName=Xodus", "x-xbl-lock-ver: 1\r\nContent-Type: application/json\r\n", NULL, 0, &status, &buffer, &size );
+     if (FAILED(hr)) return FALSE;
+     if (status == 200 || status == 201)
+@@ -612,7 +676,7 @@
+     BYTE *buffer;
+     DWORD status;
+ 
+-    if (!provider->locked) return;
++    if (!provider->locked || provider->session_lock) return;
+     if (SUCCEEDED(cloud_request( provider, "DELETE", uploaded ? "/lock?newSavesUploaded=true" : "/lock?newSavesUploaded=false", NULL, NULL, 0, &status, &buffer, &size )))
+         free( buffer );
+     provider->locked = FALSE;
+@@ -627,7 +691,7 @@
+ static HRESULT cloud_download( struct XGameSaveProvider *provider, const char *name, const char *display, const char *remoteTime )
+ {
+     struct container_state state = { 0 };
+-    char path[1024], dir[MAX_PATH], blob[MAX_PATH], *enc, *key;
++    char path[1024], dir[2048], blob[2048], *enc, *key;
+     SIZE_T size, dataSize;
+     BYTE *buffer, *data;
+     const char *atoms, *value;
+@@ -775,7 +839,7 @@
+ 
+ static HRESULT cloud_upload( struct XGameSaveProvider *provider, struct container_state *state )
+ {
+-    char path[2048], blob[MAX_PATH], timestamp[48], *enc, *encDisplay, *json, *p;
++    char path[2048], blob[2048], timestamp[48], *enc, *encDisplay, *json, *p;
+     SIZE_T size, jsonSize = 32;
+     BYTE *buffer, *data;
+     DWORD status;
+@@ -914,7 +978,7 @@
+ {
+     struct remote_container *remote = context;
+     struct container_state state;
+-    char dir[MAX_PATH];
++    char dir[2048];
+ 
+     for (; remote->name; remote++) if (!strcmp( remote->name, name )) return TRUE;
+     if (FAILED(load_state( provider, name, &state )))
+@@ -949,6 +1013,8 @@
+     save_state( provider, state );
+ }
+ 
++static HRESULT files_cloud_download( struct XGameSaveProvider *, const char *, const char *, const char * );
++
+ static HRESULT cloud_sync( struct XGameSaveProvider *provider )
+ {
+     struct remote_container *remote = NULL;
+@@ -1007,13 +1073,22 @@
+         struct container_state state;
+         BOOL exists = SUCCEEDED(load_state( provider, remote[i].name, &state ));
+         BOOL remoteChanged = !exists || strcmp( state.remote, remote[i].time ? remote[i].time : "" );
++        if (provider->files && exists && state.dirty && remoteChanged && mode == SYNC_AUTO)
++        {
++            /* Never silently overwrite either side of a file-save conflict. */
++            free_state( &state );
++            hr = E_GS_CONTAINER_NOT_IN_SYNC;
++            goto done;
++        }
+         if (mode == SYNC_UPLOAD)
+         {
+             if (exists) force_upload( provider, &state );
+         }
+         else if (mode == SYNC_DOWNLOAD || !exists || (remoteChanged && !state.dirty) || (remoteChanged && state.dirty && parse_iso_time( remote[i].time ) > state.time))
+         {
+-            if (SUCCEEDED(cloud_download( provider, remote[i].name, remote[i].display, remote[i].time ))) provider->downloaded++;
++            hr = provider->files ? files_cloud_download( provider, remote[i].name, remote[i].display, remote[i].time ) :
++                                  cloud_download( provider, remote[i].name, remote[i].display, remote[i].time );
++            if (SUCCEEDED(hr)) provider->downloaded++;
+         }
+         else if (state.dirty && SUCCEEDED(cloud_upload( provider, &state )))
+         {
+@@ -1021,10 +1096,12 @@
+             provider->uploaded++;
+         }
+         free_state( &state );
++        if (provider->files && FAILED(hr)) goto done;
+     }
++done:
+     if (remote)
+     {
+-        enumerate_local( provider, sync_local_callback, remote );
++        if (SUCCEEDED(hr)) enumerate_local( provider, sync_local_callback, remote );
+         for (UINT32 i = 0; i < count; i++)
+         {
+             free( remote[i].name );
+@@ -1038,13 +1115,13 @@
+         struct remote_container empty = { 0 };
+         enumerate_local( provider, sync_local_callback, &empty );
+     }
+-    return S_OK;
++    return provider->files ? hr : S_OK;
+ }
+ 
+ static HRESULT initialize_provider( XUserHandle user, const char *configurationId, XGameSaveProviderHandle *out )
+ {
+     struct XGameSaveProvider *provider;
+-    char localAppData[MAX_PATH], scid[128];
++    char localAppData[2048], scid[128];
+     UINT64 xuid;
+     HRESULT hr;
+ 
+@@ -1116,7 +1193,7 @@
+ 
+ static HRESULT delete_container( struct XGameSaveProvider *provider, const char *name )
+ {
+-    char dir[MAX_PATH];
++    char dir[2048];
+     HRESULT hr;
+ 
+     if (!provider || !name || !*name) return E_INVALIDARG;
+@@ -1213,7 +1290,7 @@
+ static HRESULT prepare_read( struct read_request *req )
+ {
+     struct container_state state;
+-    char path[MAX_PATH];
++    char path[2048];
+     SIZE_T size = 0, offset;
+     UINT32 count;
+     HRESULT hr;
+@@ -1310,7 +1387,7 @@
+ {
+     struct XGameSaveProvider *provider = update->container->provider;
+     struct container_state state;
+-    char path[MAX_PATH];
++    char path[2048];
+     UINT64 total = 0;
+     HRESULT hr = S_OK;
+ 
+@@ -1331,7 +1408,7 @@
+     else if (!state.display) state.display = strdup( update->container->name );
+     if (SUCCEEDED(hr))
+     {
+-        char dir[MAX_PATH];
++        char dir[2048];
+         container_dir( provider, state.name, dir, sizeof(dir) );
+         create_directories( dir );
+     }
+@@ -1823,23 +1900,7 @@
+     return get_save_result( async, 0, NULL );
+ }
+ 
+-static HRESULT WINAPI x_game_save_XGameSaveFilesGetFolderWithUiAsync( IXGameSaveImpl3 *iface, XUserHandle requestingUser, const char *configurationId, XAsyncBlock *async )
+-{
+-    FIXME( "iface %p, requestingUser %p, configurationId %s, async %p stub!\n", iface, requestingUser, debugstr_a( configurationId ), async );
+-    return E_NOTIMPL;
+-}
+-
+-static HRESULT WINAPI x_game_save_XGameSaveFilesGetFolderWithUiResult( IXGameSaveImpl3 *iface, XAsyncBlock *async, SIZE_T folderSize, char *folderResult )
+-{
+-    FIXME( "iface %p, async %p, folderSize %Iu, folderResult %p stub!\n", iface, async, folderSize, folderResult );
+-    return E_NOTIMPL;
+-}
+-
+-static HRESULT WINAPI x_game_save_XGameSaveFilesGetRemainingQuota( IXGameSaveImpl3 *iface, XUserHandle userContext, const char *configurationId, INT64 *remainingQuota )
+-{
+-    FIXME( "iface %p, userContext %p, configurationId %s, remainingQuota %p stub!\n", iface, userContext, debugstr_a( configurationId ), remainingQuota );
+-    return E_NOTIMPL;
+-}
++#include "xgamesavefiles.h"
+ 
+ #define UNKNOWN_SLOT(n) \
+ static HRESULT WINAPI x_game_save_unknown##n( void *iface, void *a, void *b, void *c, void *d ) \
+--- a/dlls/xgameruntime/xgamesavefiles.h
++++ b/dlls/xgameruntime/xgamesavefiles.h
+@@ -0,0 +1,562 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * File-save provider. Included after the connected-storage implementation.
++ * Plain UTF-8 file names are never exposed as the encoded blob cache.
++ * A restricted-handle child owns the session lock and final post-exit upload.
++ */
++#define FILES_PATH 2048
++#define FILES_MAX_BLOB (64 * 1024 * 1024)
++struct files_ipc
++{
++    HANDLE parent, ready;
++    HRESULT hr;
++    UINT64 xuid;
++    UINT32 title;
++    BOOL trust, offline;
++    char scid[129], pfn[256], msa[128], folder[FILES_PATH];
++};
++struct files_session
++{
++    struct files_session *next;
++    UINT64 xuid;
++    char scid[129];
++    HANDLE mapping, ready, process;
++    struct files_ipc *ipc;
++};
++static struct files_session *files_sessions;
++static SRWLOCK files_sessions_lock = SRWLOCK_INIT;
++
++static HRESULT files_wide( const char *text, WCHAR out[FILES_PATH] )
++{
++    return MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, out, FILES_PATH ) ? S_OK : HRESULT_FROM_WIN32( GetLastError() );
++}
++static HRESULT files_normalize_scid( const char *text, char out[129] )
++{
++    WCHAR wrapped[40], canonical[40];
++    GUID guid;
++    if (!text || strlen(text) != 36) return E_INVALIDARG;
++    if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, text, 36, wrapped + 1, 36 )) return E_INVALIDARG;
++    wrapped[0] = '{'; wrapped[37] = '}'; wrapped[38] = 0;
++    if (FAILED(CLSIDFromString( wrapped, &guid )) || !StringFromGUID2( &guid, canonical, ARRAY_SIZE(canonical) )) return E_INVALIDARG;
++    if (!WideCharToMultiByte( CP_UTF8, 0, canonical + 1, 36, out, 128, NULL, NULL )) return E_INVALIDARG;
++    out[36] = 0;
++    for (char *p = out; *p; p++) *p = tolower( (BYTE)*p );
++    return S_OK;
++}
++static BOOL files_component( const char *name, BOOL container )
++{
++    const char *part = name;
++    WCHAR wide[FILES_PATH];
++    if (!*name || strlen( name ) > (container ? 256 : 260) || FAILED(files_wide( name, wide ))) return FALSE;
++    if (!container)
++        return wcslen( wide ) <= 65 && !strpbrk( name, "/\\:*?\"<>|" ) && strcmp( name, "." ) && strcmp( name, ".." ) && name[strlen(name)-1] != '.';
++    while (*part)
++    {
++        const char *end = strchr( part, '/' );
++        if (!end) end = part + strlen( part );
++        if (end == part || *part == '.' || *part == '-' || end[-1] == '.') return FALSE;
++        for (const char *p = part; p != end; p++)
++            if (!(isalnum( (BYTE)*p ) && (BYTE)*p < 128) && *p != '_' && *p != '.' && *p != '-') return FALSE;
++        if (strstr( part, ".." )) return FALSE;
++        part = *end ? end + 1 : end;
++        if (*end && !*part) return FALSE;
++    }
++    return TRUE;
++}
++static HRESULT files_mkdir( const char *path )
++{
++    WCHAR wide[FILES_PATH];
++    HRESULT hr;
++    if (FAILED(hr = files_wide( path, wide ))) return hr;
++    for (WCHAR *p = wide + 3;; p++)
++    {
++        WCHAR c = *p;
++        if (c != '\\' && c != '/' && c) continue;
++        *p = 0;
++        if (!CreateDirectoryW( wide, NULL ) && GetLastError() != ERROR_ALREADY_EXISTS) return HRESULT_FROM_WIN32( GetLastError() );
++        DWORD attrs = GetFileAttributesW( wide );
++        if (attrs == INVALID_FILE_ATTRIBUTES || !(attrs & FILE_ATTRIBUTE_DIRECTORY) || (attrs & FILE_ATTRIBUTE_REPARSE_POINT))
++            return HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED );
++        *p = c;
++        if (!c) break;
++    }
++    return S_OK;
++}
++static HRESULT files_roots( UINT64 xuid, const char *scid, char *folder, char *cache )
++{
++    WCHAR localW[512];
++    char local[FILES_PATH], *hex;
++    DWORD len;
++    if (!xuid || !scid || !*scid || strlen( scid ) > 128) return E_INVALIDARG;
++    len = GetEnvironmentVariableW( L"LOCALAPPDATA", localW, ARRAY_SIZE(localW) );
++    if (!len || len >= ARRAY_SIZE(localW)) return HRESULT_FROM_WIN32( ERROR_BAD_PATHNAME );
++    if (!WideCharToMultiByte( CP_UTF8, 0, localW, -1, local, sizeof(local), NULL, NULL )) return HRESULT_FROM_WIN32( GetLastError() );
++    if (!(hex = hex_encode( scid ))) return E_OUTOFMEMORY;
++    int n = snprintf( folder, FILES_PATH, "%s\\XodusGameSaveFiles\\%I64u\\%s", local, xuid, hex );
++    int m = snprintf( cache, FILES_PATH, "%s\\XodusGameSaveFilesCache\\%I64u\\%s", local, xuid, hex );
++    free( hex );
++    return n >= FILES_PATH || m >= FILES_PATH ? HRESULT_FROM_WIN32( ERROR_FILENAME_EXCED_RANGE ) : S_OK;
++}
++static HRESULT files_read( const char *path, BYTE **out, SIZE_T *size )
++{
++    WCHAR wide[FILES_PATH];
++    HANDLE file;
++    LARGE_INTEGER length;
++    DWORD read;
++    HRESULT hr;
++    *out = NULL; *size = 0;
++    if (FAILED(hr = files_wide( path, wide ))) return hr;
++    DWORD attrs = GetFileAttributesW( wide );
++    if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_REPARSE_POINT)) return HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED );
++    file = CreateFileW( wide, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL );
++    if (file == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32( GetLastError() );
++    if (!GetFileSizeEx( file, &length )) hr = HRESULT_FROM_WIN32( GetLastError() );
++    else if (length.QuadPart < 0 || length.QuadPart > FILES_MAX_BLOB) hr = E_GS_UPDATE_TOO_BIG;
++    else if (!(*out = malloc( max( 1, length.QuadPart ) ))) hr = E_OUTOFMEMORY;
++    else if (length.QuadPart && (!ReadFile( file, *out, length.QuadPart, &read, NULL ) || read != length.QuadPart)) hr = E_FAIL;
++    else { *size = length.QuadPart; hr = S_OK; }
++    CloseHandle( file );
++    if (FAILED(hr)) { free( *out ); *out = NULL; }
++    return hr;
++}
++static HRESULT files_write( const char *path, const BYTE *data, SIZE_T size )
++{
++    WCHAR wide[FILES_PATH], temp[FILES_PATH];
++    HRESULT hr;
++    DWORD count;
++    HANDLE file;
++    if (FAILED(hr = files_wide( path, wide ))) return hr;
++    if (wcslen( wide ) + 5 >= ARRAY_SIZE(temp)) return HRESULT_FROM_WIN32( ERROR_FILENAME_EXCED_RANGE );
++    swprintf( temp, ARRAY_SIZE(temp), L"%s.tmp", wide );
++    file = CreateFileW( temp, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_FLAG_OPEN_REPARSE_POINT, NULL );
++    if (file == INVALID_HANDLE_VALUE) return HRESULT_FROM_WIN32( GetLastError() );
++    hr = WriteFile( file, data, size, &count, NULL ) && count == size && FlushFileBuffers( file ) ? S_OK : E_FAIL;
++    CloseHandle( file );
++    if (SUCCEEDED(hr) && !MoveFileExW( temp, wide, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH )) hr = HRESULT_FROM_WIN32( GetLastError() );
++    if (FAILED(hr)) DeleteFileW( temp );
++    return hr;
++}
++
++/* Enumerate each complete parent subpath as one container, not just its first
++ * component. Top-level files are deliberately ignored by the GDK contract. */
++typedef HRESULT (*files_visit_callback)( const char *, const char *, const char *, const WIN32_FIND_DATAW *, void * );
++static HRESULT files_walk( const char *root, const char *relative, files_visit_callback visit, void *context )
++{
++    char pattern[FILES_PATH], child[FILES_PATH];
++    WCHAR wide[FILES_PATH];
++    WIN32_FIND_DATAW data;
++    HANDLE find;
++    HRESULT hr;
++    if (snprintf( pattern, sizeof(pattern), "%s\\%s%s*", root, relative, *relative ? "\\" : "" ) >= sizeof(pattern)) return E_GS_INVALID_CONTAINER_NAME;
++    if (FAILED(hr = files_wide( pattern, wide ))) return hr;
++    if ((find = FindFirstFileW( wide, &data )) == INVALID_HANDLE_VALUE)
++        return GetLastError() == ERROR_FILE_NOT_FOUND ? S_OK : HRESULT_FROM_WIN32( GetLastError() );
++    hr = S_OK;
++    do
++    {
++        char name[260];
++        if (!wcscmp( data.cFileName, L"." ) || !wcscmp( data.cFileName, L".." )) continue;
++        if (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) { hr = HRESULT_FROM_WIN32( ERROR_ACCESS_DENIED ); break; }
++        if (!WideCharToMultiByte( CP_UTF8, 0, data.cFileName, -1, name, sizeof(name), NULL, NULL )) { hr = E_GS_INVALID_CONTAINER_NAME; break; }
++        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
++        {
++            if (snprintf( child, sizeof(child), "%s%s%s", relative, *relative ? "/" : "", name ) >= sizeof(child) || !files_component( child, TRUE ))
++            { hr = E_GS_INVALID_CONTAINER_NAME; break; }
++            hr = files_walk( root, child, visit, context );
++        }
++        else if (*relative)
++        {
++            if (!files_component( name, FALSE ) || strlen(relative) + strlen(name) + 1 >= 260) { hr = E_GS_INVALID_CONTAINER_NAME; break; }
++            hr = visit( root, relative, name, &data, context );
++        }
++        if (FAILED(hr)) break;
++    } while (FindNextFileW( find, &data ));
++    if (SUCCEEDED(hr) && GetLastError() != ERROR_NO_MORE_FILES) hr = HRESULT_FROM_WIN32( GetLastError() );
++    FindClose( find );
++    return hr;
++}
++struct files_import_context { struct XGameSaveProvider *provider; UINT64 total; };
++static HRESULT files_import_one( const char *root, const char *container, const char *name, const WIN32_FIND_DATAW *info, void *arg )
++{
++    struct files_import_context *ctx = arg;
++    struct container_state state;
++    struct blob_entry *entry;
++    char path[FILES_PATH], cached[FILES_PATH], directory[FILES_PATH];
++    BYTE *data = NULL, *old = NULL;
++    SIZE_T size, oldSize = 0;
++    BOOL replaced = FALSE;
++    HRESULT hr;
++    if (((UINT64)info->nFileSizeHigh << 32 | info->nFileSizeLow) > FILES_MAX_BLOB) return E_GS_UPDATE_TOO_BIG;
++    if (snprintf( path, sizeof(path), "%s\\%s\\%s", root, container, name ) >= sizeof(path)) return E_GS_INVALID_CONTAINER_NAME;
++    if (FAILED(hr = files_read( path, &data, &size ))) return hr;
++    if ((ctx->total += size) > ctx->provider->quota) { free( data ); return (HRESULT)0x80830006; }
++    hr = load_state( ctx->provider, container, &state );
++    if (FAILED(hr) && hr != HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) && hr != HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) goto done;
++    if (!blob_path( ctx->provider, container, name, cached, sizeof(cached) ) || !container_dir( ctx->provider, container, directory, sizeof(directory) )) { hr = E_OUTOFMEMORY; goto done; }
++    if (FAILED(hr = files_mkdir( directory ))) goto done;
++    if (!(entry = add_blob( &state, name ))) { hr = E_OUTOFMEMORY; goto done; }
++    if (FAILED(files_read( cached, &old, &oldSize )) || oldSize != size || entry->size != size || memcmp( data, old, size ))
++    {
++        if (FAILED(hr = files_write( cached, data, size ))) goto done;
++        replaced = TRUE;
++        entry->size = size; entry->atom[0] = 0; state.dirty = TRUE; state.time = unix_now();
++    }
++    hr = save_state( ctx->provider, &state );
++    if (FAILED(hr) && replaced && old) files_write( cached, old, oldSize );
++done:
++    free( data ); free( old ); free_state( &state ); return hr;
++}
++struct files_cache_context { const char *folder; HRESULT hr; BOOL prune; };
++static BOOL files_cache_visit( struct XGameSaveProvider *provider, const char *container, void *arg )
++{
++    struct files_cache_context *ctx = arg;
++    struct container_state state;
++    char dir[FILES_PATH], path[FILES_PATH], cached[FILES_PATH];
++    WCHAR wide[FILES_PATH];
++    BYTE *data;
++    SIZE_T size;
++    HRESULT hr;
++    if (!files_component( container, TRUE )) { ctx->hr = E_GS_INVALID_CONTAINER_NAME; return FALSE; }
++    if (FAILED(hr = load_state( provider, container, &state ))) { free_state( &state ); ctx->hr = hr; return FALSE; }
++    if (snprintf( dir, sizeof(dir), "%s\\%s", ctx->folder, container ) >= sizeof(dir)) { hr = E_GS_INVALID_CONTAINER_NAME; goto done; }
++    if (!ctx->prune && FAILED(hr = files_mkdir( dir ))) goto done;
++    for (UINT32 i = 0; i < state.count;)
++    {
++        struct blob_entry *entry = &state.blobs[i];
++        if (!files_component( entry->name, FALSE ) || strlen(container) + strlen(entry->name) + 1 >= 260) { hr = E_GS_INVALID_CONTAINER_NAME; break; }
++        if (snprintf( path, sizeof(path), "%s\\%s", dir, entry->name ) >= sizeof(path) || FAILED(hr = files_wide( path, wide ))) { hr = E_GS_INVALID_CONTAINER_NAME; break; }
++        if (ctx->prune)
++        {
++            DWORD attrs = GetFileAttributesW( wide );
++            if (attrs == INVALID_FILE_ATTRIBUTES && (GetLastError() == ERROR_FILE_NOT_FOUND || GetLastError() == ERROR_PATH_NOT_FOUND))
++            { remove_blob( &state, entry->name ); state.dirty = TRUE; state.time = unix_now(); continue; }
++            if (attrs == INVALID_FILE_ATTRIBUTES || (attrs & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY))) { hr = E_FAIL; break; }
++        }
++        else
++        {
++            if (!blob_path( provider, container, entry->name, cached, sizeof(cached) )) { hr = E_OUTOFMEMORY; break; }
++            if (FAILED(hr = files_read( cached, &data, &size ))) break;
++            hr = files_write( path, data, size ); free( data ); if (FAILED(hr)) break;
++        }
++        i++;
++    }
++    if (SUCCEEDED(hr) && ctx->prune) hr = save_state( provider, &state );
++done:
++    free_state( &state ); ctx->hr = hr; return SUCCEEDED(hr);
++}
++static HRESULT files_import( struct XGameSaveProvider *provider, const char *folder )
++{
++    struct files_import_context scan = { provider, 0 };
++    struct files_cache_context cache = { folder, S_OK, TRUE };
++    HRESULT hr = files_walk( folder, "", files_import_one, &scan );
++    if (FAILED(hr)) return hr;
++    enumerate_local( provider, files_cache_visit, &cache );
++    return cache.hr;
++}
++static HRESULT files_export( struct XGameSaveProvider *provider, const char *folder )
++{
++    char incoming[FILES_PATH], backup[FILES_PATH];
++    WCHAR source[FILES_PATH], target[FILES_PATH], old[FILES_PATH];
++    struct files_cache_context ctx = { incoming, S_OK, FALSE };
++    HRESULT hr;
++    snprintf( incoming, sizeof(incoming), "%s.incoming-%lu", folder, GetCurrentProcessId() );
++    snprintf( backup, sizeof(backup), "%s.backup-%I64u-%lu", folder, GetTickCount64(), GetCurrentProcessId() );
++    if (FAILED(hr = files_mkdir( incoming ))) return hr;
++    enumerate_local( provider, files_cache_visit, &ctx );
++    if (FAILED(ctx.hr)) return ctx.hr;
++    if (FAILED(hr = files_wide( incoming, source )) || FAILED(hr = files_wide( folder, target )) || FAILED(hr = files_wide( backup, old ))) return hr;
++    if (GetFileAttributesW( target ) != INVALID_FILE_ATTRIBUTES && !MoveFileExW( target, old, MOVEFILE_WRITE_THROUGH )) return HRESULT_FROM_WIN32( GetLastError() );
++    if (!MoveFileExW( source, target, MOVEFILE_WRITE_THROUGH ))
++    {
++        hr = HRESULT_FROM_WIN32( GetLastError() ); MoveFileExW( old, target, MOVEFILE_WRITE_THROUGH ); return hr;
++    }
++    /* The pre-sync local view is recoverable; never erase it during promotion. */
++    return S_OK;
++}
++
++/* Download into a distinct cache tree. A truncated/failed transfer must not
++ * erase the last usable cache. Successful swaps retain a recovery backup. */
++static HRESULT files_cloud_download( struct XGameSaveProvider *provider, const char *name, const char *display, const char *remoteTime )
++{
++    char saved[FILES_PATH], incoming[FILES_PATH], target[FILES_PATH], backup[FILES_PATH];
++    WCHAR fromW[FILES_PATH], targetW[FILES_PATH], backupW[FILES_PATH];
++    struct container_state state;
++    HRESULT hr;
++    if (!files_component( name, TRUE )) return E_GS_INVALID_CONTAINER_NAME;
++    strcpy( saved, provider->root );
++    if (snprintf( provider->root, sizeof(provider->root), "%s.incoming-%lu", saved, GetCurrentProcessId() ) >= sizeof(provider->root))
++    { strcpy( provider->root, saved ); return E_GS_INVALID_CONTAINER_NAME; }
++    hr = cloud_download( provider, name, display, remoteTime );
++    if (SUCCEEDED(hr))
++    {
++        hr = load_state( provider, name, &state );
++        for (UINT32 i = 0; SUCCEEDED(hr) && i < state.count; i++)
++            if (!files_component( state.blobs[i].name, FALSE ) || state.blobs[i].size > FILES_MAX_BLOB || strlen(name) + strlen(state.blobs[i].name) + 1 >= 260)
++                hr = E_GS_INVALID_CONTAINER_NAME;
++        free_state( &state );
++    }
++    if (!container_dir( provider, name, incoming, sizeof(incoming) )) hr = E_OUTOFMEMORY;
++    strcpy( provider->root, saved );
++    if (FAILED(hr)) return hr;
++    if (!container_dir( provider, name, target, sizeof(target) )) return E_OUTOFMEMORY;
++    if (snprintf( backup, sizeof(backup), "%s.backup-%I64u", target, GetTickCount64() ) >= sizeof(backup)) return E_GS_INVALID_CONTAINER_NAME;
++    if (FAILED(hr = files_wide( incoming, fromW )) || FAILED(hr = files_wide( target, targetW )) || FAILED(hr = files_wide( backup, backupW ))) return hr;
++    BOOL exists = GetFileAttributesW( targetW ) != INVALID_FILE_ATTRIBUTES;
++    if (exists && !MoveFileExW( targetW, backupW, MOVEFILE_WRITE_THROUGH )) return HRESULT_FROM_WIN32( GetLastError() );
++    if (!MoveFileExW( fromW, targetW, MOVEFILE_WRITE_THROUGH ))
++    { hr = HRESULT_FROM_WIN32( GetLastError() ); if (exists) MoveFileExW( backupW, targetW, MOVEFILE_WRITE_THROUGH ); return hr; }
++    return S_OK;
++}
++static BOOL files_upload_visit( struct XGameSaveProvider *provider, const char *container, void *arg )
++{
++    HRESULT *result = arg;
++    struct container_state state;
++    HRESULT hr = load_state( provider, container, &state );
++    if (SUCCEEDED(hr) && state.dirty && provider->cloud)
++    {
++        hr = cloud_upload( provider, &state );
++        if (SUCCEEDED(hr)) { provider->uploaded++; hr = save_state( provider, &state ); }
++    }
++    free_state( &state );
++    if (FAILED(hr)) *result = hr;
++    return SUCCEEDED(hr);
++}
++
++/* rundll32 entry, private implementation export, never a public GDK API. Only
++ * the mapping/parent/event handles cross the child boundary; no token files. */
++void WINAPI XodusSaveFilesMonitor( HWND window, HINSTANCE instance, char *command, int show )
++{
++    char *end, cache[FILES_PATH], mutexName[320];
++    UINT64 value = _strtoui64( command, &end, 10 );
++    HANDLE mapping = (HANDLE)(ULONG_PTR)value, mutex = NULL;
++    struct files_ipc *ipc = NULL;
++    struct XGameSaveProvider *provider = NULL;
++    IXThreadingImpl *threads = NULL;
++    XUserHandle user = NULL;
++    XAsyncBlock async = { 0 };
++    HRESULT hr = E_INVALIDARG, com;
++    if (!value || *end) return;
++    if (!(ipc = MapViewOfFile( mapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(*ipc) ))) return;
++    com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    if (!ipc->xuid || !ipc->scid[0] || ipc->scid[128] || ipc->pfn[255] || ipc->msa[127]) goto ready;
++    snprintf( mutexName, sizeof(mutexName), "Local\\NexusFileSaves-%I64u-%s", ipc->xuid, ipc->scid );
++    mutex = CreateMutexA( NULL, TRUE, mutexName );
++    if (!mutex) { hr = HRESULT_FROM_WIN32( GetLastError() ); goto ready; }
++    if (GetLastError() == ERROR_ALREADY_EXISTS) { hr = HRESULT_FROM_WIN32( ERROR_BUSY ); goto ready; }
++    if (FAILED(hr = files_roots( ipc->xuid, ipc->scid, ipc->folder, cache ))) goto ready;
++    WCHAR folderW[FILES_PATH];
++    if (FAILED(hr = files_wide( ipc->folder, folderW ))) goto ready;
++    BOOL view_existed = GetFileAttributesW( folderW ) != INVALID_FILE_ATTRIBUTES;
++    if (FAILED(hr = files_mkdir( ipc->folder )) || FAILED(hr = files_mkdir( cache ))) goto ready;
++    if (!(provider = calloc( 1, sizeof(*provider) ))) { hr = E_OUTOFMEMORY; goto ready; }
++    InitializeCriticalSection( &provider->cs );
++    provider->scid = strdup( ipc->scid ); provider->files = TRUE; provider->quota = SAVE_QUOTA;
++    lstrcpynA( provider->root, cache, sizeof(provider->root) );
++    if (!provider->scid) { hr = E_OUTOFMEMORY; goto ready; }
++    if (!ipc->offline)
++    {
++        MESSAGE( "nexus-files: phase=account\n" );
++        /* Configuration identity is inherited from the initialized game, not
++         * inferred from rundll32's install directory. Authentication is real. */
++        packageFamilyName = strdup( ipc->pfn ); msaAppId = strdup( ipc->msa );
++        titleId = ipc->title; fullTrust = ipc->trust;
++        if (!packageFamilyName || !msaAppId) { hr = E_OUTOFMEMORY; goto ready; }
++        if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threads ))) goto ready;
++        if (FAILED(hr = IXUserImpl_XUserAddAsync( x_user_impl, XUserAddOptions_AddDefaultUserSilently, &async )) ||
++            FAILED(hr = IXThreadingImpl_XAsyncGetStatus( threads, &async, TRUE )) ||
++            FAILED(hr = IXUserImpl_XUserAddResult( x_user_impl, &async, &user ))) goto ready;
++        if (xuser_get_xuid( user ) != ipc->xuid) { hr = (HRESULT)0x80830002; goto ready; }
++        provider->user = user; user = NULL;
++        provider->cloud = TRUE;
++        snprintf( provider->base, sizeof(provider->base), "https://titlestorage.xboxlive.com/connectedstorage/users/xuid(%I64u)/scids/%s", ipc->xuid, ipc->scid );
++        if (FAILED(hr = xuser_device_authorization( provider->user, "http://xboxlive.com", &provider->auth ))) goto ready;
++        if (!cloud_lock( provider )) { hr = E_GS_CONTAINER_NOT_IN_SYNC; goto ready; }
++        provider->session_lock = TRUE;
++    }
++    if (view_existed && FAILED(hr = files_import( provider, ipc->folder ))) goto ready;
++    if (provider->cloud && FAILED(hr = cloud_sync( provider ))) goto ready;
++    if (provider->cloud) MESSAGE( "nexus-files: phase=download downloaded=%u\n", provider->downloaded );
++    if (provider->cloud)
++    {
++        enumerate_local( provider, files_upload_visit, &hr );
++        if (FAILED(hr)) goto ready;
++    }
++    if (FAILED(hr = files_export( provider, ipc->folder ))) goto ready;
++ready:
++    ipc->hr = hr; MemoryBarrier(); SetEvent( ipc->ready );
++    if (SUCCEEDED(hr))
++    {
++        MESSAGE( "nexus-files: provider-ready cloud=%d\n", provider->cloud );
++        while (WaitForSingleObject( ipc->parent, 30000 ) == WAIT_TIMEOUT)
++        {
++            if (provider->cloud)
++            {
++                provider->locked = FALSE;
++                if (!cloud_lock( provider )) { ipc->hr = E_GS_CONTAINER_NOT_IN_SYNC; hr = ipc->hr; break; }
++            }
++        }
++        /* The parent has exited: all save file handles are closed. */
++        if (SUCCEEDED(hr)) hr = files_import( provider, ipc->folder );
++        if (SUCCEEDED(hr) && provider->cloud) enumerate_local( provider, files_upload_visit, &hr );
++        MESSAGE( "nexus-files: final-sync hr=%#lx uploaded=%u\n", hr, provider->uploaded );
++    }
++    if (FAILED(hr)) ERR( "file save provider failed hr=%#lx; local data is retained\n", hr );
++    if (provider) { provider->session_lock = FALSE; close_provider( provider ); }
++    if (user) IXUserImpl_XUserCloseHandle( x_user_impl, user );
++    if (threads) IXThreadingImpl_Release( threads );
++    if (mutex) { ReleaseMutex( mutex ); CloseHandle( mutex ); }
++    if (SUCCEEDED(com)) CoUninitialize();
++    CloseHandle( ipc->parent ); CloseHandle( ipc->ready ); UnmapViewOfFile( ipc ); CloseHandle( mapping );
++}
++
++static HRESULT files_start_session( UINT64 xuid, const char *scid, struct files_session **out )
++{
++    struct files_session *session;
++    SECURITY_ATTRIBUTES security = { sizeof(security), NULL, TRUE };
++    STARTUPINFOEXW startup = { { sizeof(startup) } };
++    PROCESS_INFORMATION process;
++    HANDLE handles[3], parent = NULL;
++    SIZE_T bytes = 0;
++    BOOL attributes_initialized = FALSE;
++    WCHAR command[512], system[260];
++    char mode[16];
++    HRESULT hr = E_OUTOFMEMORY;
++    AcquireSRWLockExclusive( &files_sessions_lock );
++    for (session = files_sessions; session; session = session->next)
++        if (session->xuid == xuid && !strcmp( session->scid, scid ))
++        {
++            /* Retry genuine initialization failures after the old monitor has
++             * exited. Keep old contexts alive for concurrent result readers. */
++            if (WaitForSingleObject( session->process, 0 ) == WAIT_OBJECT_0 && FAILED(session->ipc->hr)) continue;
++            *out = session; ReleaseSRWLockExclusive( &files_sessions_lock ); return S_OK;
++        }
++    if (!(session = calloc( 1, sizeof(*session) ))) goto done;
++    session->xuid = xuid; strcpy( session->scid, scid );
++    session->mapping = CreateFileMappingW( INVALID_HANDLE_VALUE, &security, PAGE_READWRITE, 0, sizeof(struct files_ipc), NULL );
++    session->ready = CreateEventW( &security, TRUE, FALSE, NULL );
++    if (!session->mapping || !session->ready || !(session->ipc = MapViewOfFile( session->mapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(*session->ipc) ))) { hr = HRESULT_FROM_WIN32( GetLastError() ); goto fail; }
++    if (!DuplicateHandle( GetCurrentProcess(), GetCurrentProcess(), GetCurrentProcess(), &parent, SYNCHRONIZE, TRUE, 0 )) { hr = HRESULT_FROM_WIN32( GetLastError() ); goto fail; }
++    session->ipc->parent = parent; session->ipc->ready = session->ready; session->ipc->xuid = xuid;
++    strcpy( session->ipc->scid, scid ); session->ipc->title = titleId; session->ipc->trust = fullTrust;
++    session->ipc->offline = !packageFamilyName || (GetEnvironmentVariableA( "XODUS_SAVE_SYNC", mode, sizeof(mode) ) && !_stricmp( mode, "none" ));
++    if ((packageFamilyName && strlen(packageFamilyName) >= sizeof(session->ipc->pfn)) || (msaAppId && strlen(msaAppId) >= sizeof(session->ipc->msa))) { hr = E_INVALIDARG; goto fail; }
++    strcpy( session->ipc->pfn, packageFamilyName ? packageFamilyName : "" ); strcpy( session->ipc->msa, msaAppId ? msaAppId : "" );
++    handles[0] = session->mapping; handles[1] = session->ready; handles[2] = parent;
++    InitializeProcThreadAttributeList( NULL, 1, 0, &bytes );
++    if (!(startup.lpAttributeList = malloc( bytes ))) goto fail;
++    if (!InitializeProcThreadAttributeList( startup.lpAttributeList, 1, 0, &bytes ))
++    { hr = HRESULT_FROM_WIN32( GetLastError() ); goto attributes; }
++    attributes_initialized = TRUE;
++    if (!UpdateProcThreadAttribute( startup.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles, sizeof(handles), NULL, NULL ))
++    { hr = HRESULT_FROM_WIN32( GetLastError() ); goto attributes; }
++    if (!GetSystemDirectoryW( system, ARRAY_SIZE(system) )) { hr = HRESULT_FROM_WIN32( GetLastError() ); goto attributes; }
++    swprintf( command, ARRAY_SIZE(command), L"\"%s\\rundll32.exe\" xgameruntime.dll,XodusSaveFilesMonitor %I64u", system, (UINT64)(ULONG_PTR)session->mapping );
++    if (!CreateProcessW( NULL, command, NULL, NULL, TRUE, EXTENDED_STARTUPINFO_PRESENT | CREATE_NO_WINDOW, NULL, NULL, &startup.StartupInfo, &process ))
++    { hr = HRESULT_FROM_WIN32( GetLastError() ); goto attributes; }
++    CloseHandle( process.hThread ); session->process = process.hProcess;
++    session->next = files_sessions; files_sessions = session; *out = session; hr = S_OK;
++attributes:
++    if (attributes_initialized) DeleteProcThreadAttributeList( startup.lpAttributeList );
++    free( startup.lpAttributeList );
++    if (SUCCEEDED(hr)) { CloseHandle( parent ); goto done; }
++fail:
++    if (parent) CloseHandle( parent );
++    if (session->ipc) UnmapViewOfFile( session->ipc );
++    if (session->ready) CloseHandle( session->ready );
++    if (session->mapping) CloseHandle( session->mapping );
++    free( session );
++done:
++    ReleaseSRWLockExclusive( &files_sessions_lock ); return hr;
++}
++
++struct files_async { LONG refs, canceled; XUserHandle user; char scid[129], folder[FILES_PATH]; };
++static void files_async_release( struct files_async *ctx )
++{
++    if (!InterlockedDecrement( &ctx->refs )) { IXUserImpl_XUserCloseHandle( x_user_impl, ctx->user ); free( ctx ); }
++}
++struct files_worker { XAsyncProviderData data; IXThreadingImpl *threads; };
++static DWORD WINAPI files_worker_thread( void *arg )
++{
++    struct files_worker *worker = arg;
++    struct files_async *ctx = worker->data.context;
++    struct files_session *session;
++    HRESULT hr = files_start_session( xuser_get_xuid( ctx->user ), ctx->scid, &session );
++    if (SUCCEEDED(hr))
++    {
++        HANDLE waits[2] = { session->ready, session->process };
++        DWORD result = WaitForMultipleObjects( 2, waits, FALSE, 120000 );
++        hr = result == WAIT_OBJECT_0 ? session->ipc->hr : HRESULT_FROM_WIN32( result == WAIT_TIMEOUT ? ERROR_TIMEOUT : ERROR_PROCESS_ABORTED );
++        if (SUCCEEDED(hr)) strcpy( ctx->folder, session->ipc->folder );
++    }
++    if (InterlockedCompareExchange( &ctx->canceled, 0, 0 )) hr = E_ABORT;
++    IXThreadingImpl_XAsyncComplete( worker->threads, worker->data.async, hr, SUCCEEDED(hr) ? strlen(ctx->folder) + 1 : 0 );
++    files_async_release( ctx ); IXThreadingImpl_Release( worker->threads ); free( worker ); return 0;
++}
++static HRESULT WINAPI files_async_provider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct files_async *ctx = data->context;
++    IXThreadingImpl *threads;
++    HRESULT hr = S_OK;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threads ))) return hr;
++    switch (op)
++    {
++        case XAsyncOp_Begin: hr = IXThreadingImpl_XAsyncSchedule( threads, data->async, 0 ); break;
++        case XAsyncOp_DoWork:
++        {
++            struct files_worker *worker;
++            HANDLE thread;
++            if (!(worker = calloc( 1, sizeof(*worker) ))) { hr = E_OUTOFMEMORY; break; }
++            worker->data = *data; worker->threads = threads; IXThreadingImpl_AddRef( threads );
++            InterlockedIncrement( &ctx->refs );
++            if (!(thread = CreateThread( NULL, 0, files_worker_thread, worker, 0, NULL )))
++            { hr = HRESULT_FROM_WIN32( GetLastError() ); files_async_release( ctx ); IXThreadingImpl_Release( threads ); free( worker ); break; }
++            CloseHandle( thread ); hr = E_PENDING; break;
++        }
++        case XAsyncOp_GetResult: memcpy( data->buffer, ctx->folder, strlen(ctx->folder) + 1 ); break;
++        case XAsyncOp_Cancel: InterlockedExchange( &ctx->canceled, TRUE ); break;
++        case XAsyncOp_Cleanup: files_async_release( ctx ); break;
++    }
++    IXThreadingImpl_Release( threads ); return hr;
++}
++static HRESULT WINAPI x_game_save_XGameSaveFilesGetFolderWithUiAsync( IXGameSaveImpl3 *iface, XUserHandle user, const char *scid, XAsyncBlock *async )
++{
++    struct files_async *ctx;
++    IXThreadingImpl *threads;
++    char normalized[129];
++    HRESULT hr;
++    if (!user || !async || FAILED(files_normalize_scid( scid, normalized ))) return E_INVALIDARG;
++    if (!xuser_get_xuid( user )) return (HRESULT)0x80830002;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threads ))) return hr;
++    if (!(ctx = calloc( 1, sizeof(*ctx) ))) { IXThreadingImpl_Release( threads ); return E_OUTOFMEMORY; }
++    ctx->refs = 1; strcpy( ctx->scid, normalized );
++    if (FAILED(hr = IXUserImpl_XUserDuplicateHandle( x_user_impl, user, &ctx->user ))) { free(ctx); IXThreadingImpl_Release( threads ); return hr; }
++    hr = IXThreadingImpl_XAsyncBegin( threads, async, ctx, files_async_provider, "XGameSaveFilesGetFolderWithUiAsync", files_async_provider );
++    if (FAILED(hr)) files_async_release( ctx );
++    IXThreadingImpl_Release( threads ); return hr;
++}
++static HRESULT WINAPI x_game_save_XGameSaveFilesGetFolderWithUiResult( IXGameSaveImpl3 *iface, XAsyncBlock *async, SIZE_T size, char *folder )
++{
++    IXThreadingImpl *threads;
++    HRESULT hr;
++    if (!async || !size || !folder) return E_INVALIDARG;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threads ))) return hr;
++    hr = IXThreadingImpl_XAsyncGetResult( threads, async, files_async_provider, size, folder, NULL );
++    IXThreadingImpl_Release( threads ); return hr;
++}
++static HRESULT files_quota_one( const char *root, const char *container, const char *name, const WIN32_FIND_DATAW *data, void *arg )
++{
++    UINT64 *total = arg;
++    *total += ((UINT64)data->nFileSizeHigh << 32) | data->nFileSizeLow;
++    return S_OK;
++}
++static HRESULT WINAPI x_game_save_XGameSaveFilesGetRemainingQuota( IXGameSaveImpl3 *iface, XUserHandle user, const char *scid, INT64 *quota )
++{
++    char folder[FILES_PATH], cache[FILES_PATH], normalized[129];
++    UINT64 total = 0;
++    HRESULT hr;
++    if (!user || !quota || FAILED(files_normalize_scid( scid, normalized ))) return E_INVALIDARG;
++    if (!xuser_get_xuid( user )) return (HRESULT)0x80830002;
++    if (FAILED(hr = files_roots( xuser_get_xuid( user ), normalized, folder, cache ))) return hr;
++    if (FAILED(hr = files_walk( folder, "", files_quota_one, &total ))) return hr;
++    *quota = total >= SAVE_QUOTA ? 0 : SAVE_QUOTA - total;
++    return S_OK;
++}
+--- a/dlls/xgameruntime/xgameruntime.spec
++++ b/dlls/xgameruntime/xgameruntime.spec
+@@ -5,3 +5,4 @@
+ @ stdcall -private QueryApiImpl(ptr ptr ptr)
+ @ stdcall -private UninitializeApiImpl()
+ @ stub -private XErrorReport(long str)
++@ stdcall -private XodusSaveFilesMonitor(long long str long)

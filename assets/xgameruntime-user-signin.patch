@@ -1,0 +1,357 @@
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -102,7 +102,11 @@
+     char *deviceAuth;
+     ULONGLONG deviceAuthTime;
+     CRITICAL_SECTION deviceAuthSection;
++    CONDITION_VARIABLE initCv;
++    LONG initDone;
++    HRESULT initResult;
+     UINT64 xuid;
++    XUserAgeGroup age_group;
+     UINT32 policiesLen;
+     UINT32 endpointsLen;
+     struct policy *policies;
+@@ -531,7 +535,7 @@
+ {
+     static const char template[] = "{\"Sandbox\":\"RETAIL\",\"UseModernGamertag\":true,\"DeviceToken\":\"";
+     SIZE_T size = ARRAY_SIZE( template ) + strlen( deviceToken ) + strlen( "\",\"AccessToken\":\"\"}" ) + strlen( userTicket );
+-    HSTRING authToken = NULL, gtg = NULL, mgs = NULL, mgt = NULL, umg = NULL, userToken = NULL, xid = NULL, titleToken = NULL;
++    HSTRING authToken = NULL, gtg = NULL, mgs = NULL, mgt = NULL, umg = NULL, userToken = NULL, xid = NULL, titleToken = NULL, age = NULL;
+     IJsonObject *authObject = NULL, *claims = NULL, *identity = NULL, *object = NULL, *userObject = NULL, *titleObject = NULL;
+     WCHAR header[116] = { 'S', 'i', 'g', 'n', 'a', 't', 'u', 'r', 'e', ':', ' ' };
+     char *body, signature[104];
+@@ -575,6 +579,14 @@
+     if (FAILED(hr = get_json_string( identity, L"xid", &xid ))) goto cleanup;
+     stringBuffer = WindowsGetStringRawBuffer( xid, NULL );
+     user->xuid = wcstoull( stringBuffer, NULL, 10 );
++    user->age_group = XUserAgeGroup_Unknown;
++    if (SUCCEEDED(get_json_string( identity, L"agg", &age )))
++    {
++        stringBuffer = WindowsGetStringRawBuffer( age, NULL );
++        if (!wcscmp(stringBuffer,L"Child")) user->age_group = XUserAgeGroup_Child;
++        else if (!wcscmp(stringBuffer,L"Teen")) user->age_group = XUserAgeGroup_Teen;
++        else if (!wcscmp(stringBuffer,L"Adult")) user->age_group = XUserAgeGroup_Adult;
++    }
+     if (FAILED(hr = get_json_string( identity, L"gtg", &gtg ))) goto cleanup;
+     stringBuffer = WindowsGetStringRawBuffer( gtg, NULL );
+     if (!WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, stringBuffer, -1, user->gamertag, 16, NULL, NULL )) goto error;
+@@ -619,6 +631,7 @@
+     if (mgt) WindowsDeleteString( mgt );
+     if (umg) WindowsDeleteString( umg );
+     if (xid) WindowsDeleteString( xid );
++    if (age) WindowsDeleteString( age );
+     if (xui) IJsonArray_Release( xui );
+     if (buffer) free( buffer );
+     free( body );
+@@ -726,15 +739,15 @@
+ {
+     static char proofKeyTemplate[] = "{\"alg\":\"ES256\",\"crv\":\"P-256\",\"kty\":\"EC\",\"use\":\"sig\",\"x\":\"";
+     static const SIZE_T proofKeySize = ARRAY_SIZE( proofKeyTemplate ) + sizeof( "\",\"y\":\"\"}" ) + 85;
+-    BYTE blob[sizeof(BCRYPT_ECCKEY_BLOB) + 64], *currentBuffer = NULL, *defaultBuffer = NULL;
+-    char *deviceTicket = NULL, *deviceToken = NULL, *userTicket = NULL, *x, *y;
++    BYTE blob[sizeof(BCRYPT_ECCKEY_BLOB) + 64];
++    char *x, *y;
+     struct XUser *impl = impl_from_IUser( iface );
+-    WCHAR *auth = NULL;
+     NTSTATUS status;
+-    SIZE_T size;
+     ULONG dummy;
+     HRESULT hr;
+ 
++    (void)options;
++
+     TRACE( "iface %p.\n", iface );
+ 
+     /* generate signing key pair and convert public key to jwk */
+@@ -750,6 +763,24 @@
+     if (FAILED(hr = encode_base64_url( 32, blob + sizeof(BCRYPT_ECCKEY_BLOB) + 32, 43, y, FALSE ))) return hr;
+     strcat( impl->proofKey, "\"}" );
+ 
++    InitializeConditionVariable( &impl->initCv );
++    impl->initDone = 0;
++    impl->initResult = E_PENDING;
++    return S_OK;
++}
++
++/* The endpoint/device/SISU handshake can take minutes on a cold token cache.
++ * Titles time out sign-in while XUserAddAsync sits in DoWork for that long,
++ * so it runs on a background thread; consumers wait through user_wait_init. */
++static HRESULT user_initialize_network( XUserHandle user, XUserAddOptions options )
++{
++    BYTE *currentBuffer = NULL, *defaultBuffer = NULL;
++    char *deviceTicket = NULL, *deviceToken = NULL, *userTicket = NULL;
++    struct XUser *impl = user;
++    WCHAR *auth = NULL;
++    SIZE_T size;
++    HRESULT hr;
++
+     if (FAILED(hr = http_request( L"GET", L"https://title.mgt.xboxlive.com/titles/default/endpoints?type=1", NULL, NULL, ACCEPT_JSON, &defaultBuffer, &size ))) return hr;
+     if (FAILED(hr = load_endpoints( impl, defaultBuffer, size ))) goto cleanup;
+     if (FAILED(hr = get_rps_tickets( options & XUserAddOptions_AddDefaultUserAllowingUI, &userTicket, &deviceTicket ))) goto cleanup;
+@@ -774,6 +805,70 @@
+     return hr;
+ }
+ 
++static void set_signed_in_user( struct XUser *user );
++
++struct user_network_init
++{
++    XUserHandle user;
++    XUserAddOptions options;
++    IXThreadingImpl *threading;
++    XAsyncBlock *async;
++};
++
++static DWORD WINAPI user_network_init_thread( void *arg )
++{
++    struct user_network_init *init = arg;
++    XUserHandle user = init->user;
++    XUserAddOptions options = init->options;
++    IXThreadingImpl *threading = init->threading;
++    XAsyncBlock *async = init->async;
++    HRESULT hr, com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    int attempt;
++
++    free( init );
++    for (attempt = 0; attempt < 5; attempt++)
++    {
++        hr = user_initialize_network( user, options );
++        if (SUCCEEDED(hr)) break;
++        /* Transient bridge/service start races must not permanently break
++         * sign-in; retry with a delay before publishing the failure. */
++        if (attempt < 4) Sleep( 3000 );
++    }
++    if (SUCCEEDED(com)) CoUninitialize();
++    EnterCriticalSection( &user->deviceAuthSection );
++    user->initResult = hr;
++    user->initDone = 1;
++    LeaveCriticalSection( &user->deviceAuthSection );
++    WakeAllConditionVariable( &user->initCv );
++    /* XUserAddResult must expose an initialized identity. Do not manufacture
++     * SignedInAgain: that event is reserved for an existing signed-out handle
++     * whose same user subsequently signs in again. */
++    if (SUCCEEDED(hr)) set_signed_in_user( user );
++    IUser_Release( &user->IUser_iface );
++    IXThreadingImpl_XAsyncComplete( threading, async, hr, SUCCEEDED(hr) ? sizeof(XUserHandle) : 0 );
++    IXThreadingImpl_Release( threading );
++    return 0;
++}
++
++/* Bounded wait for the background identity/network initialization. */
++static HRESULT user_wait_init( XUserHandle user )
++{
++    HRESULT hr;
++
++    EnterCriticalSection( &user->deviceAuthSection );
++    while (!user->initDone)
++    {
++        if (!SleepConditionVariableCS( &user->initCv, &user->deviceAuthSection, 120000 ))
++        {
++            LeaveCriticalSection( &user->deviceAuthSection );
++            return HRESULT_FROM_WIN32( GetLastError() );
++        }
++    }
++    hr = user->initResult;
++    LeaveCriticalSection( &user->deviceAuthSection );
++    return hr;
++}
++
+ static BOOLEAN match_wildcard( const WCHAR *pat, UINT32 patLen, const WCHAR *inp, UINT32 inpLen )
+ {
+     UINT32 lastMatch = -1, lastWildcard = -1, patOff = 0, inpOff = 0;
+@@ -810,9 +905,12 @@
+     struct endpoint *match = NULL;
+     INT32 urlWSize;
+     WCHAR *urlW;
++    HRESULT hr;
+ 
+     TRACE( "iface %p, url %s, info %p.\n", iface, debugstr_a( url ), info );
+ 
++    if (FAILED(hr = user_wait_init( impl ))) return hr;
++
+     if (!(urlWSize = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, url, -1, NULL, 0 ))) return HRESULT_FROM_WIN32( GetLastError() );
+     if (!(urlW = calloc( urlWSize, sizeof(WCHAR) ))) return E_OUTOFMEMORY;
+     if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, url, -1, urlW, urlWSize )) goto error;
+@@ -854,6 +952,8 @@
+ 
+     TRACE( "iface %p, relyingParty %s, auth %p.\n", iface, debugstr_w( relyingParty ), auth );
+ 
++    if (FAILED(hr = user_wait_init( impl ))) return hr;
++
+     if (!(size = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, relyingParty, -1, NULL, 0, NULL, NULL ))) return HRESULT_FROM_WIN32( GetLastError() );
+     if (!(relyingPartyA = calloc( 1, size ))) return E_OUTOFMEMORY;
+     WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, relyingParty, -1, relyingPartyA, size, NULL, NULL );
+@@ -1081,6 +1181,7 @@
+ 
+         case XAsyncOp_GetResult:
+             memcpy( data->buffer, &context->user, sizeof(XUserHandle) );
++            context->user = NULL; /* Transfer the result reference to the title. */
+             break;
+ 
+         case XAsyncOp_DoWork:
+@@ -1097,15 +1198,45 @@
+                 hr = IUser_Initialize( &context->user->IUser_iface, context->options );
+                 if (SUCCEEDED(init)) CoUninitialize();
+             }
++            if (SUCCEEDED(hr))
++            {
++                /* Do not block a title's Manual work dispatcher with network
++                 * I/O. Keep the operation pending until the worker has loaded
++                 * the actual identity, then complete on the requested queue. */
++                struct user_network_init *network;
++                HANDLE thread;
++                if (!(network = malloc( sizeof(*network) ))) hr = E_OUTOFMEMORY;
++                else
++                {
++                    network->user = context->user;
++                    network->options = context->options;
++                    network->threading = xthreading;
++                    network->async = data->async;
++                    IUser_AddRef( &context->user->IUser_iface );
++                    IXThreadingImpl_AddRef( xthreading );
++                    if (!(thread = CreateThread( NULL, 0, user_network_init_thread, network, 0, NULL )))
++                    {
++                        hr = HRESULT_FROM_WIN32( GetLastError() );
++                        IUser_Release( &context->user->IUser_iface );
++                        IXThreadingImpl_Release( xthreading );
++                        free( network );
++                    }
++                    else
++                    {
++                        CloseHandle( thread );
++                        hr = E_PENDING;
++                        break;
++                    }
++                }
++            }
+ 
+         complete:
+-            if (SUCCEEDED(hr)) set_signed_in_user( context->user );
+-            if (FAILED(hr) && context->user) IUser_Release( &context->user->IUser_iface );
+             IXThreadingImpl_XAsyncComplete( xthreading, data->async, hr, SUCCEEDED(hr) ? sizeof(XUserHandle) : 0 );
+             hr = S_OK;
+             break;
+ 
+         case XAsyncOp_Cleanup:
++            if (context->user) IUser_Release( &context->user->IUser_iface );
+             free( context );
+             break;
+ 
+@@ -1172,6 +1303,7 @@
+ {
+     TRACE( "iface %p, user %p, userId %p.\n", iface, user, userId );
+     if (!user || !userId) return E_INVALIDARG;
++    if (FAILED(user_wait_init( user ))) return E_GAMEUSER_NO_DEFAULT_USER;
+     *userId = user->xuid;
+     return S_OK;
+ }
+@@ -1376,8 +1508,13 @@
+ 
+ static HRESULT WINAPI x_user_XUserGetAgeGroup( IXUserImpl6 *iface, XUserHandle user, XUserAgeGroup *ageGroup )
+ {
+-    FIXME( "iface %p, user %p, ageGroup %p stub!\n", iface, user, ageGroup );
+-    return E_NOTIMPL;
++    HRESULT hr;
++    TRACE( "iface %p, user %p, ageGroup %p.\n", iface, user, ageGroup );
++    if (!user || !ageGroup) return E_INVALIDARG;
++    *ageGroup = XUserAgeGroup_Unknown;
++    if (FAILED(hr = user_wait_init(user))) return hr;
++    *ageGroup = user->age_group;
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI x_user_XUserCheckPrivilege( IXUserImpl6 *iface, XUserHandle user, XUserPrivilegeOptions options, XUserPrivilege privilege, BOOLEAN *hasPrivilege, XUserPrivilegeDenyReason *reason )
+@@ -1469,9 +1606,9 @@
+ 
+         case XAsyncOp_DoWork:
+         {
++            WCHAR *partyBuf = NULL;
+             /* Fallback relying party for URLs missing from the endpoint table;
+              * heap-owned only for the web-origin case, freed at complete. */
+-            WCHAR *partyBuf = NULL;
+             if (FAILED(hr = IUser_GetEndpointInfo( &context->user->IUser_iface, context->url, &info )))
+             {
+                 /* The endpoint table only covers the partners returned at sign-in.
+@@ -1516,7 +1653,10 @@
+ 
+             if (context->isUtf16)
+             {
+-                context->dataSize = sizeof(*context->dataUtf16) + (auth ? (wcslen( auth ) + 1) * sizeof(WCHAR) : 0) + (info.policy ? 104 * sizeof(WCHAR) : 0);
++                /* The working community stand-in returns a present, empty
++                 * signature (count 1, L"") when no signature policy applies;
++                 * consumers treat NULL as a hard failure on this title. */
++                context->dataSize = sizeof(*context->dataUtf16) + (auth ? (wcslen( auth ) + 1) * sizeof(WCHAR) : 0) + (info.policy ? 104 * sizeof(WCHAR) : sizeof(WCHAR));
+                 if (!(context->dataUtf16 = calloc( 1, context->dataSize )))
+                 {
+                     hr = E_OUTOFMEMORY;
+@@ -1524,7 +1664,7 @@
+                 }
+                 if (auth)
+                 {
+-                    context->dataUtf16->tokenCount = wcslen( auth );
++                    context->dataUtf16->tokenCount = wcslen( auth ) + 1;
+                     context->dataUtf16->token = (WCHAR *)(context->dataUtf16 + 1);
+                     wcscpy( (WCHAR *)context->dataUtf16->token, auth );
+                 }
+@@ -1545,11 +1685,16 @@
+                     if (FAILED(hr = IUser_GetSignature( &context->user->IUser_iface, info.policy->version, context->method, context->url, (auth ? buffer : ""), min( context->bodySize, info.policy->maxBodyBytes ), context->bodyBuffer, signature ))) goto complete;
+                     if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, signature, 104, (WCHAR *)context->dataUtf16->signature, 104 )) goto error;
+                 }
++                else
++                {
++                    context->dataUtf16->signatureCount = 1;
++                    context->dataUtf16->signature = (WCHAR *)(context->dataUtf16 + 1) + (auth ? wcslen( auth ) + 1 : 0);
++                }
+             }
+             else
+             {
+                 if (auth && !(size = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, wcslen( auth ), NULL, 0, NULL, NULL ))) goto error;
+-                context->dataSize = sizeof(*context->data) + (auth ? size + 1 : 0) + (info.policy ? 104 : 0);
++                context->dataSize = sizeof(*context->data) + (auth ? size + 1 : 0) + (info.policy ? 104 : 1);
+                 if (!(context->data = calloc( 1, context->dataSize )))
+                 {
+                     hr = E_OUTOFMEMORY;
+@@ -1557,7 +1702,7 @@
+                 }
+                 if (auth)
+                 {
+-                    context->data->tokenSize = size;
++                    context->data->tokenSize = size + 1;
+                     context->data->token = (char *)(context->data + 1);
+                     if (!WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, wcslen( auth ), (char *)context->data->token, size, NULL, NULL )) goto error;
+                 }
+@@ -1567,6 +1712,11 @@
+                     context->data->signature = (char *)(context->data + 1) + (auth ? size + 1 : 0);
+                     if (FAILED(hr = IUser_GetSignature( &context->user->IUser_iface, info.policy->version, context->method, context->url, (auth ? context->data->token : ""), min( context->bodySize, info.policy->maxBodyBytes ), context->bodyBuffer, (char *)context->data->signature ))) goto complete;
+                 }
++                else
++                {
++                    context->data->signatureSize = 1;
++                    context->data->signature = (char *)(context->data + 1) + (auth ? size + 1 : 0);
++                }
+             }
+             goto complete;
+ 
+@@ -1828,10 +1978,9 @@
+     token->token = registration->token = next_user_change_token;
+     registration->next = user_change_registrations;
+     user_change_registrations = registration;
++    /* Registration observes future changes; adding the initial account is
++     * completed by XUserAddAsync, not by a synthetic SignedInAgain event. */
+     LeaveCriticalSection( &signed_in_section );
+-    /* Initial sign-in is reported by XUserAddResult, not SignedInAgain. The
+-     * single-account provider currently has no sign-out/profile-change source.
+-     * Do not fabricate events or start background account/network polling. */
+     return S_OK;
+ }
+ 
+@@ -2053,6 +2202,8 @@
+ {
+     TRACE( "iface %p, user %p, gamertagComponent %d, gamertagSize %Iu, gamertag %p, gamertagUsed %p.\n", iface, user, gamertagComponent, gamertagSize, gamertag, gamertagUsed );
+ 
++    if (FAILED(user_wait_init( user ))) return E_GAMEUSER_NO_DEFAULT_USER;
++
+     switch (gamertagComponent)
+     {
+         case XUserGamertagComponent_Classic:

@@ -1,0 +1,317 @@
+diff --git a/dlls/xgameruntime/xuser.c b/dlls/xgameruntime/xuser.c
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -33,6 +33,8 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
++#include "xuser_privilege.h"
++
+ static const WCHAR *ACCEPT_JSON[] = { L"application/json", NULL };
+ 
+ static HRESULT parse_json( const char *json, SIZE_T jsonLen, IJsonObject **object )
+@@ -548,6 +550,8 @@
+ }
+ 
+ static HRESULT xsts_authorize( XUserHandle user, const char *relyingParty, BOOL title, char **auth );
++static HRESULT xsts_authorize_privilege( XUserHandle user, const char *relyingParty, BOOL title,
++                                         char **auth, XUserPrivilege privilege, BOOLEAN *granted );
+ static char *hstring_to_utf8( HSTRING string );
+ static WCHAR *utf8_to_wide( const char *string );
+ 
+@@ -1640,16 +1644,47 @@
+     return S_OK;
+ }
+ 
++static HRESULT user_verify_privilege( IUser *iface, XUserPrivilege privilege )
++{
++    XUserHandle user = impl_from_IUser( iface );
++    BOOLEAN granted = FALSE;
++    char *auth = NULL;
++    HRESULT hr;
++    if (FAILED(hr = user_wait_init( user ))) return hr;
++    if (!user->xuid || !user->userToken || !user->deviceToken || !user->proofKey)
++        return E_GAMEUSER_NO_AUTH_USER;
++    hr = xsts_authorize_privilege( user, "http://xboxlive.com", TRUE, &auth, privilege, &granted );
++    free( auth );
++    if (SUCCEEDED(hr) && !granted) hr = E_GAMEUSER_FAILED_TO_RESOLVE;
++    /* Parent/ban/subscription remediation UI is not implemented. Never claim
++     * resolution, or change account settings, when the service denies access. */
++    auth_metadata( "resolve-privilege", user, hr, 0, TRUE, !!user->titleToken );
++    TRACE( "privilege %u, result %#lx.\n", privilege, hr );
++    return hr;
++}
++
+ static HRESULT WINAPI x_user_XUserResolvePrivilegeWithUiAsync( IXUserImpl6 *iface, XUserHandle user, XUserPrivilegeOptions options, XUserPrivilege privilege, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, user %p, options %d, privilege %d, async %p stub!\n", iface, user, options, privilege, async );
+-    return E_NOTIMPL;
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    TRACE( "iface %p, user %p, options %d, privilege %d, async %p.\n", iface, user, options, privilege, async );
++    if (!user || !async || user->IUser_iface.lpVtbl != &user_vtbl) return E_INVALIDARG;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading ))) return hr;
++    hr = privilege_begin( threading, &user->IUser_iface, options, privilege, async, user_verify_privilege );
++    IXThreadingImpl_Release( threading );
++    return hr;
+ }
+ 
+ static HRESULT WINAPI x_user_XUserResolvePrivilegeWithUiResult( IXUserImpl6 *iface, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, async %p stub!\n", iface, async );
+-    return E_NOTIMPL;
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    TRACE( "iface %p, async %p.\n", iface, async );
++    if (!async) return E_INVALIDARG;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading ))) return hr;
++    hr = privilege_result( threading, async );
++    IXThreadingImpl_Release( threading );
++    return hr;
+ }
+ 
+ struct XUserGetTokenAndSignatureContext
+@@ -2600,9 +2635,15 @@
+ 
+ static HRESULT xsts_authorize( XUserHandle user, const char *relyingParty, BOOL title, char **auth )
+ {
++    return xsts_authorize_privilege( user, relyingParty, title, auth, 0, NULL );
++}
++
++static HRESULT xsts_authorize_privilege( XUserHandle user, const char *relyingParty, BOOL title,
++                                         char **auth, XUserPrivilege privilege, BOOLEAN *granted )
++{
+     static const char url[] = "https://xsts.auth.xboxlive.com/xsts/authorize";
+     IJsonObject *object = NULL, *claims = NULL, *identity = NULL;
+-    HSTRING token = NULL, uhs = NULL;
++    HSTRING token = NULL, uhs = NULL, xid = NULL, prv = NULL;
+     char *body = NULL, *tokenA = NULL, *uhsA = NULL;
+     IJsonArray *xui = NULL;
+     BYTE *buffer = NULL;
+@@ -2611,6 +2652,8 @@
+     DWORD status = 0;
+     BOOL requested_title = title;
+ 
++    if (granted) *granted = FALSE;
++
+     TRACE( "user %p, relyingParty %s, title %d.\n", user, debugstr_a( relyingParty ), title );
+ 
+     if (!user->deviceToken || !user->userToken || !user->proofKey)
+@@ -2633,7 +2676,7 @@
+                                           body, strlen( body ), &status, &buffer, &bufferSize ))) goto cleanup;
+     if (status != 200)
+     {
+-        ERR( "xsts authorization failed, status %lu, body %s.\n", status, debugstr_an( (char *)buffer, bufferSize ) );
++        ERR( "xsts authorization failed, status %lu.\n", status );
+         hr = E_FAIL;
+         goto cleanup;
+     }
+@@ -2645,6 +2688,22 @@
+     if (FAILED(hr = get_json_array( claims, L"xui", &xui ))) goto cleanup;
+     if (FAILED(hr = IJsonArray_GetObjectAt( xui, 0, &identity ))) goto cleanup;
+     if (FAILED(hr = get_json_string( identity, L"uhs", &uhs ))) goto cleanup;
++    if (granted)
++    {
++        const WCHAR *xid_text, *prv_text;
++        UINT32 xid_len, prv_len;
++        /* Only accept the requested authenticated identity. Missing claims or
++         * malformed data must never turn into guessed permission. */
++        hr = get_json_string( identity, L"xid", &xid );
++        auth_metadata( "privilege-identity-claim", user, hr, status, requested_title, title );
++        if (FAILED(hr)) goto cleanup;
++        hr = get_json_string( identity, L"prv", &prv );
++        auth_metadata( "privilege-permissions-claim", user, hr, status, requested_title, title );
++        if (FAILED(hr)) goto cleanup;
++        xid_text = WindowsGetStringRawBuffer( xid, &xid_len );
++        prv_text = WindowsGetStringRawBuffer( prv, &prv_len );
++        if (FAILED(hr = privilege_claim( xid_text, xid_len, user->xuid, prv_text, prv_len, privilege, granted ))) goto cleanup;
++    }
+     if (!(tokenA = hstring_to_utf8( token )) || !(uhsA = hstring_to_utf8( uhs )))
+     {
+         hr = E_OUTOFMEMORY;
+@@ -2665,6 +2724,8 @@
+     if (xui) IJsonArray_Release( xui );
+     if (token) WindowsDeleteString( token );
+     if (uhs) WindowsDeleteString( uhs );
++    if (xid) WindowsDeleteString( xid );
++    if (prv) WindowsDeleteString( prv );
+     free( tokenA );
+     free( uhsA );
+     free( buffer );
+diff --git a/dlls/xgameruntime/xuser_privilege.h b/dlls/xgameruntime/xuser_privilege.h
+new file mode 100644
+--- /dev/null
++++ b/dlls/xgameruntime/xuser_privilege.h
+@@ -0,0 +1,172 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Privilege resolution uses authenticated server claims, never subscription or
++ * age guesses. No credential, environment override or title-specific policy. */
++#ifndef XUSER_PRIVILEGE_H
++#define XUSER_PRIVILEGE_H
++
++static const char privilege_identity;
++
++static BOOL privilege_valid( XUserPrivilege privilege )
++{
++    switch (privilege)
++    {
++        case XUserPrivilege_CrossPlay: case XUserPrivilege_Clubs:
++        case XUserPrivilege_Sessions: case XUserPrivilege_Broadcast:
++        case XUserPrivilege_ManageProfilePrivacy: case XUserPrivilege_GameDvr:
++        case XUserPrivilege_MultiplayerParties: case XUserPrivilege_CloudManageSession:
++        case XUserPrivilege_CloudJoinSession: case XUserPrivilege_CloudSavedGames:
++        case XUserPrivilege_SocialNetworkSharing: case XUserPrivilege_UserGeneratedContent:
++        case XUserPrivilege_Communications: case XUserPrivilege_Multiplayer:
++        case XUserPrivilege_AddFriends: return TRUE;
++        default: return FALSE;
++    }
++}
++
++/* Lengths come from HSTRING, not strlen. Reject embedded NUL, signs, partial
++ * numbers, overflow and malformed suffixes even after a matching privilege. */
++static HRESULT privilege_claim( const WCHAR *xid, UINT32 xid_len, UINT64 expected,
++                                const WCHAR *prv, UINT32 prv_len, XUserPrivilege privilege,
++                                BOOLEAN *granted )
++{
++    UINT64 actual = 0;
++    UINT32 i, number;
++    BOOL found = FALSE;
++    if (!granted) return E_INVALIDARG;
++    *granted = FALSE;
++    if (!expected || !xid || !xid_len || xid_len > 20 || !prv || prv_len > 16384 ||
++        !privilege_valid( privilege )) return HRESULT_FROM_WIN32( ERROR_INVALID_DATA );
++    for (i = 0; i < xid_len; ++i)
++    {
++        if (xid[i] < '0' || xid[i] > '9' || actual > (~(UINT64)0 - (xid[i] - '0')) / 10)
++            return HRESULT_FROM_WIN32( ERROR_INVALID_DATA );
++        actual = actual * 10 + xid[i] - '0';
++    }
++    if (actual != expected) return E_GAMEUSER_NO_AUTH_USER;
++    for (i = 0; i < prv_len;)
++    {
++        if (prv[i] == ' ') { ++i; continue; }
++        number = 0;
++        do
++        {
++            if (prv[i] < '0' || prv[i] > '9' || number > (~(UINT32)0 - (prv[i] - '0')) / 10)
++                return HRESULT_FROM_WIN32( ERROR_INVALID_DATA );
++            number = number * 10 + prv[i++] - '0';
++        } while (i < prv_len && prv[i] != ' ');
++        if (number == (UINT32)privilege) found = TRUE;
++    }
++    *granted = found;
++    return S_OK;
++}
++
++typedef HRESULT (*privilege_verify_fn)( IUser *, XUserPrivilege );
++struct privilege_context
++{
++    LONG refs, canceled;
++    IUser *user;
++    IXThreadingImpl *threading;
++    XUserPrivilege privilege;
++    privilege_verify_fn verify;
++};
++struct privilege_worker
++{
++    struct privilege_context *context;
++    XAsyncBlock *async; /* Runtime-owned provider copy, never caller memory. */
++};
++
++static void privilege_release( struct privilege_context *context )
++{
++    if (InterlockedDecrement( &context->refs )) return;
++    IUser_Release( context->user );
++    IXThreadingImpl_Release( context->threading );
++    free( context );
++}
++
++static DWORD WINAPI privilege_worker_thread( void *arg )
++{
++    struct privilege_worker *worker = arg;
++    struct privilege_context *context = worker->context;
++    HRESULT hr, com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    if (InterlockedCompareExchange( &context->canceled, 0, 0 )) hr = E_ABORT;
++    else if (FAILED(com)) hr = com;
++    else hr = context->verify( context->user, context->privilege );
++    if (hr == E_PENDING) hr = E_UNEXPECTED;
++    if (InterlockedCompareExchange( &context->canceled, 0, 0 )) hr = E_ABORT;
++    IXThreadingImpl_XAsyncComplete( context->threading, worker->async, hr, 0 );
++    if (SUCCEEDED(com)) CoUninitialize();
++    privilege_release( context );
++    free( worker );
++    return 0;
++}
++
++static HRESULT WINAPI privilege_provider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct privilege_context *context = data->context;
++    struct privilege_worker *worker;
++    HANDLE thread;
++    HRESULT hr;
++    switch (op)
++    {
++        case XAsyncOp_Begin:
++            return IXThreadingImpl_XAsyncSchedule( context->threading, data->async, 0 );
++        case XAsyncOp_DoWork:
++            if (!(worker = calloc( 1, sizeof(*worker) ))) return E_OUTOFMEMORY;
++            worker->context = context;
++            worker->async = data->async;
++            InterlockedIncrement( &context->refs );
++            if (!(thread = CreateThread( NULL, 0, privilege_worker_thread, worker, 0, NULL )))
++            {
++                hr = HRESULT_FROM_WIN32( GetLastError() );
++                privilege_release( context );
++                free( worker );
++                return hr;
++            }
++            CloseHandle( thread );
++            return E_PENDING;
++        case XAsyncOp_Cancel:
++            InterlockedExchange( &context->canceled, TRUE );
++            IXThreadingImpl_XAsyncComplete( context->threading, data->async, E_ABORT, 0 );
++            break;
++        case XAsyncOp_Cleanup:
++            privilege_release( context );
++            break;
++        case XAsyncOp_GetResult:
++            break;
++    }
++    return S_OK;
++}
++
++/* The verifier is a compile-time internal dependency, not a public runtime
++ * hook. The standalone native fixture substitutes synthetic, offline input. */
++static HRESULT privilege_begin( IXThreadingImpl *threading, IUser *user,
++                                XUserPrivilegeOptions options, XUserPrivilege privilege,
++                                XAsyncBlock *async, privilege_verify_fn verify )
++{
++    struct privilege_context *context;
++    HRESULT hr;
++    if (!user || !async || !verify || !privilege_valid( privilege ) ||
++        (options != XUserPrivilegeOptions_None && options != XUserPrivilegeOptions_AllUsers))
++        return E_INVALIDARG;
++    /* Reject a pending operation. Reuse from inside a completion callback is
++     * valid after terminal status. */
++    if (async->internal[0] && IXThreadingImpl_XAsyncGetStatus( threading, async, FALSE ) == E_PENDING)
++        return E_INVALIDARG;
++    if (!(context = calloc( 1, sizeof(*context) ))) return E_OUTOFMEMORY;
++    context->refs = 1;
++    context->user = user;
++    context->threading = threading;
++    context->privilege = privilege;
++    context->verify = verify;
++    IUser_AddRef( user );
++    IXThreadingImpl_AddRef( threading );
++    hr = IXThreadingImpl_XAsyncBegin( threading, async, context, &privilege_identity,
++                                     "XUserResolvePrivilegeWithUiAsync", privilege_provider );
++    if (FAILED(hr)) privilege_release( context );
++    return hr;
++}
++
++static HRESULT privilege_result( IXThreadingImpl *threading, XAsyncBlock *async )
++{
++    if (!async || async->internal[2] != &privilege_identity) return E_INVALIDARG;
++    return IXThreadingImpl_XAsyncGetStatus( threading, async, FALSE );
++}
++#endif

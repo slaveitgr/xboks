@@ -1,0 +1,86 @@
+diff --git a/dlls/winhttp/request.c b/dlls/winhttp/request.c
+index db4626f..a63dca8 100644
+--- a/dlls/winhttp/request.c
++++ b/dlls/winhttp/request.c
+@@ -3522,6 +3522,21 @@ static BOOL socket_set_option( struct object_header *hdr, DWORD option, void *bu
+         TRACE( "WINHTTP_OPTION_WEB_SOCKET_KEEPALIVE_INTERVAL %lu.\n", interval);
+         return TRUE;
+     }
++    case WINHTTP_OPTION_WEB_SOCKET_CLOSE_TIMEOUT:
++    {
++        DWORD timeout;
++
++        if (buflen != sizeof(DWORD))
++        {
++            WARN( "Invalid parameters for WINHTTP_OPTION_WEB_SOCKET_CLOSE_TIMEOUT.\n" );
++            SetLastError( ERROR_INSUFFICIENT_BUFFER );
++            return FALSE;
++        }
++        timeout = *(DWORD *)buffer;
++        socket->close_timeout = timeout;
++        TRACE( "WINHTTP_OPTION_WEB_SOCKET_CLOSE_TIMEOUT %lu.\n", timeout );
++        return TRUE;
++    }
+     }
+ 
+     FIXME( "unimplemented option %lu\n", option );
+@@ -3569,6 +3584,7 @@ HINTERNET WINAPI WinHttpWebSocketCompleteUpgrade( HINTERNET hrequest, DWORD_PTR
+     socket->hdr.context = context;
+     socket->hdr.flags = request->connect->hdr.flags & WINHTTP_FLAG_ASYNC;
+     socket->keepalive_interval = 30000;
++    socket->close_timeout = 10000;
+     socket->send_buffer_size = request->websocket_send_buffer_size;
+     if (request->read_size)
+     {
+diff --git a/dlls/winhttp/session.c b/dlls/winhttp/session.c
+index a78264f..33507a6 100644
+--- a/dlls/winhttp/session.c
++++ b/dlls/winhttp/session.c
+@@ -240,6 +240,18 @@ static BOOL session_set_option( struct object_header *hdr, DWORD option, void *b
+         session->receive_response_timeout = *(DWORD *)buffer;
+         return TRUE;
+ 
++    case WINHTTP_OPTION_IPV6_FAST_FALLBACK:
++        /* Dual-stack connection performance hint. netconn connects
++         * sequentially instead of racing address families; accepting the
++         * flag keeps GDK callers from treating the option as fatal. */
++        if (buflen != sizeof(DWORD))
++        {
++            SetLastError( ERROR_INSUFFICIENT_BUFFER );
++            return FALSE;
++        }
++        TRACE( "%#lx\n", *(DWORD *)buffer );
++        return TRUE;
++
+     case WINHTTP_OPTION_CONFIGURE_PASSPORT_AUTH:
+         session->passport_flags = *(DWORD *)buffer;
+         return TRUE;
+@@ -1085,6 +1097,16 @@ static BOOL request_set_option( struct object_header *hdr, DWORD option, void *b
+         request->receive_response_timeout = *(DWORD *)buffer;
+         return TRUE;
+ 
++    case WINHTTP_OPTION_IPV6_FAST_FALLBACK:
++        /* Same performance hint as the session handle; MSDN allows both. */
++        if (buflen != sizeof(DWORD))
++        {
++            SetLastError( ERROR_INSUFFICIENT_BUFFER );
++            return FALSE;
++        }
++        TRACE( "%#lx\n", *(DWORD *)buffer );
++        return TRUE;
++
+     case WINHTTP_OPTION_USERNAME:
+     {
+         struct connect *connect = request->connect;
+diff --git a/dlls/winhttp/winhttp_private.h b/dlls/winhttp/winhttp_private.h
+index c711414..5e0ba2c 100644
+--- a/dlls/winhttp/winhttp_private.h
++++ b/dlls/winhttp/winhttp_private.h
+@@ -280,6 +280,7 @@ struct socket
+     struct object_header hdr;
+     struct netconn *netconn;
+     int keepalive_interval;
++    int close_timeout;
+     unsigned int send_buffer_size;
+     enum socket_state state;
+     struct queue send_q;

@@ -1,0 +1,201 @@
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -224,6 +224,14 @@
+ struct async_state
+ {
+     XAsyncProviderData data;
++    XAsyncBlock provider_block;
++    XAsyncBlock *user_block;
++    XAsyncProvider *provider;
++    XAsyncCompletionRoutine *callback;
++    CRITICAL_SECTION cs;
++    LONG active_provider;
++    BOOL cleanup_requested;
++    BOOL completed;
+     HRESULT status;
+     LONG cleaned;
+ };
+@@ -235,10 +243,43 @@
+ 
+ static void async_cleanup_state( struct async_state *state, XAsyncProvider *provider )
+ {
+-    if (!InterlockedExchange( &state->cleaned, 1 ))
++    BOOL cleanup = FALSE;
++    EnterCriticalSection( &state->cs );
++    state->cleanup_requested = TRUE;
++    if (!state->active_provider && !state->cleaned)
++    {
++        state->cleaned = 1;
++        cleanup = TRUE;
++    }
++    LeaveCriticalSection( &state->cs );
++    if (cleanup)
+         provider( XAsyncOp_Cleanup, &state->data );
+ }
+ 
++static HRESULT async_invoke_provider( struct async_state *state, XAsyncOp op )
++{
++    HRESULT hr;
++    BOOL cleanup = FALSE;
++    EnterCriticalSection( &state->cs );
++    if (state->cleaned)
++    {
++        LeaveCriticalSection( &state->cs );
++        return E_ABORT;
++    }
++    ++state->active_provider;
++    LeaveCriticalSection( &state->cs );
++    hr = state->provider( op, &state->data );
++    EnterCriticalSection( &state->cs );
++    if (!--state->active_provider && state->cleanup_requested && !state->cleaned)
++    {
++        state->cleaned = 1;
++        cleanup = TRUE;
++    }
++    LeaveCriticalSection( &state->cs );
++    if (cleanup) state->provider( XAsyncOp_Cleanup, &state->data );
++    return hr;
++}
++
+ static void async_cleanup( XAsyncBlock *asyncBlock )
+ {
+     async_cleanup_state( async_state( asyncBlock ), asyncBlock->internal[1] );
+@@ -298,24 +339,42 @@
+ {
+     struct async_state *state;
+     XAsyncProviderData *data;
++    HRESULT hr;
++    HANDLE event;
++    XTaskQueueHandle queue;
+ 
+     TRACE( "iface %p, asyncBlock %p, context %p, identity %p, identityName %s, provider %p.\n", iface, asyncBlock, context, identity, identityName, provider );
+ 
++    if (!asyncBlock || !provider) return E_INVALIDARG;
++    queue = asyncBlock->queue;
++    if (!queue && !IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &queue )) return E_INVALIDARG;
+     if (!(state = calloc( 1, sizeof(*state) ))) return E_OUTOFMEMORY;
+-    state->status = E_PENDING;
+-    data = &state->data;
+-    if (!asyncBlock->queue && !IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &asyncBlock->queue ))
++    if (!(event = CreateEventA( NULL, TRUE, FALSE, NULL )))
+     {
+         free( state );
+-        return E_INVALIDARG;
++        return HRESULT_FROM_WIN32( GetLastError() );
+     }
++    InitializeCriticalSection( &state->cs );
++    state->status = E_PENDING;
++    state->user_block = asyncBlock;
++    state->provider = provider;
++    state->callback = asyncBlock->callback;
++    state->provider_block = *asyncBlock;
++    state->provider_block.queue = queue;
++    data = &state->data;
+     asyncBlock->internal[0] = data;
+     asyncBlock->internal[1] = provider;
+     asyncBlock->internal[2] = (void *)identity;
+-    asyncBlock->internal[3] = CreateEventA( NULL, TRUE, FALSE, NULL );
+-    data->async = asyncBlock;
++    asyncBlock->internal[3] = event;
++    memcpy( state->provider_block.internal, asyncBlock->internal, sizeof(asyncBlock->internal) );
++    data->async = &state->provider_block;
+     data->context = context;
+-    return provider( XAsyncOp_Begin, data );
++    hr = async_invoke_provider( state, XAsyncOp_Begin );
++    TRACE( "provider %p, op %u, asyncBlock %p -> result %#lx.\n", provider, XAsyncOp_Begin, asyncBlock, hr );
++    /* Begin reports state-allocation success. Provider failures complete the
++     * operation asynchronously; they are not the return value of Begin. */
++    if (FAILED(hr)) IXThreadingImpl_XAsyncComplete( iface, &state->provider_block, hr, 0 );
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI __PADDING__( IXThreadingImpl *iface )
+@@ -324,43 +383,62 @@
+     return E_NOTIMPL;
+ }
+ 
+-static void CALLBACK async_work_callback( XAsyncBlock *asyncBlock, BOOLEAN canceled )
++static void CALLBACK async_work_callback( struct async_state *state, BOOLEAN canceled )
+ {
+-    ((XAsyncProvider *)asyncBlock->internal[1])( canceled ? XAsyncOp_Cancel : XAsyncOp_DoWork, asyncBlock->internal[0] );
++    HRESULT hr;
++    /* Callers may delete/reuse their block inside completion. Providers and
++     * queued work must use the runtime-owned copy, never that user memory. */
++    if (canceled)
++    {
++        async_invoke_provider( state, XAsyncOp_Cancel );
++        IXThreadingImpl_XAsyncComplete( x_threading_impl, &state->provider_block, E_ABORT, 0 );
++        return;
++    }
++    hr = async_invoke_provider( state, XAsyncOp_DoWork );
++    TRACE( "provider %p, op %u, asyncBlock %p -> result %#lx.\n", state->provider, XAsyncOp_DoWork, &state->provider_block, hr );
++    if (hr != E_PENDING)
++        IXThreadingImpl_XAsyncComplete( x_threading_impl, &state->provider_block, SUCCEEDED(hr) ? E_UNEXPECTED : hr, 0 );
+ }
+ 
+ static HRESULT WINAPI x_threading_XAsyncSchedule( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, UINT32 delayInMs )
+ {
+     TRACE( "iface %p, asyncBlock %p, delayInMs %d.\n", iface, asyncBlock, delayInMs );
+-    return IXThreadingImpl_XTaskQueueSubmitDelayedCallback( iface, asyncBlock->queue, XTaskQueuePort_Work, delayInMs, asyncBlock, (XTaskQueueCallback *)async_work_callback );
++    return IXThreadingImpl_XTaskQueueSubmitDelayedCallback( iface, async_state( asyncBlock )->provider_block.queue, XTaskQueuePort_Work, delayInMs, async_state( asyncBlock ), (XTaskQueueCallback *)async_work_callback );
+ }
+ 
+-static void CALLBACK async_completion_callback( XAsyncBlock *asyncBlock, BOOLEAN canceled )
++static void CALLBACK async_completion_callback( struct async_state *state, BOOLEAN canceled )
+ {
+-    struct async_state *state = async_state( asyncBlock );
+-    XAsyncProvider *provider = asyncBlock->internal[1];
+-
+-    if (canceled) provider( XAsyncOp_Cancel, &state->data );
+-    SetEvent( asyncBlock->internal[3] );
+-    if (!canceled) asyncBlock->callback( asyncBlock );
++    if (canceled) async_invoke_provider( state, XAsyncOp_Cancel );
++    SetEvent( state->provider_block.internal[3] );
++    if (!canceled) state->callback( state->user_block );
+     /* The application may delete or reuse XAsyncBlock inside its completion
+      * callback. Only the runtime-owned state may be touched after it returns.
+      * GetResult may already have cleaned the provider; cleaned makes this
+      * idempotent without dereferencing the caller's freed block. */
+     if (canceled || FAILED(state->status) || !state->data.bufferSize)
+-        async_cleanup_state( state, provider );
++        async_cleanup_state( state, state->provider );
+ }
+ 
+ static void WINAPI x_threading_XAsyncComplete( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, HRESULT result, SIZE_T requiredBufferSize )
+ {
++    struct async_state *state = async_state( asyncBlock );
+     TRACE( "iface %p, asyncBlock %p, result %#lx, requiredBufferSize %Iu.\n", iface, asyncBlock, result, requiredBufferSize );
+-    async_state( asyncBlock )->data.bufferSize = SUCCEEDED(result) ? requiredBufferSize : 0;
+-    async_state( asyncBlock )->status = result;
+-    if (asyncBlock->callback &&
+-        SUCCEEDED(IXThreadingImpl_XTaskQueueSubmitCallback( iface, asyncBlock->queue, XTaskQueuePort_Completion, asyncBlock, (XTaskQueueCallback *)async_completion_callback )))
++    if (result == E_PENDING) return;
++    EnterCriticalSection( &state->cs );
++    if (state->completed)
++    {
++        LeaveCriticalSection( &state->cs );
++        return;
++    }
++    state->completed = TRUE;
++    state->data.bufferSize = SUCCEEDED(result) ? requiredBufferSize : 0;
++    state->status = result;
++    LeaveCriticalSection( &state->cs );
++    if (state->callback &&
++        SUCCEEDED(IXThreadingImpl_XTaskQueueSubmitCallback( iface, state->provider_block.queue, XTaskQueuePort_Completion, state, (XTaskQueueCallback *)async_completion_callback )))
+         return;
+-    SetEvent( asyncBlock->internal[3] );
+-    if (FAILED(result) || !requiredBufferSize) async_cleanup( asyncBlock );
++    SetEvent( state->provider_block.internal[3] );
++    if (FAILED(result) || !requiredBufferSize) async_cleanup_state( state, state->provider );
+ }
+ 
+ static HRESULT WINAPI x_threading_XAsyncGetResult( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, const void *identity, SIZE_T bufferSize, void *buffer, SIZE_T *bufferUsed )
+@@ -371,7 +449,7 @@
+     if (FAILED(hr = async_state( asyncBlock )->status)) return hr;
+     if (bufferSize < async_state( asyncBlock )->data.bufferSize) return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
+     async_state( asyncBlock )->data.buffer = buffer;
+-    hr = ((XAsyncProvider *)asyncBlock->internal[1])( XAsyncOp_GetResult, asyncBlock->internal[0] );
++    hr = async_invoke_provider( async_state( asyncBlock ), XAsyncOp_GetResult );
+     if (bufferUsed) *bufferUsed = SUCCEEDED(hr) ? async_state( asyncBlock )->data.bufferSize : 0;
+     async_cleanup( asyncBlock );
+     return hr;

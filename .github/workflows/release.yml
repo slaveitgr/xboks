@@ -1,0 +1,47 @@
+name: Promote tested candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        type: choice
+        options: [launcher, runtime, backend]
+        required: true
+      candidate_run:
+        description: 'Successful main build run ID; exact artifact must have a recorded human approval'
+        type: string
+        required: true
+      approve_release:
+        description: 'Explicitly authorize stable publication of this tested candidate'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.ref == 'refs/heads/main' && inputs.approve_release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify recorded approval and promote identical candidate bytes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_KIND: ${{ inputs.kind }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+          APPROVE_RELEASE: ${{ inputs.approve_release }}
+        run: node scripts/ci/promote-candidate.mjs

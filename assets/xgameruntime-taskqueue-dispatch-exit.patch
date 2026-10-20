@@ -1,0 +1,27 @@
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -909,6 +909,11 @@
+         if (!IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &queue )) return FALSE;
+         acquired = TRUE;
+     }
++    else
++    {
++        IUnknown_AddRef( &queue->IUnknown_iface );
++        acquired = TRUE;
++    }
+     if (kind != XTaskQueuePort_Work && kind != XTaskQueuePort_Completion) goto done;
+     port = kind == XTaskQueuePort_Work ? queue->work : queue->completion;
+     if (port->mode != XTaskQueueDispatchMode_Manual) goto done;
+@@ -928,6 +933,12 @@
+             result = TRUE;
+             break;
+         }
++        /* INFINITE dispatch is also used to drain a terminating queue. The
++         * final callback must finish before returning FALSE. This event is
++         * queue-scoped, so terminating a composite does not stop its parent
++         * or another queue sharing the same physical port. Keep the queue
++         * retained above while other dispatchers may close its last handle. */
++        if (WaitForSingleObject( queue->finished_event, 0 ) == WAIT_OBJECT_0) break;
+         if (timeoutInMs != INFINITE && GetTickCount64() - start >= timeoutInMs) break;
+         /* Multiple manual dispatchers may wait on this port. Poll boundedly
+          * so one consumer cannot steal another consumer's wake indefinitely. */

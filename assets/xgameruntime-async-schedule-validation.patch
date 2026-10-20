@@ -1,0 +1,35 @@
+diff --git a/dlls/xgameruntime/xthreading.c b/dlls/xgameruntime/xthreading.c
+index d7c86d6..678ae44 100644
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -457,8 +457,29 @@ static void CALLBACK async_work_callback( struct async_state *state, BOOLEAN can
+ 
+ static HRESULT WINAPI x_threading_XAsyncSchedule( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, UINT32 delayInMs )
+ {
++    struct async_state *state;
++    XTaskQueueHandle queue;
++    HRESULT hr;
+     TRACE( "iface %p, asyncBlock %p, delayInMs %d.\n", iface, asyncBlock, delayInMs );
+-    return IXThreadingImpl_XTaskQueueSubmitDelayedCallback( iface, async_state( asyncBlock )->provider_block.queue, XTaskQueuePort_Work, delayInMs, async_state( asyncBlock ), (XTaskQueueCallback *)async_work_callback );
++    if (!asyncBlock || !asyncBlock->internal[0]) return E_INVALIDARG;
++    state = async_state( asyncBlock );
++    EnterCriticalSection( &state->cs );
++    /* Native XAsync rejects missing/completed state, preserving the original
++     * failure rather than dereferencing a detached block or restarting work. */
++    if (state->completed || state->cleaned || !state->retained_queue)
++    {
++        hr = FAILED(state->status) && state->status != E_PENDING ? state->status : E_INVALIDARG;
++        LeaveCriticalSection( &state->cs );
++        return hr;
++    }
++    queue = state->retained_queue;
++    IUnknown_AddRef( &queue->IUnknown_iface );
++    LeaveCriticalSection( &state->cs );
++    /* Immediate completion may release the operation's queue during Submit. */
++    hr = IXThreadingImpl_XTaskQueueSubmitDelayedCallback( iface, queue, XTaskQueuePort_Work,
++            delayInMs, state, (XTaskQueueCallback *)async_work_callback );
++    IUnknown_Release( &queue->IUnknown_iface );
++    return hr;
+ }
+ 
+ static void CALLBACK async_completion_callback( struct async_state *state, BOOLEAN canceled )

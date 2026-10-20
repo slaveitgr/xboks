@@ -1,0 +1,127 @@
+name: Cannot start Nexus / logs unavailable
+description: Use only when Nexus cannot start or a required diagnostic log cannot be obtained.
+title: "[No logs] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the exception route when a normal bug report cannot include logs, not a shortcut around collecting them.
+        **Xodus Nexus is an independent, unofficial project, not upstream Xodus.**
+
+        If Nexus opens, try **Settings → Xodus backend → Open backend diagnostic log** first.
+        Download logs are under **Install Queue → Show log** (the terminal icon).
+        Game logs are on the game page under the launch result → **Open diagnostic log**.
+        If you can obtain these, use the corresponding normal bug form instead.
+
+        For a startup failure, try launching your downloaded AppImage from a terminal:
+        `./your-downloaded-Nexus.AppImage` (replace this with your actual file name).
+        Include its output below. Do not run it as root. If no output is produced, say so and describe what happens.
+        If even this is impossible, explain why. Do not post credentials, tokens, cookies, signed URLs or account details.
+  - type: input
+    id: launcher-version
+    attributes:
+      label: Launcher version
+      description: Use the version from Settings or the downloaded release. If unavailable, explain how it was installed and why the version cannot be determined.
+    validations:
+      required: true
+  - type: input
+    id: backend-version
+    attributes:
+      label: Nexus backend version
+      description: Copy from Settings. If not installed or inaccessible, explicitly say so.
+    validations:
+      required: true
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Nexus runtime version
+      description: Copy the active runtime from Settings. If not installed or inaccessible, explicitly say so.
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and version
+      placeholder: "SteamOS, Bazzite, CachyOS, etc. Include the version or image release."
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Handheld model or desktop/laptop model, CPU, GPU and RAM. Include the GPU driver version if known. No serial numbers.
+      placeholder: "Device/model: ...; CPU: ...; GPU: ...; RAM: ...; GPU driver: ..."
+    validations:
+      required: true
+      min_length: 15
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session used when the problem occurs
+      options:
+        - Desktop (Wayland)
+        - Desktop (X11)
+        - Steam Gaming Mode
+        - Other or unknown (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Launcher installation
+      options:
+        - AppImage from Nexus GitHub Releases
+        - Built from source (include commit below)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the exact error and affected game/edition if applicable.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include how Nexus was opened and whether it previously worked.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: missing-log-reason
+    attributes:
+      label: Why are the required logs unavailable?
+      description: State which log is missing, what you tried to obtain it, and what happened. A screenshot alone is not an explanation.
+    validations:
+      required: true
+      min_length: 40
+  - type: textarea
+    id: terminal-output
+    attributes:
+      label: Terminal output or explanation
+      description: Paste the output of starting Nexus from a terminal after reviewing it for private information. If there is no output or a terminal cannot be used, explicitly explain that here.
+      render: text
+    validations:
+      required: true
+      min_length: 20
+  - type: upload
+    id: available-files
+    attributes:
+      label: Any available logs or screenshots
+      description: Attach what you can obtain after removing private information. No game files, saves or Wine prefixes.
+    validations:
+      required: false
+      accept: ".log,.txt,.zip,.png,.jpg,.jpeg,.webp"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and explained why logs cannot be obtained.
+          required: true
+        - label: I reviewed everything included here for private information.
+          required: true

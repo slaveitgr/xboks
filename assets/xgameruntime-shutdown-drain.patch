@@ -1,0 +1,51 @@
+--- a/dlls/xgameruntime/main.c
++++ b/dlls/xgameruntime/main.c
+@@ -195,10 +195,38 @@
+     return InitializeApiImplEx2( gdkVer, gsVer, mode, NULL );
+ }
+ 
++/* Private runtime extension for an in-process save provider. A synchronous
++ * runtime shutdown is the last safe drain point, before the loader terminates
++ * worker threads. Never wait for network/other threads in DllMain. */
++static SRWLOCK shutdown_lock = SRWLOCK_INIT;
++static HRESULT (WINAPI *shutdown_callback)( void * );
++static void *shutdown_context;
++
++HRESULT WINAPI NexusRegisterCloudShutdown( HRESULT (WINAPI *callback)( void * ), void *context )
++{
++    HRESULT hr = S_OK;
++    AcquireSRWLockExclusive( &shutdown_lock );
++    if (shutdown_callback && (shutdown_callback != callback || shutdown_context != context))
++        hr = HRESULT_FROM_WIN32( ERROR_ALREADY_EXISTS );
++    else
++    {
++        shutdown_callback = callback;
++        shutdown_context = context;
++    }
++    ReleaseSRWLockExclusive( &shutdown_lock );
++    return hr;
++}
++
+ HRESULT WINAPI UninitializeApiImpl( void )
+ {
++    HRESULT (WINAPI *callback)( void * );
++    void *context;
+     TRACE( "\n" );
+-    return S_OK;
++    AcquireSRWLockShared( &shutdown_lock );
++    callback = shutdown_callback;
++    context = shutdown_context;
++    ReleaseSRWLockShared( &shutdown_lock );
++    return callback ? callback( context ) : S_OK;
+ }
+ 
+ HRESULT WINAPI InitializeApiImpl( ULONG gdkVer, ULONG gsVer )
+--- a/dlls/xgameruntime/xgameruntime.spec
++++ b/dlls/xgameruntime/xgameruntime.spec
+@@ -4,5 +4,6 @@
+ @ stdcall -private InitializeApiImplEx2(long long long ptr)
+ @ stdcall -private QueryApiImpl(ptr ptr ptr)
+ @ stdcall -private UninitializeApiImpl()
++@ stdcall -private NexusRegisterCloudShutdown(ptr ptr)
+ @ stub -private XErrorReport(long str)
+ @ stdcall -private XodusSaveFilesMonitor(long long str long)

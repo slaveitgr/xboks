@@ -1,0 +1,2 @@
+# Unified diff context has intentional leading spaces on otherwise empty lines.
+assets/*.patch -whitespace

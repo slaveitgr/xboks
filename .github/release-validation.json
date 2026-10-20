@@ -1,0 +1,283 @@
+{
+  "schema": 1,
+  "approvals": [
+    {
+      "kind": "launcher",
+      "runId": "39289505769",
+      "commit": "48eae449a35d00e4a71a9c7bb5d890b8b87f925e",
+      "manifestSha256": "44f6068c4d8c1953110c546f90bcb09ec88b527426e64a2d1d94b16f70c0225c",
+      "notesSha256": "40c87c6da4183a5a888eaec14a52a6d3aec6935e2eb0717bdcb0ce1d00f2420b",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human approval of launcher 0.3.8 notes and stable promotion on 2026-10-19. Successful main CI 39289505769 passed 744 source tests, 30 runtime-tool checks and 31 CI-tool checks. Exact AppImage and candidate identity passed SHA-256/SHA-512 verification; packaged version, backend recipe and new patches match the checked source. A separately authorized isolated Balatro run used this unchanged CI launcher, exact backend 0.2.8 candidate and unchanged released runtime gf291f544 with Xbox cloud synchronization enabled. The human confirmed gameplay and normal quit. Game and launcher exited 0, the account service and private bridge were ready, no test processes or service sessions remained, and all seven protected original inputs, original game/prefix fingerprints, runtime components and candidate bytes were unchanged. No cloud-roundtrip, multiplayer-match or affected-user recovery claim. Promote the original candidate without rebuilding or activating production components."
+    },
+    {
+      "kind": "backend",
+      "runId": "39289505869",
+      "commit": "48eae449a35d00e4a71a9c7bb5d890b8b87f925e",
+      "manifestSha256": "d8a02cf3ee7f458d018b132873ed59e514976da7f7799804a13458cb7d97f243",
+      "notesSha256": "eabc0e36880eee5fade48e507598099782b3dd472f80bc605fb150a3f27bbd4a",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human approval of backend 0.2.8 notes and stable promotion on 2026-10-19. Successful main CI 39289505869 used pinned Rust 1.99.0 and passed 56 CLI, 12 credential, 10 content-license, 14 Store, 1 streaming and 6 package-metadata tests. Exact binary and corresponding-source archives passed candidate identity and SHA-256/SHA-512 verification; recipe hash and corresponding-source recipe/patch bytes match the checked 24-patch lock. All extracted CLI/service/LICENSE hashes match the candidate metadata. A separately authorized isolated Balatro/cloud run used these unchanged CI binaries, exact launcher 0.3.8 and unchanged released runtime gf291f544. The human confirmed gameplay and normal quit; game and launcher exited 0, account service and bridge were ready, cleanup completed and protected originals and candidate/component hashes were unchanged. Recovery of external issues 138 and 172 remains unconfirmed. No cloud-roundtrip or multiplayer-match claim. Publish these original bytes without rebuilding or changing production settings."
+    },
+    {
+      "kind": "launcher",
+      "runId": "39211145433",
+      "commit": "8e51133d251ee1778faca1cc3f1f387a922d1fbd",
+      "manifestSha256": "6857eedef6c5d207f291861c5be9c4d59b0cdec76d9c1f112eeca9426b827630",
+      "notesSha256": "c621ead98f2cb6351f29543be5a886226d3d4a27cc2c823d149fc4498ec60a12",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human acceptance of launcher 0.3.7 and backend 0.2.7 notes and stable-promotion request on 2026-10-19. Main CI 39211145433 passed 605 source tests, 30 runtime-tool checks and 29 CI-tool checks. Exact AppImage and candidate identity passed SHA-256/SHA-512 verification; 123 packaged output, recipe and patch files match the tested source. The unchanged CI AppImage passed an isolated demo startup and exited normally with the Electron sandbox enabled. A separately authorized isolated Balatro run used this exact launcher, exact backend 0.2.7 CI candidate and unchanged released runtime gf291f544, with authorized Xbox cloud synchronization. The human confirmed gameplay and normal quit. Service readiness, expected runtime DLL loads, game and launcher exit 0, no remaining prefix processes, unchanged candidate/component hashes and six protected original inputs were verified. The backend diagnostic log recorded the expected component versions and successful process result. No new cloud-roundtrip, online-match or reporter-specific library recovery claim. Promote these original candidate bytes without rebuilding or activating production components."
+    },
+    {
+      "kind": "backend",
+      "runId": "39211145359",
+      "commit": "8e51133d251ee1778faca1cc3f1f387a922d1fbd",
+      "manifestSha256": "5fa077f4a9f47f443a8642a7826b936269dc207632ca446cb0e9a670b5d92025",
+      "notesSha256": "52c096e7d3186bb4200d67b348900c9ed7c513dc54a99cbefee08c44f6cbf263",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human approval of backend 0.2.7 notes and stable promotion on 2026-10-19. Main CI 39211145359 passed 38 CLI, 8 credential, 14 Store, 1 resume and 6 package-metadata tests. Exact binary and corresponding-source archives passed candidate identity and SHA-256/SHA-512 verification. All 20 locked patches and recipe tools match main; packaged crates and Cargo inputs match the locally tested locked tree, and all 35472 checksum-listed files across 685 vendored dependencies were verified. CLI capabilities, preserved linux-run-v18 contract and headless dependencies passed account-free checks. A separately authorized isolated Balatro/cloud run used these exact CI backend binaries with the exact launcher 0.3.7 candidate and unchanged released runtime gf291f544. The human confirmed gameplay and normal quit; service readiness, correct backend selection, game and launcher exit 0, no remaining prefix processes, unchanged binary/runtime hashes and six protected originals were verified. The original issue138 cause and affected users' recovery remain unconfirmed. No new cloud-roundtrip or multiplayer-match claim. Publish this exact candidate without rebuilding or changing production settings."
+    },
+    {
+      "kind": "backend",
+      "runId": "39155504527",
+      "commit": "b608ef710f39c54896676d40ee491a11ecd86c71",
+      "manifestSha256": "3a4330be0fbcdeb310e6dc8ac752202b701101246182d7b5154d0b7b12ea789b",
+      "notesSha256": "1127325b9ae481e6a5cb2b3d56e19d7c78f9362bd08259688eb4d2a2175d530c",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human authorization on 2026-10-18 to publish the backend hotfix after safety validation. Main CI 39155504527 succeeded at b608ef7 with 31 CLI, 8 credential, 14 Store, 1 resume and 6 package-metadata tests. Exact binary/source archives, candidate SHA-256/SHA-512, 19 locked patches, unchanged Cargo dependencies and recipe tools verified. All 35472 checksum-listed files across 685 vendored packages verified; an isolated empty-Cargo-home, network-disabled build of the corresponding source passed the 8 credential tests and compiled both CLI and service without using registry caches. Exact CI login, streaming and service failure-path checks exited 1 with sanitized credential codes, no panic and no account access. A separately authorized isolated Balatro/cloud test used the exact CI backend with published launcher 0.3.6 and unchanged runtime gf291f544, confirming the preserved linux-run-v18 launch contract. The human confirmed Balatro works. Service readiness, expected runtime DLL loads, game process exit 0, no remaining prefix processes, unchanged component/backend hashes and six protected original inputs were verified. No new cloud-roundtrip, online-match or reporter-specific GNOME login success claim. Promote this unchanged backend candidate only; keep existing launcher/runtime releases and production settings unchanged."
+    },
+    {
+      "kind": "launcher",
+      "runId": "39141593873",
+      "commit": "f291f5448e6b4cd031f0ba9d8a8fa4c0a85e8467",
+      "manifestSha256": "1bde81002c2b2057b9c6c9519383a7428b86956ab9036ac75ce0e7ce2b8e2436",
+      "notesSha256": "f4b53a21cbb072b2975948f55ab2da0502fed8ac0ecdead5461b46912a687f38",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human stable-promotion authorization on 2026-10-18 after all three patchnotes were accepted, including the used Steam Deck or similar handheld request. Main CI 39141593873 succeeded. Exact AppImage and manifest identity, SHA-256 and SHA-512 verified. The unchanged AppImage rendered sample-only UI in a fresh profile and exited normally. A separately authorized isolated Balatro run used this exact launcher, backend 0.2.5 and runtime gf291f544; the human confirmed the game running and normal closure, with backend game process exit 0 and no remaining prefix processes. Six protected original inputs remained unchanged. The initial attempt stopped before the game because the private test-profile socket path was too long; the approved retry used a short profile without changing candidate bytes. No new online-match or cloud-roundtrip claim. Publish the existing candidate, not a rebuild; do not activate production components."
+    },
+    {
+      "kind": "backend",
+      "runId": "39141593839",
+      "commit": "f291f5448e6b4cd031f0ba9d8a8fa4c0a85e8467",
+      "manifestSha256": "acf8015ee1ccd79589632e41fe80b275239a0441417b95202302ef33f894a0c1",
+      "notesSha256": "3e2e1a9b26ff8823eeee575f35c4d9a9cee7b2d7a9ed334f06127d1186e1b9e3",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human stable-promotion authorization on 2026-10-18 after acceptance of backend 0.2.5 patchnotes. Main CI 39141593839 succeeded, including CLI, Store and package-metadata tests. Exact archive, corresponding vendored source, recipe, ordered 18 patches, metadata and manifest SHA-256/SHA-512 verified. CLI capability checks passed without a native WebKit dependency. The separately authorized isolated final-candidate Balatro retry used the verified CLI/service bytes and matching managed recipe, reached service/bridge readiness and ran the game; human confirmed running and normal closure, game process exit 0, no remaining prefix processes and all six protected original inputs unchanged. No additional claim of World War Z joined matchmaking or cloud roundtrip on these exact CI bytes. Promote unchanged artifacts only, without production activation."
+    },
+    {
+      "kind": "runtime",
+      "runId": "39141593994",
+      "commit": "f291f5448e6b4cd031f0ba9d8a8fa4c0a85e8467",
+      "manifestSha256": "627ba4c8ceed93e914fe986a2d7818fc7c2a608eca11eed30e0efb966e340615",
+      "notesSha256": "bd3ff144d1a9c12b8a943d2619eab91436efb7242138d12ed07889f70f9d4c7a",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit human stable-promotion authorization on 2026-10-18 after acceptance of the runtime patchnotes. Main CI 39141593994 succeeded: clean pinned 36-patch reconstruction, seven components, 26 native suites without failure or timeout, 121 HTTP/TLS checks and bundled H.264/AAC. Exact binary/source archives, manifest SHA-256/SHA-512, 81 source/recipe files, original base loader/server, seven library/default-prefix DLL pairs, compatibility helpers and media hashes verified. A separately authorized isolated Balatro retry used the exact CI runtime with the exact final launcher/backend. Runtime and prefix hashes were checked before and after the run; actual load traces confirm xgameruntime and twinapi.appcore. Human confirmed the game running and normal closure, game process exit 0, no remaining prefix processes and six protected original inputs unchanged. Earlier source-matching gameplay confirmations are separate evidence; no new all-title, public-matchmaking or cloud-roundtrip promise. The release status changes metadata only, not pinned inputs. Promote these existing artifacts without rebuilding or production activation."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38952488081",
+      "commit": "2c1ed41ee031316fb34eb825a3d440c87bcdc0bd",
+      "manifestSha256": "d04393f06682cd993c20567a92fd4472be4ca8a524a073d65e23b591df03aefb",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit hotfix publication authorization 2026-10-16 after local launchfix AppImage handoff. The subsequent user-triggered Minecraft Dungeons launch log reached the Shipping executable and exited with code 0 without the previous missing-prefix failure; this is not a new online-play or cloud-roundtrip claim. The same prepared-runner selection passed synthetic executable tests with launch tools both disabled and enabled. Main CI 38952488081 succeeded. Exact launcher 0.3.4 candidate identity and SHA-256/SHA-512 verified; the unchanged CI AppImage rendered the sample-only interface and exited successfully with the normal Electron sandbox in an isolated profile. No real account, game or cloud operation on these exact CI bytes. Publish the existing artifact without rebuilding; keep the backend, runtime and production settings unchanged."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38946435932",
+      "commit": "13fdd3e1c004008c0008a101ab12f44097a3f88f",
+      "manifestSha256": "2dc26036570dde3544867fc9cf4dead9351a7372a6a913fae3fcc349ef91c531",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit publication authorization 2026-10-16 after acceptance of the local passkey browser fallback and first-run interface. Main CI 38946435932 succeeded with 314 source tests, 25 runtime-tool checks and 22 CI-tool checks. Exact launcher 0.3.3 candidate identity and SHA-256/SHA-512 verified; unchanged AppImage opened, rendered sample-only UI and exited successfully with the normal Electron sandbox in an isolated profile. Actual iPhone passkey and complete implemented token categories previously passed in the separate Chrome prototype; the final switching UI passed native offline handoff checks. No real account, game or cloud operation on these exact CI bytes. Publish the existing artifact without rebuilding or production activation."
+    },
+    {
+      "kind": "backend",
+      "runId": "38894614667",
+      "commit": "e9302d6541798e569f01d69f60d4bd5c02e8d677",
+      "manifestSha256": "c7c06c872c8ca4bc6a897f048ef874cf267433c433d6c96078cdf28cbbea4c38",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit publication authorization 2026-10-16 for all pending components. Reuse successful main backend 0.2.4 candidate 38894614667 without recompiling its unchanged linux-run-v16 recipe. Exact archive, corresponding source, metadata, candidate identity and SHA-256/SHA-512 verified. Candidate recipe is byte-identical to current main; build script and ordered patch inputs are unchanged. Packaged CLI resolve-package and login help succeeded without account access; native dependencies resolve without GTK/WebKit. Matching package-picker implementation was previously exercised locally. No additional real account, game or cloud operation on these exact CI bytes. Publish unchanged files with the original candidate commit as tag target, retain the unchanged runtime."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38876936037",
+      "commit": "054755f657e97af0305b69a7fba881223bff9883",
+      "manifestSha256": "791291955ebfbf97df9f1e26514f0cdbc52f3d0681e0acf4392333bda78fc58b",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit promote authorization 2026-10-16 after accepted local host sign-in and SteamOS reboot checks of the matching Electron authentication implementation. Main CI 38876936037 succeeded. Exact AppImage and candidate identity passed SHA-256/SHA-512 verification; the unchanged CI AppImage opened and exited successfully in an isolated sample-data-only profile with the normal Electron sandbox. Library filter source regression checks passed in main CI. No real account, game or cloud test on these exact CI bytes, no physical Steam Deck claim and no production activation. Publish existing main artifacts without another compilation or repeated account test."
+    },
+    {
+      "kind": "backend",
+      "runId": "38876936077",
+      "commit": "054755f657e97af0305b69a7fba881223bff9883",
+      "manifestSha256": "70d95b5337c76815b428769ce767997bdf1c17bde939ee32ac74fbf1c80501fb",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit promote authorization 2026-10-16 for backend 0.2.3 requiring launcher 0.3.2. Successful main CI 38876936077 built and tested the pinned linux-run-v15 recipe. Exact binaries, corresponding source, candidate identity and SHA-256/SHA-512 verified; packaged metadata recipe hash matches the source lock and declares Electron authentication. Exact CLI login help exits successfully and its dynamic dependencies have no GTK/WebKit requirement. Matching patched source was manually exercised for host sign-in and automatic KDE keyring activation after a SteamOS guest reboot. No real account, game or cloud operation on these exact CI bytes and no physical Steam Deck claim. Publish unchanged artifacts, retain the existing unchanged runtime release."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38272422874",
+      "commit": "3d2f7339b0328ea21bdc416edb76f0ddbdb250fa",
+      "manifestSha256": "920ccd9222e00b071374ec5f1a95f614f793610bbb69c781ff6cfd68c00d24bf",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-12: exact CI artifact downloaded and manifest-verified (SHA-512/SHA-256, commit 3d2f733, run 38272422874); the exact AppImage passed an isolated XODUS_DEMO=1 boot with the normal Electron sandbox. No real game, account or cloud test was performed on these exact bytes; the owner accepted rebuilding a new release if the artifact misbehaves."
+    },
+    {
+      "kind": "backend",
+      "runId": "38272448042",
+      "commit": "3d2f7339b0328ea21bdc416edb76f0ddbdb250fa",
+      "manifestSha256": "d0039478196073804c7743032cde504f3f923df9ece8e45afe66e4154e2569ca",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-12: exact CI artifact downloaded and manifest-verified (SHA-512/SHA-256, provenance metadata matches the pinned recipe lock, commit 3d2f733, run 38272448042); CI performed isolated install/reinstall and CLI feature validation. No real account, game or cloud operation was performed on these exact bytes; the owner accepted rebuilding a new release if the artifact misbehaves."
+    },
+    {
+      "kind": "runtime",
+      "runId": "38274332546",
+      "commit": "c276ecb82be64c34f24e896e4a16fc0f7800de77",
+      "manifestSha256": "f06522bcb98311a17a51de18d2ef55170d086ad9c678188a2225d2c9646ae46f",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-12: exact CI artifact downloaded and manifest-verified (SHA-512/SHA-256, commit c276ecb, run 38274332546); CI native suite (4194 checks) and HTTP/2 suite (14 checks) passed with zero failures. The same locked DLL recipe line was previously validated by the owner in a real Gears of War: E-Day session (sign-in, cloud saves, online lobby) on 2026-10-12, but these exact CI bytes were not real-game tested; the owner accepted rebuilding a new release if the artifact misbehaves."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38278762224",
+      "commit": "cd248560b6c5f9ce01599bf30dda36b8a263e462",
+      "manifestSha256": "406403988515bfaf28d0b3e153546d6c0d872b2e54c66cec85fe2c83548a6fb8",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-12: exact CI artifact downloaded and manifest-verified (SHA-512/SHA-256, commit cd24856, run 38278762224); the exact AppImage passed an isolated XODUS_DEMO=1 boot with the normal Electron sandbox. This release decouples backend discovery from the launcher's baked recipe version, so backend updates no longer require a launcher release. No real game, account or cloud test was performed on these exact bytes; the owner accepted rebuilding a new release if the artifact misbehaves."
+    },
+    {
+      "kind": "backend",
+      "runId": "38278151085",
+      "commit": "e368aa550c5868b6abadc1aacbd112804e0f7fcc",
+      "manifestSha256": "4500a310f0856023f5568e69ae61d33659fd2bf1871bc7a4c77d5fdf3033f21f",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-12: exact CI artifact downloaded and manifest-verified (SHA-512/SHA-256, provenance matches the linux-run-v9 recipe lock, commit e368aa5, run 38278151085); the packaged xodus-service binary contains the store_license receipt module (verified on the exact bytes). This is the fix for the elias-gutpuncher identity failure: XStoreQueryLicenseTokenAsync receipts via licensing.mp.microsoft.com. The same implementation was real-game validated in the 2026-10-11 diagnostic sessions (store-license S_OK in game); these exact CI bytes were not yet real-game tested; the owner accepted rebuilding a new release if the artifact misbehaves."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38364013579",
+      "commit": "695468989f5090d9059bfd7e0f3ed44678979133",
+      "manifestSha256": "68d53a6a8ee32684431c1c998ffca549c7fcb9d5c251d6e4de796f01401da6f3",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Owner-authorized release 2026-10-13: exact CI artifact Xodus-Nexus-0.2.1-x86_64.AppImage (run 38364013579, commit 6954689) downloaded, SHA-512 verified, and passed a clean first-run install test on Fedora 43: fresh profile showed the setup wizard, the prebuilt backend installed automatically during setup, and sign-in unlocked in the wizard without the Settings detour."
+    },
+    {
+      "kind": "launcher",
+      "runId": "38482805812",
+      "commit": "79103ec8919938f603913c1be095c739a58957e7",
+      "manifestSha256": "2038cbbb9fa53ce27b75b3ade916e376bcc5e655699431391fc7bf3ca3405e45",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit owner authorization 2026-10-14: publish after successful main CI and exact package verification, without another game run. Downloaded binary/checksum/candidate manifests and corresponding source where applicable passed SHA-256/SHA-512 verification. All main launcher/backend/runtime CI builds succeeded; runtime 4284 native checks plus HTTP/2 and H.264/AAC checks passed. Owner confirmed local sign-in/Online and authorized no additional real-game test of these exact CI bytes. Owner explicitly approved post-validation metadata-only recipe approval with unchanged source/base/media/build inputs and unchanged candidate bytes."
+    },
+    {
+      "kind": "backend",
+      "runId": "38482805951",
+      "commit": "79103ec8919938f603913c1be095c739a58957e7",
+      "manifestSha256": "99af02bbd224ba72e2d60e087dbcd327117fd8c4a4f73a2ce0468f989895843b",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit owner authorization 2026-10-14: publish after successful main CI and exact package verification, without another game run. Downloaded binary/checksum/candidate manifests and corresponding source where applicable passed SHA-256/SHA-512 verification. All main launcher/backend/runtime CI builds succeeded; runtime 4284 native checks plus HTTP/2 and H.264/AAC checks passed. Owner confirmed local sign-in/Online and authorized no additional real-game test of these exact CI bytes. Owner explicitly approved post-validation metadata-only recipe approval with unchanged source/base/media/build inputs and unchanged candidate bytes."
+    },
+    {
+      "kind": "runtime",
+      "runId": "38482805798",
+      "commit": "79103ec8919938f603913c1be095c739a58957e7",
+      "manifestSha256": "54b0526977ad7a77912e7f0fb8389d877d48665cb03f4b7438511928b22a3951",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit owner authorization 2026-10-14: publish after successful main CI and exact package verification, without another game run. Downloaded binary/checksum/candidate manifests and corresponding source where applicable passed SHA-256/SHA-512 verification. All main launcher/backend/runtime CI builds succeeded; runtime 4284 native checks plus HTTP/2 and H.264/AAC checks passed. Owner confirmed local sign-in/Online and authorized no additional real-game test of these exact CI bytes. Owner explicitly approved post-validation metadata-only recipe approval with unchanged source/base/media/build inputs and unchanged candidate bytes."
+    },
+    {
+      "kind": "runtime",
+      "runId": "38544781096",
+      "commit": "43ad2dea88379d2aa462c8875ca0b9175d89c726",
+      "manifestSha256": "dcb046872bf87e294406573ee47c31105f887b281896f132e0f2a2f4e3c023d8",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit owner authorization 2026-10-14: publish this successful main CI runtime after checksum checks, without another real-game test and without rebuilding. Exact binary, corresponding-source archive and checksum files passed candidate identity, SHA-256 and SHA-512 verification; source archive recipe matches the candidate source lock. Main run 38544781096 completed clean build, native, HTTP/2, media and runtime-gate jobs successfully. Owner previously confirmed local diagnostic Forza passes Gaming Services and account-enabled startup looks good; No Mans Sky remains nonworking. These exact CI bytes were not real-game tested; no new cloud-save roundtrip or multiplayer claim. Approved development-to-release metadata-only transition with unchanged source/base/media/compatibility inputs and unchanged candidate bytes. Temporary Gaming Services version override is default-on by explicit owner request, not a complete Microsoft service implementation."
+    },
+    {
+      "kind": "runtime",
+      "runId": "38560766184",
+      "commit": "9e1653e1be777cad2119c289b603964ca044deb2",
+      "manifestSha256": "f86ad9ffee681618208ce77909cf37f3ec2abe7e020eea5521f01d155563f9e7",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit stable-publication request on 2026-10-14 following positive local Forza and No Mans Sky tests. Successful main CI 38560766184 reconstructed the pinned source and passed all native, HTTP/2, media and runtime gates. Exact binary and corresponding-source archives passed SHA-256/SHA-512, candidate identity, recipe, source/base/media and packaged provenance checks. The verified recipe matches the locally game-tested API/scheduling fixes; user-confirmed compatibility includes both titles online. Publication uses the standing approved metadata-only development-to-release policy and unchanged artifact bytes. No further real-game run of the exact CI archive was performed; no second-device cloud restore, full-match or clean-exit claim is added by this approval."
+    },
+      {
+        "kind": "launcher",
+        "runId": "38643205085",
+        "commit": "606bbea0a12cc5ad5c375354c0616694c5cd6a01",
+        "manifestSha256": "11bf8a439c0e128bedab31839d633c3db9195a815836bb81b354329dccd2fd8a",
+        "approved": true,
+        "approvedBy": "domsvoboda",
+        "evidence": "Explicit stable-publication request 2026-10-14 for launcher 0.2.3 after successful main CI. Exact CI AppImage/checksum/candidate manifest verified; the same bytes booted with the normal Electron sandbox in an isolated sample-data-only profile, captured five pages and exited0. Source tests146/runtime-tools22/CI-tools19 passed. No real account/package-query or external self-update run on these exact bytes; publication is authorized without another game run."
+      },
+      {
+        "kind": "runtime",
+        "runId": "38643205152",
+        "commit": "606bbea0a12cc5ad5c375354c0616694c5cd6a01",
+        "manifestSha256": "36093e0cf75497c449b73fe68db0a47faf81b1521eee58c34d4ab94f853c5c07",
+        "approved": true,
+        "approvedBy": "domsvoboda",
+        "evidence": "Explicit stable-publication request 2026-10-14 after successful clean main CI. Exact binary/source/checksum/candidate manifest verified; packaged recipe, source hashes, patch list and compiled xthreading/xgamesave source match the approved main606bbea inputs. Native4527 checks/0 failures, HTTP2 and portable H264/AAC media checks passed. Matching local generic cleanup/background-save code was validated in Palworld normal quit and Minecraft/Gears sign-in; no new real-game run of these exact CI bytes. Standing authorized metadata-only development-to-release promotion preserves all artifact bytes and source/base/media inputs."
+      },
+    {
+      "kind": "launcher",
+      "runId": "38781431290",
+      "commit": "40ec99372ff91d77ccbdcd7d16a09f01ef2a053e",
+      "manifestSha256": "1a2bd99d73d27a1422b7ef99f9d57c0580ce1929d38d9e02ef348df930d15212",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit 2026-10-15 request to publish launcher 0.3.0, followed by authorization to finish while the user is away after the final library layout fixes. Main CI 38781431290 passed. Exact AppImage, SHA-256/SHA-512 and candidate identity verified against commit 40ec993; the same AppImage booted and exited successfully in an isolated sample-data-only profile with the normal Electron sandbox. Local source tests 187/22/19 passed and the user checked the account library and membership display in the preceding local build. No new real-account, cloud or game run on these exact CI bytes, no production activation and no runtime change. Publish unchanged candidate bytes."
+    },
+    {
+      "kind": "backend",
+      "runId": "38781431880",
+      "commit": "40ec99372ff91d77ccbdcd7d16a09f01ef2a053e",
+      "manifestSha256": "5ebfc26ae5eb5104e171b061d7267c4469f466c994dfa00c54dc674815830ee6",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit 2026-10-15 request to publish pending changes including backend 0.2.2, followed by authorization to finish while the user is away. Main CI 38781431880 passed all pinned-source build, native/parser/cache/streaming checks and packaged binaries plus corresponding source. Exact candidate identity, SHA-256/SHA-512, recipe metadata, archive entries and packaged binary/LICENSE hashes verified against commit 40ec993. Exact CLI library and streaming help confirm account-library and durable progress/control interfaces without account or service startup. Production namespace is preserved; no diagnostic account namespace is present. The source recipe matches the locally checked account library and prior accepted download fixes. No new real-account, cloud or game operation was performed on these exact CI bytes. Publish unchanged candidate bytes."
+    },
+    {
+      "kind": "launcher",
+      "runId": "39053571074",
+      "commit": "8db16a9cd0dd27a76f3df935e2432dff33fa6468",
+      "manifestSha256": "ace66f35eeaae6b00e56229e3671a6c5094829a84d007ea76c183fe910357520",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit stable-release authorization on 2026-10-17, including an explicit choice to publish after final CI AppImage checks without another game run. Main CI 39053571074 succeeded. Exact final AppImage and candidate manifest passed SHA-256/SHA-512 and source/run identity checks; these unchanged bytes booted in an isolated demo profile with the normal Electron sandbox, rendered the Home page and exited 0. Source build451/runtime-tools25/CI-tools22 passed. Native production Steam import, explicit reuse without duplication and actual game-specific artwork were verified with running Steam and multiple saved profiles; the user confirmed the final artwork. Gears was confirmed working with the preceding CI launcher39047551963 and the same exact runtime38973220039, not this final AppImage. No additional real game, account or cloud operation was performed with these final launcher bytes. Publish the exact final candidate without rebuilding."
+    },
+    {
+      "kind": "runtime",
+      "runId": "38973220039",
+      "commit": "813b4694a528eeb91b3d8d4579d2c2c0006abb70",
+      "manifestSha256": "5d7b7409e56199ccee046690031937ab7be57e45811bc27f63a8047271524f98",
+      "approved": true,
+      "approvedBy": "domsvoboda",
+      "evidence": "Explicit stable-release authorization on 2026-10-17 after the user selected and confirmed Gears of War: E-Day working with this exact downloaded CI runtime in an isolated copied prefix and explicitly authorized shared Xbox cloud synchronization. Successful clean main CI38973220039 passed5673 native checks across15 probes with zero failures/timeouts, HTTP2 14checks/0 and bundled H264/AAC checks. Binary and corresponding-source archives passed candidate identity and SHA-256/SHA-512 checks; packaged metadata, ordered25patches, source/base/media locks and all five installed component hashes matched. No new multiplayer-match, cloud-restore roundtrip or normal-exit acknowledgment is inferred from the concise game confirmation. Approve only the metadata development-to-release transition with unchanged build/source/base/media inputs and unchanged candidate bytes; no production runtime activation."
+    }
+  ]
+}

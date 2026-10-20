@@ -1,0 +1,215 @@
+--- a/dlls/xgameruntime/xstore.c
++++ b/dlls/xgameruntime/xstore.c
+@@ -19,6 +19,8 @@
+  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+  */
+ 
++#include <libxml/parser.h>
++#include <libxml/tree.h>
+ #include "private.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+@@ -516,22 +518,170 @@
+     return E_NOTIMPL;
+ }
+ 
++static const char store_updates_identity[] = "XStorePackageUpdates";
++
++struct store_updates_context
++{
++    LONG refs;
++    char request[256];
++    BOOL package_found;
++    IXThreadingImpl *threading;
++    XAsyncBlock *async;
++};
++
++static void store_updates_release( struct store_updates_context *context )
++{
++    if (!InterlockedDecrement(&context->refs))
++    {
++        IXThreadingImpl_Release(context->threading);
++        free(context);
++    }
++}
++
++static BOOLEAN WINAPI store_updates_package( void *arg, const XPackageDetails *details )
++{
++    struct store_updates_context *context = arg;
++    SIZE_T i;
++    if (!details->storeId || strlen(details->storeId) != 12 || context->package_found) return FALSE;
++    for (i = 0; i < 12; ++i)
++        if (!((details->storeId[i] >= 'A' && details->storeId[i] <= 'Z') ||
++              (details->storeId[i] >= 'a' && details->storeId[i] <= 'z') ||
++              (details->storeId[i] >= '0' && details->storeId[i] <= '9'))) return FALSE;
++    snprintf(context->request,sizeof(context->request),
++        "<Request><ProductId>%s</ProductId><InstalledVersion>%u.%u.%u.%u</InstalledVersion></Request>",
++        details->storeId,details->version.major,details->version.minor,details->version.build,details->version.revision);
++    context->package_found = TRUE;
++    return FALSE; /* One installed package is exposed by this runtime. */
++}
++
++static xmlNodePtr store_updates_child( xmlNodePtr root, const char *name )
++{
++    xmlNodePtr child;
++    for (child = root ? root->children : NULL; child; child = child->next)
++        if (child->type == XML_ELEMENT_NODE && !strcmp((char *)child->name,name)) return child;
++    return NULL;
++}
++
++static HRESULT store_updates_response( const char *response, UINT16 size )
++{
++    xmlDocPtr document;
++    xmlNodePtr root;
++    xmlChar *value;
++    char *end;
++    HRESULT hr = E_FAIL;
++    if (!(document = xmlReadMemory(response,size,NULL,NULL,XML_PARSE_NONET|XML_PARSE_NOERROR|XML_PARSE_NOWARNING))) return E_FAIL;
++    root = xmlDocGetRootElement(document);
++    if (!(value = xmlNodeGetContent(store_updates_child(root,"HResult")))) goto done;
++    hr = strtoul((char *)value,&end,10);
++    if (end == (char *)value || *end) hr = E_FAIL;
++    xmlFree(value);
++    if (FAILED(hr)) goto done;
++    hr = E_FAIL;
++    if (!(value = xmlNodeGetContent(store_updates_child(root,"Checked")))) goto done;
++    if (strcmp((char *)value,"true")) { xmlFree(value); goto done; }
++    xmlFree(value);
++    if (!(value = xmlNodeGetContent(store_updates_child(root,"Count")))) goto done;
++    if (!strcmp((char *)value,"0")) hr = S_OK;
++    xmlFree(value);
++done:
++    xmlFreeDoc(document);
++    return hr;
++}
++
++static DWORD WINAPI XStorePackageUpdatesWorker( void *arg )
++{
++    struct store_updates_context *context = arg;
++    IXThreadingImpl *threading = context->threading;
++    XAsyncBlock *async = context->async;
++    char *response = NULL;
++    UINT16 size = 0;
++    HRESULT hr = xodus_store_package_updates_xml(context->request,strlen(context->request),&response,&size);
++    if (SUCCEEDED(hr)) hr = response && size ? store_updates_response(response,size) : E_FAIL;
++    free(response);
++    TRACE("package update query completed, hr=%08lx.\n",hr);
++    store_updates_release(context);
++    /* Completion can synchronously clean context: do not touch it afterward. */
++    IXThreadingImpl_XAsyncComplete(threading,async,hr,0);
++    IXThreadingImpl_Release(threading);
++    return 0;
++}
++
++static HRESULT WINAPI store_updates_provider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct store_updates_context *context = data->context;
++    HANDLE worker;
++    switch (op)
++    {
++        case XAsyncOp_Begin:
++            return IXThreadingImpl_XAsyncSchedule(context->threading,data->async,0);
++        case XAsyncOp_DoWork:
++            context->async = data->async;
++            InterlockedIncrement(&context->refs);
++            IXThreadingImpl_AddRef(context->threading);
++            if (!(worker = CreateThread(NULL,0,XStorePackageUpdatesWorker,context,0,NULL)))
++            {
++                HRESULT hr = HRESULT_FROM_WIN32(GetLastError());
++                IXThreadingImpl_Release(context->threading);
++                store_updates_release(context);
++                return hr;
++            }
++            CloseHandle(worker);
++            return E_PENDING;
++        case XAsyncOp_Cleanup:
++            store_updates_release(context);
++            break;
++        default: break;
++    }
++    return S_OK;
++}
++
+ static HRESULT WINAPI x_store_XStoreQueryGameAndDlcPackageUpdatesAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, storeContextHandle %p, async %p stub!\n", iface, storeContextHandle, async );
+-    return E_NOTIMPL;
++    struct store_updates_context *context;
++    IXPackageImpl *package;
++    HRESULT hr;
++    TRACE("iface %p, storeContextHandle %p, async %p.\n",iface,storeContextHandle,async);
++    if (!storeContextHandle || !async) return E_INVALIDARG;
++    if (!(context = calloc(1,sizeof(*context)))) return E_OUTOFMEMORY;
++    context->refs = 1;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XPackageImpl,&IID_IXPackageImpl,(void **)&package))) goto error;
++    hr = IXPackageImpl_XPackageEnumeratePackages(package,XPackageKind_Game,XPackageEnumerationScope_ThisOnly,context,store_updates_package);
++    IXPackageImpl_Release(package);
++    if (FAILED(hr)) goto error;
++    if (!context->package_found) { hr = HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED); goto error; }
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl,&IID_IXThreadingImpl,(void **)&context->threading))) goto error;
++    hr = IXThreadingImpl_XAsyncBegin(context->threading,async,context,store_updates_identity,"XStoreQueryGameAndDlcPackageUpdatesAsync",store_updates_provider);
++    if (SUCCEEDED(hr)) return hr;
++    IXThreadingImpl_Release(context->threading);
++error:
++    free(context);
++    return hr;
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreQueryGameAndDlcPackageUpdatesResultCount( IXStoreImpl6 *iface, XAsyncBlock *async, UINT32 *count )
+ {
+-    FIXME( "iface %p, async %p, count %p stub!\n", iface, async, count );
+-    return E_NOTIMPL;
++    IXThreadingImpl *threading;
++    SIZE_T size;
++    HRESULT hr;
++    TRACE("iface %p, async %p, count %p.\n",iface,async,count);
++    if (!async || !count) return E_INVALIDARG;
++    *count = 0;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl,&IID_IXThreadingImpl,(void **)&threading))) return hr;
++    hr = IXThreadingImpl_XAsyncGetResultSize(threading,async,&size);
++    IXThreadingImpl_Release(threading);
++    if (SUCCEEDED(hr) && size) return E_UNEXPECTED;
++    return hr;
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreQueryGameAndDlcPackageUpdatesResult( IXStoreImpl6 *iface, XAsyncBlock *async, UINT32 count, XStorePackageUpdate *packageUpdates )
+ {
+-    FIXME( "iface %p, async %p, count %u, packageUpdates %p stub!\n", iface, async, count, packageUpdates );
+-    return E_NOTIMPL;
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    if (!async || count) return E_INVALIDARG;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl,&IID_IXThreadingImpl,(void **)&threading))) return hr;
++    hr = IXThreadingImpl_XAsyncGetResult(threading,async,store_updates_identity,0,NULL,NULL);
++    IXThreadingImpl_Release(threading);
++    return hr;
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreDownloadPackageUpdatesAsync( IXStoreImpl6 *iface, XStoreContextHandle storeContextHandle, const char **packageIdentifiers, SIZE_T packageIdentifiersCount, XAsyncBlock *async )
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -344,6 +344,14 @@
+     return NULL;
+ }
+ 
++HRESULT xodus_store_package_updates_xml( const char *request, SIZE_T request_size, char **response, UINT16 *size )
++{
++    if (!request || !request_size || request_size > 0xffff || !response || !size) return E_INVALIDARG;
++    *response = NULL;
++    *size = 0;
++    return xodus_request( 9, request, request_size, response, size );
++}
++
+ HRESULT xodus_store_license_body( const char **product_ids, SIZE_T count, const char *nonce, char **body )
+ {
+     xmlDocPtr doc;
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -73,6 +73,7 @@
+ HRESULT xuser_signed_request( XUserHandle user, const char *method, const char *url, const char *auth, const char *extraHeaders,
+                               const void *body, DWORD bodySize, DWORD *status, BYTE **buffer, SIZE_T *bufferSize );
+ extern BOOLEAN fullTrust;
++HRESULT xodus_store_package_updates_xml( const char *request, SIZE_T request_size, char **response, UINT16 *size );
+ HRESULT xodus_store_license_xml( const char *request, SIZE_T request_size, char **token );
+ HRESULT xodus_store_license_body( const char **product_ids, SIZE_T count, const char *nonce, char **body );
+ void xodus_store_license_note( const char *phase, HRESULT hr );

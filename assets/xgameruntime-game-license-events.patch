@@ -1,0 +1,390 @@
+diff --git a/dlls/xgameruntime/xstore.c b/dlls/xgameruntime/xstore.c
+index 11907aa..df0e209 100644
+--- a/dlls/xgameruntime/xstore.c
++++ b/dlls/xgameruntime/xstore.c
+@@ -724,14 +724,12 @@ static HRESULT WINAPI x_store_XStoreQueryPackageIdentifier( IXStoreImpl6 *iface,
+ 
+ static HRESULT WINAPI x_store_XStoreRegisterGameLicenseChanged( IXStoreImpl6 *iface, XStoreContextHandle storeContextHandle, XTaskQueueHandle queue, void *context, XStoreGameLicenseChangedCallback *callback, XTaskQueueRegistrationToken *token )
+ {
+-    FIXME( "iface %p, storeContextHandle %p, queue %p, context %p, callback %p, token %p stub!\n", iface, storeContextHandle, queue, context, callback, token );
+-    return E_NOTIMPL;
++    return game_license_register(storeContextHandle, queue, context, callback, token);
+ }
+ 
+ static BOOLEAN WINAPI x_store_XStoreUnregisterGameLicenseChanged( IXStoreImpl6 *iface, XStoreContextHandle storeContextHandle, XTaskQueueRegistrationToken token, BOOLEAN wait )
+ {
+-    FIXME( "iface %p, storeContextHandle %p, token %p, wait %d stub!\n", iface, storeContextHandle, &token, wait );
+-    return FALSE;
++    return game_license_unregister(storeContextHandle, token, wait);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreRegisterPackageLicenseLost( IXStoreImpl6 *iface, XStoreLicenseHandle storeLicenseHandle, XTaskQueueHandle queue, void *context, XStorePackageLicenseLostCallback *callback, XTaskQueueRegistrationToken *token)
+diff --git a/dlls/xgameruntime/xstore_entitled.h b/dlls/xgameruntime/xstore_entitled.h
+index 06ca942..e7cb549 100644
+--- a/dlls/xgameruntime/xstore_entitled.h
++++ b/dlls/xgameruntime/xstore_entitled.h
+@@ -55,13 +55,24 @@ HRESULT xstore_configure( struct _xmlNode *root )
+     return S_OK;
+ }
+ 
++struct game_license_sku
++{
++    char id[5];
++    BOOLEAN trial;
++    INT64 end;
++};
+ struct entitled_store_context
+ {
+-    UINT64 xuid;
++    UINT64 xuid, serial, license_version, license_refresh;
++    UINT32 license_count;
++    struct game_license_sku license_skus[ENTITLED_MAX_SKUS];
+     struct entitled_store_context *next;
+ };
+ static SRWLOCK entitled_stores_lock = SRWLOCK_INIT;
+ static struct entitled_store_context *entitled_stores;
++static UINT64 entitled_next_store_serial;
++static LONG64 entitled_next_refresh;
++static void game_license_close_store( UINT64 serial );
+ 
+ static HRESULT entitled_store_create( XUserHandle user, XStoreContextHandle *out )
+ {
+@@ -74,6 +85,8 @@ static HRESULT entitled_store_create( XUserHandle user, XStoreContextHandle *out
+     context->xuid = user ? xuser_get_xuid(user) : 0;
+     if (user && !context->xuid) { free(context); return E_INVALIDARG; }
+     AcquireSRWLockExclusive(&entitled_stores_lock);
++    if (!++entitled_next_store_serial) ++entitled_next_store_serial;
++    context->serial = entitled_next_store_serial;
+     context->next = entitled_stores; entitled_stores = context;
+     ReleaseSRWLockExclusive(&entitled_stores_lock);
+     *out = context;
+@@ -88,20 +101,31 @@ static void entitled_store_close( XStoreContextHandle handle )
+     context = *link;
+     if (context) *link = context->next;
+     ReleaseSRWLockExclusive(&entitled_stores_lock);
++    if (context) game_license_close_store(context->serial);
+     free(context);
+ }
+ 
+-static HRESULT entitled_store_user( XStoreContextHandle handle, UINT64 *xuid )
++static HRESULT entitled_store_identity( XStoreContextHandle handle, UINT64 *xuid, UINT64 *serial )
+ {
+     struct entitled_store_context *context;
+     HRESULT hr = E_INVALIDARG;
+     AcquireSRWLockShared(&entitled_stores_lock);
+     for (context = entitled_stores; context && context != handle; context = context->next);
+-    if (context) { *xuid = context->xuid; hr = S_OK; }
++    if (context)
++    {
++        *xuid = context->xuid;
++        if (serial) *serial = context->serial;
++        hr = S_OK;
++    }
+     ReleaseSRWLockShared(&entitled_stores_lock);
+     return hr;
+ }
+ 
++static HRESULT entitled_store_user( XStoreContextHandle handle, UINT64 *xuid )
++{
++    return entitled_store_identity(handle, xuid, NULL);
++}
++
+ struct entitled_snapshot
+ {
+     LONG refs;
+@@ -291,6 +315,7 @@ done:
+ struct entitled_async
+ {
+     LONG refs, canceled, started;
++    UINT64 store_serial, refresh;
+     char *request;
+     UINT32 page_size;
+     struct entitled_page *page;
+@@ -301,6 +326,7 @@ static const char entitled_identity;
+ static const char entitled_next_identity;
+ 
+ #include "xstore_receipts.h"
++#include "xstore_game_license.h"
+ 
+ static void entitled_async_release( struct entitled_async *context )
+ {
+@@ -318,6 +344,8 @@ static DWORD WINAPI entitled_worker( void *arg )
+         hr = entitled_fetch(context->request, &context->canceled, &snapshot);
+     if (SUCCEEDED(hr))
+     {
++        if (!InterlockedCompareExchange(&context->canceled, 0, 0))
++            game_license_observe(context->store_serial, context->refresh, snapshot);
+         if (!(context->page = calloc(1, sizeof(*context->page)))) hr = E_OUTOFMEMORY;
+         else
+         {
+@@ -394,13 +422,13 @@ static HRESULT entitled_begin( XStoreContextHandle store, UINT32 kinds, UINT32 p
+     xmlChar *bytes = NULL;
+     char kind[16], language[128] = "en-US", market[16] = "US";
+     WCHAR locale[85], country[16];
+-    UINT64 xuid;
++    UINT64 xuid, serial;
+     UINT32 i;
+     int size;
+     HRESULT hr;
+     if (!async || !kinds || (kinds & ~31) || !page_size) return E_INVALIDARG;
+     page_size = min(page_size, ENTITLED_MAX_PRODUCTS);
+-    if (FAILED(hr = entitled_store_user(store, &xuid))) return hr;
++    if (FAILED(hr = entitled_store_identity(store, &xuid, &serial))) return hr;
+     if (!entitled_id(storeId)) return E_GAME_MISSING_GAME_CONFIG;
+     if (GetUserDefaultLocaleName(locale, ARRAY_SIZE(locale)))
+         WideCharToMultiByte(CP_UTF8, 0, locale, -1, language, sizeof(language), NULL, NULL);
+@@ -424,6 +452,8 @@ static HRESULT entitled_begin( XStoreContextHandle store, UINT32 kinds, UINT32 p
+     xmlFree(bytes);
+     if (!context) return E_OUTOFMEMORY;
+     if (!context->request) { free(context); return E_OUTOFMEMORY; }
++    context->store_serial = serial;
++    context->refresh = InterlockedIncrement64(&entitled_next_refresh);
+     return entitled_start(context, async, FALSE);
+ }
+ 
+diff --git a/dlls/xgameruntime/xstore_game_license.h b/dlls/xgameruntime/xstore_game_license.h
+new file mode 100644
+index 0000000..1f9cf78
+--- /dev/null
++++ b/dlls/xgameruntime/xstore_game_license.h
+@@ -0,0 +1,240 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Running-title license change subscriptions, not license grants.
++ * Only proof-backed current-title refresh changes generate events. Registration
++ * emits nothing. Failed/filtered/absent receipts are not proof of revocation.
++ * No background Store purchase/revocation feed is supplied by this runtime. */
++struct game_license_registration
++{
++    LONG refs;
++    struct game_license_registration *next;
++    XStoreContextHandle store;
++    UINT64 serial, token, version, delivered;
++    IXThreadingImpl *threading;
++    XTaskQueueHandle queue;
++    void *context;
++    XStoreGameLicenseChangedCallback *callback;
++    BOOL removed, queued, running;
++    DWORD callback_thread;
++};
++static SRWLOCK game_license_lock = SRWLOCK_INIT;
++static CONDITION_VARIABLE game_license_changed = CONDITION_VARIABLE_INIT;
++static struct game_license_registration *game_license_registrations;
++static UINT64 game_license_next_token;
++
++static void game_license_release( struct game_license_registration *registration )
++{
++    if (InterlockedDecrement(&registration->refs)) return;
++    IXThreadingImpl_XTaskQueueCloseHandle(registration->threading, registration->queue);
++    IXThreadingImpl_Release(registration->threading);
++    free(registration);
++}
++
++/* Registry lock held. Pending unregisters remain visible to later wait=true. */
++static BOOL game_license_retire( struct game_license_registration *registration )
++{
++    struct game_license_registration **link;
++    for (link = &game_license_registrations; *link && *link != registration; link = &(*link)->next);
++    if (!*link) return FALSE;
++    *link = registration->next;
++    return TRUE;
++}
++
++static void game_license_submit( struct game_license_registration *registration );
++
++static void CALLBACK game_license_callback( void *arg, BOOLEAN canceled )
++{
++    struct game_license_registration *registration = arg;
++    BOOL deliver, again = FALSE, retired = FALSE;
++    AcquireSRWLockExclusive(&game_license_lock);
++    registration->queued = FALSE;
++    deliver = !canceled && !registration->removed && registration->version > registration->delivered;
++    if (deliver)
++    {
++        registration->delivered = registration->version;
++        registration->running = TRUE;
++        registration->callback_thread = GetCurrentThreadId();
++    }
++    ReleaseSRWLockExclusive(&game_license_lock);
++    if (deliver) registration->callback(registration->context);
++    AcquireSRWLockExclusive(&game_license_lock);
++    registration->running = FALSE;
++    if (registration->removed) retired = game_license_retire(registration);
++    else if (deliver && registration->version > registration->delivered)
++        again = registration->queued = TRUE;
++    WakeAllConditionVariable(&game_license_changed);
++    ReleaseSRWLockExclusive(&game_license_lock);
++    if (retired) game_license_release(registration);
++    /* Reuse the callback reference for a refresh arriving during delivery. */
++    if (again) game_license_submit(registration);
++    else game_license_release(registration);
++}
++
++static void game_license_submit( struct game_license_registration *registration )
++{
++    BOOL retired = FALSE;
++    HRESULT hr = IXThreadingImpl_XTaskQueueSubmitCallback(registration->threading, registration->queue,
++        XTaskQueuePort_Completion, registration, game_license_callback);
++    if (SUCCEEDED(hr)) return;
++    AcquireSRWLockExclusive(&game_license_lock);
++    registration->queued = FALSE;
++    if (registration->removed) retired = game_license_retire(registration);
++    WakeAllConditionVariable(&game_license_changed);
++    ReleaseSRWLockExclusive(&game_license_lock);
++    if (retired) game_license_release(registration);
++    game_license_release(registration);
++}
++
++static void game_license_notify( UINT64 serial, UINT64 version )
++{
++    struct game_license_registration *registration;
++    for (;;)
++    {
++        AcquireSRWLockExclusive(&game_license_lock);
++        for (registration = game_license_registrations; registration; registration = registration->next)
++            if (registration->serial == serial && !registration->removed && registration->version < version) break;
++        if (registration)
++        {
++            registration->version = version;
++            if (!registration->queued && !registration->running)
++            {
++                registration->queued = TRUE;
++                InterlockedIncrement(&registration->refs);
++            }
++            else
++            {
++                ReleaseSRWLockExclusive(&game_license_lock);
++                continue;
++            }
++        }
++        ReleaseSRWLockExclusive(&game_license_lock);
++        if (!registration) break;
++        game_license_submit(registration);
++    }
++}
++
++static int game_license_compare( const void *a, const void *b )
++{
++    return strcmp(((const struct game_license_sku *)a)->id, ((const struct game_license_sku *)b)->id);
++}
++
++static void game_license_observe( UINT64 serial, UINT64 refresh, const struct entitled_snapshot *snapshot )
++{
++    struct game_license_sku skus[ENTITLED_MAX_SKUS] = {0};
++    struct entitled_store_context *store;
++    const XStoreProduct *product = NULL;
++    UINT32 i, count = 0;
++    UINT64 version = 0, now = time(NULL);
++    BOOL changed = FALSE;
++    if (!serial || !refresh || !storeId || !snapshot || snapshot->proof_until <= now || snapshot->valid_until <= now) return;
++    for (i = 0; i < snapshot->count; i++)
++        if (!strcmp(snapshot->products[i].storeId, storeId) &&
++            snapshot->products[i].productKind == XStoreProductKind_Game) { product = &snapshot->products[i]; break; }
++    if (!product || !product->isInUserCollection || !product->skusCount || product->skusCount > ENTITLED_MAX_SKUS) return;
++    for (i = 0; i < product->skusCount; i++)
++    {
++        const XStoreSku *sku = &product->skus[i];
++        if (!sku->isInUserCollection || !entitled_sku_id(sku->skuId) || sku->collectionData.endDate <= 0 ||
++            (UINT64)sku->collectionData.endDate <= now) return;
++        memcpy(skus[count].id, sku->skuId, 5);
++        skus[count].trial = sku->isTrial;
++        skus[count++].end = sku->collectionData.endDate;
++    }
++    qsort(skus, count, sizeof(*skus), game_license_compare);
++    AcquireSRWLockExclusive(&entitled_stores_lock);
++    for (store = entitled_stores; store && store->serial != serial; store = store->next);
++    if (store && refresh > store->license_refresh)
++    {
++        changed = count != store->license_count;
++        for (i = 0; !changed && i < count; i++)
++            changed = strcmp(skus[i].id, store->license_skus[i].id) ||
++                skus[i].trial != store->license_skus[i].trial || skus[i].end != store->license_skus[i].end;
++        changed = changed && store->license_version;
++        store->license_refresh = refresh;
++        store->license_count = count;
++        memcpy(store->license_skus, skus, sizeof(skus));
++        if (!store->license_version || changed) store->license_version++;
++        version = store->license_version;
++    }
++    ReleaseSRWLockExclusive(&entitled_stores_lock);
++    if (changed) game_license_notify(serial, version);
++}
++
++static HRESULT game_license_register( XStoreContextHandle handle, XTaskQueueHandle queue, void *context,
++    XStoreGameLicenseChangedCallback *callback, XTaskQueueRegistrationToken *token )
++{
++    struct game_license_registration *registration;
++    struct entitled_store_context *store;
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    if (!token) return E_POINTER;
++    token->token = 0;
++    if (!callback) return E_POINTER;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading))) return hr;
++    if (!(registration = calloc(1, sizeof(*registration)))) { IXThreadingImpl_Release(threading); return E_OUTOFMEMORY; }
++    AcquireSRWLockShared(&entitled_stores_lock);
++    for (store = entitled_stores; store && store != handle; store = store->next);
++    if (!store) hr = E_INVALIDARG;
++    else if (queue) hr = IXThreadingImpl_XTaskQueueDuplicateHandle(threading, queue, &registration->queue);
++    else hr = IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue(threading, &registration->queue) ? S_OK : E_FAIL;
++    if (SUCCEEDED(hr))
++    {
++        registration->refs = 1;
++        registration->store = handle; registration->serial = store->serial;
++        registration->version = registration->delivered = store->license_version;
++        registration->threading = threading;
++        registration->context = context; registration->callback = callback;
++        AcquireSRWLockExclusive(&game_license_lock);
++        if (!++game_license_next_token) ++game_license_next_token;
++        registration->token = token->token = game_license_next_token;
++        registration->next = game_license_registrations; game_license_registrations = registration;
++        ReleaseSRWLockExclusive(&game_license_lock);
++    }
++    ReleaseSRWLockShared(&entitled_stores_lock);
++    if (FAILED(hr)) { IXThreadingImpl_Release(threading); free(registration); }
++    return hr;
++}
++
++static BOOLEAN game_license_unregister( XStoreContextHandle handle, XTaskQueueRegistrationToken token, BOOLEAN wait )
++{
++    struct game_license_registration *registration;
++    BOOL pending, retired = FALSE;
++    AcquireSRWLockExclusive(&game_license_lock);
++    for (registration = game_license_registrations; registration; registration = registration->next)
++        if (registration->store == handle && registration->token == token.token) break;
++    if (!registration) { ReleaseSRWLockExclusive(&game_license_lock); return TRUE; }
++    InterlockedIncrement(&registration->refs);
++    registration->removed = TRUE;
++    pending = registration->queued || registration->running;
++    /* Suppress queued work without pumping a Manual queue. Never self-wait. */
++    while (wait && registration->running && registration->callback_thread != GetCurrentThreadId())
++        SleepConditionVariableSRW(&game_license_changed, &game_license_lock, INFINITE, 0);
++    if (wait || !pending) retired = game_license_retire(registration);
++    ReleaseSRWLockExclusive(&game_license_lock);
++    if (retired) game_license_release(registration);
++    game_license_release(registration);
++    return wait || !pending;
++}
++
++static void game_license_close_store( UINT64 serial )
++{
++    struct game_license_registration *registration;
++    BOOL retired;
++    AcquireSRWLockExclusive(&game_license_lock);
++    for (registration = game_license_registrations; registration; registration = registration->next)
++        if (registration->serial == serial) registration->removed = TRUE;
++    for (;;)
++    {
++        for (registration = game_license_registrations; registration; registration = registration->next)
++            if (registration->serial == serial) break;
++        if (!registration) break;
++        InterlockedIncrement(&registration->refs);
++        while (registration->running && registration->callback_thread != GetCurrentThreadId())
++            SleepConditionVariableSRW(&game_license_changed, &game_license_lock, INFINITE, 0);
++        retired = game_license_retire(registration);
++        ReleaseSRWLockExclusive(&game_license_lock);
++        if (retired) game_license_release(registration);
++        game_license_release(registration);
++        AcquireSRWLockExclusive(&game_license_lock);
++    }
++    ReleaseSRWLockExclusive(&game_license_lock);
++}

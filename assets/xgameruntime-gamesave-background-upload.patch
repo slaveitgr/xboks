@@ -1,0 +1,358 @@
+--- a/dlls/xgameruntime/xgamesave.c
++++ b/dlls/xgameruntime/xgamesave.c
+@@ -98,10 +98,19 @@
+     UINT64 time;
+     char remote[48];
+     BOOL dirty;
++    UINT64 revision;
+     UINT32 count;
+     struct blob_entry *blobs;
+ };
+ 
++struct save_upload
++{
++    struct save_upload *next;
++    struct container_state state;
++    BYTE **data;
++    SIZE_T *sizes;
++};
++
+ struct XGameSaveProvider
+ {
+     XUserHandle user;
+@@ -117,6 +126,11 @@
+     UINT32 downloaded;
+     UINT32 uploaded;
+     CRITICAL_SECTION cs;
++    CRITICAL_SECTION cloud_cs;
++    HANDLE upload_event;
++    HANDLE upload_thread;
++    BOOL upload_stopping;
++    struct save_upload *uploads;
+ };
+ 
+ struct XGameSaveContainer
+@@ -545,6 +559,7 @@
+         else if (!strncmp( line, "time ", 5 )) state->time = _strtoui64( line + 5, NULL, 10 );
+         else if (!strncmp( line, "remote ", 7 )) lstrcpynA( state->remote, strcmp( line + 7, "-" ) ? line + 7 : "", sizeof(state->remote) );
+         else if (!strncmp( line, "dirty ", 6 )) state->dirty = atoi( line + 6 );
++        else if (!strncmp( line, "revision ", 9 )) state->revision = _strtoui64( line + 9, NULL, 10 );
+         else if (sscanf( line, "blob %1023s %u %127s", a, &blobSize, b ) == 3)
+         {
+             char *blobName = hex_decode( a );
+@@ -572,6 +587,7 @@
+     hex = hex_encode( state->display ? state->display : "" );
+     len += snprintf( text + len, size - len, "display %s\ntime %I64u\nremote %s\ndirty %d\n", hex ? hex : "", state->time, state->remote[0] ? state->remote : "-", state->dirty );
+     free( hex );
++    len += snprintf( text + len, size - len, "revision %I64u\n", state->revision );
+     if (provider->files)
+     {
+         hex = hex_encode( state->name );
+@@ -837,7 +853,8 @@
+     return hr;
+ }
+ 
+-static HRESULT cloud_upload( struct XGameSaveProvider *provider, struct container_state *state )
++static HRESULT cloud_upload_data( struct XGameSaveProvider *provider, struct container_state *state,
++                                  BYTE **snapshot, SIZE_T *snapshot_sizes )
+ {
+     char path[2048], blob[2048], timestamp[48], *enc, *encDisplay, *json, *p;
+     SIZE_T size, jsonSize = 32;
+@@ -860,7 +877,12 @@
+             hr = E_OUTOFMEMORY;
+             break;
+         }
+-        if (FAILED(hr = read_file( blob, &data, &size ))) break;
++        if (snapshot)
++        {
++            data = snapshot[i];
++            size = snapshot_sizes[i];
++        }
++        else if (FAILED(hr = read_file( blob, &data, &size ))) break;
+         CoCreateGuid( &guid );
+         snprintf( entry->atom, sizeof(entry->atom), "%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X,binary",
+                   guid.Data1, guid.Data2, guid.Data3, guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+@@ -868,13 +890,13 @@
+         if (size > LARGE_BLOB_SIZE)
+         {
+             hr = upload_large_atom( provider, entry->atom, data, size );
+-            free( data );
++            if (!snapshot) free( data );
+         }
+         else
+         {
+             snprintf( path, sizeof(path), "/%s", entry->atom );
+             hr = cloud_request( provider, "PUT", path, "Content-Type: application/octet-stream\r\n", data, size, &status, &buffer, &size );
+-            free( data );
++            if (!snapshot) free( data );
+             free( buffer );
+             if (SUCCEEDED(hr) && (status < 200 || status >= 300)) hr = E_FAIL;
+         }
+@@ -921,6 +943,128 @@
+     return hr;
+ }
+ 
++static HRESULT cloud_upload( struct XGameSaveProvider *provider, struct container_state *state )
++{
++    return cloud_upload_data( provider, state, NULL, NULL );
++}
++
++static void free_upload( struct save_upload *upload )
++{
++    if (upload->data)
++        for (UINT32 i = 0; i < upload->state.count; i++) free( upload->data[i] );
++    free( upload->data );
++    free( upload->sizes );
++    free_state( &upload->state );
++    free( upload );
++}
++
++/* Called under cs. Own every dirty blob before releasing the local lock: the
++ * game is free to overwrite or delete the live files while HTTP is in flight. */
++static struct save_upload *snapshot_upload( struct XGameSaveProvider *provider, const char *name )
++{
++    struct save_upload *upload = calloc( 1, sizeof(*upload) );
++    char path[2048];
++    if (!upload) return NULL;
++    if (FAILED(load_state( provider, name, &upload->state ))) goto failed;
++    if (upload->state.count)
++    {
++        upload->data = calloc( upload->state.count, sizeof(*upload->data) );
++        upload->sizes = calloc( upload->state.count, sizeof(*upload->sizes) );
++        if (!upload->data || !upload->sizes) goto failed;
++    }
++    for (UINT32 i = 0; i < upload->state.count; i++)
++    {
++        if (upload->state.blobs[i].atom[0]) continue;
++        if (!blob_path( provider, name, upload->state.blobs[i].name, path, sizeof(path) ) ||
++            FAILED(read_file( path, &upload->data[i], &upload->sizes[i] ))) goto failed;
++    }
++    return upload;
++failed:
++    free_upload( upload );
++    return NULL;
++}
++
++/* cs protects the queue/local index, cloud_cs serializes remote writes/deletes.
++ * At most the latest pending snapshot per container is retained. No network
++ * operation holds cs, and completion never changes the caller's task queue. */
++static void cancel_pending_upload( struct XGameSaveProvider *provider, const char *name )
++{
++    struct save_upload **entry = &provider->uploads, *old;
++    while (*entry)
++    {
++        if (strcmp( (*entry)->state.name, name )) { entry = &(*entry)->next; continue; }
++        old = *entry;
++        *entry = old->next;
++        free_upload( old );
++    }
++}
++
++static void queue_upload( struct XGameSaveProvider *provider, const char *name )
++{
++    struct save_upload *upload, **tail;
++    cancel_pending_upload( provider, name );
++    if (!(upload = snapshot_upload( provider, name )))
++    {
++        WARN( "cannot snapshot cloud upload; durable dirty index retained for retry.\n" );
++        return;
++    }
++    for (tail = &provider->uploads; *tail; tail = &(*tail)->next) ;
++    *tail = upload;
++    SetEvent( provider->upload_event );
++}
++
++static DWORD WINAPI upload_worker( void *context )
++{
++    struct XGameSaveProvider *provider = context;
++    HRESULT com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    for (;;)
++    {
++        struct save_upload *upload;
++        struct container_state current;
++        BOOL stopping;
++        HRESULT hr;
++        WaitForSingleObject( provider->upload_event, INFINITE );
++        for (;;)
++        {
++            EnterCriticalSection( &provider->cloud_cs );
++            EnterCriticalSection( &provider->cs );
++            upload = provider->uploads;
++            if (upload) provider->uploads = upload->next;
++            stopping = provider->upload_stopping;
++            LeaveCriticalSection( &provider->cs );
++            if (!upload)
++            {
++                LeaveCriticalSection( &provider->cloud_cs );
++                if (stopping) goto done;
++                break;
++            }
++            hr = cloud_upload_data( provider, &upload->state, upload->data, upload->sizes );
++            EnterCriticalSection( &provider->cs );
++            if (SUCCEEDED(hr) && SUCCEEDED(load_state( provider, upload->state.name, &current )))
++            {
++                /* Same-second writes are distinct revisions. Never acknowledge
++                 * newer data using the successful upload of an older snapshot. */
++                if (current.revision == upload->state.revision)
++                    hr = save_state( provider, &upload->state );
++                else
++                {
++                    lstrcpynA( current.remote, upload->state.remote, sizeof(current.remote) );
++                    hr = save_state( provider, &current );
++                }
++                free_state( &current );
++            }
++            else if (SUCCEEDED(hr)) free_state( &current );
++            if (FAILED(hr)) WARN( "background upload failed, hr %#lx; dirty save retained for retry.\n", hr );
++            LeaveCriticalSection( &provider->cs );
++            LeaveCriticalSection( &provider->cloud_cs );
++            free_upload( upload );
++        }
++    }
++done:
++    if (SUCCEEDED(com)) CoUninitialize();
++    return 0;
++}
++
+ static HRESULT cloud_delete( struct XGameSaveProvider *provider, const char *name )
+ {
+     char path[1024], *enc = url_encode( name );
+@@ -1146,10 +1290,35 @@
+     snprintf( provider->base, sizeof(provider->base), "https://titlestorage.xboxlive.com/connectedstorage/users/xuid(%I64u)/scids/%s", xuid, configurationId );
+ 
+     provider->cloud = packageFamilyName != NULL;
+-    if (provider->cloud && FAILED(hr = cloud_sync( provider )))
++    if (provider->cloud)
+     {
+-        ERR( "cloud sync failed, hr %#lx.\n", hr );
+-        cloud_disable( provider );
++        hr = cloud_sync( provider );
++        if (FAILED(hr))
++        {
++            ERR( "cloud sync failed, hr %#lx.\n", hr );
++            cloud_disable( provider );
++        }
++    }
++
++    if (provider->cloud)
++    {
++        InitializeCriticalSection( &provider->cloud_cs );
++        provider->upload_event = CreateEventW( NULL, FALSE, FALSE, NULL );
++        if (provider->upload_event)
++            provider->upload_thread = CreateThread( NULL, 0, upload_worker, provider, 0, NULL );
++        if (!provider->upload_thread)
++        {
++            hr = HRESULT_FROM_WIN32( GetLastError() );
++            if (provider->upload_event) CloseHandle( provider->upload_event );
++            DeleteCriticalSection( &provider->cloud_cs );
++            cloud_unlock( provider, FALSE );
++            IXUserImpl_XUserCloseHandle( x_user_impl, provider->user );
++            DeleteCriticalSection( &provider->cs );
++            free( provider->auth );
++            free( provider->scid );
++            free( provider );
++            return hr;
++        }
+     }
+ 
+     TRACE( "provider %p, root %s, cloud %d, downloaded %u, uploaded %u.\n", provider, debugstr_a( provider->root ), provider->cloud, provider->downloaded, provider->uploaded );
+@@ -1159,9 +1328,39 @@
+     return S_OK;
+ }
+ 
++static BOOL flush_dirty_upload( struct XGameSaveProvider *provider, const char *name, void *context )
++{
++    struct container_state state;
++    HRESULT hr = load_state( provider, name, &state );
++    if (SUCCEEDED(hr) && state.dirty)
++    {
++        hr = cloud_upload( provider, &state );
++        if (SUCCEEDED(hr)) hr = save_state( provider, &state );
++        if (FAILED(hr)) WARN( "final cloud upload failed, hr %#lx; dirty save retained.\n", hr );
++    }
++    free_state( &state );
++    return TRUE;
++}
++
+ static void close_provider( struct XGameSaveProvider *provider )
+ {
+     if (!provider) return;
++    if (provider->upload_thread)
++    {
++        EnterCriticalSection( &provider->cs );
++        provider->upload_stopping = TRUE;
++        SetEvent( provider->upload_event );
++        LeaveCriticalSection( &provider->cs );
++        /* Keep the user, provider and remote session alive until all queued
++         * snapshots finish. Abrupt process termination is not a cloud ack. */
++        WaitForSingleObject( provider->upload_thread, INFINITE );
++        /* Includes snapshots that could not be allocated and genuine upload
++         * failures. One final attempt, never a busy retry loop. */
++        enumerate_local( provider, flush_dirty_upload, NULL );
++        CloseHandle( provider->upload_thread );
++        CloseHandle( provider->upload_event );
++        DeleteCriticalSection( &provider->cloud_cs );
++    }
+     cloud_unlock( provider, FALSE );
+     IXUserImpl_XUserCloseHandle( x_user_impl, provider->user );
+     DeleteCriticalSection( &provider->cs );
+@@ -1197,16 +1396,24 @@
+     HRESULT hr;
+ 
+     if (!provider || !name || !*name) return E_INVALIDARG;
++    /* Finish the active remote upload before deleting; cancel older pending
++     * snapshots so they can never recreate the deleted remote container. */
++    if (provider->upload_thread) EnterCriticalSection( &provider->cloud_cs );
+     EnterCriticalSection( &provider->cs );
+     if (!container_dir( provider, name, dir, sizeof(dir) )) hr = E_OUTOFMEMORY;
+     else
+     {
+         delete_directory( dir );
++        cancel_pending_upload( provider, name );
++        LeaveCriticalSection( &provider->cs );
+         hr = cloud_delete( provider, name );
+         if (FAILED(hr)) WARN( "cloud delete of %s failed, hr %#lx.\n", debugstr_a( name ), hr );
+         hr = S_OK;
++        if (provider->upload_thread) LeaveCriticalSection( &provider->cloud_cs );
++        return hr;
+     }
+     LeaveCriticalSection( &provider->cs );
++    if (provider->upload_thread) LeaveCriticalSection( &provider->cloud_cs );
+     return hr;
+ }
+ 
+@@ -1238,6 +1445,8 @@
+     info.blobCount = state.count;
+     info.totalSize = state_total_size( &state );
+     info.lastModifiedTime = state.time;
++    /* needsSync describes an on-demand download, not a pending upload. This
++     * provider eagerly downloads its containers during initialization. */
+     info.needsSync = FALSE;
+     ctx->found = TRUE;
+     more = ctx->callback( &info, ctx->context );
+@@ -1300,7 +1509,8 @@
+     {
+         free_state( &state );
+         LeaveCriticalSection( &req->container->provider->cs );
+-        return req->names ? E_GS_BLOB_NOT_FOUND : (req->preparedCount = 0, req->preparedSize = 0, S_OK);
++        hr = req->names ? E_GS_BLOB_NOT_FOUND : (req->preparedCount = 0, req->preparedSize = 0, S_OK);
++        return hr;
+     }
+     count = req->names ? req->count : state.count;
+     for (UINT32 i = 0; i < count; i++)
+@@ -1443,13 +1653,12 @@
+     {
+         state.time = unix_now();
+         state.dirty = TRUE;
++        state.revision++;
+         hr = save_state( provider, &state );
+     }
+     if (SUCCEEDED(hr) && provider->cloud)
+     {
+-        HRESULT cloud = cloud_upload( provider, &state );
+-        if (FAILED(cloud)) WARN( "cloud upload of %s failed, hr %#lx, it will be retried at next launch.\n", debugstr_a( state.name ), cloud );
+-        save_state( provider, &state );
++        queue_upload( provider, state.name );
+     }
+     free_state( &state );
+     LeaveCriticalSection( &provider->cs );

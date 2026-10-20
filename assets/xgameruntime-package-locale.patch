@@ -1,0 +1,46 @@
+diff --git a/dlls/xgameruntime/xpackage.c b/dlls/xgameruntime/xpackage.c
+--- a/dlls/xgameruntime/xpackage.c
++++ b/dlls/xgameruntime/xpackage.c
+@@ -20,6 +20,7 @@
+  */
+ 
+ #include "private.h"
++#include <string.h>
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
+@@ -118,8 +119,32 @@ static BOOLEAN WINAPI x_package_XPackageUnregisterInstallationProgressChanged( I
+ 
+ static HRESULT WINAPI x_package_XPackageGetUserLocale( IXPackageImpl3 *iface, SIZE_T localeSize, char *locale )
+ {
+-    FIXME( "iface %p, localeSize %Iu, locale %p stub!\n", iface, localeSize, locale );
+-    return E_NOTIMPL;
++    char requested[LOCALE_NAME_MAX_LENGTH];
++    WCHAR user_locale[LOCALE_NAME_MAX_LENGTH];
++    DWORD length;
++    INT converted;
++
++    TRACE( "iface %p, localeSize %Iu, locale %p.\n", iface, localeSize, locale );
++    if (!locale || !localeSize) return E_INVALIDARG;
++
++    /* The launcher selects a locale declared by the installed package. */
++    length = GetEnvironmentVariableA( "XODUS_PACKAGE_LOCALE", requested, sizeof(requested) );
++    if (length >= sizeof(requested)) return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
++    if (length)
++    {
++        if (length + 1 > localeSize) return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
++        memcpy( locale, requested, length + 1 );
++        return S_OK;
++    }
++
++    if (!GetUserDefaultLocaleName( user_locale, ARRAY_SIZE(user_locale) ))
++        return HRESULT_FROM_WIN32( GetLastError() );
++    converted = WideCharToMultiByte( CP_UTF8, 0, user_locale, -1, NULL, 0, NULL, NULL );
++    if (!converted) return HRESULT_FROM_WIN32( GetLastError() );
++    if ((SIZE_T)converted > localeSize) return HRESULT_FROM_WIN32( ERROR_INSUFFICIENT_BUFFER );
++    if (!WideCharToMultiByte( CP_UTF8, 0, user_locale, -1, locale, converted, NULL, NULL ))
++        return HRESULT_FROM_WIN32( GetLastError() );
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI x_package_XPackageFindChunkAvailability( IXPackageImpl3 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, XPackageChunkAvailability *availability )

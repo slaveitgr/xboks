@@ -1,0 +1,67 @@
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -205,11 +205,15 @@ static inline struct async_state *async_state( XAsyncBlock *asyncBlock )
+     return (struct async_state *)asyncBlock->internal[0];
+ }
+ 
+-static void async_cleanup( XAsyncBlock *asyncBlock )
++static void async_cleanup_state( struct async_state *state, XAsyncProvider *provider )
+ {
+-    struct async_state *state = async_state( asyncBlock );
+     if (!InterlockedExchange( &state->cleaned, 1 ))
+-        ((XAsyncProvider *)asyncBlock->internal[1])( XAsyncOp_Cleanup, &state->data );
++        provider( XAsyncOp_Cleanup, &state->data );
++}
++
++static void async_cleanup( XAsyncBlock *asyncBlock )
++{
++    async_cleanup_state( async_state( asyncBlock ), asyncBlock->internal[1] );
+ }
+ 
+ static HRESULT WINAPI x_threading_XAsyncGetStatus( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, BOOLEAN wait )
+@@ -301,10 +305,18 @@ static HRESULT WINAPI x_threading_XAsyncSchedule( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, UINT32 delayInMs )
+ 
+ static void CALLBACK async_completion_callback( XAsyncBlock *asyncBlock, BOOLEAN canceled )
+ {
+-    if (canceled) ((XAsyncProvider *)asyncBlock->internal[1])( XAsyncOp_Cancel, asyncBlock->internal[0] );
++    struct async_state *state = async_state( asyncBlock );
++    XAsyncProvider *provider = asyncBlock->internal[1];
++
++    if (canceled) provider( XAsyncOp_Cancel, &state->data );
+     SetEvent( asyncBlock->internal[3] );
+     if (!canceled) asyncBlock->callback( asyncBlock );
+-    if (canceled || FAILED(async_state( asyncBlock )->status) || !async_state( asyncBlock )->data.bufferSize) async_cleanup( asyncBlock );
++    /* The application may delete or reuse XAsyncBlock inside its completion
++     * callback. Only the runtime-owned state may be touched after it returns.
++     * GetResult may already have cleaned the provider; cleaned makes this
++     * idempotent without dereferencing the caller's freed block. */
++    if (canceled || FAILED(state->status) || !state->data.bufferSize)
++        async_cleanup_state( state, provider );
+ }
+ 
+ static void WINAPI x_threading_XAsyncComplete( IXThreadingImpl *iface, XAsyncBlock *asyncBlock, HRESULT result, SIZE_T requiredBufferSize )
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -988,8 +988,8 @@
+ 
+         complete:
+             if (SUCCEEDED(hr)) set_signed_in_user( context->user );
+-            IXThreadingImpl_XAsyncComplete( xthreading, data->async, hr, SUCCEEDED(hr) ? sizeof(XUserHandle) : 0 );
+             if (FAILED(hr) && context->user) IUser_Release( &context->user->IUser_iface );
++            IXThreadingImpl_XAsyncComplete( xthreading, data->async, hr, SUCCEEDED(hr) ? sizeof(XUserHandle) : 0 );
+             hr = S_OK;
+             break;
+ 
+@@ -1408,10 +1408,11 @@
+         error:
+             hr = HRESULT_FROM_WIN32( GetLastError() );
+         complete:
+-            IXThreadingImpl_XAsyncComplete( xthreading, data->async, hr, SUCCEEDED(hr) ? context->dataSize : 0 );
+             if (FAILED(hr)) { free( context->data ); context->data = NULL; }
+             if (buffer) free( buffer );
+             if (auth) free( auth );
++            /* Completion can synchronously consume/free this context. */
++            IXThreadingImpl_XAsyncComplete( xthreading, data->async, hr, SUCCEEDED(hr) ? context->dataSize : 0 );
+             hr = S_OK;
+             break;
+ 

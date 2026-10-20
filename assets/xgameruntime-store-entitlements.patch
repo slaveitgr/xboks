@@ -1,0 +1,1184 @@
+diff --git a/dlls/xgameruntime/main.c b/dlls/xgameruntime/main.c
+index 6cb066a..ea65290 100644
+--- a/dlls/xgameruntime/main.c
++++ b/dlls/xgameruntime/main.c
+@@ -141,6 +141,7 @@ static HRESULT initialize_runtime( ULONG gdkVer, ULONG gsVer, char mode, const s
+     if (!(root = xmlDocGetRootElement( config ))) goto badconfig;
+     if (!strcmp( (char *)root->name, "Game" ))
+     {
++        if (FAILED(xstore_configure(root))) goto badconfig;
+         for (child = root->children; child; child = child->next)
+             if (child->type == XML_ELEMENT_NODE)
+             {
+diff --git a/dlls/xgameruntime/private.h b/dlls/xgameruntime/private.h
+index ea85367..cbacbea 100644
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -67,6 +67,8 @@
+ extern char *msaAppId;
+ extern UINT32 titleId;
+ extern char *storeId;
++struct _xmlNode;
++HRESULT xstore_configure( struct _xmlNode *root );
+ extern char *packageFamilyName;
+ UINT64 xuser_get_xuid( XUserHandle user );
+ HRESULT xuser_device_authorization( XUserHandle user, const char *relyingParty, char **auth );
+diff --git a/dlls/xgameruntime/xstore.c b/dlls/xgameruntime/xstore.c
+index c30fabd..31ea8c9 100644
+--- a/dlls/xgameruntime/xstore.c
++++ b/dlls/xgameruntime/xstore.c
+@@ -25,6 +25,8 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
++#include "xstore_entitled.h"
++
+ struct x_store
+ {
+     IXStoreImpl6 IXStoreImpl6_iface;
+@@ -77,16 +79,12 @@ static ULONG WINAPI x_store_Release( IXStoreImpl6 *iface )
+ 
+ static HRESULT WINAPI x_store_XStoreCreateContext( IXStoreImpl6 *iface, const XUserHandle user, XStoreContextHandle *storeContextHandle )
+ {
+-    TRACE( "iface %p, user %p, storeContextHandle %p.\n", iface, user, storeContextHandle );
+-    if (!storeContextHandle) return E_POINTER;
+-    if (!(*storeContextHandle = calloc( 1, sizeof(LONG) ))) return E_OUTOFMEMORY;
+-    return S_OK;
++    return entitled_store_create(user, storeContextHandle);
+ }
+ 
+ static void WINAPI x_store_XStoreCloseContextHandle( IXStoreImpl6 *iface, XStoreContextHandle storeContextHandle )
+ {
+-    TRACE( "iface %p, storeContextHandle %p.\n", iface, storeContextHandle );
+-    free( storeContextHandle );
++    entitled_store_close(storeContextHandle);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreQueryAssociatedProductsAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, UINT32 maxItemsToRetrievePerPage, XAsyncBlock *async )
+@@ -115,14 +113,12 @@ static HRESULT WINAPI x_store_XStoreQueryProductsResult( IXStoreImpl6 *iface, XA
+ 
+ static HRESULT WINAPI x_store_XStoreQueryEntitledProductsAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XStoreProductKind productKinds, UINT32 maxItemsToRetrievePerPage, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, storeContextHandle %p, productKinds %#x, maxItemsToRetrievePerPage, %u, async %p stub!\n", iface, storeContextHandle, productKinds, maxItemsToRetrievePerPage, async );
+-    return E_NOTIMPL;
++    return entitled_begin(storeContextHandle, productKinds, maxItemsToRetrievePerPage, async);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreQueryEntitledProductsResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
+ {
+-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
+-    return E_NOTIMPL;
++    return entitled_result(async, productQueryHandle, FALSE);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreQueryProductForCurrentGameAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, XAsyncBlock *async )
+@@ -151,31 +147,27 @@ static HRESULT WINAPI x_store_XStoreQueryProductForPackageResult( IXStoreImpl6 *
+ 
+ static HRESULT WINAPI x_store_XStoreEnumerateProductsQuery( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, void *context, XStoreProductQueryCallback *callback )
+ {
+-    FIXME( "iface %p, productQueryHandle %p, context %p, callback %p stub!\n", iface, productQueryHandle, context, callback );
+-    return E_NOTIMPL;
++    return entitled_enumerate(productQueryHandle, context, callback);
+ }
+ 
+ static BOOLEAN WINAPI x_store_XStoreProductsQueryHasMorePages( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle )
+ {
+-    FIXME( "iface %p, productQueryHandle %p stub!\n", iface, productQueryHandle );
+-    return FALSE;
++    return entitled_has_more(productQueryHandle);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreProductsQueryNextPageAsync( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, productQueryHandle %p, async %p stub!\n", iface, productQueryHandle, async );
+-    return E_NOTIMPL;
++    return entitled_next(productQueryHandle, async);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreProductsQueryNextPageResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreProductQueryHandle *productQueryHandle )
+ {
+-    FIXME( "iface %p, async %p, productQueryHandle %p stub!\n", iface, async, productQueryHandle );
+-    return E_NOTIMPL;
++    return entitled_result(async, productQueryHandle, TRUE);
+ }
+ 
+ static void WINAPI x_store_XStoreCloseProductsQueryHandle( IXStoreImpl6 *iface, XStoreProductQueryHandle productQueryHandle )
+ {
+-    FIXME( "iface %p, productQueryHandle %p stub!\n", iface, productQueryHandle );
++    entitled_page_close(productQueryHandle);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreAcquireLicenseForPackageAsync( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, const char *packageIdentifier, XAsyncBlock *async )
+diff --git a/dlls/xgameruntime/xstore_entitled.h b/dlls/xgameruntime/xstore_entitled.h
+new file mode 100644
+index 0000000..c1276b8
+--- /dev/null
++++ b/dlls/xgameruntime/xstore_entitled.h
+@@ -0,0 +1,477 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Account-backed entitlement queries. No game-specific IDs or ownership grants.
++ * Included by xstore.c, sharing the component's SDK ABI and debug channel. */
++#include <stdint.h>
++#include <time.h>
++
++#define ENTITLED_MAX_PRODUCTS 257
++#define ENTITLED_MAX_SKUS 16
++static char entitled_related[256][13];
++static UINT32 entitled_related_count;
++
++static BOOL entitled_id( const char *text )
++{
++    UINT32 i;
++    if (!text || strlen(text) != 12) return FALSE;
++    for (i = 0; i < 12; i++)
++        if (!((text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= '0' && text[i] <= '9'))) return FALSE;
++    return TRUE;
++}
++
++static BOOL entitled_sku_id( const char *text )
++{
++    UINT32 i;
++    if (!text || strlen(text) != 4) return FALSE;
++    for (i = 0; i < 4; i++)
++        if (!((text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= '0' && text[i] <= '9'))) return FALSE;
++    return TRUE;
++}
++
++HRESULT xstore_configure( struct _xmlNode *root )
++{
++    xmlNodePtr node, child;
++    char ids[256][13];
++    UINT32 count = 0, i;
++    for (node = root->children; node; node = node->next)
++    {
++        if (node->type != XML_ELEMENT_NODE || strcmp((char *)node->name, "RelatedProducts")) continue;
++        for (child = node->children; child; child = child->next)
++        {
++            xmlChar *value;
++            if (child->type != XML_ELEMENT_NODE || strcmp((char *)child->name, "RelatedProduct")) continue;
++            value = xmlNodeGetContent(child);
++            if (!entitled_id((char *)value)) { xmlFree(value); return E_INVALIDARG; }
++            for (i = 0; i < count && strcmp(ids[i], (char *)value); i++);
++            if (i == count)
++            {
++                if (count == 256) { xmlFree(value); return E_INVALIDARG; }
++                memcpy(ids[count++], value, 13);
++            }
++            xmlFree(value);
++        }
++    }
++    memcpy(entitled_related, ids, count * 13);
++    entitled_related_count = count;
++    return S_OK;
++}
++
++struct entitled_store_context
++{
++    UINT64 xuid;
++    struct entitled_store_context *next;
++};
++static SRWLOCK entitled_stores_lock = SRWLOCK_INIT;
++static struct entitled_store_context *entitled_stores;
++
++static HRESULT entitled_store_create( XUserHandle user, XStoreContextHandle *out )
++{
++    struct entitled_store_context *context;
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!(context = calloc(1, sizeof(*context)))) return E_OUTOFMEMORY;
++    /* Do not borrow the caller's XUser pointer. The existing receipt transport
++     * uses the service's authenticated Store account, not Xbox profile metadata. */
++    context->xuid = user ? xuser_get_xuid(user) : 0;
++    if (user && !context->xuid) { free(context); return E_INVALIDARG; }
++    AcquireSRWLockExclusive(&entitled_stores_lock);
++    context->next = entitled_stores; entitled_stores = context;
++    ReleaseSRWLockExclusive(&entitled_stores_lock);
++    *out = context;
++    return S_OK;
++}
++
++static void entitled_store_close( XStoreContextHandle handle )
++{
++    struct entitled_store_context **link, *context;
++    AcquireSRWLockExclusive(&entitled_stores_lock);
++    for (link = &entitled_stores; *link && *link != handle; link = &(*link)->next);
++    context = *link;
++    if (context) *link = context->next;
++    ReleaseSRWLockExclusive(&entitled_stores_lock);
++    free(context);
++}
++
++static HRESULT entitled_store_user( XStoreContextHandle handle, UINT64 *xuid )
++{
++    struct entitled_store_context *context;
++    HRESULT hr = E_INVALIDARG;
++    AcquireSRWLockShared(&entitled_stores_lock);
++    for (context = entitled_stores; context && context != handle; context = context->next);
++    if (context) { *xuid = context->xuid; hr = S_OK; }
++    ReleaseSRWLockShared(&entitled_stores_lock);
++    return hr;
++}
++
++struct entitled_snapshot
++{
++    LONG refs;
++    UINT32 count;
++    UINT64 valid_until;
++    XStoreProduct *products;
++};
++struct entitled_page
++{
++    LONG refs;
++    struct entitled_snapshot *snapshot;
++    UINT32 offset, size;
++    struct entitled_page *next;
++};
++static SRWLOCK entitled_pages_lock = SRWLOCK_INIT;
++static struct entitled_page *entitled_pages;
++
++static void entitled_snapshot_release( struct entitled_snapshot *snapshot )
++{
++    UINT32 i, j;
++    if (InterlockedDecrement(&snapshot->refs)) return;
++    for (i = 0; i < snapshot->count; i++)
++    {
++        XStoreProduct *p = &snapshot->products[i];
++        free((char *)p->storeId); free((char *)p->title); free((char *)p->description); free((char *)p->language);
++        free((char *)p->inAppOfferToken);
++        for (j = 0; j < p->skusCount; j++)
++        {
++            free((char *)p->skus[j].skuId); free((char *)p->skus[j].title);
++            free((char *)p->skus[j].description); free((char *)p->skus[j].language);
++        }
++        free(p->skus);
++    }
++    free(snapshot->products); free(snapshot);
++}
++
++static void entitled_page_release( struct entitled_page *page )
++{
++    if (InterlockedDecrement(&page->refs)) return;
++    entitled_snapshot_release(page->snapshot); free(page);
++}
++
++static struct entitled_page *entitled_page_acquire( XStoreProductQueryHandle handle )
++{
++    struct entitled_page *page;
++    AcquireSRWLockShared(&entitled_pages_lock);
++    for (page = entitled_pages; page && page != handle; page = page->next);
++    if (page) InterlockedIncrement(&page->refs);
++    ReleaseSRWLockShared(&entitled_pages_lock);
++    return page;
++}
++
++static void entitled_page_close( XStoreProductQueryHandle handle )
++{
++    struct entitled_page *page, **link;
++    AcquireSRWLockExclusive(&entitled_pages_lock);
++    for (link = &entitled_pages; *link && *link != handle; link = &(*link)->next);
++    page = *link;
++    if (page) *link = page->next;
++    ReleaseSRWLockExclusive(&entitled_pages_lock);
++    if (page) entitled_page_release(page);
++}
++
++static BOOL entitled_page_valid( struct entitled_page *page )
++{
++    return (UINT64)time(NULL) < page->snapshot->valid_until;
++}
++
++static xmlNodePtr entitled_child( xmlNodePtr root, const char *name )
++{
++    xmlNodePtr child, result = NULL;
++    for (child = root ? root->children : NULL; child; child = child->next)
++        if (child->type == XML_ELEMENT_NODE && !strcmp((char *)child->name, name))
++        { if (result) return NULL; result = child; }
++    return result;
++}
++
++static char *entitled_text( xmlNodePtr root, const char *name )
++{
++    xmlNodePtr node = entitled_child(root, name);
++    xmlChar *value;
++    char *result;
++    if (!node || !(value = xmlNodeGetContent(node))) return NULL;
++    result = strdup((char *)value); xmlFree(value);
++    return result;
++}
++
++static HRESULT entitled_uint( xmlNodePtr root, const char *name, UINT64 *out )
++{
++    char *text = entitled_text(root, name), *end;
++    UINT64 value;
++    SIZE_T i;
++    if (!text) return E_UNEXPECTED;
++    for (i = 0; text[i] >= '0' && text[i] <= '9'; i++);
++    if (!i || text[i] || i > 19) { free(text); return E_UNEXPECTED; }
++    value = strtoull(text, &end, 10);
++    if (*end) { free(text); return E_UNEXPECTED; }
++    free(text); *out = value; return S_OK;
++}
++
++static HRESULT entitled_bool( xmlNodePtr root, const char *name, BOOLEAN *out )
++{
++    char *value = entitled_text(root, name);
++    HRESULT hr = E_UNEXPECTED;
++    if (value && !strcmp(value, "true")) { *out = TRUE; hr = S_OK; }
++    else if (value && !strcmp(value, "false")) { *out = FALSE; hr = S_OK; }
++    free(value); return hr;
++}
++
++static HRESULT entitled_parse( const char *response, UINT16 size, struct entitled_snapshot **out )
++{
++    xmlDocPtr doc;
++    xmlNodePtr root, node, sku_node;
++    struct entitled_snapshot *snapshot = NULL;
++    UINT64 value;
++    UINT32 i = 0, j, k;
++    HRESULT hr = E_UNEXPECTED;
++    *out = NULL;
++    if (!response || !size || strstr(response, "<!DOCTYPE") || strstr(response, "<!ENTITY")) return hr;
++    doc = xmlReadMemory(response, size, NULL, NULL, XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
++    if (!doc) return hr;
++    root = xmlDocGetRootElement(doc);
++    if (doc->intSubset || doc->extSubset || !root || strcmp((char *)root->name, "Response")) goto done;
++    if (FAILED(hr = entitled_uint(root, "HResult", &value))) goto done;
++    if (value > UINT32_MAX) { hr = E_UNEXPECTED; goto done; }
++    if (FAILED(hr = (HRESULT)value)) goto done;
++    if (!(snapshot = calloc(1, sizeof(*snapshot)))) { hr = E_OUTOFMEMORY; goto done; }
++    snapshot->refs = 1;
++    if (FAILED(hr = entitled_uint(root, "ValidUntil", &snapshot->valid_until))) goto done;
++    if (snapshot->valid_until <= (UINT64)time(NULL) || snapshot->valid_until > (UINT64)time(NULL) + 65)
++    { hr = E_ACCESSDENIED; goto done; }
++    for (node = root->children; node; node = node->next)
++        if (node->type == XML_ELEMENT_NODE && !strcmp((char *)node->name, "Product")) snapshot->count++;
++    if (snapshot->count > ENTITLED_MAX_PRODUCTS) { snapshot->count = 0; hr = E_UNEXPECTED; goto done; }
++    if (snapshot->count && !(snapshot->products = calloc(snapshot->count, sizeof(*snapshot->products))))
++    { snapshot->count = 0; hr = E_OUTOFMEMORY; goto done; }
++    for (node = root->children; node; node = node->next)
++    {
++        XStoreProduct *p;
++        if (node->type != XML_ELEMENT_NODE || strcmp((char *)node->name, "Product")) continue;
++        p = &snapshot->products[i++];
++        p->storeId = entitled_text(node, "StoreId"); p->title = entitled_text(node, "Title");
++        p->description = entitled_text(node, "Description"); p->language = entitled_text(node, "Language");
++        p->inAppOfferToken = entitled_text(node, "InAppOfferToken");
++        if (!p->storeId || !p->title || !p->description || !p->language || !p->inAppOfferToken) { hr = E_UNEXPECTED; goto done; }
++        if (!entitled_id(p->storeId)) { hr = E_UNEXPECTED; goto done; }
++        for (k = 0; k + 1 < i; k++) if (!strcmp(p->storeId, snapshot->products[k].storeId))
++        { hr = E_UNEXPECTED; goto done; }
++        if (FAILED(hr = entitled_uint(node, "ProductKind", &value))) goto done;
++        if (!value || value & ~31 || value & (value - 1)) { hr = E_UNEXPECTED; goto done; }
++        p->productKind = value;
++        if (FAILED(hr = entitled_bool(node, "HasDigitalDownload", &p->hasDigitalDownload)) ||
++            FAILED(hr = entitled_bool(node, "IsInUserCollection", &p->isInUserCollection))) goto done;
++        if (!p->isInUserCollection) { hr = E_UNEXPECTED; goto done; }
++        for (sku_node = node->children; sku_node; sku_node = sku_node->next)
++            if (sku_node->type == XML_ELEMENT_NODE && !strcmp((char *)sku_node->name, "Sku")) p->skusCount++;
++        if (!p->skusCount || p->skusCount > ENTITLED_MAX_SKUS) { p->skusCount = 0; hr = E_UNEXPECTED; goto done; }
++        if (!(p->skus = calloc(p->skusCount, sizeof(*p->skus)))) { p->skusCount = 0; hr = E_OUTOFMEMORY; goto done; }
++        j = 0;
++        for (sku_node = node->children; sku_node; sku_node = sku_node->next)
++        {
++            XStoreSku *s;
++            if (sku_node->type != XML_ELEMENT_NODE || strcmp((char *)sku_node->name, "Sku")) continue;
++            s = &p->skus[j++]; s->skuId = entitled_text(sku_node, "SkuId");
++            s->title = entitled_text(sku_node, "Title"); s->description = entitled_text(sku_node, "Description");
++            s->language = entitled_text(sku_node, "Language");
++            if (!entitled_sku_id(s->skuId) || !s->title || !s->description || !s->language)
++            { hr = E_UNEXPECTED; goto done; }
++            for (k = 0; k + 1 < j; k++) if (!strcmp(s->skuId, p->skus[k].skuId))
++            { hr = E_UNEXPECTED; goto done; }
++            if (FAILED(hr = entitled_bool(sku_node, "IsTrial", &s->isTrial)) ||
++                FAILED(hr = entitled_bool(sku_node, "IsInUserCollection", &s->isInUserCollection))) goto done;
++            if (!s->isInUserCollection) { hr = E_UNEXPECTED; goto done; }
++            if (FAILED(hr = entitled_uint(sku_node, "EndDate", &value))) goto done;
++            if (value <= (UINT64)time(NULL) || value > INT64_MAX) { hr = E_ACCESSDENIED; goto done; }
++            s->collectionData.endDate = value;
++            s->collectionData.isTrial = s->isTrial;
++        }
++    }
++    *out = snapshot; snapshot = NULL; hr = S_OK;
++done:
++    if (snapshot) entitled_snapshot_release(snapshot);
++    xmlFreeDoc(doc); return hr;
++}
++
++struct entitled_async
++{
++    LONG refs, canceled, started;
++    char *request;
++    UINT32 page_size;
++    struct entitled_page *page;
++    IXThreadingImpl *threading;
++    XAsyncBlock *async;
++};
++static const char entitled_identity;
++static const char entitled_next_identity;
++
++#include "xstore_receipts.h"
++
++static void entitled_async_release( struct entitled_async *context )
++{
++    if (InterlockedDecrement(&context->refs)) return;
++    if (context->page) entitled_page_release(context->page);
++    free(context->request); IXThreadingImpl_Release(context->threading); free(context);
++}
++
++static DWORD WINAPI entitled_worker( void *arg )
++{
++    struct entitled_async *context = arg;
++    struct entitled_snapshot *snapshot = NULL;
++    HRESULT hr = E_ABORT;
++    if (!InterlockedCompareExchange(&context->canceled, 0, 0))
++        hr = entitled_fetch(context->request, &context->canceled, &snapshot);
++    if (SUCCEEDED(hr))
++    {
++        if (!(context->page = calloc(1, sizeof(*context->page)))) hr = E_OUTOFMEMORY;
++        else
++        {
++            context->page->refs = 1; context->page->snapshot = snapshot;
++            context->page->size = context->page_size; snapshot = NULL;
++        }
++    }
++    if (snapshot) entitled_snapshot_release(snapshot);
++    if (InterlockedCompareExchange(&context->canceled, 0, 0)) hr = E_ABORT;
++    TRACE("entitled products completed hr=%08lx.\n", hr);
++    xodus_store_license_note("store-entitled-result", hr);
++    IXThreadingImpl_XAsyncComplete(context->threading, context->async, hr, SUCCEEDED(hr) ? sizeof(void *) : 0);
++    entitled_async_release(context);
++    return 0;
++}
++
++static HRESULT WINAPI entitled_provider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct entitled_async *context = data->context;
++    HANDLE worker;
++    HRESULT hr;
++    switch (op)
++    {
++    case XAsyncOp_Begin: return IXThreadingImpl_XAsyncSchedule(context->threading, data->async, 0);
++    case XAsyncOp_DoWork:
++        if (InterlockedCompareExchange(&context->started, 1, 0)) return E_PENDING;
++        if (InterlockedCompareExchange(&context->canceled, 0, 0)) return E_ABORT;
++        if (context->page) /* Next page shares the same verified snapshot. */
++        {
++            hr = entitled_page_valid(context->page) ? S_OK : E_ACCESSDENIED;
++            IXThreadingImpl_XAsyncComplete(context->threading, data->async, hr, SUCCEEDED(hr) ? sizeof(void *) : 0);
++            return S_OK;
++        }
++        context->async = data->async;
++        InterlockedIncrement(&context->refs);
++        if (!(worker = CreateThread(NULL, 0, entitled_worker, context, 0, NULL)))
++        { hr = HRESULT_FROM_WIN32(GetLastError()); entitled_async_release(context); return hr; }
++        CloseHandle(worker);
++        return E_PENDING;
++    case XAsyncOp_GetResult:
++        if (!data->buffer || data->bufferSize < sizeof(void *) || !context->page) return E_INVALIDARG;
++        if (!entitled_page_valid(context->page)) return E_ACCESSDENIED;
++        AcquireSRWLockExclusive(&entitled_pages_lock);
++        context->page->next = entitled_pages; entitled_pages = context->page;
++        ReleaseSRWLockExclusive(&entitled_pages_lock);
++        memcpy(data->buffer, &context->page, sizeof(void *)); context->page = NULL;
++        break;
++    case XAsyncOp_Cancel: InterlockedExchange(&context->canceled, TRUE); break;
++    case XAsyncOp_Cleanup: entitled_async_release(context); break;
++    default: break;
++    }
++    return S_OK;
++}
++
++static HRESULT entitled_start( struct entitled_async *context, XAsyncBlock *async, BOOL next )
++{
++    HRESULT hr;
++    context->refs = 1;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&context->threading)))
++    { if (context->page) entitled_page_release(context->page); free(context->request); free(context); return hr; }
++    /* Successful Begin transfers ownership, including provider Begin failure.
++     * A failed Begin itself has not installed the provider context. */
++    hr = IXThreadingImpl_XAsyncBegin(context->threading, async, context,
++        next ? &entitled_next_identity : &entitled_identity, "XStoreEntitledProducts", entitled_provider);
++    if (FAILED(hr)) entitled_async_release(context);
++    return hr;
++}
++
++static HRESULT entitled_begin( XStoreContextHandle store, UINT32 kinds, UINT32 page_size, XAsyncBlock *async )
++{
++    struct entitled_async *context;
++    xmlDocPtr doc;
++    xmlNodePtr root;
++    xmlChar *bytes = NULL;
++    char kind[16], language[128] = "en-US", market[16] = "US";
++    WCHAR locale[85], country[16];
++    UINT64 xuid;
++    UINT32 i;
++    int size;
++    HRESULT hr;
++    if (!async || !kinds || (kinds & ~31) || !page_size) return E_INVALIDARG;
++    page_size = min(page_size, ENTITLED_MAX_PRODUCTS);
++    if (FAILED(hr = entitled_store_user(store, &xuid))) return hr;
++    if (!entitled_id(storeId)) return E_GAME_MISSING_GAME_CONFIG;
++    if (GetUserDefaultLocaleName(locale, ARRAY_SIZE(locale)))
++        WideCharToMultiByte(CP_UTF8, 0, locale, -1, language, sizeof(language), NULL, NULL);
++    if (GetLocaleInfoEx(LOCALE_NAME_USER_DEFAULT, LOCALE_SISO3166CTRYNAME, country, ARRAY_SIZE(country)))
++        WideCharToMultiByte(CP_UTF8, 0, country, -1, market, sizeof(market), NULL, NULL);
++    if (!(doc = xmlNewDoc(BAD_CAST "1.0"))) return E_OUTOFMEMORY;
++    if (!(root = xmlNewNode(NULL, BAD_CAST "Request"))) { xmlFreeDoc(doc); return E_OUTOFMEMORY; }
++    xmlDocSetRootElement(doc, root);
++    snprintf(kind, sizeof(kind), "%u", kinds);
++    xmlNewTextChild(root, NULL, BAD_CAST "ParentProductId", BAD_CAST storeId);
++    for (i = 0; i < entitled_related_count; i++)
++        if (strcmp(storeId, entitled_related[i])) xmlNewTextChild(root, NULL, BAD_CAST "ProductId", BAD_CAST entitled_related[i]);
++    xmlNewTextChild(root, NULL, BAD_CAST "ProductKinds", BAD_CAST kind);
++    xmlNewTextChild(root, NULL, BAD_CAST "Market", BAD_CAST market);
++    xmlNewTextChild(root, NULL, BAD_CAST "Language", BAD_CAST language);
++    xmlDocDumpMemory(doc, &bytes, &size); xmlFreeDoc(doc);
++    if (!bytes) return E_OUTOFMEMORY;
++    if (size <= 0 || size > 60000) { xmlFree(bytes); return E_INVALIDARG; }
++    context = calloc(1, sizeof(*context));
++    if (context) { context->request = strdup((char *)bytes); context->page_size = page_size; }
++    xmlFree(bytes);
++    if (!context) return E_OUTOFMEMORY;
++    if (!context->request) { free(context); return E_OUTOFMEMORY; }
++    return entitled_start(context, async, FALSE);
++}
++
++static HRESULT entitled_result( XAsyncBlock *async, XStoreProductQueryHandle *out, BOOL next )
++{
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    if (!async || !out) return E_INVALIDARG;
++    *out = NULL;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading))) return hr;
++    hr = IXThreadingImpl_XAsyncGetResult(threading, async, next ? &entitled_next_identity : &entitled_identity,
++        sizeof(void *), out, NULL);
++    IXThreadingImpl_Release(threading); return hr;
++}
++
++static HRESULT entitled_enumerate( XStoreProductQueryHandle handle, void *arg, XStoreProductQueryCallback *callback )
++{
++    struct entitled_page *page;
++    UINT32 i, end;
++    if (!callback || !(page = entitled_page_acquire(handle))) return E_INVALIDARG;
++    if (!entitled_page_valid(page)) { entitled_page_release(page); return E_ACCESSDENIED; }
++    end = min(page->snapshot->count, page->offset + page->size);
++    for (i = page->offset; i < end; i++) if (!callback(&page->snapshot->products[i], arg)) break;
++    entitled_page_release(page); return S_OK;
++}
++
++static BOOLEAN entitled_has_more( XStoreProductQueryHandle handle )
++{
++    struct entitled_page *page = entitled_page_acquire(handle);
++    BOOLEAN more;
++    if (!page) return FALSE;
++    more = entitled_page_valid(page) && page->offset + page->size < page->snapshot->count;
++    entitled_page_release(page); return more;
++}
++
++static HRESULT entitled_next( XStoreProductQueryHandle handle, XAsyncBlock *async )
++{
++    struct entitled_page *page;
++    struct entitled_async *context;
++    if (!async || !(page = entitled_page_acquire(handle))) return E_INVALIDARG;
++    if (!entitled_page_valid(page)) { entitled_page_release(page); return E_ACCESSDENIED; }
++    if (page->offset + page->size >= page->snapshot->count)
++    { entitled_page_release(page); return HRESULT_FROM_WIN32(ERROR_NO_MORE_ITEMS); }
++    if (!(context = calloc(1, sizeof(*context)))) { entitled_page_release(page); return E_OUTOFMEMORY; }
++    if (!(context->page = calloc(1, sizeof(*context->page))))
++    { free(context); entitled_page_release(page); return E_OUTOFMEMORY; }
++    context->page->refs = 1; context->page->snapshot = page->snapshot;
++    InterlockedIncrement(&page->snapshot->refs);
++    context->page->offset = page->offset + page->size; context->page->size = page->size;
++    entitled_page_release(page);
++    return entitled_start(context, async, TRUE);
++}
+diff --git a/dlls/xgameruntime/xstore_receipts.h b/dlls/xgameruntime/xstore_receipts.h
+new file mode 100644
+index 0000000..78a0285
+--- /dev/null
++++ b/dlls/xgameruntime/xstore_receipts.h
+@@ -0,0 +1,516 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * License verification and public metadata stay inside the runtime. The only
++ * credential operation is the existing StoreLicenseTokenRequest bridge. */
++#include <wincrypt.h>
++#include <bcrypt.h>
++#include <winhttp.h>
++#include <math.h>
++
++static HRESULT receipt_json( const BYTE *bytes, SIZE_T size, IJsonObject **out )
++{
++    IJsonValueStatics *statics = NULL;
++    IJsonValue *value = NULL;
++    HSTRING name = NULL, text = NULL;
++    WCHAR *wide = NULL;
++    int length;
++    HRESULT hr = E_UNEXPECTED;
++    *out = NULL;
++    if (!bytes || !size || size > 4 * 1024 * 1024 || memchr(bytes, 0, size)) return hr;
++    length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (char *)bytes, size, NULL, 0);
++    if (!length) return hr;
++    if (!(wide = calloc(length, sizeof(WCHAR)))) return E_OUTOFMEMORY;
++    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, (char *)bytes, size, wide, length);
++    if (FAILED(hr = WindowsCreateString(RuntimeClass_Windows_Data_Json_JsonValue,
++        wcslen(RuntimeClass_Windows_Data_Json_JsonValue), &name)) ||
++        FAILED(hr = RoGetActivationFactory(name, &IID_IJsonValueStatics, (void **)&statics)) ||
++        FAILED(hr = WindowsCreateString(wide, length, &text)) ||
++        FAILED(hr = IJsonValueStatics_Parse(statics, text, &value))) goto done;
++    hr = IJsonValue_GetObject(value, out);
++done:
++    if (value) IJsonValue_Release(value);
++    if (statics) IJsonValueStatics_Release(statics);
++    WindowsDeleteString(name); WindowsDeleteString(text); free(wide); return hr;
++}
++
++#define RECEIPT_GETTER(name, sdk, type) \
++static HRESULT receipt_get_##name( IJsonObject *obj, const WCHAR *key, type *out ) \
++{ HSTRING text; HRESULT hr = WindowsCreateString(key, wcslen(key), &text); \
++  if (SUCCEEDED(hr)) { hr = IJsonObject_GetNamed##sdk(obj, text, out); WindowsDeleteString(text); } return hr; }
++RECEIPT_GETTER(string, String, HSTRING)
++RECEIPT_GETTER(number, Number, double)
++RECEIPT_GETTER(array, Array, IJsonArray *)
++RECEIPT_GETTER(object, Object, IJsonObject *)
++RECEIPT_GETTER(boolean, Boolean, boolean)
++#undef RECEIPT_GETTER
++
++static HRESULT receipt_array_size( IJsonArray *array, UINT32 *size )
++{
++    IVector_IJsonValue *vector;
++    HRESULT hr = IJsonArray_QueryInterface(array, &IID_IVector_IJsonValue, (void **)&vector);
++    if (SUCCEEDED(hr)) { hr = IVector_IJsonValue_get_Size(vector, size); IVector_IJsonValue_Release(vector); }
++    return hr;
++}
++
++static char *receipt_string( IJsonObject *obj, const WCHAR *name, UINT32 limit )
++{
++    HSTRING text;
++    UINT32 length;
++    const WCHAR *wide;
++    char *result = NULL;
++    int size;
++    if (FAILED(receipt_get_string(obj, name, &text))) return NULL;
++    wide = WindowsGetStringRawBuffer(text, &length);
++    if (length > limit) goto done;
++    for (UINT32 i = 0; i < length; i++) if (!wide[i]) goto done;
++    size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide, length, NULL, 0, NULL, NULL);
++    if (length && !size) goto done;
++    if (!(result = calloc(size + 1, 1))) goto done;
++    if (size) WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wide, length, result, size, NULL, NULL);
++done:
++    WindowsDeleteString(text); return result;
++}
++
++static HRESULT receipt_decode( const char *text, SIZE_T length, BOOL url, BYTE **out, DWORD *size )
++{
++    SIZE_T i, padded, padding = 0;
++    char *copy;
++    HRESULT hr = E_UNEXPECTED;
++    *out = NULL; *size = 0;
++    if (!length || length > 64000 || length % 4 == 1) return hr;
++    padded = (length + 3) & ~3;
++    if (!(copy = calloc(padded + 1, 1))) return E_OUTOFMEMORY;
++    for (i = 0; i < length; i++)
++    {
++        char c = text[i];
++        if (padding && c != '=') goto done;
++        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) copy[i] = c;
++        else if (url && (c == '-' || c == '_')) copy[i] = c == '-' ? '+' : '/';
++        else if (!url && (c == '+' || c == '/')) copy[i] = c;
++        else if (!url && c == '=' && i >= length - 2 && length % 4 == 0) { copy[i] = c; padding++; }
++        else goto done;
++    }
++    for (i = length; i < padded; i++) copy[i] = '=';
++    /* This Wine base rejects CRYPT_STRING_STRICT. Validate alphabet, padding
++     * and decoded length here instead of relaxing the input contract. */
++    if (!CryptStringToBinaryA(copy, padded, CRYPT_STRING_BASE64, NULL, size, NULL, NULL)) goto done;
++    if (*size != padded / 4 * 3 - (padding ? padding : padded - length)) goto done;
++    if (!(*out = calloc(*size + 1, 1))) { hr = E_OUTOFMEMORY; goto done; }
++    if (!CryptStringToBinaryA(copy, padded, CRYPT_STRING_BASE64, *out, size, NULL, NULL))
++    { free(*out); *out = NULL; goto done; }
++    hr = S_OK;
++done:
++    free(copy); return hr;
++}
++
++/* Fixed official hosts only, normal certificate/hostname verification, no
++ * redirects or arbitrary token URLs. No Authorization or receipt is sent here. */
++static HRESULT receipt_public_get( const WCHAR *host, const WCHAR *path, SIZE_T limit, BYTE **out, SIZE_T *length )
++{
++    HINTERNET session = NULL, connection = NULL, request = NULL;
++    DWORD status, size = sizeof(status), available, read, redirect = WINHTTP_OPTION_REDIRECT_POLICY_NEVER;
++    BYTE *buffer = NULL, *grown;
++    ULONGLONG start = GetTickCount64();
++    HRESULT hr = E_FAIL;
++    *out = NULL; *length = 0;
++    if (wcscmp(host, L"licensing.mp.microsoft.com") && wcscmp(host, L"displaycatalog.mp.microsoft.com")) return E_INVALIDARG;
++    if (!(session = WinHttpOpen(L"Xodus-Nexus-runtime/1", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, NULL, NULL, 0))) goto done;
++    if (!WinHttpSetTimeouts(session, 5000, 5000, 10000, 10000)) goto done;
++    if (!(connection = WinHttpConnect(session, host, INTERNET_DEFAULT_HTTPS_PORT, 0)) ||
++        !(request = WinHttpOpenRequest(connection, L"GET", path, NULL, NULL, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE))) goto done;
++    if (!WinHttpSetOption(request, WINHTTP_OPTION_REDIRECT_POLICY, &redirect, sizeof(redirect)) ||
++        !WinHttpSendRequest(request, NULL, 0, NULL, 0, 0, 0) || !WinHttpReceiveResponse(request, NULL) ||
++        !WinHttpQueryHeaders(request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &status, &size, NULL) || status != 200) goto done;
++    do
++    {
++        if (GetTickCount64() - start > 20000 || !WinHttpQueryDataAvailable(request, &available)) goto done;
++        if (!available) break;
++        if (available > limit || *length > limit - available) { hr = HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER); goto done; }
++        if (!(grown = realloc(buffer, *length + available + 1))) { hr = E_OUTOFMEMORY; goto done; }
++        buffer = grown;
++        if (!WinHttpReadData(request, buffer + *length, available, &read) || !read) goto done;
++        *length += read; buffer[*length] = 0;
++    } while (TRUE);
++    if (!*length) goto done;
++    *out = buffer; buffer = NULL; hr = S_OK;
++done:
++    free(buffer);
++    if (request) WinHttpCloseHandle(request);
++    if (connection) WinHttpCloseHandle(connection);
++    if (session) WinHttpCloseHandle(session);
++    if (FAILED(hr)) *length = 0;
++    return hr;
++}
++
++static BOOL receipt_cert_id( const char *id )
++{
++    UINT32 i;
++    if (!id || strlen(id) != 40) return FALSE;
++    for (i = 0; i < 40; i++) if (!((id[i] >= 'A' && id[i] <= 'F') || (id[i] >= '0' && id[i] <= '9'))) return FALSE;
++    return TRUE;
++}
++
++/* cert bytes must come from the fixed Microsoft endpoint in production. Tests
++ * call this pure validator with their own synthetic key, never change trust. */
++static HRESULT receipt_verify( const char *jwt, const char *nonce, const char *cert_id,
++    const BYTE *certificate, DWORD certificate_size, IJsonObject **claim, UINT64 *expiry )
++{
++    const char *dot = strchr(jwt, '.'), *second;
++    BYTE *header = NULL, *payload = NULL, *signature = NULL, *claim_bytes = NULL;
++    DWORD header_size, payload_size, signature_size, claim_size;
++    IJsonObject *head = NULL, *body = NULL, *data = NULL;
++    char *alg = NULL, *issuer = NULL, *audience = NULL, *encoded = NULL, *challenge = NULL, *id = NULL;
++    PCCERT_CONTEXT cert = NULL;
++    BCRYPT_KEY_HANDLE key = NULL;
++    BCRYPT_PKCS1_PADDING_INFO padding = { BCRYPT_SHA256_ALGORITHM };
++    BYTE digest[32], thumbprint[20];
++    DWORD thumbprint_size = sizeof(thumbprint);
++    char hex[41];
++    UINT32 i, stage = 0;
++    double exp, nbf;
++    UINT64 now = time(NULL);
++    HRESULT hr = E_ACCESSDENIED;
++    *claim = NULL;
++    if (!dot || !(second = strchr(dot + 1, '.')) || strchr(second + 1, '.') || strlen(jwt) > 48000 || !receipt_cert_id(cert_id)) return hr;
++    if (FAILED(receipt_decode(jwt, dot - jwt, TRUE, &header, &header_size)) ||
++        FAILED(receipt_decode(dot + 1, second - dot - 1, TRUE, &payload, &payload_size)) ||
++        FAILED(receipt_decode(second + 1, strlen(second + 1), TRUE, &signature, &signature_size)) ||
++        FAILED(receipt_json(header, header_size, &head)) || FAILED(receipt_json(payload, payload_size, &body))) goto done;
++    stage = 1;
++    if (!(alg = receipt_string(head, L"alg", 16)) || strcmp(alg, "RS256")) goto done;
++    stage = 2;
++    if (!(cert = CertCreateCertificateContext(X509_ASN_ENCODING, certificate, certificate_size)) ||
++        CertVerifyTimeValidity(NULL, cert->pCertInfo) ||
++        !CryptHashCertificate(0, CALG_SHA1, 0, certificate, certificate_size, thumbprint, &thumbprint_size) || thumbprint_size != 20) goto done;
++    stage = 3;
++    for (i = 0; i < 20; i++) sprintf(hex + 2 * i, "%02X", thumbprint[i]);
++    if (strcmp(hex, cert_id) || !CryptImportPublicKeyInfoEx2(X509_ASN_ENCODING, &cert->pCertInfo->SubjectPublicKeyInfo, 0, NULL, &key) ||
++        BCryptHash(BCRYPT_SHA256_ALG_HANDLE, NULL, 0, (BYTE *)jwt, second - jwt, digest, sizeof(digest)) ||
++        BCryptVerifySignature(key, &padding, digest, sizeof(digest), signature, signature_size, BCRYPT_PAD_PKCS1)) goto done;
++    stage = 4;
++    issuer = receipt_string(body, L"iss", 128); audience = receipt_string(body, L"aud", 128);
++    if (!issuer || strcmp(issuer, "LicensingFD") || !audience || strcmp(audience, "SDK/ISV") ||
++        FAILED(receipt_get_number(body, L"exp", &exp)) || FAILED(receipt_get_number(body, L"nbf", &nbf)) ||
++        !isfinite(exp) || !isfinite(nbf) || exp != floor(exp) || nbf != floor(nbf) ||
++        nbf < 0 || nbf > now + 60 || exp <= now || exp > 9007199254740991.0 || exp <= nbf) goto done;
++    stage = 5;
++    encoded = receipt_string(body, L"LicenseTokenClaim", 64000);
++    if (!encoded || FAILED(receipt_decode(encoded, strlen(encoded), FALSE, &claim_bytes, &claim_size))) goto done;
++    /* Microsoft permits a short non-JSON prefix before the first '{'. */
++    for (i = 0; i < claim_size && claim_bytes[i] != '{'; i++);
++    if (i > 64 || i == claim_size || FAILED(receipt_json(claim_bytes + i, claim_size - i, &data))) goto done;
++    challenge = receipt_string(data, L"customDeveloperString", 128); id = receipt_string(data, L"certificateId", 40);
++    stage = 6;
++    if (!challenge || strcmp(challenge, nonce) || !id || strcmp(id, cert_id)) goto done;
++    *expiry = exp; *claim = data; data = NULL; hr = S_OK;
++done:
++    if (FAILED(hr)) TRACE("Store receipt verification failed at stage %u, hr=%08lx.\n", stage, hr);
++    if (key) BCryptDestroyKey(key);
++    if (cert) CertFreeCertificateContext(cert);
++    if (head) IJsonObject_Release(head);
++    if (body) IJsonObject_Release(body);
++    if (data) IJsonObject_Release(data);
++    free(header); free(payload); free(signature); free(claim_bytes);
++    free(alg); free(issuer); free(audience); free(encoded); free(challenge); free(id);
++    return hr;
++}
++
++static HRESULT receipt_load( const char *jwt, const char *nonce, IJsonObject **claim, UINT64 *expiry )
++{
++    const char *dot = strchr(jwt, '.'), *second;
++    BYTE *payload = NULL, *decoded = NULL, *document = NULL, *der = NULL;
++    DWORD payload_size, decoded_size, der_size;
++    SIZE_T size;
++    IJsonObject *body = NULL, *data = NULL, *cert_json = NULL;
++    char *encoded = NULL, *id = NULL, *certificate = NULL;
++    WCHAR path[160];
++    UINT32 i;
++    HRESULT hr = E_ACCESSDENIED;
++    if (!dot || !(second = strchr(dot + 1, '.')) || strlen(jwt) > 48000) return hr;
++    if (FAILED(receipt_decode(dot + 1, second - dot - 1, TRUE, &payload, &payload_size)) ||
++        FAILED(receipt_json(payload, payload_size, &body))) goto done;
++    encoded = receipt_string(body, L"LicenseTokenClaim", 64000);
++    if (!encoded || FAILED(receipt_decode(encoded, strlen(encoded), FALSE, &decoded, &decoded_size))) goto done;
++    for (i = 0; i < decoded_size && decoded[i] != '{'; i++);
++    if (i > 64 || i == decoded_size || FAILED(receipt_json(decoded + i, decoded_size - i, &data))) goto done;
++    id = receipt_string(data, L"certificateId", 40);
++    if (!receipt_cert_id(id)) goto done;
++    swprintf(path, ARRAY_SIZE(path), L"/v8.0/licenseToken/fullCertificate/%S", id);
++    if (FAILED(hr = receipt_public_get(L"licensing.mp.microsoft.com", path, 64000, &document, &size))) goto done;
++    /* The current official endpoint returns {certificate:base64-DER}. */
++    hr = E_ACCESSDENIED;
++    if (FAILED(receipt_json(document, size, &cert_json)) || !(certificate = receipt_string(cert_json, L"certificate", 32000)) ||
++        FAILED(receipt_decode(certificate, strlen(certificate), FALSE, &der, &der_size))) goto done;
++    hr = receipt_verify(jwt, nonce, id, der, der_size, claim, expiry);
++done:
++    if (body) IJsonObject_Release(body);
++    if (data) IJsonObject_Release(data);
++    if (cert_json) IJsonObject_Release(cert_json);
++    free(payload); free(decoded); free(document); free(der); free(encoded); free(id); free(certificate);
++    return hr;
++}
++
++static HRESULT receipt_date( const char *text, UINT64 *out )
++{
++    SYSTEMTIME st = {0};
++    FILETIME ft;
++    ULARGE_INTEGER ticks;
++    unsigned year, month, day, hour, minute, second;
++    int length = 0;
++    const char *suffix;
++    if (!text || sscanf(text, "%4u-%2u-%2uT%2u:%2u:%2u%n", &year, &month, &day, &hour, &minute, &second, &length) != 6) return E_UNEXPECTED;
++    suffix = text + length;
++    if (*suffix == '.') { suffix++; if (*suffix < '0' || *suffix > '9') return E_UNEXPECTED; while (*suffix >= '0' && *suffix <= '9') suffix++; }
++    if (strcmp(suffix, "Z") && strcmp(suffix, "+00:00")) return E_UNEXPECTED;
++    st.wYear = year; st.wMonth = month; st.wDay = day; st.wHour = hour; st.wMinute = minute; st.wSecond = second;
++    if (!SystemTimeToFileTime(&st, &ft)) return E_UNEXPECTED;
++    ticks.LowPart = ft.dwLowDateTime; ticks.HighPart = ft.dwHighDateTime;
++    if (ticks.QuadPart < 116444736000000000ULL) return E_UNEXPECTED;
++    *out = (ticks.QuadPart - 116444736000000000ULL) / 10000000;
++    return S_OK;
++}
++
++struct receipt_license { char id[13], sku[5]; UINT64 expiry; };
++
++static HRESULT receipt_inventory( IJsonObject *claim, const char **ids, UINT32 count,
++    struct receipt_license *licenses, UINT32 *license_count, UINT64 *expiry )
++{
++    IJsonArray *array = NULL;
++    UINT32 length, i, j;
++    double version;
++    HRESULT hr = E_UNEXPECTED;
++    if (FAILED(receipt_get_number(claim, L"tokenVersion", &version)) || version != 1 ||
++        FAILED(receipt_get_array(claim, L"licensableProducts", &array)) ||
++        FAILED(receipt_array_size(array, &length)) || length > 512) goto done;
++    for (i = 0; i < length; i++)
++    {
++        IJsonObject *row = NULL;
++        char *product = NULL, *sku = NULL, *date = NULL;
++        UINT64 until;
++        hr = E_UNEXPECTED;
++        if (FAILED(IJsonArray_GetObjectAt(array, i, &row))) goto done;
++        product = receipt_string(row, L"productId", 12); sku = receipt_string(row, L"skuId", 4);
++        date = receipt_string(row, L"endDate", 64);
++        hr = E_UNEXPECTED;
++        if (product && entitled_id(product) && entitled_sku_id(sku) && date && SUCCEEDED(receipt_date(date, &until)))
++        {
++            for (j = 0; j < count && strcmp(ids[j], product); j++);
++            /* Never expose an unrelated product from a broader receipt. */
++            if (j == count || until <= (UINT64)time(NULL)) hr = S_OK;
++            else
++            {
++                for (j = 0; j < *license_count; j++)
++                    if (!strcmp(licenses[j].id, product) && !strcmp(licenses[j].sku, sku)) break;
++                if (j < *license_count)
++                { if (until < licenses[j].expiry) licenses[j].expiry = until; hr = S_OK; }
++                else if (*license_count < ENTITLED_MAX_PRODUCTS)
++                {
++                    memcpy(licenses[*license_count].id, product, 13);
++                    memcpy(licenses[*license_count].sku, sku, 5);
++                    licenses[(*license_count)++].expiry = until; hr = S_OK;
++                }
++                if (until < *expiry) *expiry = until;
++            }
++        }
++        free(product); free(sku); free(date); IJsonObject_Release(row);
++        if (FAILED(hr)) goto done;
++    }
++    hr = S_OK;
++done:
++    if (array) IJsonArray_Release(array);
++    return hr;
++}
++
++static HRESULT receipt_metadata_parse( struct receipt_license *license, UINT32 kinds,
++    const BYTE *bytes, SIZE_T size, xmlNodePtr root )
++{
++    IJsonObject *document = NULL, *product = NULL, *localized = NULL, *entry = NULL, *sku = NULL, *properties = NULL, *product_properties = NULL;
++    IJsonArray *products = NULL, *locals = NULL, *skus = NULL;
++    char *id = NULL, *type = NULL, *title = NULL, *lang = NULL, *sku_id = NULL, *offer = NULL;
++    UINT32 kind = 0, count, i;
++    boolean trial = FALSE;
++    xmlNodePtr node, sku_node;
++    char kind_text[8], expiry_text[32];
++    HRESULT hr = E_UNEXPECTED;
++    if (FAILED(receipt_json(bytes, size, &document)) || FAILED(receipt_get_array(document, L"Products", &products)) ||
++        FAILED(receipt_array_size(products, &count)) || count != 1 || FAILED(IJsonArray_GetObjectAt(products, 0, &product))) goto done;
++    id = receipt_string(product, L"ProductId", 12); type = receipt_string(product, L"ProductType", 32);
++    if (!id || strcmp(id, license->id) || !type) goto done;
++    if (!strcmp(type, "Consumable")) kind = 1;
++    else if (!strcmp(type, "Durable")) kind = 2;
++    else if (!strcmp(type, "Game")) kind = 4;
++    else if (!strcmp(type, "Pass")) kind = 8;
++    else if (!strcmp(type, "UnmanagedConsumable")) kind = 16;
++    if (!kind) { hr = E_NOTIMPL; goto done; }
++    if (!(kind & kinds)) { hr = S_OK; goto done; }
++    if (SUCCEEDED(receipt_get_object(product, L"Properties", &product_properties)))
++        offer = receipt_string(product_properties, L"InAppOfferToken", 256);
++    if (FAILED(receipt_get_array(product, L"LocalizedProperties", &locals)) ||
++        FAILED(IJsonArray_GetObjectAt(locals, 0, &localized)) ||
++        !(title = receipt_string(localized, L"ProductTitle", 1024)) || !(lang = receipt_string(localized, L"Language", 35)) ||
++        FAILED(receipt_get_array(product, L"DisplaySkuAvailabilities", &skus)) ||
++        FAILED(receipt_array_size(skus, &count)) || count > 100) goto done;
++    for (i = 0; i < count; i++)
++    {
++        hr = E_UNEXPECTED;
++        if (FAILED(IJsonArray_GetObjectAt(skus, i, &entry))) goto done;
++        if (FAILED(receipt_get_object(entry, L"Sku", &sku))) goto done;
++        sku_id = receipt_string(sku, L"SkuId", 4);
++        if (sku_id && !strcmp(sku_id, license->sku)) break;
++        free(sku_id); sku_id = NULL;
++        IJsonObject_Release(sku); sku = NULL; IJsonObject_Release(entry); entry = NULL;
++    }
++    hr = E_UNEXPECTED;
++    if (!sku || !sku_id || strcmp(sku_id, license->sku)) goto done;
++    {
++        if (FAILED(receipt_get_object(sku, L"Properties", &properties))) goto done;
++        /* Unknown trial state must not be advertised as a full SKU. */
++        if (FAILED(receipt_get_boolean(properties, L"IsTrial", &trial))) goto done;
++    }
++    snprintf(kind_text, sizeof(kind_text), "%u", kind);
++    for (node = root->children; node; node = node->next)
++    {
++        char *previous = entitled_text(node, "StoreId");
++        BOOL match = previous && !strcmp(previous, id);
++        free(previous);
++        if (match) break;
++    }
++    if (!node)
++    {
++        if (!(node = xmlNewTextChild(root, NULL, BAD_CAST "Product", NULL))) { hr = E_OUTOFMEMORY; goto done; }
++        xmlNewTextChild(node, NULL, BAD_CAST "StoreId", BAD_CAST id);
++        xmlNewTextChild(node, NULL, BAD_CAST "Title", BAD_CAST title);
++        xmlNewTextChild(node, NULL, BAD_CAST "Description", BAD_CAST "");
++        xmlNewTextChild(node, NULL, BAD_CAST "Language", BAD_CAST lang);
++        xmlNewTextChild(node, NULL, BAD_CAST "InAppOfferToken", BAD_CAST (offer ? offer : ""));
++        xmlNewTextChild(node, NULL, BAD_CAST "ProductKind", BAD_CAST kind_text);
++        xmlNewTextChild(node, NULL, BAD_CAST "HasDigitalDownload", BAD_CAST "false");
++        xmlNewTextChild(node, NULL, BAD_CAST "IsInUserCollection", BAD_CAST "true");
++    }
++    /* A package exists only when public metadata advertises one. */
++    {
++        IJsonArray *packages = NULL;
++        UINT32 packages_count = 0;
++        if (SUCCEEDED(receipt_get_array(properties, L"Packages", &packages)))
++        { receipt_array_size(packages, &packages_count); IJsonArray_Release(packages); }
++        if (packages_count) xmlNodeSetContent(entitled_child(node, "HasDigitalDownload"), BAD_CAST "true");
++    }
++    sku_node = xmlNewTextChild(node, NULL, BAD_CAST "Sku", NULL);
++    if (!sku_node) { hr = E_OUTOFMEMORY; goto done; }
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "SkuId", BAD_CAST license->sku);
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "Title", BAD_CAST title);
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "Description", BAD_CAST "");
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "Language", BAD_CAST lang);
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "IsTrial", BAD_CAST (trial ? "true" : "false"));
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "IsInUserCollection", BAD_CAST "true");
++    snprintf(expiry_text, sizeof(expiry_text), "%llu", (unsigned long long)license->expiry);
++    xmlNewTextChild(sku_node, NULL, BAD_CAST "EndDate", BAD_CAST expiry_text);
++    hr = S_OK;
++done:
++    if (document) IJsonObject_Release(document);
++    if (product) IJsonObject_Release(product);
++    if (localized) IJsonObject_Release(localized);
++    if (entry) IJsonObject_Release(entry);
++    if (sku) IJsonObject_Release(sku);
++    if (properties) IJsonObject_Release(properties);
++    if (product_properties) IJsonObject_Release(product_properties);
++    if (products) IJsonArray_Release(products);
++    if (locals) IJsonArray_Release(locals);
++    if (skus) IJsonArray_Release(skus);
++    free(id); free(type); free(title); free(lang); free(sku_id); free(offer);
++    return hr;
++}
++
++static HRESULT receipt_metadata( struct receipt_license *license, UINT32 kinds, const char *market,
++    const char *language, xmlNodePtr root )
++{
++    WCHAR path[256];
++    BYTE *bytes = NULL;
++    SIZE_T size;
++    HRESULT hr;
++    swprintf(path, ARRAY_SIZE(path), L"/v7.0/products?bigIds=%S&market=%S&languages=%S", license->id, market, language);
++    hr = receipt_public_get(L"displaycatalog.mp.microsoft.com", path, 4 * 1024 * 1024, &bytes, &size);
++    if (SUCCEEDED(hr)) hr = receipt_metadata_parse(license, kinds, bytes, size, root);
++    free(bytes); return hr;
++}
++
++static HRESULT entitled_fetch( const char *request, LONG *canceled, struct entitled_snapshot **out )
++{
++    xmlDocPtr doc = NULL, result = NULL;
++    xmlNodePtr root, node, response_root;
++    char *ids[ENTITLED_MAX_PRODUCTS] = {0}, *market = NULL, *language = NULL;
++    struct receipt_license licenses[ENTITLED_MAX_PRODUCTS];
++    UINT32 count = 0, license_count = 0, i, j, batch;
++    UINT64 kinds, expiry = UINT64_MAX;
++    ULONGLONG deadline = GetTickCount64() + 120000;
++    char number[32];
++    HRESULT hr = E_UNEXPECTED, com = CoInitializeEx(NULL, COINIT_MULTITHREADED);
++    *out = NULL;
++    doc = xmlReadMemory(request, strlen(request), NULL, NULL, XML_PARSE_NONET);
++    if (!doc) goto done;
++    root = xmlDocGetRootElement(doc);
++    ids[count++] = entitled_text(root, "ParentProductId");
++    for (node = root->children; node; node = node->next)
++        if (node->type == XML_ELEMENT_NODE && !strcmp((char *)node->name, "ProductId"))
++        { if (count == ENTITLED_MAX_PRODUCTS) goto done; ids[count++] = (char *)xmlNodeGetContent(node); }
++    for (i = 0; i < count; i++) if (!entitled_id(ids[i])) goto done;
++    market = entitled_text(root, "Market"); language = entitled_text(root, "Language");
++    if (!market || strlen(market) != 2 || !language || strlen(language) > 35 ||
++        FAILED(entitled_uint(root, "ProductKinds", &kinds))) goto done;
++    for (i = 0; market[i]; i++) if (market[i] < 'A' || market[i] > 'Z') goto done;
++    for (i = 0; language[i]; i++) if (!((language[i] >= 'A' && language[i] <= 'Z') ||
++        (language[i] >= 'a' && language[i] <= 'z') || (language[i] >= '0' && language[i] <= '9') || language[i] == '-')) goto done;
++    for (batch = 0; batch < count; batch += 64)
++    {
++        BYTE random[32];
++        char nonce[65], *body = NULL, *jwt = NULL;
++        IJsonObject *claim = NULL;
++        UINT64 token_expiry = 0;
++        if (InterlockedCompareExchange(canceled, 0, 0)) { hr = E_ABORT; goto done; }
++        if (GetTickCount64() >= deadline) { hr = HRESULT_FROM_WIN32(ERROR_TIMEOUT); goto done; }
++        if (BCryptGenRandom(NULL, random, sizeof(random), BCRYPT_USE_SYSTEM_PREFERRED_RNG)) { hr = E_FAIL; goto done; }
++        for (j = 0; j < 32; j++) sprintf(nonce + j * 2, "%02x", random[j]);
++        hr = xodus_store_license_body((const char **)&ids[batch], min(64, count - batch), nonce, &body);
++        if (SUCCEEDED(hr)) hr = xodus_store_license_xml(body, strlen(body), &jwt);
++        free(body);
++        if (SUCCEEDED(hr)) hr = receipt_load(jwt, nonce, &claim, &token_expiry);
++        xodus_store_license_note("store-entitled-receipt", hr);
++        if (jwt) { SecureZeroMemory(jwt, strlen(jwt)); free(jwt); }
++        if (SUCCEEDED(hr))
++        {
++            if (token_expiry < expiry) expiry = token_expiry;
++            hr = receipt_inventory(claim, (const char **)ids, count, licenses, &license_count, &expiry);
++            xodus_store_license_note("store-entitled-inventory", hr);
++        }
++        if (claim) IJsonObject_Release(claim);
++        if (FAILED(hr)) goto done;
++    }
++    if (!(result = xmlNewDoc(BAD_CAST "1.0"))) { hr = E_OUTOFMEMORY; goto done; }
++    if (!(response_root = xmlNewNode(NULL, BAD_CAST "Response"))) { hr = E_OUTOFMEMORY; goto done; }
++    xmlDocSetRootElement(result, response_root);
++    xmlNewTextChild(response_root, NULL, BAD_CAST "HResult", BAD_CAST "0");
++    for (i = 0; i < license_count; i++)
++    {
++        if (InterlockedCompareExchange(canceled, 0, 0)) { hr = E_ABORT; goto done; }
++        if (GetTickCount64() >= deadline) { hr = HRESULT_FROM_WIN32(ERROR_TIMEOUT); goto done; }
++        hr = receipt_metadata(&licenses[i], kinds, market, language, response_root);
++        xodus_store_license_note("store-entitled-metadata", hr);
++        if (FAILED(hr)) goto done;
++    }
++    if (expiry > (UINT64)time(NULL) + 60) expiry = (UINT64)time(NULL) + 60;
++    snprintf(number, sizeof(number), "%llu", (unsigned long long)expiry);
++    xmlNewTextChild(response_root, NULL, BAD_CAST "ValidUntil", BAD_CAST number);
++    {
++        xmlChar *bytes; int size;
++        xmlDocDumpMemory(result, &bytes, &size);
++        if (!bytes) { hr = E_OUTOFMEMORY; goto done; }
++        hr = size <= 60000 ? entitled_parse((char *)bytes, size, out) : HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
++        xmlFree(bytes);
++    }
++done:
++    for (i = 0; i < count; i++) free(ids[i]);
++    free(market); free(language);
++    if (doc) xmlFreeDoc(doc);
++    if (result) xmlFreeDoc(result);
++    if (SUCCEEDED(com)) CoUninitialize();
++    return hr;
++}
+diff --git a/dlls/xgameruntime/xuser.c b/dlls/xgameruntime/xuser.c
+index cda5fc3..61ef38e 100644
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -286,12 +286,24 @@ static HRESULT xodus_request( UINT16 type, const char *body, UINT16 size, char *
+     if (useBridge)
+     {
+         if ((s = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP )) == INVALID_SOCKET) goto error;
++        if (type == 5)
++        {
++            DWORD timeout = 95000;
++            if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) ||
++                setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout))) goto error;
++        }
+         if (connect( s, (struct sockaddr *)&bridge, sizeof(bridge) )) goto error;
+         if (!xodus_send( s, bridgeKey, 64 )) goto error;
+     }
+     else
+     {
+         if ((s = socket( AF_UNIX, SOCK_STREAM, 0 )) == INVALID_SOCKET) goto error;
++        if (type == 5)
++        {
++            DWORD timeout = 95000;
++            if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) ||
++                setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout))) goto error;
++        }
+         if (connect( s, (struct sockaddr *)&addr, sizeof(addr) )) goto error;
+     }
+     if (!xodus_send( s, header, sizeof(header) ) || !xodus_send( s, body, size )) goto error;
+@@ -1765,7 +1777,10 @@ static HRESULT WINAPI token_signature_phase( XAsyncOp op, const XAsyncProviderDa
+                 /* The working community stand-in returns a present, empty
+                  * signature (count 1, L"") when no signature policy applies;
+                  * consumers treat NULL as a hard failure on this title. */
+-                context->dataSize = sizeof(*context->dataUtf16) + (auth ? (wcslen( auth ) + 1) * sizeof(WCHAR) : 0) + (info.policy ? 104 * sizeof(WCHAR) : sizeof(WCHAR));
++                /* IUser writes 104 base64 characters, without a terminator.
++                 * Public results are C strings, including the trailing NUL in
++                 * their buffer counts, just like the authorization token. */
++                context->dataSize = sizeof(*context->dataUtf16) + (auth ? (wcslen( auth ) + 1) * sizeof(WCHAR) : 0) + (info.policy ? 105 * sizeof(WCHAR) : sizeof(WCHAR));
+                 if (!(context->dataUtf16 = calloc( 1, context->dataSize )))
+                 {
+                     hr = E_OUTOFMEMORY;
+@@ -1789,7 +1804,7 @@ static HRESULT WINAPI token_signature_phase( XAsyncOp op, const XAsyncProviderDa
+                         }
+                         if (!WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, -1, buffer, size, NULL, NULL )) goto error;
+                     }
+-                    context->dataUtf16->signatureCount = 104;
++                    context->dataUtf16->signatureCount = 105;
+                     context->dataUtf16->signature = (WCHAR *)(context->dataUtf16 + 1) + (auth ? wcslen( auth ) + 1 : 0);
+                     if (FAILED(hr = IUser_GetSignature( &context->user->IUser_iface, info.policy->version, context->method, context->url, (auth ? buffer : ""), min( context->bodySize, info.policy->maxBodyBytes ), context->bodyBuffer, signature ))) goto complete;
+                     if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, signature, 104, (WCHAR *)context->dataUtf16->signature, 104 )) goto error;
+@@ -1803,7 +1818,7 @@ static HRESULT WINAPI token_signature_phase( XAsyncOp op, const XAsyncProviderDa
+             else
+             {
+                 if (auth && !(size = WideCharToMultiByte( CP_UTF8, WC_ERR_INVALID_CHARS, auth, wcslen( auth ), NULL, 0, NULL, NULL ))) goto error;
+-                context->dataSize = sizeof(*context->data) + (auth ? size + 1 : 0) + (info.policy ? 104 : 1);
++                context->dataSize = sizeof(*context->data) + (auth ? size + 1 : 0) + (info.policy ? 105 : 1);
+                 if (!(context->data = calloc( 1, context->dataSize )))
+                 {
+                     hr = E_OUTOFMEMORY;
+@@ -1817,7 +1832,7 @@ static HRESULT WINAPI token_signature_phase( XAsyncOp op, const XAsyncProviderDa
+                 }
+                 if (info.policy)
+                 {
+-                    context->data->signatureSize = 104;
++                    context->data->signatureSize = 105;
+                     context->data->signature = (char *)(context->data + 1) + (auth ? size + 1 : 0);
+                     if (FAILED(hr = IUser_GetSignature( &context->user->IUser_iface, info.policy->version, context->method, context->url, (auth ? context->data->token : ""), min( context->bodySize, info.policy->maxBodyBytes ), context->bodyBuffer, (char *)context->data->signature ))) goto complete;
+                 }

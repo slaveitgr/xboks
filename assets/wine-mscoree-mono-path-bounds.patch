@@ -1,0 +1,14 @@
+--- a/dlls/mscoree/metahost.c
++++ b/dlls/mscoree/metahost.c
+@@ -723,6 +723,11 @@
+     static const WCHAR libmono2_dll[] = {'\\','b','i','n','\\','l','i','b','m','o','n','o','-','2','.','0','.','d','l','l',0};
+     DWORD attributes=INVALID_FILE_ATTRIBUTES;
+ 
++    /* Callers supply MAX_PATH buffers. A managed runtime installed under a
++     * long release directory must fail discovery, not overwrite their stack
++     * with the base path plus the architecture-specific DLL suffix. */
++    if (lstrlenW(path) + ARRAY_SIZE(libmono2_arch_dll) > MAX_PATH) return FALSE;
++
+     lstrcpyW(dll_path, path);
+     lstrcatW(dll_path, libmono2_arch_dll);
+     attributes = GetFileAttributesW(dll_path);

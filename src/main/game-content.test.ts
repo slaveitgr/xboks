@@ -1,0 +1,130 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { GameContent, contentManifest, contentOffers } from './game-content.js';
+import { parsePackageXml } from './package-xml.js';
+import type { Game } from '../shared/types.js';
+
+const BASE = '9AAAAAAAAAAA', OWN = '9BBBBBBBBBBB', GP = '9CCCCCCCCCCC', PAID = '9DDDDDDDDDDD';
+const GUID = '01234567-89ab-cdef-0123-456789abcdef';
+const roots: string[] = [];
+afterEach(async () => { for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
+const identity = (name = 'Example.Base', version = '1.0.0.0', publisher = 'CN=Example') => `<Identity Name="${name}" Version="${version}" Publisher="${publisher}"/>`;
+const config = (id = BASE, extra = '') => `<Game>${identity()}<StoreId>${id}</StoreId>${extra}</Game>`;
+const baseXml = config(BASE, `<RelatedProducts>${[OWN, GP, PAID].map(id => `<RelatedProduct>${id}</RelatedProduct>`).join('')}</RelatedProducts>`);
+const childXml = (id = OWN) => `<Game>${identity('Example.Content')}<StoreId>${id}</StoreId><AllowedProducts><AllowedProduct>${BASE}</AllowedProduct></AllowedProducts><DesktopRegistration><MainPackageDependency Name="Example.Base"/></DesktopRegistration></Game>`;
+const appxXml = `<Package xmlns:uap4="example">${identity('Example.Content')}<Dependencies><uap4:MainPackageDependency Name="Example.Base"/></Dependencies></Package>`;
+const layoutXml = '<Package><Chunk><FileGroup SourcePath="." Include="MicrosoftGame.config"/><FileGroup SourcePath="." Include="*.png"/></Chunk></Package>';
+const pkg = (family = 'Example.Content_hash') => ({ ContentId: GUID, PackageFamilyName: family, MainPackageFamilyNameForDlc: 'Example.Base_hash', PackageFormat: 'MSIXVC', Architectures: ['x64'], PlatformDependencies: [{ PlatformName: 'Windows.Desktop' }], MaxDownloadSizeInBytes: 1024 });
+const sku = (packages: unknown[]) => ({ Sku: { Properties: { IsTrial: false, Packages: packages } } });
+const product = (id: string, type = 'Durable') => ({ ProductId: id, ProductType: type, LocalizedProperties: [{ ProductTitle: 'Sample ' + id }], DisplaySkuAvailabilities: [sku([pkg()])] });
+const catalog = () => ({ Products: [
+  { ...product(BASE, 'Game'), DisplaySkuAvailabilities: [sku([{ ...pkg('Example.Base_hash'), MainPackageFamilyNameForDlc: '' }])] },
+  product(OWN), product(GP), product(PAID),
+] });
+const access = async () => ({ checkedAt: new Date().toISOString(), accessByProductId: { [OWN]: 'owned' as const, [GP]: 'gamepass' as const } });
+async function fixture() {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-content-test-')); roots.push(root);
+  const base = path.join(root, 'base'), data = path.join(root, 'data');
+  await fs.mkdir(base); await fs.mkdir(data);
+  await fs.writeFile(path.join(base, 'MicrosoftGame.Config'), baseXml);
+  const game: Game = { id: 'arbitrary-game', title: 'Sample', path: base, storeId: BASE, installState: 'ready', addedAt: '' };
+  const fetcher = vi.fn(async (url: URL | RequestInfo) => {
+    const ids = new URL(String(url)).searchParams.get('bigIds')!.split(',');
+    return new Response(JSON.stringify({ Products: catalog().Products.filter(p => ids.includes(p.ProductId)) }));
+  }) as unknown as typeof fetch;
+  return { root, base, data, game, fetcher, manager: new GameContent(data, fetcher) };
+}
+async function installFixture() {
+  const f = await fixture();
+  const result = await f.manager.plan(f.game, access, 'CZ');
+  const selected = result.packages.find(p => p.productId === OWN)!;
+  const directory = await f.manager.prepare(f.game, selected);
+  await fs.writeFile(path.join(directory, 'MicrosoftGame.Config'), childXml());
+  await fs.writeFile(path.join(directory, 'appxmanifest.xml'), appxXml);
+  await fs.writeFile(path.join(directory, `layout_${GUID}.xml`), layoutXml);
+  await fs.writeFile(path.join(directory, 'logo.PNG'), 'synthetic payload');
+  return { ...f, selected, directory };
+}
+
+it('parses bounded XML with namespaces and encoded identity values, rejects malformed or external entities', () => {
+  expect(parsePackageXml('<Root><!-- comment --><ns:Child A="a &amp; b">&#x41;</ns:Child></Root>').children[0]).toMatchObject({ name: 'ns:Child', attributes: { A: 'a & b' }, text: 'A' });
+  for (const xml of ['<!DOCTYPE Game [<!ENTITY x SYSTEM "file:///secret">]><Game/>', '<A><B></A>', '<A/><B/>', '<A X="1" X="2"/>', '<A>&unknown;</A>', '<A X="bad&"/>', '<A>' + '<B>'.repeat(40), '<A>\0</A>', '<A/>garbage']) expect(() => parsePackageXml(xml)).toThrow();
+});
+it('does not infer licenses from catalog membership, a bundle title or disk', () => {
+  const result = contentOffers(contentManifest(baseXml), catalog(), { [OWN]: 'owned', [GP]: 'gamepass' });
+  expect(result.items.map(item => [item.productId, item.access, item.status])).toEqual([[OWN, 'owned', 'available'], [GP, 'gamepass', 'available'], [PAID, undefined, 'unlicensed']]);
+  expect(result.packages.map(p => p.productId)).toEqual([OWN, GP]);
+  expect(contentOffers(contentManifest(baseXml), catalog(), {}).packages).toHaveLength(0);
+});
+it('rejects unsupported architectures, formats, trial SKUs, ambiguous packages and foreign base families', () => {
+  for (const change of [{ PackageFormat: 'APPX' }, { Architectures: ['arm64'] }, { PlatformDependencies: [] }, { MainPackageFamilyNameForDlc: 'Other.Base_hash' }, { ContentId: 'https://evil.invalid/download' }]) {
+    const data = catalog(); Object.assign(data.Products[1].DisplaySkuAvailabilities[0].Sku.Properties.Packages[0], change);
+    expect(contentOffers(contentManifest(baseXml), data, { [OWN]: 'owned' }).items[0].status).toBe('unsupported');
+  }
+  const data = catalog(); data.Products[1].DisplaySkuAvailabilities[0].Sku.Properties.IsTrial = true;
+  expect(contentOffers(contentManifest(baseXml), data, { [OWN]: 'owned' }).packages).toHaveLength(0);
+  data.Products[1].DisplaySkuAvailabilities[0].Sku.Properties.IsTrial = false;
+  data.Products[1].DisplaySkuAvailabilities[0].Sku.Properties.Packages.push({ ...pkg(), ContentId: 'aaaaaaaa-89ab-cdef-0123-456789abcdef' });
+  expect(contentOffers(contentManifest(baseXml), data, { [OWN]: 'owned' }).packages).toHaveLength(0);
+});
+it('rejects malformed/duplicate product relationships and foreign base identity', async () => {
+  for (const xml of [config(BASE, '<RelatedProducts><RelatedProduct>../../escape</RelatedProduct></RelatedProducts>'), baseXml.replace('</Game>', '<StoreId>' + GP + '</StoreId></Game>'), baseXml.replace('1.0.0.0', '70000.0.0.0')]) expect(() => contentManifest(xml)).toThrow();
+  const f = await fixture();
+  await expect(f.manager.plan({ ...f.game, storeId: PAID }, access)).rejects.toThrow('Store ID changed');
+});
+it('queries only declared products in the requested market, without any credential headers', async () => {
+  const f = await fixture(); const result = await f.manager.plan(f.game, access, 'CZ');
+  expect(result.plan.items).toHaveLength(3);
+  const call = vi.mocked(f.fetcher).mock.calls[0];
+  const url = new URL(String(call[0]));
+  expect(url.hostname).toBe('displaycatalog.mp.microsoft.com'); expect(url.searchParams.get('market')).toBe('CZ');
+  expect(url.searchParams.get('bigIds')).toBe([BASE, OWN, GP, PAID].join(',')); expect(call[1]?.headers).toBeUndefined(); expect(call[1]?.redirect).toBe('error');
+});
+it('rejects failed, oversized and unrelated catalog responses without granting installability', async () => {
+  const f = await fixture();
+  for (const response of [new Response('', { status: 503 }), new Response('x'.repeat(8_000_001)), new Response(JSON.stringify({ Products: [product('9XXXXXXXXXXX')] }))]) {
+    const manager = new GameContent(f.data, async () => response);
+    await expect(manager.plan(f.game, access)).rejects.toThrow();
+  }
+});
+it('does no account or network work when no related content is declared', async () => {
+  const f = await fixture(); await fs.writeFile(path.join(f.base, 'MicrosoftGame.Config'), config());
+  const reader = vi.fn(access); expect((await f.manager.plan(f.game, reader)).plan.items).toHaveLength(0);
+  expect(reader).not.toHaveBeenCalled(); expect(f.fetcher).not.toHaveBeenCalled();
+});
+it('keeps partial content out of runtime roots, then registers only completed matching packages', async () => {
+  const f = await installFixture();
+  expect(f.directory.startsWith(f.base)).toBe(false); expect(await f.manager.roots(f.game)).toEqual([]);
+  await f.manager.complete(f.game, f.selected);
+  expect(await f.manager.roots(f.game)).toEqual([f.directory]);
+  const plan = await f.manager.plan(f.game, access);
+  expect(plan.plan.items[0].status).toBe('installed');
+  const unlicensed = (await f.manager.plan(f.game, async () => ({ checkedAt: '', accessByProductId: {} }))).plan.items[0];
+  expect(unlicensed.status).toBe('installed'); expect(unlicensed.access).toBeUndefined();
+  await f.manager.prepare(f.game, f.selected); expect(await f.manager.roots(f.game)).toEqual([]);
+});
+it('rejects wrong publisher, parent, Store ID, Appx identity or missing layout payload', async () => {
+  for (const failure of ['publisher', 'parent', 'store', 'appx', 'payload', 'layout']) {
+    const f = await installFixture();
+    if (failure === 'publisher') await fs.writeFile(path.join(f.directory, 'MicrosoftGame.Config'), childXml().replace('CN=Example', 'CN=Other'));
+    if (failure === 'parent') await fs.writeFile(path.join(f.directory, 'MicrosoftGame.Config'), childXml().replace('<AllowedProduct>' + BASE, '<AllowedProduct>' + PAID));
+    if (failure === 'store') await fs.writeFile(path.join(f.directory, 'MicrosoftGame.Config'), childXml(PAID));
+    if (failure === 'appx') await fs.writeFile(path.join(f.directory, 'appxmanifest.xml'), appxXml.replace('1.0.0.0', '2.0.0.0'));
+    if (failure === 'payload') await fs.unlink(path.join(f.directory, 'logo.PNG'));
+    if (failure === 'layout') await fs.writeFile(path.join(f.directory, `layout_${GUID}.xml`), layoutXml.replace('SourcePath="."', 'SourcePath="../outside"'));
+    await expect(f.manager.complete(f.game, f.selected)).rejects.toThrow(); expect(await f.manager.roots(f.game)).toEqual([]);
+  }
+});
+it('rejects managed-path symlinks and content not declared by the parent', async () => {
+  const f = await fixture();
+  await fs.symlink(f.base, path.join(f.data, 'content'));
+  await expect(f.manager.prepare(f.game, { productId: OWN, contentId: GUID, family: 'Example.Content_hash' })).rejects.toThrow('real directory');
+  await expect(f.manager.prepare(f.game, { productId: '9XXXXXXXXXXX', contentId: GUID, family: 'Example.Content_hash' })).rejects.toThrow('Invalid content');
+});
+it('does not retain completion after manifest or payload changes', async () => {
+  const f = await installFixture(); await f.manager.complete(f.game, f.selected);
+  await fs.writeFile(path.join(f.directory, 'appxmanifest.xml'), appxXml.replace('1.0.0.0', '2.0.0.0'));
+  expect(await f.manager.roots(f.game)).toEqual([]);
+});

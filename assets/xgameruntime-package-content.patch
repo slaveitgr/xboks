@@ -1,0 +1,560 @@
+diff --git a/dlls/xgameruntime/main.c b/dlls/xgameruntime/main.c
+index ea65290..ac93f89 100644
+--- a/dlls/xgameruntime/main.c
++++ b/dlls/xgameruntime/main.c
+@@ -142,6 +142,7 @@ static HRESULT initialize_runtime( ULONG gdkVer, ULONG gsVer, char mode, const s
+     if (!strcmp( (char *)root->name, "Game" ))
+     {
+         if (FAILED(xstore_configure(root))) goto badconfig;
++        xpackage_configure(root);
+         for (child = root->children; child; child = child->next)
+             if (child->type == XML_ELEMENT_NODE)
+             {
+diff --git a/dlls/xgameruntime/private.h b/dlls/xgameruntime/private.h
+index cbacbea..4f80c0b 100644
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -69,6 +69,8 @@ extern UINT32 titleId;
+ extern char *storeId;
+ struct _xmlNode;
+ HRESULT xstore_configure( struct _xmlNode *root );
++void xpackage_configure( struct _xmlNode *root );
++HRESULT xpackage_query_identifier( const char *store, SIZE_T size, char *identifier );
+ extern char *packageFamilyName;
+ UINT64 xuser_get_xuid( XUserHandle user );
+ HRESULT xuser_device_authorization( XUserHandle user, const char *relyingParty, char **auth );
+diff --git a/dlls/xgameruntime/xpackage.c b/dlls/xgameruntime/xpackage.c
+index 610dca6..671483c 100644
+--- a/dlls/xgameruntime/xpackage.c
++++ b/dlls/xgameruntime/xpackage.c
+@@ -24,6 +24,8 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
++#include "xpackage_content.h"
++
+ struct x_package
+ {
+     IXPackageImpl4 IXPackageImpl4_iface;
+@@ -514,8 +516,9 @@ static HRESULT enumerate_current_package( XPackageKind kind, XPackageEnumeration
+     XPackageDetails details;
+     HRESULT hr;
+ 
+-    if (!callback) return E_INVALIDARG;
+-    if (kind != XPackageKind_Game) return S_OK;
++    if (!callback || (UINT)kind > XPackageKind_PublisherContent || (UINT)scope > XPackageEnumerationScope_ThisPublisher) return E_INVALIDARG;
++    if (kind == XPackageKind_Content) return enumerate_content_packages(scope, context, callback);
++    if (kind == XPackageKind_PublisherContent) return E_NOTIMPL;
+     if (FAILED(hr = package_identifier( identifier, sizeof(identifier) ))) return hr;
+ 
+     load_package_fields();
+@@ -542,6 +545,20 @@ static HRESULT WINAPI x_package_XPackageEnumeratePackages( IXPackageImpl4 *iface
+     return enumerate_current_package( kind, scope, context, callback );
+ }
+ 
++HRESULT xpackage_query_identifier( const char *requested_store, SIZE_T size, char *identifier )
++{
++    HRESULT hr;
++    if (identifier && size) identifier[0] = 0;
++    if (!content_id(requested_store) || !identifier) return E_INVALIDARG;
++    if (size < 33) return E_NOT_SUFFICIENT_BUFFER;
++    if (storeId && !strcmp(requested_store, storeId))
++    {
++        hr = package_identifier(identifier, size);
++        return hr == E_FAIL ? E_INVALIDARG : hr;
++    }
++    return content_query_identifier(requested_store, size, identifier);
++}
++
+ static HRESULT WINAPI x_package_XPackageRegisterPackageInstalled( IXPackageImpl4 *iface, XTaskQueueHandle queue, void *context, XPackageInstalledCallback *callback, XTaskQueueRegistrationToken *token )
+ {
+     FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
+diff --git a/dlls/xgameruntime/xpackage_content.h b/dlls/xgameruntime/xpackage_content.h
+new file mode 100644
+index 0000000..b0a502d
+--- /dev/null
++++ b/dlls/xgameruntime/xpackage_content.h
+@@ -0,0 +1,468 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Enumerate real extracted content packages, not catalog or license entries.
++ * Installation metadata is not evidence of ownership. Store licensing remains
++ * independent. Included by xpackage.c to share the SDK ABI and debug channel. */
++#include <libxml/parser.h>
++#include <libxml/tree.h>
++
++#define CONTENT_MAX_PACKAGES 128
++#define CONTENT_MAX_DIRECTORIES 512
++#define CONTENT_MAX_IDS 256
++#define CONTENT_XML_LIMIT (1024 * 1024)
++
++struct content_game
++{
++    char identity[256], publisher[256], store[13];
++    char related[CONTENT_MAX_IDS][13];
++    UINT32 related_count;
++};
++static struct content_game content_current;
++static SRWLOCK content_config_lock = SRWLOCK_INIT;
++
++static BOOL content_id( const char *text )
++{
++    UINT i;
++    if (!text || strlen(text) != 12) return FALSE;
++    for (i = 0; i < 12; i++)
++        if (!((text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= '0' && text[i] <= '9'))) return FALSE;
++    return TRUE;
++}
++
++/* Require single direct children. Nested/unrelated elements must not supply
++ * package identity, dependencies or application declarations. */
++static xmlNodePtr content_child( xmlNodePtr parent, const char *name )
++{
++    xmlNodePtr node, result = NULL;
++    if (!parent) return NULL;
++    for (node = parent->children; node; node = node->next)
++        if (node->type == XML_ELEMENT_NODE && !strcmp((char *)node->name, name))
++        {
++            if (result) return NULL;
++            result = node;
++        }
++    return result;
++}
++
++static BOOL content_text( xmlNodePtr node, const char *attribute, char *out, SIZE_T size )
++{
++    xmlChar *value;
++    BOOL ok;
++    out[0] = 0;
++    if (!node) return FALSE;
++    value = attribute ? xmlGetProp(node, (xmlChar *)attribute) : xmlNodeGetContent(node);
++    ok = value && value[0] && strlen((char *)value) < size;
++    if (ok) strcpy(out, (char *)value);
++    xmlFree(value);
++    return ok;
++}
++
++void xpackage_configure( struct _xmlNode *root )
++{
++    struct content_game current = {0};
++    xmlNodePtr identity = content_child(root, "Identity"), node;
++    char id[13];
++    content_text(identity, "Name", current.identity, sizeof(current.identity));
++    content_text(identity, "Publisher", current.publisher, sizeof(current.publisher));
++    content_text(content_child(root, "StoreId"), NULL, current.store, sizeof(current.store));
++    node = content_child(root, "RelatedProducts");
++    for (node = node ? node->children : NULL; node; node = node->next)
++        if (node->type == XML_ELEMENT_NODE && !strcmp((char *)node->name, "RelatedProduct") &&
++            current.related_count < CONTENT_MAX_IDS && content_text(node, NULL, id, sizeof(id)) && content_id(id))
++            strcpy(current.related[current.related_count++], id);
++    AcquireSRWLockExclusive(&content_config_lock);
++    content_current = current;
++    ReleaseSRWLockExclusive(&content_config_lock);
++}
++
++struct content_package
++{
++    WCHAR path[MAX_PATH];
++    char identifier[33], identity[256], publisher_id[256], store[13];
++    char dependency[256], allowed[CONTENT_MAX_IDS][13];
++    UINT32 allowed_count;
++    XVersion version;
++    char display[256], description[1024], publisher[256];
++    BOOL content;
++};
++struct content_snapshot
++{
++    struct content_game current;
++    struct content_package packages[CONTENT_MAX_PACKAGES];
++    UINT32 count, directories;
++};
++
++static BOOL content_join( const WCHAR *root, const WCHAR *name, WCHAR *out )
++{
++    SIZE_T a = wcslen(root), b = wcslen(name);
++    if (a + b + 2 > MAX_PATH) return FALSE;
++    wcscpy(out, root);
++    if (a && out[a - 1] != '\\') wcscat(out, L"\\");
++    wcscat(out, name);
++    return TRUE;
++}
++
++static xmlDocPtr content_read_xml( const WCHAR *path )
++{
++    HANDLE file;
++    LARGE_INTEGER size;
++    DWORD read;
++    char *bytes;
++    xmlDocPtr doc = NULL;
++    file = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
++                       NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
++    if (file == INVALID_HANDLE_VALUE) return NULL;
++    if (!GetFileSizeEx(file, &size) || size.QuadPart <= 0 || size.QuadPart > CONTENT_XML_LIMIT ||
++        !(bytes = malloc(size.QuadPart))) { CloseHandle(file); return NULL; }
++    if (ReadFile(file, bytes, size.QuadPart, &read, NULL) && read == size.QuadPart)
++    {
++        doc = xmlReadMemory(bytes, read, NULL, NULL, XML_PARSE_NONET | XML_PARSE_NOERROR | XML_PARSE_NOWARNING);
++        if (doc && (doc->intSubset || doc->extSubset)) { xmlFreeDoc(doc); doc = NULL; }
++    }
++    free(bytes);
++    CloseHandle(file);
++    return doc;
++}
++
++static BOOL content_version( const char *text, XVersion *version )
++{
++    unsigned v[4], i;
++    const char *p = text;
++    for (i = 0; i < 4; i++)
++    {
++        if (*p < '0' || *p > '9') return FALSE;
++        v[i] = 0;
++        do { v[i] = v[i] * 10 + *p++ - '0'; if (v[i] > 65535) return FALSE; }
++        while (*p >= '0' && *p <= '9');
++        if (i < 3 && *p++ != '.') return FALSE;
++    }
++    if (*p) return FALSE;
++    version->major = v[0]; version->minor = v[1]; version->build = v[2]; version->revision = v[3];
++    return TRUE;
++}
++
++static BOOL content_layout_id( const WCHAR *name, char *out )
++{
++    UINT i, n = 0;
++    if (wcslen(name) != 47 || wcsncmp(name, L"layout_", 7) || wcscmp(name + 43, L".xml")) return FALSE;
++    for (i = 0; i < 36; i++)
++    {
++        WCHAR c = name[7 + i];
++        if (i == 8 || i == 13 || i == 18 || i == 23) { if (c != '-') return FALSE; continue; }
++        if (c >= 'A' && c <= 'F') c += 'a' - 'A';
++        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return FALSE;
++        out[n++] = c;
++    }
++    out[n] = 0;
++    return n == 32;
++}
++
++/* FileGroup paths stay relative to the extracted root. Do not advertise a
++ * registration-only directory with missing declared payload as installed. */
++static BOOL content_relative( const char *text, BOOL pattern )
++{
++    const char *p = text;
++    if (!*p || *p == '/' || *p == '\\' || strchr(p, ':')) return FALSE;
++    for (; *p; p++)
++    {
++        if ((unsigned char)*p < 32 || (!pattern && (*p == '*' || *p == '?'))) return FALSE;
++        if (*p == '.' && (p == text || p[-1] == '/' || p[-1] == '\\') &&
++            p[1] == '.' && (!p[2] || p[2] == '/' || p[2] == '\\')) return FALSE;
++    }
++    return TRUE;
++}
++
++static BOOL content_layout_files( const WCHAR *root, xmlNodePtr node, UINT depth, UINT *groups )
++{
++    char source[MAX_PATH], include[MAX_PATH];
++    WCHAR relative[MAX_PATH], directory[MAX_PATH], pattern[MAX_PATH];
++    WIN32_FIND_DATAW data;
++    HANDLE find;
++    BOOL found;
++    if (depth > 16) return FALSE;
++    for (; node; node = node->next)
++    {
++        if (node->type != XML_ELEMENT_NODE) continue;
++        if (!strcmp((char *)node->name, "FileGroup"))
++        {
++            if (++*groups > 256 || !content_text(node, "SourcePath", source, sizeof(source)) ||
++                !content_text(node, "Include", include, sizeof(include)) ||
++                !content_relative(source, FALSE) || !content_relative(include, TRUE) ||
++                !MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, source, -1, relative, MAX_PATH) ||
++                !content_join(root, relative, directory) ||
++                !MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, include, -1, relative, MAX_PATH) ||
++                !content_join(directory, relative, pattern)) return FALSE;
++            if ((find = FindFirstFileW(pattern, &data)) == INVALID_HANDLE_VALUE) return FALSE;
++            found = FALSE;
++            do { if (!(data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT))) { found = TRUE; break; } }
++            while (FindNextFileW(find, &data));
++            FindClose(find);
++            if (!found) return FALSE;
++        }
++        if (!content_layout_files(root, node->children, depth + 1, groups)) return FALSE;
++    }
++    return TRUE;
++}
++
++static BOOL content_load_layout( struct content_package *package )
++{
++    WCHAR pattern[MAX_PATH], path[MAX_PATH];
++    WIN32_FIND_DATAW data;
++    HANDLE find;
++    xmlDocPtr doc;
++    xmlNodePtr root;
++    UINT groups = 0, layouts = 0;
++    BOOL valid = FALSE;
++    if (!content_join(package->path, L"layout_*.xml", pattern) ||
++        (find = FindFirstFileW(pattern, &data)) == INVALID_HANDLE_VALUE) return FALSE;
++    do
++    {
++        if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) continue;
++        if (++layouts != 1 || !content_layout_id(data.cFileName, package->identifier) ||
++            !content_join(package->path, data.cFileName, path)) { valid = FALSE; break; }
++        doc = content_read_xml(path);
++        root = doc ? xmlDocGetRootElement(doc) : NULL;
++        valid = root && !strcmp((char *)root->name, "Package") &&
++                content_layout_files(package->path, root->children, 0, &groups) && groups;
++        if (doc) xmlFreeDoc(doc);
++        if (!valid) break;
++    } while (FindNextFileW(find, &data));
++    FindClose(find);
++    return valid;
++}
++
++static BOOL content_load( const WCHAR *path, struct content_package *package )
++{
++    WCHAR file[MAX_PATH];
++    xmlDocPtr config = NULL, manifest = NULL;
++    xmlNodePtr game, appx, identity, other, dependency, node;
++    char value[256], version[64];
++    BOOL ok = FALSE;
++    memset(package, 0, sizeof(*package));
++    if (wcslen(path) >= MAX_PATH) return FALSE;
++    wcscpy(package->path, path);
++    if (!content_join(path, L"MicrosoftGame.config", file) || !(config = content_read_xml(file)) ||
++        !content_join(path, L"appxmanifest.xml", file) || !(manifest = content_read_xml(file))) goto done;
++    game = xmlDocGetRootElement(config); appx = xmlDocGetRootElement(manifest);
++    if (!game || strcmp((char *)game->name, "Game") || !appx || strcmp((char *)appx->name, "Package")) goto done;
++    identity = content_child(game, "Identity"); other = content_child(appx, "Identity");
++    if (!content_text(identity, "Name", package->identity, sizeof(package->identity)) ||
++        !content_text(other, "Name", value, sizeof(value)) || strcmp(package->identity, value) ||
++        !content_text(identity, "Publisher", package->publisher_id, sizeof(package->publisher_id)) ||
++        !content_text(other, "Publisher", value, sizeof(value)) || strcmp(package->publisher_id, value) ||
++        !content_text(identity, "Version", version, sizeof(version)) || !content_version(version, &package->version) ||
++        !content_text(other, "Version", value, sizeof(value)) || strcmp(version, value) ||
++        !content_text(content_child(game, "StoreId"), NULL, package->store, sizeof(package->store)) || !content_id(package->store)) goto done;
++    dependency = content_child(content_child(game, "DesktopRegistration"), "MainPackageDependency");
++    other = content_child(content_child(appx, "Dependencies"), "MainPackageDependency");
++    if (dependency || other)
++    {
++        if (!content_text(dependency, "Name", package->dependency, sizeof(package->dependency)) ||
++            !content_text(other, "Name", value, sizeof(value)) || strcmp(package->dependency, value) ||
++            content_child(game, "Executables") || content_child(appx, "Applications")) goto done;
++        package->content = TRUE;
++        node = content_child(game, "AllowedProducts");
++        for (node = node ? node->children : NULL; node; node = node->next)
++            if (node->type == XML_ELEMENT_NODE && !strcmp((char *)node->name, "AllowedProduct"))
++            {
++                if (package->allowed_count == CONTENT_MAX_IDS || !content_text(node, NULL, value, sizeof(value)) || !content_id(value)) goto done;
++                strcpy(package->allowed[package->allowed_count++], value);
++            }
++        if (!package->allowed_count || !content_load_layout(package)) goto done;
++    }
++    else if (!content_child(game, "Executables") && !content_child(appx, "Applications")) goto done;
++    node = content_child(game, "ShellVisuals");
++    content_text(node, "DefaultDisplayName", package->display, sizeof(package->display));
++    content_text(node, "Description", package->description, sizeof(package->description));
++    content_text(node, "PublisherDisplayName", package->publisher, sizeof(package->publisher));
++    ok = TRUE;
++done:
++    if (config) xmlFreeDoc(config);
++    if (manifest) xmlFreeDoc(manifest);
++    return ok;
++}
++
++static HRESULT content_add( struct content_snapshot *snapshot, const WCHAR *path )
++{
++    struct content_package *package;
++    UINT i;
++    if (++snapshot->directories > CONTENT_MAX_DIRECTORIES) return HRESULT_FROM_WIN32(ERROR_MORE_DATA);
++    for (i = 0; i < snapshot->count; i++) if (!wcsicmp(snapshot->packages[i].path, path)) return S_OK;
++    if (!(package = calloc(1, sizeof(*package)))) return E_OUTOFMEMORY;
++    if (content_load(path, package))
++    {
++        for (i = 0; i < snapshot->count; i++)
++            if (package->content && snapshot->packages[i].content && !strcmp(package->identifier, snapshot->packages[i].identifier))
++            {
++                BOOL same = !strcmp(package->identity, snapshot->packages[i].identity) &&
++                    !strcmp(package->store, snapshot->packages[i].store) &&
++                    !memcmp(&package->version, &snapshot->packages[i].version, sizeof(package->version));
++                free(package);
++                return same ? S_OK : HRESULT_FROM_WIN32(ERROR_INVALID_DATA);
++            }
++        if (snapshot->count == CONTENT_MAX_PACKAGES) { free(package); return HRESULT_FROM_WIN32(ERROR_MORE_DATA); }
++        snapshot->packages[snapshot->count++] = *package;
++    }
++    free(package);
++    return S_OK;
++}
++
++/* Bounded direct-child discovery only. Additional installation locations may
++ * be supplied as semicolon-separated absolute Windows paths. Never scan an
++ * entire drive, recurse into prefixes or derive installation from a receipt. */
++static HRESULT content_scan( struct content_snapshot *snapshot, const WCHAR *path )
++{
++    WCHAR pattern[MAX_PATH], child[MAX_PATH];
++    WIN32_FIND_DATAW data;
++    HANDLE find;
++    HRESULT hr = content_add(snapshot, path);
++    UINT entries = 0;
++    if (FAILED(hr) || !content_join(path, L"*", pattern)) return hr;
++    if ((find = FindFirstFileW(pattern, &data)) == INVALID_HANDLE_VALUE) return S_OK;
++    do
++    {
++        if (++entries > CONTENT_MAX_DIRECTORIES) { hr = HRESULT_FROM_WIN32(ERROR_MORE_DATA); break; }
++        if (data.cFileName[0] == '.' || !(data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ||
++            (data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
++        if (content_join(path, data.cFileName, child) && FAILED(hr = content_add(snapshot, child))) break;
++    } while (FindNextFileW(find, &data));
++    FindClose(find);
++    return hr;
++}
++
++static BOOL content_absolute( const WCHAR *path )
++{
++    return wcslen(path) >= 3 && ((path[0] >= 'A' && path[0] <= 'Z') || (path[0] >= 'a' && path[0] <= 'z')) &&
++           path[1] == ':' && (path[2] == '\\' || path[2] == '/');
++}
++
++static HRESULT content_discover( struct content_snapshot *snapshot )
++{
++    WCHAR path[MAX_PATH], file[MAX_PATH], *sep, *roots, *next;
++    DWORD length;
++    UINT i;
++    HRESULT hr = S_OK;
++    if (GetModuleFileNameW(NULL, path, MAX_PATH) && (sep = wcsrchr(path, '\\')))
++    {
++        *sep = 0;
++        while (content_join(path, L"MicrosoftGame.config", file))
++        {
++            if (GetFileAttributesW(file) != INVALID_FILE_ATTRIBUTES)
++            {
++                hr = content_scan(snapshot, path);
++                if (SUCCEEDED(hr) && content_join(path, L"DLC", file)) hr = content_scan(snapshot, file);
++                if (SUCCEEDED(hr) && (sep = wcsrchr(path, '\\')) && sep > path + 2)
++                { *sep = 0; hr = content_scan(snapshot, path); }
++                break;
++            }
++            if (!(sep = wcsrchr(path, '\\')) || sep <= path + 2) break;
++            *sep = 0;
++        }
++    }
++    if (FAILED(hr)) return hr;
++    length = GetEnvironmentVariableW(L"XODUS_CONTENT_ROOTS", NULL, 0);
++    if (!length) return S_OK;
++    if (length > 32768) return E_INVALIDARG;
++    if (!(roots = malloc(length * sizeof(*roots)))) return E_OUTOFMEMORY;
++    roots[0] = 0;
++    if (GetEnvironmentVariableW(L"XODUS_CONTENT_ROOTS", roots, length) >= length) { free(roots); return E_INVALIDARG; }
++    for (sep = roots, i = 0; sep && *sep; sep = next)
++    {
++        next = wcschr(sep, ';'); if (next) *next++ = 0;
++        if (++i > 64 || !content_absolute(sep)) { hr = E_INVALIDARG; break; }
++        if (FAILED(hr = content_scan(snapshot, sep))) break;
++    }
++    free(roots);
++    return hr;
++}
++
++static BOOL content_parent_allowed( const struct content_package *package, const char *identity, const char *store )
++{
++    UINT i;
++    if (strcmp(package->dependency, identity)) return FALSE;
++    for (i = 0; i < package->allowed_count; i++) if (!strcmp(package->allowed[i], store)) return TRUE;
++    return FALSE;
++}
++
++static BOOL content_matches( const struct content_snapshot *snapshot, const struct content_package *package, XPackageEnumerationScope scope )
++{
++    UINT i, j;
++    const struct content_game *current = &snapshot->current;
++    if (!package->content) return FALSE;
++    if (content_parent_allowed(package, current->identity, current->store)) return TRUE;
++    if (scope == XPackageEnumerationScope_ThisOnly) return FALSE;
++    for (i = 0; i < snapshot->count; i++)
++    {
++        const struct content_package *parent = &snapshot->packages[i];
++        if (parent->content || !content_parent_allowed(package, parent->identity, parent->store)) continue;
++        if (scope == XPackageEnumerationScope_ThisPublisher && !strcmp(parent->publisher_id, current->publisher)) return TRUE;
++        if (scope == XPackageEnumerationScope_ThisAndRelated)
++            for (j = 0; j < current->related_count; j++) if (!strcmp(current->related[j], parent->store)) return TRUE;
++    }
++    return FALSE;
++}
++
++static HRESULT enumerate_content_packages( XPackageEnumerationScope scope, void *context, XPackageEnumerationCallback *callback )
++{
++    struct content_snapshot *snapshot;
++    XPackageDetails details;
++    UINT i, count = 0, index = 0;
++    HRESULT hr;
++    if (!(snapshot = calloc(1, sizeof(*snapshot)))) return E_OUTOFMEMORY;
++    AcquireSRWLockShared(&content_config_lock);
++    snapshot->current = content_current;
++    ReleaseSRWLockShared(&content_config_lock);
++    if (!content_id(snapshot->current.store) || !snapshot->current.identity[0]) { free(snapshot); return S_OK; }
++    if (SUCCEEDED(hr = content_discover(snapshot)))
++    {
++        for (i = 0; i < snapshot->count; i++) if (content_matches(snapshot, &snapshot->packages[i], scope)) count++;
++        for (i = 0; i < snapshot->count; i++)
++        {
++            const struct content_package *package = &snapshot->packages[i];
++            if (!content_matches(snapshot, package, scope)) continue;
++            memset(&details, 0, sizeof(details));
++            details.packageIdentifier = package->identifier; details.version = package->version;
++            details.kind = XPackageKind_Content; details.displayName = package->display;
++            details.description = package->description; details.publisher = package->publisher;
++            details.storeId = package->store; details.index = index++; details.count = count;
++            if (!callback(context, &details)) break;
++        }
++    }
++    free(snapshot);
++    return hr;
++}
++
++struct content_identifier_query
++{
++    const char *store;
++    char identifier[33];
++    BOOL found, ambiguous;
++};
++
++static BOOLEAN WINAPI content_identifier_match( void *arg, const XPackageDetails *details )
++{
++    struct content_identifier_query *query = arg;
++    if (strcmp(query->store, details->storeId)) return TRUE;
++    if (query->found && strcmp(query->identifier, details->packageIdentifier)) query->ambiguous = TRUE;
++    else
++    {
++        memcpy(query->identifier, details->packageIdentifier, sizeof(query->identifier));
++        query->found = TRUE;
++    }
++    return TRUE;
++}
++
++/* This is installation lookup only. No license or online request is involved.
++ * Unknown or ambiguous products are not mapped to another package. */
++static HRESULT content_query_identifier( const char *store, SIZE_T size, char *identifier )
++{
++    struct content_identifier_query query = {0};
++    HRESULT hr;
++    if (identifier && size) identifier[0] = 0;
++    if (!content_id(store) || !identifier) return E_INVALIDARG;
++    if (size < sizeof(query.identifier)) return E_NOT_SUFFICIENT_BUFFER;
++    query.store = store;
++    if (FAILED(hr = enumerate_content_packages(XPackageEnumerationScope_ThisAndRelated, &query, content_identifier_match))) return hr;
++    if (!query.found || query.ambiguous) return E_INVALIDARG;
++    memcpy(identifier, query.identifier, sizeof(query.identifier));
++    return S_OK;
++}
+diff --git a/dlls/xgameruntime/xstore.c b/dlls/xgameruntime/xstore.c
+index 31ea8c9..a757619 100644
+--- a/dlls/xgameruntime/xstore.c
++++ b/dlls/xgameruntime/xstore.c
+@@ -720,8 +720,8 @@ static HRESULT WINAPI x_store_XStoreDownloadAndInstallPackagesResult( IXStoreImp
+ 
+ static HRESULT WINAPI x_store_XStoreQueryPackageIdentifier( IXStoreImpl6 *iface, const char *storeId, SIZE_T size, char *packageIdentifier )
+ {
+-    FIXME( "iface %p, storeId %s, size %Iu, packageIdentifier %p stub!\n", iface, debugstr_a( storeId ), size, packageIdentifier );
+-    return E_NOTIMPL;
++    TRACE( "iface %p, storeId %s, size %Iu, packageIdentifier %p.\n", iface, debugstr_a( storeId ), size, packageIdentifier );
++    return xpackage_query_identifier(storeId, size, packageIdentifier);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreRegisterGameLicenseChanged( IXStoreImpl6 *iface, XStoreContextHandle storeContextHandle, XTaskQueueHandle queue, void *context, XStoreGameLicenseChangedCallback *callback, XTaskQueueRegistrationToken *token )

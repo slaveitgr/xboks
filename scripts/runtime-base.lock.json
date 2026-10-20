@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "repository": "xodus-gaming/Proton",
+  "commit": "7c0b435495814349735c913fde78da906aecea52",
+  "runId": 31213341042,
+  "archive": "proton-xodus-bleeding-edge-11.0-20260803-3-g7c0b4354-x86_64.tar.xz",
+  "checksum": "proton-xodus-bleeding-edge-11.0-20260803-3-g7c0b4354-x86_64.sha512sum",
+  "archiveSha512": "47d008a2465e8e2e7337266d3264a2620d94f254a655cc293379b91c7040bbd015c50a56012bd41f48d6e07ca4435758c555382d92b82e2f65eef9182e0df3ce",
+  "directory": "proton-xodus-bleeding-edge-11.0-20260803-3-g7c0b4354-x86_64",
+  "version": "1786134211 xodus-bleeding-edge-11.0-20260803-3-g7c0b4354",
+  "files": {
+    "files/bin/wine": "041dd0e1ff3f799c4cc155edabf0286ea6fbe53668ab4d6ae57eff3dd7406ae6",
+    "files/bin/wineserver": "dd6ddff8e35672ee226ab8ff3d95f23cd3aa35da59570944c5cb665f19c7df0f"
+  }
+}

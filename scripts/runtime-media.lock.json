@@ -1,0 +1,14 @@
+{
+  "version": "4.4.8",
+  "archive": "ffmpeg-4.4.8.tar.xz",
+  "url": "https://ffmpeg.org/releases/ffmpeg-4.4.8.tar.xz",
+  "sha256": "c73848c4ae283d9eaee7be3b276affbc3543380483555500d0dd2c9b7e1c39c3",
+  "libraries": {
+    "libavcodec.so.58": "libavcodec.so.58.134.100",
+    "libavfilter.so.7": "libavfilter.so.7.110.100",
+    "libavformat.so.58": "libavformat.so.58.76.100",
+    "libavutil.so.56": "libavutil.so.56.70.100",
+    "libswresample.so.3": "libswresample.so.3.9.100",
+    "libswscale.so.5": "libswscale.so.5.9.100"
+  }
+}

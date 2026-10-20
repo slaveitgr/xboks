@@ -1,0 +1,536 @@
+diff --git a/dlls/xgameruntime/private.h b/dlls/xgameruntime/private.h
+index 4f80c0b..03f1332 100644
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -71,6 +71,7 @@ struct _xmlNode;
+ HRESULT xstore_configure( struct _xmlNode *root );
+ void xpackage_configure( struct _xmlNode *root );
+ HRESULT xpackage_query_identifier( const char *store, SIZE_T size, char *identifier );
++HRESULT xpackage_query_content_store( const char *identifier, SIZE_T size, char *store );
+ extern char *packageFamilyName;
+ UINT64 xuser_get_xuid( XUserHandle user );
+ HRESULT xuser_device_authorization( XUserHandle user, const char *relyingParty, char **auth );
+diff --git a/dlls/xgameruntime/xpackage_content.h b/dlls/xgameruntime/xpackage_content.h
+index b0a502d..ac24232 100644
+--- a/dlls/xgameruntime/xpackage_content.h
++++ b/dlls/xgameruntime/xpackage_content.h
+@@ -466,3 +466,36 @@ static HRESULT content_query_identifier( const char *store, SIZE_T size, char *i
+     memcpy(identifier, query.identifier, sizeof(query.identifier));
+     return S_OK;
+ }
++
++struct content_store_query
++{
++    const char *identifier;
++    char store[13];
++    BOOL found, ambiguous;
++};
++
++static BOOLEAN WINAPI content_store_match( void *arg, const XPackageDetails *details )
++{
++    struct content_store_query *query = arg;
++    if (strcmp(query->identifier, details->packageIdentifier)) return TRUE;
++    if (query->found && strcmp(query->store, details->storeId)) query->ambiguous = TRUE;
++    else { memcpy(query->store, details->storeId, sizeof(query->store)); query->found = TRUE; }
++    return TRUE;
++}
++
++HRESULT xpackage_query_content_store( const char *identifier, SIZE_T size, char *store )
++{
++    struct content_store_query query = {0};
++    HRESULT hr;
++    UINT i;
++    if (store && size) store[0] = 0;
++    if (!store || !identifier || strlen(identifier) != 32) return E_INVALIDARG;
++    for (i = 0; i < 32; i++)
++        if (!((identifier[i] >= '0' && identifier[i] <= '9') || (identifier[i] >= 'a' && identifier[i] <= 'f'))) return E_INVALIDARG;
++    if (size < sizeof(query.store)) return E_NOT_SUFFICIENT_BUFFER;
++    query.identifier = identifier;
++    if (FAILED(hr = enumerate_content_packages(XPackageEnumerationScope_ThisAndRelated, &query, content_store_match))) return hr;
++    if (!query.found || query.ambiguous) return E_GAMEPACKAGE_NO_PACKAGE_IDENTIFIER;
++    memcpy(store, query.store, sizeof(query.store));
++    return S_OK;
++}
+diff --git a/dlls/xgameruntime/xstore.c b/dlls/xgameruntime/xstore.c
+index a757619..11907aa 100644
+--- a/dlls/xgameruntime/xstore.c
++++ b/dlls/xgameruntime/xstore.c
+@@ -26,6 +26,7 @@
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
+ #include "xstore_entitled.h"
++#include "xstore_package_license.h"
+ 
+ struct x_store
+ {
+@@ -172,25 +173,22 @@ static void WINAPI x_store_XStoreCloseProductsQueryHandle( IXStoreImpl6 *iface,
+ 
+ static HRESULT WINAPI x_store_XStoreAcquireLicenseForPackageAsync( IXStoreImpl6 *iface, const XStoreProductQueryHandle productQueryHandle, const char *packageIdentifier, XAsyncBlock *async )
+ {
+-    FIXME( "iface %p, productQueryHandle %p, packageIdentifier %s, async %p stub!\n", iface, productQueryHandle, debugstr_a( packageIdentifier ), async );
+-    return E_NOTIMPL;
++    return package_license_begin((XStoreContextHandle)productQueryHandle, packageIdentifier, async);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreAcquireLicenseForPackageResult( IXStoreImpl6 *iface, XAsyncBlock *async, XStoreLicenseHandle *storeLicenseHandle )
+ {
+-    FIXME( "iface %p, async %p, storeLicenseHandle %p stub!\n", iface, async, storeLicenseHandle );
+-    return E_NOTIMPL;
++    return package_license_result(async, storeLicenseHandle);
+ }
+ 
+ static BOOLEAN WINAPI x_store_XStoreIsLicenseValid( IXStoreImpl6 *iface, const XStoreLicenseHandle storeLicenseHandle )
+ {
+-    FIXME( "iface %p, storeLicenseHandle %p stub!\n", iface, storeLicenseHandle );
+-    return FALSE;
++    return package_license_valid(storeLicenseHandle);
+ }
+ 
+ static void WINAPI x_store_XStoreCloseLicenseHandle( IXStoreImpl6 *iface, XStoreLicenseHandle storeLicenseHandle )
+ {
+-    FIXME( "iface %p, storeLicenseHandle %p stub!\n", iface, storeLicenseHandle );
++    package_license_close(storeLicenseHandle);
+ }
+ 
+ static HRESULT WINAPI x_store_XStoreCanAcquireLicenseForStoreIdAsync( IXStoreImpl6 *iface, const XStoreContextHandle storeContextHandle, const char *storeProductId, XAsyncBlock *async )
+@@ -738,14 +736,12 @@ static BOOLEAN WINAPI x_store_XStoreUnregisterGameLicenseChanged( IXStoreImpl6 *
+ 
+ static HRESULT WINAPI x_store_XStoreRegisterPackageLicenseLost( IXStoreImpl6 *iface, XStoreLicenseHandle storeLicenseHandle, XTaskQueueHandle queue, void *context, XStorePackageLicenseLostCallback *callback, XTaskQueueRegistrationToken *token)
+ {
+-    FIXME( "iface %p, storeLicenseHandle %p, queue %p, context %p, callback %p, token %p stub!\n", iface, storeLicenseHandle, queue, context, callback, token );
+-    return E_NOTIMPL;
++    return package_license_register(storeLicenseHandle, queue, context, callback, token);
+ }
+ 
+ static BOOLEAN WINAPI x_store_XStoreUnregisterPackageLicenseLost( IXStoreImpl6 *iface, XStoreLicenseHandle licenseHandle, XTaskQueueRegistrationToken token, BOOLEAN wait )
+ {
+-    FIXME( "iface %p, licenseHandle %p, token %p, wait %d stub!\n", iface, licenseHandle, &token, wait );
+-    return FALSE;
++    return package_license_unregister(licenseHandle, token, wait);
+ }
+ 
+ static BOOLEAN WINAPI x_store_XStoreIsAvailabilityPurchasable( IXStoreImpl6 *iface, const XStoreAvailability availability )
+diff --git a/dlls/xgameruntime/xstore_entitled.h b/dlls/xgameruntime/xstore_entitled.h
+index c1276b8..06ca942 100644
+--- a/dlls/xgameruntime/xstore_entitled.h
++++ b/dlls/xgameruntime/xstore_entitled.h
+@@ -107,6 +107,7 @@ struct entitled_snapshot
+     LONG refs;
+     UINT32 count;
+     UINT64 valid_until;
++    UINT64 proof_until; /* Only set after actual signed-receipt verification. */
+     XStoreProduct *products;
+ };
+ struct entitled_page
+diff --git a/dlls/xgameruntime/xstore_package_license.h b/dlls/xgameruntime/xstore_package_license.h
+new file mode 100644
+index 0000000..4f87607
+--- /dev/null
++++ b/dlls/xgameruntime/xstore_package_license.h
+@@ -0,0 +1,377 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Package licenses are proof-bound handles, not installed/owned flag stubs.
++ * Included after xstore_entitled.h. No test trust overrides or title IDs. */
++struct package_license
++{
++    LONG refs, closed, lost;
++    UINT64 until;
++    HANDLE stop;
++    IXThreadingImpl *threading;
++    struct package_license *next;
++};
++struct package_license_registration
++{
++    LONG refs;
++    struct package_license_registration *next;
++    struct package_license *license;
++    XTaskQueueHandle queue;
++    void *context;
++    XStorePackageLicenseLostCallback *callback;
++    UINT64 token;
++    BOOL removed, notified, queued, running;
++    DWORD callback_thread;
++};
++static SRWLOCK package_license_lock = SRWLOCK_INIT;
++static CONDITION_VARIABLE package_license_changed = CONDITION_VARIABLE_INIT;
++static struct package_license *package_licenses;
++static struct package_license_registration *package_license_registrations;
++static UINT64 package_license_next_token;
++
++static void package_license_release( struct package_license *license )
++{
++    if (InterlockedDecrement(&license->refs)) return;
++    CloseHandle(license->stop);
++    IXThreadingImpl_Release(license->threading);
++    free(license);
++}
++
++static void package_license_dispose( struct package_license *license )
++{
++    InterlockedExchange(&license->closed, TRUE);
++    SetEvent(license->stop);
++    package_license_release(license);
++}
++
++static void package_license_registration_release( struct package_license_registration *registration )
++{
++    if (InterlockedDecrement(&registration->refs)) return;
++    IXThreadingImpl_XTaskQueueCloseHandle(registration->license->threading, registration->queue);
++    package_license_release(registration->license);
++    free(registration);
++}
++
++/* Called with the registry lock held. Pending unregisters stay discoverable
++ * until their callback drains, so a later wait=true can really wait. */
++static BOOL package_license_retire_registration( struct package_license_registration *registration )
++{
++    struct package_license_registration **link;
++    for (link = &package_license_registrations; *link && *link != registration; link = &(*link)->next);
++    if (!*link) return FALSE;
++    *link = registration->next;
++    return TRUE;
++}
++
++static void CALLBACK package_license_lost_callback( void *arg, BOOLEAN canceled )
++{
++    struct package_license_registration *registration = arg;
++    BOOL deliver, retired = FALSE;
++    AcquireSRWLockExclusive(&package_license_lock);
++    registration->queued = FALSE;
++    deliver = !canceled && !registration->removed && !registration->license->closed;
++    if (deliver)
++    {
++        registration->running = TRUE;
++        registration->callback_thread = GetCurrentThreadId();
++    }
++    else if (registration->removed) retired = package_license_retire_registration(registration);
++    ReleaseSRWLockExclusive(&package_license_lock);
++    if (deliver)
++    {
++        registration->callback(registration->context);
++        AcquireSRWLockExclusive(&package_license_lock);
++        registration->running = FALSE;
++        if (registration->removed) retired = package_license_retire_registration(registration);
++        WakeAllConditionVariable(&package_license_changed);
++        ReleaseSRWLockExclusive(&package_license_lock);
++    }
++    if (retired) package_license_registration_release(registration);
++    package_license_registration_release(registration);
++}
++
++static void package_license_notify( struct package_license *license )
++{
++    struct package_license_registration *registration;
++    HRESULT hr;
++    for (;;)
++    {
++        AcquireSRWLockExclusive(&package_license_lock);
++        for (registration = package_license_registrations; registration; registration = registration->next)
++            if (registration->license == license && !registration->notified && !registration->removed) break;
++        if (registration && !license->closed)
++        {
++            registration->notified = registration->queued = TRUE;
++            InterlockedIncrement(&registration->refs);
++        }
++        else registration = NULL;
++        ReleaseSRWLockExclusive(&package_license_lock);
++        if (!registration) break;
++        hr = IXThreadingImpl_XTaskQueueSubmitCallback(license->threading, registration->queue,
++            XTaskQueuePort_Completion, registration, package_license_lost_callback);
++        if (FAILED(hr))
++        {
++            AcquireSRWLockExclusive(&package_license_lock);
++            registration->queued = FALSE;
++            WakeAllConditionVariable(&package_license_changed);
++            ReleaseSRWLockExclusive(&package_license_lock);
++            package_license_registration_release(registration);
++        }
++    }
++}
++
++static DWORD WINAPI package_license_expiry_worker( void *arg )
++{
++    struct package_license *license = arg;
++    UINT64 now, delay;
++    for (;;)
++    {
++        now = time(NULL);
++        if (now >= license->until)
++        {
++            InterlockedExchange(&license->lost, TRUE);
++            package_license_notify(license);
++            break;
++        }
++        delay = min(license->until - now, 60) * 1000;
++        if (WaitForSingleObject(license->stop, (DWORD)delay) != WAIT_TIMEOUT) break;
++    }
++    package_license_release(license);
++    return 0;
++}
++
++static HRESULT package_license_create( IXThreadingImpl *threading, UINT64 until, struct package_license **out )
++{
++    struct package_license *license;
++    HANDLE thread;
++    HRESULT hr;
++    *out = NULL;
++    if (until <= (UINT64)time(NULL)) return E_ACCESSDENIED;
++    if (!(license = calloc(1, sizeof(*license)))) return E_OUTOFMEMORY;
++    license->refs = 1; license->until = until;
++    license->threading = threading; IXThreadingImpl_AddRef(threading);
++    license->stop = CreateEventW(NULL, TRUE, FALSE, NULL);
++    if (!license->stop) { hr = HRESULT_FROM_WIN32(GetLastError()); package_license_release(license); return hr; }
++    InterlockedIncrement(&license->refs);
++    thread = CreateThread(NULL, 0, package_license_expiry_worker, license, 0, NULL);
++    if (!thread)
++    {
++        hr = HRESULT_FROM_WIN32(GetLastError()); package_license_release(license); package_license_dispose(license); return hr;
++    }
++    CloseHandle(thread);
++    *out = license;
++    return S_OK;
++}
++
++static BOOL package_license_valid_object( struct package_license *license )
++{
++    return !InterlockedCompareExchange(&license->closed, 0, 0) &&
++           !InterlockedCompareExchange(&license->lost, 0, 0) && (UINT64)time(NULL) < license->until;
++}
++
++static BOOLEAN package_license_valid( XStoreLicenseHandle handle )
++{
++    struct package_license *license;
++    BOOL valid;
++    AcquireSRWLockShared(&package_license_lock);
++    for (license = package_licenses; license && license != handle; license = license->next);
++    valid = license && package_license_valid_object(license);
++    ReleaseSRWLockShared(&package_license_lock);
++    return valid;
++}
++
++static void package_license_close( XStoreLicenseHandle handle )
++{
++    struct package_license **link, *license;
++    struct package_license_registration **r_link, *registration;
++    AcquireSRWLockExclusive(&package_license_lock);
++    for (link = &package_licenses; *link && *link != handle; link = &(*link)->next);
++    if (!(license = *link)) { ReleaseSRWLockExclusive(&package_license_lock); return; }
++    *link = license->next;
++    InterlockedExchange(&license->closed, TRUE);
++    SetEvent(license->stop);
++    for (;;)
++    {
++        for (r_link = &package_license_registrations; *r_link && (*r_link)->license != license; r_link = &(*r_link)->next);
++        if (!(registration = *r_link)) break;
++        *r_link = registration->next; registration->removed = TRUE;
++        while (registration->running && registration->callback_thread != GetCurrentThreadId())
++            SleepConditionVariableSRW(&package_license_changed, &package_license_lock, INFINITE, 0);
++        ReleaseSRWLockExclusive(&package_license_lock);
++        package_license_registration_release(registration);
++        AcquireSRWLockExclusive(&package_license_lock);
++    }
++    ReleaseSRWLockExclusive(&package_license_lock);
++    package_license_release(license);
++}
++
++static HRESULT package_license_register( XStoreLicenseHandle handle, XTaskQueueHandle queue, void *context,
++    XStorePackageLicenseLostCallback *callback, XTaskQueueRegistrationToken *token )
++{
++    struct package_license_registration *registration;
++    struct package_license *license;
++    HRESULT hr;
++    if (!callback || !token) return E_POINTER;
++    token->token = 0;
++    if (!(registration = calloc(1, sizeof(*registration)))) return E_OUTOFMEMORY;
++    AcquireSRWLockExclusive(&package_license_lock);
++    for (license = package_licenses; license && license != handle; license = license->next);
++    if (!license || !package_license_valid_object(license))
++    { ReleaseSRWLockExclusive(&package_license_lock); free(registration); return license ? E_ACCESSDENIED : E_INVALIDARG; }
++    if (queue) hr = IXThreadingImpl_XTaskQueueDuplicateHandle(license->threading, queue, &registration->queue);
++    else hr = IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue(license->threading, &registration->queue) ? S_OK : E_FAIL;
++    if (SUCCEEDED(hr))
++    {
++        registration->refs = 1;
++        registration->license = license; InterlockedIncrement(&license->refs);
++        registration->context = context; registration->callback = callback;
++        if (!++package_license_next_token) ++package_license_next_token;
++        registration->token = token->token = package_license_next_token;
++        registration->next = package_license_registrations; package_license_registrations = registration;
++    }
++    ReleaseSRWLockExclusive(&package_license_lock);
++    if (FAILED(hr)) free(registration);
++    return hr;
++}
++
++static BOOLEAN package_license_unregister( XStoreLicenseHandle handle, XTaskQueueRegistrationToken token, BOOLEAN wait )
++{
++    struct package_license_registration **link, *registration;
++    BOOL pending, retired = FALSE;
++    AcquireSRWLockExclusive(&package_license_lock);
++    for (link = &package_license_registrations; *link; link = &(*link)->next)
++        if ((*link)->license == handle && (*link)->token == token.token) break;
++    if (!(registration = *link)) { ReleaseSRWLockExclusive(&package_license_lock); return TRUE; }
++    InterlockedIncrement(&registration->refs); /* local, including while waiting */
++    registration->removed = TRUE;
++    pending = registration->running || registration->queued;
++    while (wait && registration->running && registration->callback_thread != GetCurrentThreadId())
++        SleepConditionVariableSRW(&package_license_changed, &package_license_lock, INFINITE, 0);
++    if (wait || !pending) retired = package_license_retire_registration(registration);
++    ReleaseSRWLockExclusive(&package_license_lock);
++    if (retired) package_license_registration_release(registration); /* list */
++    package_license_registration_release(registration);
++    return wait || !pending;
++}
++
++struct package_license_async
++{
++    LONG refs, canceled, started;
++    char store[13], request[1024];
++    struct package_license *license;
++    IXThreadingImpl *threading;
++    XAsyncBlock *async;
++};
++static const char package_license_identity;
++
++static void package_license_async_release( struct package_license_async *context )
++{
++    if (InterlockedDecrement(&context->refs)) return;
++    if (context->license) package_license_dispose(context->license);
++    IXThreadingImpl_Release(context->threading);
++    free(context);
++}
++
++static HRESULT package_license_from_snapshot( struct entitled_snapshot *snapshot, const char *store,
++    IXThreadingImpl *threading, struct package_license **out )
++{
++    UINT i, j;
++    UINT64 until;
++    *out = NULL;
++    if (!snapshot || snapshot->proof_until <= (UINT64)time(NULL)) return E_ACCESSDENIED;
++    for (i = 0; i < snapshot->count; i++)
++    {
++        XStoreProduct *product = &snapshot->products[i];
++        if (strcmp(product->storeId, store) || product->productKind != XStoreProductKind_Durable ||
++            !product->isInUserCollection || !product->hasDigitalDownload) continue;
++        for (j = 0; j < product->skusCount; j++)
++        {
++            XStoreSku *sku = &product->skus[j];
++            if (!sku->isInUserCollection || sku->isTrial || sku->collectionData.endDate <= time(NULL)) continue;
++            until = min(snapshot->proof_until, (UINT64)sku->collectionData.endDate);
++            return package_license_create(threading, until, out);
++        }
++    }
++    return E_ACCESSDENIED;
++}
++
++static DWORD WINAPI package_license_acquire_worker( void *arg )
++{
++    struct package_license_async *context = arg;
++    struct entitled_snapshot *snapshot = NULL;
++    HRESULT hr = E_ABORT;
++    if (!InterlockedCompareExchange(&context->canceled, 0, 0))
++        hr = entitled_fetch(context->request, &context->canceled, &snapshot);
++    if (SUCCEEDED(hr)) hr = package_license_from_snapshot(snapshot, context->store, context->threading, &context->license);
++    if (snapshot) entitled_snapshot_release(snapshot);
++    if (InterlockedCompareExchange(&context->canceled, 0, 0)) hr = E_ABORT;
++    xodus_store_license_note("store-package-license-result", hr);
++    IXThreadingImpl_XAsyncComplete(context->threading, context->async, hr, SUCCEEDED(hr) ? sizeof(void *) : 0);
++    package_license_async_release(context);
++    return 0;
++}
++
++static HRESULT WINAPI package_license_provider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct package_license_async *context = data->context;
++    HANDLE worker;
++    HRESULT hr;
++    switch (op)
++    {
++    case XAsyncOp_Begin: return IXThreadingImpl_XAsyncSchedule(context->threading, data->async, 0);
++    case XAsyncOp_DoWork:
++        if (InterlockedCompareExchange(&context->started, 1, 0)) return E_PENDING;
++        if (InterlockedCompareExchange(&context->canceled, 0, 0)) return E_ABORT;
++        context->async = data->async;
++        InterlockedIncrement(&context->refs);
++        if (!(worker = CreateThread(NULL, 0, package_license_acquire_worker, context, 0, NULL)))
++        { hr = HRESULT_FROM_WIN32(GetLastError()); package_license_async_release(context); return hr; }
++        CloseHandle(worker);
++        return E_PENDING;
++    case XAsyncOp_GetResult:
++        if (!data->buffer || data->bufferSize < sizeof(void *) || !context->license) return E_INVALIDARG;
++        if (!package_license_valid_object(context->license)) return E_ACCESSDENIED;
++        AcquireSRWLockExclusive(&package_license_lock);
++        context->license->next = package_licenses; package_licenses = context->license;
++        ReleaseSRWLockExclusive(&package_license_lock);
++        memcpy(data->buffer, &context->license, sizeof(void *)); context->license = NULL;
++        break;
++    case XAsyncOp_Cancel: InterlockedExchange(&context->canceled, TRUE); break;
++    case XAsyncOp_Cleanup: package_license_async_release(context); break;
++    default: break;
++    }
++    return S_OK;
++}
++
++static HRESULT package_license_begin( XStoreContextHandle store, const char *identifier, XAsyncBlock *async )
++{
++    struct package_license_async *context;
++    UINT64 xuid;
++    HRESULT hr;
++    if (!async || !identifier) return E_INVALIDARG;
++    if (FAILED(hr = entitled_store_user(store, &xuid))) return hr;
++    if (!entitled_id(storeId)) return E_GAME_MISSING_GAME_CONFIG;
++    if (!(context = calloc(1, sizeof(*context)))) return E_OUTOFMEMORY;
++    context->refs = 1;
++    if (FAILED(hr = xpackage_query_content_store(identifier, sizeof(context->store), context->store)))
++    { free(context); return hr; }
++    snprintf(context->request, sizeof(context->request),
++        "<Request><ParentProductId>%s</ParentProductId><ProductId>%s</ProductId>"
++        "<ProductKinds>2</ProductKinds><Market>US</Market><Language>en-US</Language></Request>", storeId, context->store);
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&context->threading)))
++    { free(context); return hr; }
++    hr = IXThreadingImpl_XAsyncBegin(context->threading, async, context, &package_license_identity,
++        "XStoreAcquireLicenseForPackageAsync", package_license_provider);
++    if (FAILED(hr)) package_license_async_release(context);
++    return hr;
++}
++
++static HRESULT package_license_result( XAsyncBlock *async, XStoreLicenseHandle *out )
++{
++    IXThreadingImpl *threading;
++    HRESULT hr;
++    if (!out || !async) return E_INVALIDARG;
++    *out = NULL;
++    if (FAILED(hr = QueryApiImpl(&CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading))) return hr;
++    hr = IXThreadingImpl_XAsyncGetResult(threading, async, &package_license_identity, sizeof(void *), out, NULL);
++    IXThreadingImpl_Release(threading);
++    return hr;
++}
+diff --git a/dlls/xgameruntime/xstore_receipts.h b/dlls/xgameruntime/xstore_receipts.h
+index 78a0285..2963761 100644
+--- a/dlls/xgameruntime/xstore_receipts.h
++++ b/dlls/xgameruntime/xstore_receipts.h
+@@ -440,7 +440,7 @@ static HRESULT entitled_fetch( const char *request, LONG *canceled, struct entit
+     char *ids[ENTITLED_MAX_PRODUCTS] = {0}, *market = NULL, *language = NULL;
+     struct receipt_license licenses[ENTITLED_MAX_PRODUCTS];
+     UINT32 count = 0, license_count = 0, i, j, batch;
+-    UINT64 kinds, expiry = UINT64_MAX;
++    UINT64 kinds, expiry = UINT64_MAX, proof_until = 0;
+     ULONGLONG deadline = GetTickCount64() + 120000;
+     char number[32];
+     HRESULT hr = E_UNEXPECTED, com = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+@@ -496,6 +496,7 @@ static HRESULT entitled_fetch( const char *request, LONG *canceled, struct entit
+         xodus_store_license_note("store-entitled-metadata", hr);
+         if (FAILED(hr)) goto done;
+     }
++    proof_until = expiry;
+     if (expiry > (UINT64)time(NULL) + 60) expiry = (UINT64)time(NULL) + 60;
+     snprintf(number, sizeof(number), "%llu", (unsigned long long)expiry);
+     xmlNewTextChild(response_root, NULL, BAD_CAST "ValidUntil", BAD_CAST number);
+@@ -504,6 +505,7 @@ static HRESULT entitled_fetch( const char *request, LONG *canceled, struct entit
+         xmlDocDumpMemory(result, &bytes, &size);
+         if (!bytes) { hr = E_OUTOFMEMORY; goto done; }
+         hr = size <= 60000 ? entitled_parse((char *)bytes, size, out) : HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
++        if (SUCCEEDED(hr)) (*out)->proof_until = proof_until;
+         xmlFree(bytes);
+     }
+ done:

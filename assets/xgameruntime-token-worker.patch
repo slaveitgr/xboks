@@ -1,0 +1,120 @@
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -1555,6 +1555,8 @@
+ 
+ struct XUserGetTokenAndSignatureContext
+ {
++    LONG refs;
++    LONG canceled;
+     XUserHandle user;
+     XUserGetTokenAndSignatureOptions options;
+     char *url;
+@@ -1572,7 +1574,19 @@
+     };
+ };
+ 
+-static HRESULT WINAPI XUserGetTokenAndSignatureProvider( XAsyncOp op, const XAsyncProviderData *data )
++static void token_signature_release( struct XUserGetTokenAndSignatureContext *context )
++{
++    if (!InterlockedDecrement( &context->refs ))
++    {
++        IUser_Release( &context->user->IUser_iface );
++        free( context->data );
++        free( context );
++    }
++}
++
++/* Work is invoked only by the retained background worker below. Other provider
++ * phases still execute on the caller's requested queue, including completion. */
++static HRESULT WINAPI token_signature_phase( XAsyncOp op, const XAsyncProviderData *data )
+ {
+     struct XUserGetTokenAndSignatureContext *context;
+     char *buffer = NULL, signature[104];
+@@ -1743,12 +1757,11 @@
+         }
+ 
+         case XAsyncOp_Cleanup:
+-            IUser_Release( &context->user->IUser_iface );
+-            free( context->data );
+-            free( context );
++            token_signature_release( context );
+             break;
+ 
+         case XAsyncOp_Cancel:
++            InterlockedExchange( &context->canceled, TRUE );
+             break;
+     }
+ 
+@@ -1756,6 +1769,56 @@
+     return hr;
+ }
+ 
++struct token_signature_worker
++{
++    XAsyncProviderData data;
++    IXThreadingImpl *threading;
++};
++
++static DWORD WINAPI token_signature_worker_thread( void *arg )
++{
++    struct token_signature_worker *worker = arg;
++    struct XUserGetTokenAndSignatureContext *context = worker->data.context;
++    HRESULT hr, com = CoInitializeEx( NULL, COINIT_MULTITHREADED );
++    if (InterlockedCompareExchange( &context->canceled, 0, 0 )) hr = E_ABORT;
++    else hr = token_signature_phase( XAsyncOp_DoWork, &worker->data );
++    /* The normal phase completes with the real network result. Cover failures
++     * before it can complete too; XAsyncComplete is idempotent after cancel. */
++    if (FAILED(hr)) IXThreadingImpl_XAsyncComplete( worker->threading, worker->data.async, hr, 0 );
++    if (SUCCEEDED(com)) CoUninitialize();
++    token_signature_release( context );
++    IXThreadingImpl_Release( worker->threading );
++    free( worker );
++    return 0;
++}
++
++static HRESULT WINAPI XUserGetTokenAndSignatureProvider( XAsyncOp op, const XAsyncProviderData *data )
++{
++    struct XUserGetTokenAndSignatureContext *context = data->context;
++    struct token_signature_worker *worker;
++    HANDLE thread;
++    HRESULT hr;
++    if (op != XAsyncOp_DoWork) return token_signature_phase( op, data );
++    if (!(worker = calloc( 1, sizeof(*worker) ))) return E_OUTOFMEMORY;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&worker->threading )))
++    {
++        free( worker );
++        return hr;
++    }
++    worker->data = *data; /* Runtime-owned async block, not caller stack memory. */
++    InterlockedIncrement( &context->refs );
++    if (!(thread = CreateThread( NULL, 0, token_signature_worker_thread, worker, 0, NULL )))
++    {
++        hr = HRESULT_FROM_WIN32( GetLastError() );
++        token_signature_release( context );
++        IXThreadingImpl_Release( worker->threading );
++        free( worker );
++        return hr;
++    }
++    CloseHandle( thread );
++    return E_PENDING;
++}
++
+ static HRESULT WINAPI x_user_XUserGetTokenAndSignatureAsync( IXUserImpl6 *iface, XUserHandle user, XUserGetTokenAndSignatureOptions options, const char *method, const char *url, SIZE_T headerCount, const XUserGetTokenAndSignatureHttpHeader *headers, SIZE_T bodySize, const void *bodyBuffer, XAsyncBlock *async )
+ {
+     struct XUserGetTokenAndSignatureContext *context;
+@@ -1771,6 +1834,7 @@
+         headersSize += (strlen( headers[i].value ) + 1);
+ 
+     if (!(context = calloc( 1, contextSize + headersSize ))) return E_OUTOFMEMORY;
++    context->refs = 1;
+     IUser_AddRef( &user->IUser_iface );
+     context->user = user;
+     context->options = options;
+@@ -1849,6 +1913,7 @@
+     }
+ 
+     if (!(context = calloc( 1, contextSize + headersSize ))) return E_OUTOFMEMORY;
++    context->refs = 1;
+     IUser_AddRef( &user->IUser_iface );
+     context->user = user;
+     context->options = options;

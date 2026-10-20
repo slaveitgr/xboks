@@ -1,0 +1,160 @@
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -879,6 +879,9 @@
+ static HRESULT WINAPI x_user_XUserDuplicateHandle( IXUserImpl6 *iface, XUserHandle handle, XUserHandle *duplicatedHandle )
+ {
+     TRACE( "iface %p, handle %p, duplicatedHandle %p.\n", iface, handle, duplicatedHandle );
++    if (!duplicatedHandle) return E_INVALIDARG;
++    *duplicatedHandle = NULL;
++    if (!handle) return E_INVALIDARG;
+     IUser_AddRef( &handle->IUser_iface );
+     *duplicatedHandle = handle;
+     return S_OK;
+@@ -887,7 +890,7 @@
+ static void WINAPI x_user_XUserCloseHandle( IXUserImpl6 *iface, XUserHandle user )
+ {
+     TRACE( "iface %p, user %p.\n", iface, user );
+-    IUser_Release( &user->IUser_iface );
++    if (user) IUser_Release( &user->IUser_iface );
+ }
+ 
+ static INT32 WINAPI x_user_XUserCompare( IXUserImpl6 *iface, XUserHandle user1, XUserHandle user2 )
+@@ -901,6 +904,7 @@
+ static HRESULT WINAPI x_user_XUserGetMaxUsers( IXUserImpl6 *iface, UINT32 *maxUsers )
+ {
+     TRACE( "iface %p, maxUsers %p.\n", iface, maxUsers );
++    if (!maxUsers) return E_INVALIDARG;
+     *maxUsers = 1;
+     return S_OK;
+ }
+@@ -934,6 +938,7 @@
+ {
+     HRESULT hr = E_GAMEUSER_USER_NOT_FOUND;
+     if (!handle) return E_INVALIDARG;
++    *handle = NULL;
+     EnterCriticalSection( &signed_in_section );
+     if (signed_in_user && ((xuid && signed_in_user->xuid == xuid) || (localId && localId == 1)))
+     {
+@@ -1054,6 +1059,7 @@
+ static HRESULT WINAPI x_user_XUserGetId( IXUserImpl6 *iface, XUserHandle user, UINT64 *userId )
+ {
+     TRACE( "iface %p, user %p, userId %p.\n", iface, user, userId );
++    if (!user || !userId) return E_INVALIDARG;
+     *userId = user->xuid;
+     return S_OK;
+ }
+@@ -1066,14 +1072,21 @@
+ 
+ static HRESULT WINAPI x_user_XUserGetIsGuest( IXUserImpl6 *iface, XUserHandle user, BOOLEAN *isGuest )
+ {
+-    FIXME( "iface %p, user %p, isGuest %p stub!\n", iface, user, isGuest );
+-    return E_NOTIMPL;
++    TRACE( "iface %p, user %p, isGuest %p.\n", iface, user, isGuest );
++    if (!user || !isGuest) return E_INVALIDARG;
++    /* This provider creates authenticated Xbox users, not guest users. */
++    *isGuest = FALSE;
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI x_user_XUserGetState( IXUserImpl6 *iface, XUserHandle user, XUserState *state )
+ {
+-    FIXME( "iface %p, user %p, state %p stub!\n", iface, user, state );
+-    return E_NOTIMPL;
++    TRACE( "iface %p, user %p, state %p.\n", iface, user, state );
++    if (!user || !state) return E_INVALIDARG;
++    /* SignedIn describes platform identity, not network connectivity. Preserve
++     * the PR#28 IUser handle and its real identity/token/cloud-save data. */
++    *state = user->xuid ? XUserState_SignedIn : XUserState_SignedOut;
++    return S_OK;
+ }
+ 
+ static HRESULT WINAPI __PADDING__( IXUserImpl6 *iface )
+@@ -1599,16 +1612,84 @@
+     return E_NOTIMPL;
+ }
+ 
++struct user_change_registration
++{
++    struct user_change_registration *next;
++    UINT64 token;
++    IXThreadingImpl *threading;
++    XTaskQueueHandle queue;
++    void *context;
++    XUserChangeEventCallback *callback;
++};
++
++static struct user_change_registration *user_change_registrations;
++static UINT64 next_user_change_token;
++
+ static HRESULT WINAPI x_user_XUserRegisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueHandle queue, void *context, XUserChangeEventCallback *callback, XTaskQueueRegistrationToken *token )
+ {
+-    FIXME( "iface %p, queue %p, context %p, callback %p, token %p stub!\n", iface, queue, context, callback, token );
+-    return E_NOTIMPL;
++    struct user_change_registration *registration;
++    IXThreadingImpl *threading;
++    HRESULT hr;
++
++    TRACE( "iface %p, queue %p, context %p, callback %p, token %p.\n", iface, queue, context, callback, token );
++    if (!token) return E_INVALIDARG;
++    token->token = 0;
++    if (!callback) return E_INVALIDARG;
++    if (FAILED(hr = QueryApiImpl( &CLSID_XThreadingImpl, &IID_IXThreadingImpl, (void **)&threading ))) return hr;
++    if (!(registration = calloc( 1, sizeof(*registration) )))
++    {
++        IXThreadingImpl_Release( threading );
++        return E_OUTOFMEMORY;
++    }
++    if (queue)
++        hr = IXThreadingImpl_XTaskQueueDuplicateHandle( threading, queue, &registration->queue );
++    else
++        hr = IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( threading, &registration->queue ) ? S_OK : HRESULT_FROM_WIN32( ERROR_NO_TASK_QUEUE );
++    if (FAILED(hr))
++    {
++        free( registration );
++        IXThreadingImpl_Release( threading );
++        return hr;
++    }
++    registration->threading = threading;
++    registration->context = context;
++    registration->callback = callback;
++    EnterCriticalSection( &signed_in_section );
++    if (!++next_user_change_token) ++next_user_change_token;
++    token->token = registration->token = next_user_change_token;
++    registration->next = user_change_registrations;
++    user_change_registrations = registration;
++    LeaveCriticalSection( &signed_in_section );
++    /* Initial sign-in is reported by XUserAddResult, not SignedInAgain. The
++     * single-account provider currently has no sign-out/profile-change source.
++     * Do not fabricate events or start background account/network polling. */
++    return S_OK;
+ }
+ 
+ static BOOLEAN WINAPI x_user_XUserUnregisterForChangeEvent( IXUserImpl6 *iface, XTaskQueueRegistrationToken token, BOOLEAN wait )
+ {
+-    FIXME( "iface %p, token %p, wait %d stub!\n", iface, &token, wait );
+-    return FALSE;
++    struct user_change_registration **cursor, *registration = NULL;
++
++    TRACE( "iface %p, token %llu, wait %d.\n", iface, token.token, wait );
++    EnterCriticalSection( &signed_in_section );
++    for (cursor = &user_change_registrations; *cursor; cursor = &(*cursor)->next)
++    {
++        if ((*cursor)->token != token.token) continue;
++        registration = *cursor;
++        *cursor = registration->next;
++        break;
++    }
++    LeaveCriticalSection( &signed_in_section );
++    if (registration)
++    {
++        IXThreadingImpl_XTaskQueueCloseHandle( registration->threading, registration->queue );
++        IXThreadingImpl_Release( registration->threading );
++        free( registration );
++    }
++    /* No change callbacks are dispatched by the current single-account
++     * provider, so there are no in-flight callbacks to wait for. If a future
++     * provider dispatches them, add execution refs and cancellation/wait here. */
++    return TRUE;
+ }
+ 
+ static HRESULT WINAPI x_user_XUserGetSignOutDeferral( IXUserImpl6 *iface, XUserSignOutDeferralHandle *deferral )

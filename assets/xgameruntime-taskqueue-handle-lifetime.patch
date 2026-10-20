@@ -1,0 +1,239 @@
+diff --git a/dlls/xgameruntime/xthreading.c b/dlls/xgameruntime/xthreading.c
+index 090781f..5856879 100644
+--- a/dlls/xgameruntime/xthreading.c
++++ b/dlls/xgameruntime/xthreading.c
+@@ -100,6 +100,8 @@ struct XTaskQueueObject
+ {
+     IUnknown IUnknown_iface;
+     LONG ref;
++    struct XTaskQueueObject *handle_next;
++    ULONG public_refs;
+     XTaskQueuePortHandle work;
+     XTaskQueuePortHandle completion;
+     XTaskQueueTerminatedCallback *terminatedCallback;
+@@ -122,6 +124,12 @@ struct XTaskQueueObject
+     } monitors;
+ };
+ 
++/* Handle ownership is separate from references held by pending work. Never
++ * dereference an unrecognized public handle, or let a repeated close consume
++ * an internal callback/dispatcher reference. The registry holds no reference. */
++static SRWLOCK queue_handles_lock = SRWLOCK_INIT;
++static XTaskQueueHandle queue_handles;
++
+ static inline XTaskQueueHandle queue_impl_from_IUnknown( IUnknown *iface )
+ {
+     return CONTAINING_RECORD( iface, struct XTaskQueueObject, IUnknown_iface );
+@@ -135,37 +143,55 @@ static ULONG WINAPI queue_AddRef( IUnknown *iface )
+     return ref;
+ }
+ 
+-static ULONG WINAPI queue_Release( IUnknown *iface )
++/* queue_handles_lock must be held. Remove before permitting memory reuse. */
++static ULONG queue_release_locked( XTaskQueueHandle impl )
+ {
+-    XTaskQueueHandle impl = queue_impl_from_IUnknown( iface );
+     ULONG ref = InterlockedDecrement( &impl->ref );
+-    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
+     if (!ref)
+     {
+-        struct port_binding **link;
+-        if (impl->work)
+-        {
+-            EnterCriticalSection( &impl->work->cs );
+-            for (link = &impl->work->bindings; *link; link = &(*link)->next)
+-                if (*link == &impl->work_binding) { *link = (*link)->next; break; }
+-            LeaveCriticalSection( &impl->work->cs );
+-        }
+-        if (impl->completion)
+-        {
+-            EnterCriticalSection( &impl->completion->cs );
+-            for (link = &impl->completion->bindings; *link; link = &(*link)->next)
+-                if (*link == &impl->completion_binding) { *link = (*link)->next; break; }
+-            LeaveCriticalSection( &impl->completion->cs );
+-        }
+-        DeleteCriticalSection( &impl->monitors.cs );
+-        DeleteCriticalSection( &impl->cs );
+-        CloseHandle( impl->cancel_event );
+-        CloseHandle( impl->finished_event );
+-        if (impl->work) IUnknown_Release( &impl->work->IUnknown_iface );
+-        if (impl->completion) IUnknown_Release( &impl->completion->IUnknown_iface );
+-        if (impl->monitors.entries) free( impl->monitors.entries );
+-        free( impl );
++        XTaskQueueHandle *link;
++        for (link = &queue_handles; *link; link = &(*link)->handle_next)
++            if (*link == impl) { *link = impl->handle_next; break; }
++    }
++    return ref;
++}
++
++static void destroy_queue( XTaskQueueHandle impl )
++{
++    struct port_binding **link;
++    if (impl->work)
++    {
++        EnterCriticalSection( &impl->work->cs );
++        for (link = &impl->work->bindings; *link; link = &(*link)->next)
++            if (*link == &impl->work_binding) { *link = (*link)->next; break; }
++        LeaveCriticalSection( &impl->work->cs );
++    }
++    if (impl->completion)
++    {
++        EnterCriticalSection( &impl->completion->cs );
++        for (link = &impl->completion->bindings; *link; link = &(*link)->next)
++            if (*link == &impl->completion_binding) { *link = (*link)->next; break; }
++        LeaveCriticalSection( &impl->completion->cs );
+     }
++    DeleteCriticalSection( &impl->monitors.cs );
++    DeleteCriticalSection( &impl->cs );
++    CloseHandle( impl->cancel_event );
++    CloseHandle( impl->finished_event );
++    if (impl->work) IUnknown_Release( &impl->work->IUnknown_iface );
++    if (impl->completion) IUnknown_Release( &impl->completion->IUnknown_iface );
++    if (impl->monitors.entries) free( impl->monitors.entries );
++    free( impl );
++}
++
++static ULONG WINAPI queue_Release( IUnknown *iface )
++{
++    XTaskQueueHandle impl = queue_impl_from_IUnknown( iface );
++    ULONG ref;
++    AcquireSRWLockExclusive( &queue_handles_lock );
++    ref = queue_release_locked( impl );
++    ReleaseSRWLockExclusive( &queue_handles_lock );
++    TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
++    if (!ref) destroy_queue( impl );
+     return ref;
+ }
+ 
+@@ -402,7 +428,13 @@ static HRESULT WINAPI x_threading_XAsyncBegin( IXThreadingImpl *iface, XAsyncBlo
+     if (!asyncBlock || !provider) return E_INVALIDARG;
+     queue = asyncBlock->queue;
+     if (queue) IUnknown_AddRef( &queue->IUnknown_iface );
+-    else if (!IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &queue )) return E_INVALIDARG;
++    else
++    {
++        if (!IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &queue )) return E_INVALIDARG;
++        /* Convert the acquired public handle into this state's internal ref. */
++        IUnknown_AddRef( &queue->IUnknown_iface );
++        IXThreadingImpl_XTaskQueueCloseHandle( iface, queue );
++    }
+     if (!(state = calloc( 1, sizeof(*state) )))
+     {
+         IUnknown_Release( &queue->IUnknown_iface );
+@@ -834,6 +866,11 @@ static HRESULT create_queue( XTaskQueueHandle *out )
+         IUnknown_Release( &queue->IUnknown_iface );
+         return E_OUTOFMEMORY;
+     }
++    queue->public_refs = 1;
++    AcquireSRWLockExclusive( &queue_handles_lock );
++    queue->handle_next = queue_handles;
++    queue_handles = queue;
++    ReleaseSRWLockExclusive( &queue_handles_lock );
+     *out = queue;
+     return S_OK;
+ }
+@@ -892,11 +929,28 @@ static HRESULT WINAPI x_threading_XTaskQueueGetPort( IXThreadingImpl *iface, XTa
+ 
+ static HRESULT WINAPI x_threading_XTaskQueueDuplicateHandle( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueueHandle *out )
+ {
++    XTaskQueueHandle entry;
++    HRESULT hr = E_GAMERUNTIME_INVALID_HANDLE;
+     TRACE( "iface %p, queue %p, out %p.\n", iface, queue, out );
+-    if (!queue || !out) return E_POINTER;
+-    IUnknown_AddRef( &queue->IUnknown_iface );
+-    *out = queue;
+-    return S_OK;
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!queue) return E_POINTER;
++    AcquireSRWLockExclusive( &queue_handles_lock );
++    for (entry = queue_handles; entry; entry = entry->handle_next)
++    {
++        if (entry != queue || !entry->public_refs) continue;
++        if (entry->public_refs == ~0u || entry->ref == 0x7fffffff) hr = E_OUTOFMEMORY;
++        else
++        {
++            IUnknown_AddRef( &entry->IUnknown_iface );
++            ++entry->public_refs;
++            *out = entry;
++            hr = S_OK;
++        }
++        break;
++    }
++    ReleaseSRWLockExclusive( &queue_handles_lock );
++    return hr;
+ }
+ 
+ static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort kind, UINT32 timeoutInMs )
+@@ -909,6 +963,8 @@ static BOOLEAN WINAPI x_threading_XTaskQueueDispatch( IXThreadingImpl *iface, XT
+     if (!queue)
+     {
+         if (!IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue( iface, &queue )) return FALSE;
++        IUnknown_AddRef( &queue->IUnknown_iface );
++        IXThreadingImpl_XTaskQueueCloseHandle( iface, queue );
+         acquired = TRUE;
+     }
+     else
+@@ -952,8 +1008,20 @@ done:
+ 
+ static void WINAPI x_threading_XTaskQueueCloseHandle( IXThreadingImpl *iface, XTaskQueueHandle queue )
+ {
++    XTaskQueueHandle entry;
++    BOOL destroy = FALSE;
+     TRACE( "iface %p, queue %p.\n", iface, queue );
+-    if (queue) IUnknown_Release( &queue->IUnknown_iface );
++    AcquireSRWLockExclusive( &queue_handles_lock );
++    for (entry = queue_handles; entry; entry = entry->handle_next)
++    {
++        if (entry != queue || !entry->public_refs) continue;
++        --entry->public_refs;
++        destroy = !queue_release_locked( entry );
++        break;
++    }
++    ReleaseSRWLockExclusive( &queue_handles_lock );
++    /* Destruction may release ports. Do not nest their locks under this lock. */
++    if (destroy) destroy_queue( queue );
+ }
+ 
+ static HRESULT WINAPI x_threading_XTaskQueueSubmitCallback( IXThreadingImpl *iface, XTaskQueueHandle queue, XTaskQueuePort port, void *context, XTaskQueueCallback *callback )
+@@ -1109,7 +1177,10 @@ static BOOLEAN defaultCreated;
+ 
+ static BOOLEAN WINAPI x_threading_XTaskQueueGetCurrentProcessTaskQueue( IXThreadingImpl *iface, XTaskQueueHandle *queue )
+ {
++    HRESULT hr;
+     TRACE( "iface %p, queue %p.\n", iface, queue );
++    if (!queue) return FALSE;
++    *queue = NULL;
+     EnterCriticalSection( &processQueueSection );
+     if (!processQueue && !defaultCreated)
+     {
+@@ -1121,21 +1192,22 @@ static BOOLEAN WINAPI x_threading_XTaskQueueGetCurrentProcessTaskQueue( IXThread
+         LeaveCriticalSection( &processQueueSection );
+         return FALSE;
+     }
+-    IUnknown_AddRef( &processQueue->IUnknown_iface );
+-    *queue = processQueue;
++    hr = IXThreadingImpl_XTaskQueueDuplicateHandle( iface, processQueue, queue );
+     LeaveCriticalSection( &processQueueSection );
+-    return TRUE;
++    return SUCCEEDED(hr);
+ }
+ 
+ static void WINAPI x_threading_XTaskQueueSetCurrentProcessTaskQueue( IXThreadingImpl *iface, XTaskQueueHandle queue )
+ {
++    XTaskQueueHandle previous, replacement = NULL;
+     TRACE( "iface %p, queue %p.\n", iface, queue );
++    if (queue && FAILED(IXThreadingImpl_XTaskQueueDuplicateHandle( iface, queue, &replacement ))) return;
+     EnterCriticalSection( &processQueueSection );
+     defaultCreated = TRUE;
+-    if (queue) IUnknown_AddRef( &queue->IUnknown_iface );
+-    if (processQueue) IUnknown_Release( &processQueue->IUnknown_iface );
+-    processQueue = queue;
++    previous = processQueue;
++    processQueue = replacement;
+     LeaveCriticalSection( &processQueueSection );
++    IXThreadingImpl_XTaskQueueCloseHandle( iface, previous );
+ }
+ 
+ static HRESULT WINAPI x_threading_XThreadSetTimeSensitive( IXThreadingImpl *iface, BOOLEAN isTimeSensitiveThread )

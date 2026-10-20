@@ -1,0 +1,30 @@
+node_modules/
+dist/
+dist-electron/
+release/
+work/
+outputs/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+.agents/
+# Agent instructions and handoff state are local, not product documentation.
+/AGENTS.md
+/STATUS.md
+/docs/development/
+/docs/wiki/
+.aws/
+.codex/
+*.AppImage
+*.dll
+# Local development runtime archives (never packaged or committed)
+bundled/
+*.msixvc
+*.wgs
+# Internal engineering handoffs and diagnostics (XUIDs, private paths)
+docs/internal/
+*.backup-*
+*.tmp*

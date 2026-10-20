@@ -1,0 +1,82 @@
+--- a/dlls/xgameruntime/xpackage.c
++++ b/dlls/xgameruntime/xpackage.c
+@@ -291,10 +291,77 @@ static HRESULT WINAPI x_package_XPackageEnumerateChunkAvailability( IXPackageImp
+     return S_OK;
+ }
+ 
++/* Installation evidence only, never an ownership or download assertion. Content
++ * lookup validates its layout and declared payload. For the current executable,
++ * also require matching on-disk config/Appx identity and a readable layout. */
++static HRESULT installed_chunk_package( const char *identifier )
++{
++    struct content_game current;
++    struct content_package *package;
++    WCHAR path[MAX_PATH], file[MAX_PATH], *sep;
++    char store[13];
++    HRESULT hr;
++    UINT i;
++
++    if (!identifier || strlen(identifier) != 32) return E_INVALIDARG;
++    for (i = 0; i < 32; i++)
++        if (!((identifier[i] >= '0' && identifier[i] <= '9') ||
++              (identifier[i] >= 'a' && identifier[i] <= 'f'))) return E_INVALIDARG;
++
++    hr = xpackage_query_content_store( identifier, sizeof(store), store );
++    if (hr != E_GAMEPACKAGE_NO_PACKAGE_IDENTIFIER) return hr;
++    if (!GetModuleFileNameW( NULL, path, ARRAY_SIZE(path) ) || !(sep = wcsrchr(path, '\\')))
++        return E_GAMEPACKAGE_NO_PACKAGE_IDENTIFIER;
++    *sep = 0;
++    AcquireSRWLockShared( &content_config_lock );
++    current = content_current;
++    ReleaseSRWLockShared( &content_config_lock );
++    if (!(package = calloc( 1, sizeof(*package) ))) return E_OUTOFMEMORY;
++    for (;;)
++    {
++        if (!content_join( path, L"MicrosoftGame.config", file )) break;
++        if (GetFileAttributesW( file ) != INVALID_FILE_ATTRIBUTES)
++        {
++            if (content_load( path, package ) && !package->content &&
++                !strcmp( current.identity, package->identity ) &&
++                !strcmp( current.publisher, package->publisher_id ) &&
++                !strcmp( current.store, package->store ) && content_load_layout( package ) &&
++                !strcmp( identifier, package->identifier )) hr = S_OK;
++            break;
++        }
++        if (!(sep = wcsrchr( path, '\\' )) || sep <= path + 2) break;
++        *sep = 0;
++    }
++    free( package );
++    return hr;
++}
++
+ static HRESULT WINAPI x_package_XPackageChangeChunkInstallOrder( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors )
+ {
+-    FIXME( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p stub!\n", iface, debugstr_a( packageIdentifier ), selectorCount, selectors );
+-    return E_NOTIMPL;
++    UINT i;
++
++    TRACE( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p.\n",
++           iface, debugstr_a( packageIdentifier ), selectorCount, selectors );
++    if (selectorCount && !selectors) return E_INVALIDARG;
++    for (i = 0; i < selectorCount; i++)
++    {
++        switch (selectors[i].type)
++        {
++        case XPackageChunkSelectorType_Chunk:
++            break;
++        case XPackageChunkSelectorType_Language:
++        case XPackageChunkSelectorType_Tag:
++        case XPackageChunkSelectorType_Feature:
++            if (!selectors[i].language || !selectors[i].language[0]) return E_INVALIDARG;
++            break;
++        default:
++            return E_INVALIDARG;
++        }
++    }
++    /* Extracted packages are installed in full before launch. The SDK ignores
++     * chunks already installed or not scheduled by intelligent delivery, so no
++     * queue mutation is needed. Unknown installations must still fail. */
++    return installed_chunk_package( packageIdentifier );
+ }
+ 
+ static HRESULT WINAPI x_package_XPackageInstallChunks( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, UINT32 minimumUpdateIntervalMs, BOOLEAN suppressUserConfirmation, XTaskQueueHandle queue, XPackageInstallationMonitorHandle *installationMonitor )

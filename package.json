@@ -1,0 +1,74 @@
+{
+  "name": "xboks",
+  "version": "0.3.8",
+  "description": "Unofficial Xbox mode-inspired Linux client based on Xodus Nexus",
+  "license": "MIT",
+  "author": "Xodus Nexus contributors",
+  "type": "module",
+  "main": "dist-electron/main/index.js",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"npm:dev:electron\"",
+    "dev:electron": "wait-on tcp:5173 && tsc -p tsconfig.electron.json && VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "clean": "node -e \"for (const p of ['dist','dist-electron']) require('node:fs').rmSync(p,{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
+    "test": "vitest run",
+    "test:runtime-tools": "node --test scripts/eac-trace-summary.test.mjs scripts/wine-exception-metadata.test.mjs scripts/assemble-shared-runtime.test.mjs scripts/verify-runtime-base.test.mjs scripts/runtime-compat/staging.test.mjs scripts/runtime-tests/build-store-probes.test.mjs scripts/runtime-tests/build-user-privilege-probe.test.mjs",
+    "test:ci-tools": "node --test scripts/ci/*.test.mjs",
+    "build": "npm run clean && npm run typecheck && npm run test && vite build && tsc -p tsconfig.electron.json",
+    "dist": "npm run build && electron-builder --linux AppImage --publish never",
+    "pack": "npm run build && electron-builder --linux dir --publish never"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "electron": "44.8.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "gr.slave.xboks",
+    "productName": "xboks",
+    "artifactName": "xboks-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "assets/**/*",
+      "!assets/fonts/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "extraResources": [
+      {
+        "from": "assets/fonts",
+        "to": "fonts"
+      }
+    ],
+    "afterPack": "scripts/launcher-fonts-after-pack.cjs",
+    "linux": {
+      "category": "Game",
+      "icon": "assets/icon.png",
+      "target": [
+        "AppImage"
+      ]
+    }
+  },
+  "allowScripts": {
+    "electron@44.8.0": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.21.5": true
+  }
+}

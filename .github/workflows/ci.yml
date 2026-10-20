@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    # Approval metadata promotes existing bytes; it must not rebuild the launcher.
+    paths-ignore: [.github/release-validation.json]
+  pull_request:
+    paths-ignore: [.github/release-validation.json]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: launcher-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Install account-free runtime fixture toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-mingw-w64-x86-64
+      - name: Check source without compiling a distribution candidate
+        if: github.ref != 'refs/heads/main'
+        run: npm run typecheck && npm run test
+      - name: Build and check the main candidate once
+        if: github.ref == 'refs/heads/main'
+        run: npm run build
+      - run: npm run test:runtime-tools
+      - run: npm run test:ci-tools
+      - name: Build launcher candidate (never publish)
+        if: github.ref == 'refs/heads/main'
+        run: npx --no-install electron-builder --linux AppImage --publish never
+      - name: Bind candidate to source and checksums
+        if: github.ref == 'refs/heads/main'
+        run: node scripts/ci/artifact-manifest.mjs write launcher release
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main'
+        with:
+          name: launcher-candidate
+          path: |
+            release/*.AppImage
+            release/*.AppImage.sha512sum
+            release/candidate.json
+          if-no-files-found: error
+          retention-days: 3

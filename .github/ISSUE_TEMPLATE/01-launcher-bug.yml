@@ -1,0 +1,134 @@
+name: Launcher, account or download problem
+description: Report a Nexus interface, sign-in, library, installation or update problem with logs.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This tracker is for **Xodus Nexus**, an independent, unofficial project, not upstream Xodus.
+        Report one problem per issue and search existing issues first.
+
+        **Logs are required.** Reproduce the problem, then open **Settings → Xodus backend → Open backend diagnostic log**.
+        Use **Copy log**, save the text as `backend.txt`, and attach it below. For a download problem, also copy
+        **Install Queue → Show log** (the terminal icon) into `download.txt` and attach it.
+
+        Review files before uploading. Remove account names, email addresses, tokens, cookies, signed URLs and other
+        private information. Never upload credentials, a Wine prefix, game files or saves. Screenshots do not replace logs.
+        If Nexus cannot start or no log can be obtained, use **Cannot start Nexus / logs unavailable** instead.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Sign-in or account status
+        - My Library or ownership verification
+        - Store
+        - Download, installation, update or DLC
+        - Backend or runtime setup
+        - Interface, scaling or controller navigation
+        - Other launcher problem
+    validations:
+      required: true
+  - type: input
+    id: launcher-version
+    attributes:
+      label: Launcher version
+      description: Copy the exact version from Settings, not "latest".
+      placeholder: 0.3.8
+    validations:
+      required: true
+  - type: input
+    id: backend-version
+    attributes:
+      label: Nexus backend version
+      description: Settings → Xodus backend. This is updated separately from the launcher. If not installed, say so.
+      placeholder: 0.2.8
+    validations:
+      required: true
+  - type: input
+    id: runtime-version
+    attributes:
+      label: Nexus runtime version
+      description: Copy the active runtime name/version from Settings. If not installed, say so.
+      placeholder: Exact active runtime name/version
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Linux distribution and version
+      placeholder: "SteamOS, Bazzite, CachyOS, etc. Include the version or image release."
+    validations:
+      required: true
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware
+      description: Handheld model or desktop/laptop model, CPU, GPU and RAM. Include the GPU driver version if known. No serial numbers.
+      placeholder: "Device/model: ...; CPU: ...; GPU: ...; RAM: ...; GPU driver: ..."
+    validations:
+      required: true
+      min_length: 15
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session used when the problem occurs
+      options:
+        - Desktop (Wayland)
+        - Desktop (X11)
+        - Steam Gaming Mode
+        - Other or unknown (describe below)
+    validations:
+      required: true
+  - type: dropdown
+    id: installation
+    attributes:
+      label: Launcher installation
+      options:
+        - AppImage from Nexus GitHub Releases
+        - Built from source (include commit below)
+        - Other (describe below)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include the exact error. For ownership or download issues, include the game, edition, Store product ID if known, and whether access is purchased or through Game Pass. Do not include account details.
+    validations:
+      required: true
+      min_length: 20
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: List the actions from opening Nexus to the failure. Mention whether the problem began after an update, suspend or network change.
+      placeholder: "1. Open ...\n2. Select ...\n3. The error appears ..."
+    validations:
+      required: true
+      min_length: 20
+  - type: upload
+    id: logs
+    attributes:
+      label: Backend diagnostic log and relevant download log
+      description: Attach backend.txt or backend.log from the failing attempt. For download problems, attach download.txt as well. Review and remove private information first.
+    validations:
+      required: true
+      accept: ".log,.txt,.zip"
+  - type: upload
+    id: screenshots
+    attributes:
+      label: Optional screenshots
+      description: Helpful for interface problems, but not a replacement for logs. Hide account information.
+    validations:
+      required: false
+      accept: ".png,.jpg,.jpeg,.webp"
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and included the exact component versions.
+          required: true
+        - label: I attached logs from the failing attempt and reviewed them for private information.
+          required: true

@@ -1,0 +1,517 @@
+diff --git a/dlls/xgameruntime/xpackage.c b/dlls/xgameruntime/xpackage.c
+index 0fd43ae..2106f79 100644
+--- a/dlls/xgameruntime/xpackage.c
++++ b/dlls/xgameruntime/xpackage.c
+@@ -26,6 +26,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+ 
+ #include "xpackage_content.h"
+ #include "xpackage_chunks.h"
++#include "xpackage_monitors.h"
+ 
+ /* The legacy package IID shares the same COM prefix with the newer package
+  * interfaces. Keep every newer slot in place when supplying its older entries. */
+@@ -162,85 +163,58 @@ static BOOLEAN WINAPI x_package_XPackageIsPackagedProcess( IXPackageImpl4 *iface
+     return TRUE;
+ }
+ 
+-/* A monitor over a title that is already fully installed.
+- *
+- * Xodus extracts a package in full before it can be launched, so there is never
+- * a partial install to watch: every monitor reports complete from the moment it
+- * is made. Refusing to make one is not a soft failure -- a title treats it as
+- * fatal (Deep Rock Galactic put up "Failed to create installation monitor.
+- * 0x80004001" before opening a window). */
+-struct installation_monitor
+-{
+-    UINT64 bytes;
+-};
+-
+ static HRESULT WINAPI x_package_XPackageCreateInstallationMonitor( IXPackageImpl4 *iface, const char *packageIdentifier, UINT32 selectorCount, XPackageChunkSelector *selectors, UINT32 minimumUpdateIntervalMs, XTaskQueueHandle queue, XPackageInstallationMonitorHandle *installationMonitor )
+ {
+-    struct installation_monitor *impl;
+-
+     TRACE( "iface %p, packageIdentifier %s, selectorCount %u, selectors %p, "
+            "minimumUpdateIntervalMs %u, queue %p, installationMonitor %p.\n",
+            iface, debugstr_a( packageIdentifier ), selectorCount, selectors,
+            minimumUpdateIntervalMs, queue, installationMonitor );
+ 
+-    if (!installationMonitor) return E_INVALIDARG;
+-    if (!(impl = calloc( 1, sizeof(*impl) ))) return E_OUTOFMEMORY;
+-
+-    /* Byte counts are left at zero. They are only there for a progress bar,
+-     * and there is no progress to draw: what a title actually reads is
+-     * completed and launchable, both of which are true from the start. */
+-    *installationMonitor = (XPackageInstallationMonitorHandle)impl;
+-    return S_OK;
++    return installation_create(packageIdentifier, selectorCount, selectors, minimumUpdateIntervalMs, queue, installationMonitor);
+ }
+ 
+ static void WINAPI x_package_XPackageCloseInstallationMonitorHandle( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor )
+ {
+     TRACE( "iface %p, installationMonitor %p.\n", iface, installationMonitor );
+-    free( installationMonitor );
++    installation_close(installationMonitor);
+ }
+ 
+ static void WINAPI x_package_XPackageGetInstallationProgress( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, XPackageInstallationProgress *progress )
+ {
+-    struct installation_monitor *impl = (struct installation_monitor *)installationMonitor;
++    struct installation_monitor *impl;
+ 
+     TRACE( "iface %p, installationMonitor %p, progress %p.\n", iface, installationMonitor, progress );
+ 
+     if (!progress) return;
+ 
+-    /* Installed in full, and therefore launchable and complete. */
+-    progress->totalBytes = impl ? impl->bytes : 0;
+-    progress->installedBytes = progress->totalBytes;
+-    progress->launchBytes = progress->totalBytes;
+-    progress->launchable = TRUE;
+-    progress->completed = TRUE;
++    memset(progress, 0, sizeof(*progress));
++    if (!(impl = installation_acquire(installationMonitor))) return;
++    AcquireSRWLockShared(&installation_lock);
++    *progress = impl->progress;
++    ReleaseSRWLockShared(&installation_lock);
++    installation_release(impl);
+ }
+ 
+ static BOOLEAN WINAPI x_package_XPackageUpdateInstallationMonitor( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor )
+ {
+-    FIXME( "iface %p, installationMonitor %p stub!\n", iface, installationMonitor );
+-    return TRUE;
++    struct installation_monitor *impl = installation_acquire(installationMonitor);
++    HRESULT hr;
++    if (!impl) return FALSE;
++    hr = installation_refresh(impl);
++    installation_notify(impl);
++    installation_schedule(impl);
++    installation_release(impl);
++    return SUCCEEDED(hr);
+ }
+ 
+-static LONG64 installation_progress_token;
+-
+ static HRESULT WINAPI x_package_XPackageRegisterInstallationProgressChanged( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, void *context, XPackageInstallationProgressCallback *callback, XTaskQueueRegistrationToken *token )
+ {
+-    FIXME( "iface %p, installationMonitor %p, context %p, callback %p, token %p: accepted, "
+-           "progress never changes.\n", iface, installationMonitor, context, callback, token );
+-
+-    if (!token) return E_INVALIDARG;
+-
+-    /* Nothing will ever be raised -- the package is already complete -- but the
+-     * caller still gets a token it can hold and unregister, rather than reading
+-     * back whatever was on its stack. */
+-    token->token = InterlockedIncrement64( &installation_progress_token );
+-    return S_OK;
++    return installation_register(installationMonitor, context, callback, token);
+ }
+ 
+ static BOOLEAN WINAPI x_package_XPackageUnregisterInstallationProgressChanged( IXPackageImpl4 *iface, XPackageInstallationMonitorHandle installationMonitor, XTaskQueueRegistrationToken token, BOOLEAN wait )
+ {
+-    FIXME( "iface %p, installationMonitor %p, token %p, wait %d stub!\n", iface, installationMonitor, &token, wait );
+-    return TRUE;
++    return installation_unregister(installationMonitor, token, wait);
+ }
+ 
+ static HRESULT WINAPI x_package_XPackageGetUserLocale( IXPackageImpl4 *iface, SIZE_T localeSize, char *locale )
+diff --git a/dlls/xgameruntime/xpackage_monitors.h b/dlls/xgameruntime/xpackage_monitors.h
+new file mode 100644
+index 0000000..14cf470
+--- /dev/null
++++ b/dlls/xgameruntime/xpackage_monitors.h
+@@ -0,0 +1,394 @@
++/* SPDX-License-Identifier: LGPL-2.1-or-later
++ * Installation snapshots and queue-bound notifications. File presence is not
++ * a license, download service or integrity check. Included after chunks.h. */
++struct installation_monitor
++{
++    LONG refs;
++    struct installation_monitor *next;
++    BOOL closed, refresh_pending, notifying;
++    SRWLOCK refresh_lock;
++    char identifier[33];
++    UINT32 count, interval;
++    XPackageChunkSelector *selectors;
++    XPackageInstallationProgress progress;
++    UINT64 revision;
++    XTaskQueueHandle queue, poll_queue;
++};
++struct installation_registration
++{
++    LONG refs;
++    struct installation_registration *next;
++    struct installation_monitor *monitor;
++    XPackageInstallationProgressCallback *callback;
++    void *context;
++    UINT64 token, seen;
++    BOOL removed, queued, running;
++    DWORD thread;
++};
++static SRWLOCK installation_lock = SRWLOCK_INIT;
++static CONDITION_VARIABLE installation_changed = CONDITION_VARIABLE_INIT;
++static struct installation_monitor *installation_monitors;
++static struct installation_registration *installation_registrations;
++static UINT64 installation_next_token;
++
++static void installation_release( struct installation_monitor *monitor )
++{
++    UINT i;
++    if (InterlockedDecrement(&monitor->refs)) return;
++    for (i = 0; i < monitor->count; i++)
++        if (monitor->selectors[i].type != XPackageChunkSelectorType_Chunk)
++            free((void *)monitor->selectors[i].language);
++    free(monitor->selectors);
++    if (monitor->poll_queue) IXThreadingImpl_XTaskQueueCloseHandle(x_threading_impl, monitor->poll_queue);
++    if (monitor->queue) IXThreadingImpl_XTaskQueueCloseHandle(x_threading_impl, monitor->queue);
++    free(monitor);
++}
++
++/* Registry lookups never dereference an unrecognised or closed public handle. */
++static struct installation_monitor *installation_acquire( XPackageInstallationMonitorHandle handle )
++{
++    struct installation_monitor *monitor;
++    AcquireSRWLockShared(&installation_lock);
++    for (monitor = installation_monitors; monitor && (void *)monitor != handle; monitor = monitor->next);
++    if (monitor) InterlockedIncrement(&monitor->refs);
++    ReleaseSRWLockShared(&installation_lock);
++    return monitor;
++}
++
++static void installation_registration_release( struct installation_registration *registration )
++{
++    if (InterlockedDecrement(&registration->refs)) return;
++    installation_release(registration->monitor);
++    free(registration);
++}
++
++/* Called under installation_lock. Running removed registrations remain visible
++ * so repeated nonblocking unregisters can observe when title code has drained. */
++static BOOL installation_retire( struct installation_registration *registration )
++{
++    struct installation_registration **link;
++    for (link = &installation_registrations; *link && *link != registration; link = &(*link)->next);
++    if (!*link) return FALSE;
++    *link = registration->next;
++    return TRUE;
++}
++
++static HRESULT installation_snapshot( struct installation_monitor *monitor, XPackageInstallationProgress *progress )
++{
++    struct chunk_snapshot *snapshot;
++    UINT i, j;
++    BOOL ready, matched;
++    HRESULT hr;
++    memset(progress, 0, sizeof(*progress));
++    if (FAILED(hr = chunks_load(monitor->identifier, &snapshot))) return hr;
++    ready = snapshot->registration == XPackageChunkAvailability_Ready;
++    if (!monitor->count)
++    {
++        for (j = 0; j < snapshot->count; j++)
++            ready &= snapshot->chunks[j].availability == XPackageChunkAvailability_Ready;
++    }
++    for (i = 0; i < monitor->count; i++)
++    {
++        const XPackageChunkSelector *selector = &monitor->selectors[i];
++        int attribute = selector->type == XPackageChunkSelectorType_Language ? 0 :
++                        selector->type == XPackageChunkSelectorType_Tag ? 1 : 2;
++        matched = FALSE;
++        for (j = 0; j < snapshot->count; j++)
++        {
++            struct installed_chunk *chunk = &snapshot->chunks[j];
++            if (selector->type == XPackageChunkSelectorType_Chunk ? chunk->id == selector->chunkId :
++                chunks_contains(chunk->attributes[attribute], selector->language, attribute == 0))
++            {
++                matched = TRUE;
++                ready &= chunk->availability == XPackageChunkAvailability_Ready;
++            }
++            else if (selector->type != XPackageChunkSelectorType_Chunk && !chunk->attributes[attribute])
++                ready &= chunk->availability == XPackageChunkAvailability_Ready;
++        }
++        ready &= matched;
++    }
++    /* Extracted layouts do not carry trustworthy installed/download byte totals.
++     * Preserve zero (unknown), rather than inventing progress or network work. */
++    progress->completed = progress->launchable = ready;
++    chunks_free(snapshot);
++    return S_OK;
++}
++
++static HRESULT installation_refresh( struct installation_monitor *monitor )
++{
++    XPackageInstallationProgress progress;
++    HRESULT hr;
++    AcquireSRWLockExclusive(&monitor->refresh_lock);
++    hr = installation_snapshot(monitor, &progress);
++    AcquireSRWLockExclusive(&installation_lock);
++    /* Invalid/disappearing metadata must never retain a stale complete result. */
++    if (!monitor->closed && (monitor->progress.completed != progress.completed ||
++        monitor->progress.launchable != progress.launchable))
++    {
++        monitor->progress = progress;
++        ++monitor->revision;
++    }
++    ReleaseSRWLockExclusive(&installation_lock);
++    ReleaseSRWLockExclusive(&monitor->refresh_lock);
++    return hr;
++}
++
++static void installation_notify( struct installation_monitor *monitor );
++static void CALLBACK installation_callback( void *arg, BOOLEAN canceled )
++{
++    struct installation_registration *registration = arg;
++    struct installation_monitor *monitor = registration->monitor;
++    BOOL deliver, retired = FALSE;
++    AcquireSRWLockExclusive(&installation_lock);
++    registration->queued = FALSE;
++    deliver = !canceled && !registration->removed && !monitor->closed;
++    if (deliver)
++    {
++        registration->running = TRUE;
++        registration->thread = GetCurrentThreadId();
++        registration->seen = monitor->revision;
++    }
++    else if (registration->removed) retired = installation_retire(registration);
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (deliver)
++    {
++        registration->callback(registration->context, (XPackageInstallationMonitorHandle)monitor);
++        AcquireSRWLockExclusive(&installation_lock);
++        registration->running = FALSE;
++        if (registration->removed) retired = installation_retire(registration);
++        WakeAllConditionVariable(&installation_changed);
++        ReleaseSRWLockExclusive(&installation_lock);
++        installation_notify(monitor);
++    }
++    if (retired) installation_registration_release(registration); /* registry */
++    installation_registration_release(registration); /* queue */
++}
++
++/* Submission may execute inline on an Immediate port. Never hold our locks
++ * across submission/title code, and retain both registration and monitor. */
++static HRESULT installation_submit( struct installation_registration *registration )
++{
++    struct installation_monitor *monitor = registration->monitor;
++    BOOL retired = FALSE;
++    HRESULT hr = IXThreadingImpl_XTaskQueueSubmitCallback(x_threading_impl, monitor->queue,
++        XTaskQueuePort_Completion, registration, installation_callback);
++    if (FAILED(hr))
++    {
++        AcquireSRWLockExclusive(&installation_lock);
++        registration->queued = FALSE;
++        registration->removed = TRUE;
++        retired = installation_retire(registration);
++        ReleaseSRWLockExclusive(&installation_lock);
++        if (retired) installation_registration_release(registration);
++        installation_registration_release(registration); /* failed queue ref */
++    }
++    return hr;
++}
++
++static void installation_notify( struct installation_monitor *monitor )
++{
++    struct installation_registration *registration;
++    AcquireSRWLockExclusive(&installation_lock);
++    if (monitor->notifying) { ReleaseSRWLockExclusive(&installation_lock); return; }
++    monitor->notifying = TRUE;
++    ReleaseSRWLockExclusive(&installation_lock);
++    for (;;)
++    {
++        AcquireSRWLockExclusive(&installation_lock);
++        for (registration = installation_registrations; registration; registration = registration->next)
++            if (registration->monitor == monitor && !monitor->closed && monitor->interval &&
++                !registration->removed && !registration->queued && !registration->running &&
++                registration->seen != monitor->revision) break;
++        if (registration)
++        {
++            registration->queued = TRUE;
++            registration->seen = monitor->revision;
++            InterlockedIncrement(&registration->refs);
++        }
++        if (!registration) monitor->notifying = FALSE;
++        ReleaseSRWLockExclusive(&installation_lock);
++        if (!registration) break;
++        installation_submit(registration);
++    }
++}
++
++static void installation_schedule( struct installation_monitor *monitor );
++static void CALLBACK installation_poll( void *arg, BOOLEAN canceled )
++{
++    struct installation_monitor *monitor = arg;
++    BOOL refresh;
++    AcquireSRWLockExclusive(&installation_lock);
++    refresh = !canceled && !monitor->closed;
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (refresh)
++    {
++        installation_refresh(monitor);
++    }
++    AcquireSRWLockExclusive(&installation_lock);
++    monitor->refresh_pending = FALSE;
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (refresh)
++    {
++        installation_notify(monitor);
++        installation_schedule(monitor);
++    }
++    installation_release(monitor);
++}
++
++static void installation_schedule( struct installation_monitor *monitor )
++{
++    BOOL schedule;
++    HRESULT hr;
++    AcquireSRWLockExclusive(&installation_lock);
++    schedule = !monitor->closed && monitor->interval && !monitor->progress.completed && !monitor->refresh_pending;
++    if (schedule) { monitor->refresh_pending = TRUE; InterlockedIncrement(&monitor->refs); }
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (!schedule) return;
++    hr = IXThreadingImpl_XTaskQueueSubmitDelayedCallback(x_threading_impl, monitor->poll_queue,
++        XTaskQueuePort_Work, monitor->interval, monitor, installation_poll);
++    if (FAILED(hr))
++    {
++        AcquireSRWLockExclusive(&installation_lock);
++        monitor->refresh_pending = FALSE;
++        ReleaseSRWLockExclusive(&installation_lock);
++        installation_release(monitor);
++    }
++}
++
++static HRESULT installation_create( const char *identifier, UINT32 count, XPackageChunkSelector *selectors,
++    UINT32 interval, XTaskQueueHandle queue, XPackageInstallationMonitorHandle *out )
++{
++    struct installation_monitor *monitor;
++    UINT i;
++    XTaskQueuePortHandle work, completion;
++    HRESULT hr;
++    if (!out) return E_INVALIDARG;
++    *out = NULL;
++    if (!chunks_identifier(identifier) || count > CHUNKS_MAX || (count && !selectors)) return E_INVALIDARG;
++    if (!(monitor = calloc(1, sizeof(*monitor)))) return E_OUTOFMEMORY;
++    monitor->refs = 1; monitor->interval = interval; monitor->revision = 1;
++    strcpy(monitor->identifier, identifier);
++    if (count && !(monitor->selectors = calloc(count, sizeof(*selectors))))
++    { installation_release(monitor); return E_OUTOFMEMORY; }
++    hr = S_OK;
++    for (i = 0; i < count; i++)
++    {
++        XPackageChunkSelector *copy = &monitor->selectors[i];
++        copy->type = selectors[i].type;
++        if (copy->type == XPackageChunkSelectorType_Chunk) copy->chunkId = selectors[i].chunkId;
++        else if (copy->type == XPackageChunkSelectorType_Language || copy->type == XPackageChunkSelectorType_Tag ||
++                 copy->type == XPackageChunkSelectorType_Feature)
++        {
++            if (!selectors[i].language || !*selectors[i].language ||
++                strnlen(selectors[i].language, CHUNKS_TEXT_MAX + 1) > CHUNKS_TEXT_MAX) { hr = E_INVALIDARG; break; }
++            if (!(copy->language = strdup(selectors[i].language))) { hr = E_OUTOFMEMORY; break; }
++        }
++        else { hr = E_INVALIDARG; break; }
++        monitor->count++;
++    }
++    if (SUCCEEDED(hr)) hr = installation_snapshot(monitor, &monitor->progress);
++    if (SUCCEEDED(hr) && interval)
++    {
++        if (queue) hr = IXThreadingImpl_XTaskQueueDuplicateHandle(x_threading_impl, queue, &monitor->queue);
++        else hr = IXThreadingImpl_XTaskQueueGetCurrentProcessTaskQueue(x_threading_impl, &monitor->queue) ? S_OK : E_FAIL;
++        /* A private composite shares dispatch ports, not cancellation state.
++         * Close can wake/cancel a long delayed poll without terminating any
++         * title-owned work or requiring its minimum interval to expire. */
++        if (SUCCEEDED(hr)) hr = IXThreadingImpl_XTaskQueueGetPort(x_threading_impl, monitor->queue, XTaskQueuePort_Work, &work);
++        if (SUCCEEDED(hr)) hr = IXThreadingImpl_XTaskQueueGetPort(x_threading_impl, monitor->queue, XTaskQueuePort_Completion, &completion);
++        if (SUCCEEDED(hr)) hr = IXThreadingImpl_XTaskQueueCreateComposite(x_threading_impl, work, completion, &monitor->poll_queue);
++    }
++    if (FAILED(hr)) { installation_release(monitor); return hr; }
++    AcquireSRWLockExclusive(&installation_lock);
++    monitor->next = installation_monitors; installation_monitors = monitor;
++    ReleaseSRWLockExclusive(&installation_lock);
++    *out = (XPackageInstallationMonitorHandle)monitor;
++    installation_schedule(monitor);
++    return S_OK;
++}
++
++static void installation_close( XPackageInstallationMonitorHandle handle )
++{
++    struct installation_monitor **link, *monitor;
++    struct installation_registration *registration;
++    AcquireSRWLockExclusive(&installation_lock);
++    for (link = &installation_monitors; *link && (void *)*link != handle; link = &(*link)->next);
++    if (!(monitor = *link)) { ReleaseSRWLockExclusive(&installation_lock); return; }
++    *link = monitor->next; monitor->closed = TRUE;
++    for (;;)
++    {
++        for (registration = installation_registrations; registration; registration = registration->next)
++            if (registration->monitor == monitor) break;
++        if (!registration) break;
++        registration->removed = TRUE;
++        installation_retire(registration); /* registry reference becomes local */
++        while (registration->running && registration->thread != GetCurrentThreadId())
++            SleepConditionVariableSRW(&installation_changed, &installation_lock, INFINITE, 0);
++        ReleaseSRWLockExclusive(&installation_lock);
++        installation_registration_release(registration);
++        AcquireSRWLockExclusive(&installation_lock);
++    }
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (monitor->poll_queue) IXThreadingImpl_XTaskQueueTerminate(x_threading_impl, monitor->poll_queue, FALSE, NULL, NULL);
++    installation_release(monitor); /* public handle */
++}
++
++static HRESULT installation_register( XPackageInstallationMonitorHandle handle, void *context,
++    XPackageInstallationProgressCallback *callback, XTaskQueueRegistrationToken *token )
++{
++    struct installation_monitor *monitor;
++    struct installation_registration *registration;
++    BOOL submit;
++    HRESULT hr = S_OK;
++    if (!token) return E_INVALIDARG;
++    token->token = 0;
++    if (!callback) return E_INVALIDARG;
++    if (!(monitor = installation_acquire(handle))) return E_INVALIDARG;
++    if (!(registration = calloc(1, sizeof(*registration)))) { installation_release(monitor); return E_OUTOFMEMORY; }
++    registration->refs = 1; /* local; monitor reference transferred */
++    registration->monitor = monitor; registration->callback = callback; registration->context = context;
++    AcquireSRWLockExclusive(&installation_lock);
++    if (monitor->closed) hr = E_INVALIDARG;
++    else
++    {
++        if (!++installation_next_token) ++installation_next_token;
++        registration->token = token->token = installation_next_token;
++        registration->next = installation_registrations; installation_registrations = registration;
++        InterlockedIncrement(&registration->refs); /* registry */
++    }
++    submit = SUCCEEDED(hr) && monitor->interval;
++    if (submit)
++    {
++        registration->queued = TRUE; registration->seen = monitor->revision;
++        InterlockedIncrement(&registration->refs); /* queue */
++    }
++    ReleaseSRWLockExclusive(&installation_lock);
++    /* A new subscriber receives the current snapshot once, even if the files
++     * were already present. Further events require a genuine state change.
++     * A zero-interval monitor remains a one-time, query-only snapshot. */
++    if (submit && FAILED(hr = installation_submit(registration))) token->token = 0;
++    installation_registration_release(registration);
++    return hr;
++}
++
++static BOOLEAN installation_unregister( XPackageInstallationMonitorHandle handle, XTaskQueueRegistrationToken token, BOOLEAN wait )
++{
++    struct installation_registration *registration;
++    BOOL pending, retired = FALSE;
++    AcquireSRWLockExclusive(&installation_lock);
++    for (registration = installation_registrations; registration; registration = registration->next)
++        if ((void *)registration->monitor == handle && registration->token == token.token) break;
++    if (!registration) { ReleaseSRWLockExclusive(&installation_lock); return TRUE; }
++    InterlockedIncrement(&registration->refs);
++    registration->removed = TRUE;
++    /* Queued but not started callbacks are suppressed. Waiting must not need
++     * the caller to dispatch its own Manual queue, or wait for itself. */
++    while (wait && registration->running && registration->thread != GetCurrentThreadId())
++        SleepConditionVariableSRW(&installation_changed, &installation_lock, INFINITE, 0);
++    pending = registration->running;
++    if (!pending) retired = installation_retire(registration);
++    ReleaseSRWLockExclusive(&installation_lock);
++    if (retired) installation_registration_release(registration);
++    installation_registration_release(registration);
++    return !pending;
++}

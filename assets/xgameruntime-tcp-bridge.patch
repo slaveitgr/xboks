@@ -1,0 +1,52 @@
+diff --git a/dlls/xgameruntime/xuser.c b/dlls/xgameruntime/xuser.c
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -213,19 +213,45 @@ static HRESULT xodus_request( UINT16 type, const char *body, UINT16 size, char **response, UINT16 *responseSize )
+ {
+     struct sockaddr_un addr = { .sun_family = AF_UNIX };
+     UINT32 magic = XODUS_XML_MAGIC;
++    struct sockaddr_in bridge = { 0 };
+     UINT16 responseType;
+     SOCKET s = INVALID_SOCKET;
++    char bridgePort[8], bridgeKey[65], *end;
+     char header[8];
++    DWORD portLen, keyLen;
++    unsigned long port;
++    BOOL useBridge;
+     WSADATA wsa;
+     HRESULT hr;
+ 
+-    if (FAILED(hr = xodus_socket_path( addr.sun_path, sizeof(addr.sun_path) ))) return hr;
++    portLen = GetEnvironmentVariableA( "XODUS_BRIDGE_PORT", bridgePort, sizeof(bridgePort) );
++    keyLen = GetEnvironmentVariableA( "XODUS_BRIDGE_KEY", bridgeKey, sizeof(bridgeKey) );
++    useBridge = portLen || keyLen;
++    if (useBridge)
++    {
++        if (!portLen || portLen >= sizeof(bridgePort) || keyLen != 64) return E_INVALIDARG;
++        port = strtoul( bridgePort, &end, 10 );
++        if (*end || !port || port > 65535) return E_INVALIDARG;
++        bridge.sin_family = AF_INET;
++        bridge.sin_port = htons( (USHORT)port );
++        bridge.sin_addr.s_addr = htonl( 0x7f000001 );
++    }
++    else if (FAILED(hr = xodus_socket_path( addr.sun_path, sizeof(addr.sun_path) ))) return hr;
+     if (WSAStartup( MAKEWORD( 2, 2 ), &wsa )) return E_FAIL;
+ 
+     memcpy( header, &magic, 4 );
+     memcpy( header + 4, &type, 2 );
+     memcpy( header + 6, &size, 2 );
+ 
+-    if ((s = socket( AF_UNIX, SOCK_STREAM, 0 )) == INVALID_SOCKET) goto error;
+-    if (connect( s, (struct sockaddr *)&addr, sizeof(addr) )) goto error;
++    if (useBridge)
++    {
++        if ((s = socket( AF_INET, SOCK_STREAM, IPPROTO_TCP )) == INVALID_SOCKET) goto error;
++        if (connect( s, (struct sockaddr *)&bridge, sizeof(bridge) )) goto error;
++        if (!xodus_send( s, bridgeKey, 64 )) goto error;
++    }
++    else
++    {
++        if ((s = socket( AF_UNIX, SOCK_STREAM, 0 )) == INVALID_SOCKET) goto error;
++        if (connect( s, (struct sockaddr *)&addr, sizeof(addr) )) goto error;
++    }
+     if (!xodus_send( s, header, sizeof(header) ) || !xodus_send( s, body, size )) goto error;

@@ -1,0 +1,39 @@
+diff --git a/libs/vkd3d-shader/hlsl.l b/libs/vkd3d-shader/hlsl.l
+index 85f0d89a..27ef9fa4 100644
+--- a/libs/vkd3d-shader/hlsl.l
++++ b/libs/vkd3d-shader/hlsl.l
+@@ -35,6 +35,16 @@ static void update_location(struct hlsl_ctx *ctx, YYLTYPE *loc);
+ 
+ static void apply_escape_sequences(char *str);
+ 
++static int stateblock_keyword(struct hlsl_ctx *ctx, YYSTYPE *value, const char *name, int token)
++{
++    /* State enumerants are case-insensitive, even when their lowercase
++     * spelling is an HLSL interpolation or geometry keyword. */
++    if (!ctx->in_state_block)
++        return token;
++    value->name = hlsl_strdup(ctx, name);
++    return NEW_IDENTIFIER;
++}
++
+ #define YY_USER_ACTION update_location(yyget_extra(yyscanner), yyget_lloc(yyscanner));
+ 
+ %}
+@@ -111,7 +121,7 @@ InputPatch              {return KW_INPUTPATCH;          }
+ LineStream              {return KW_LINESTREAM;          }
+ line                    {return KW_LINE;                }
+ lineadj                 {return KW_LINEADJ;             }
+-linear                  {return KW_LINEAR;              }
++linear                  {return stateblock_keyword(yyget_extra(yyscanner), yylval, yytext, KW_LINEAR);}
+ matrix                  {return KW_MATRIX;              }
+ namespace               {return KW_NAMESPACE;           }
+ nointerpolation         {return KW_NOINTERPOLATION;     }
+@@ -124,7 +134,7 @@ pass                    {return KW_PASS;                }
+ PixelShader             {return KW_PIXELSHADER;         }
+ PointStream             {return KW_POINTSTREAM;         }
+ pixelshader             {return KW_PIXELSHADER;         }
+-point                   {return KW_POINT;               }
++point                   {return stateblock_keyword(yyget_extra(yyscanner), yylval, yytext, KW_POINT);}
+ RasterizerOrderedBuffer           {return KW_RASTERIZERORDEREDBUFFER;            }
+ RasterizerOrderedStructuredBuffer {return KW_RASTERIZERORDEREDSTRUCTUREDBUFFER;  }
+ RasterizerOrderedTexture1D        {return KW_RASTERIZERORDEREDTEXTURE1D;         }

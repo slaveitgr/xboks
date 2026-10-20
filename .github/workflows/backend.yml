@@ -1,0 +1,48 @@
+name: Nexus backend build
+
+on:
+  push:
+    branches: [main]
+    paths: [assets/backend-source.lock.json, 'assets/xodus-*.patch', scripts/build-backend.mjs, scripts/backend-source-archive.mjs, 'scripts/ci/**', .github/workflows/backend.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read pinned Rust version
+        run: |
+          echo "BACKEND_RUST=$(node -p 'require("./assets/backend-source.lock.json").rust')" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.BACKEND_RUST }}
+      - name: Install native build libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config libssl-dev protobuf-compiler libdbus-1-dev tar xz-utils
+      - name: Build and test pinned source, package binaries and corresponding source
+        env:
+          XZ_OPT: '-T2'
+        run: node scripts/build-backend.mjs --work "$PWD/backend-build" --output "$PWD/backend-release"
+      - name: Bind candidate to exact workflow source and bytes
+        run: node scripts/ci/artifact-manifest.mjs write backend backend-release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nexus-backend
+          path: backend-release/*
+          if-no-files-found: error
+          retention-days: 7
