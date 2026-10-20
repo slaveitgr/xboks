@@ -42,10 +42,10 @@ The current Home has a compact left rail, centered search, a clock, recent game 
 | Controller navigation | Existing experimental navigation retained; full-screen focus testing continues |
 | Settings | Existing functional settings; reference modal redesign pending |
 | Friends, chat and party | Not implemented in xboks |
-| System overlay, audio and captures | Reference analysis only; Linux integration pending |
+| Game Bar-style guide | First in-app overlay implemented: tabs, navigation, PipeWire volume/mute and xboks window screenshots; external-game overlay and video capture pending |
 | Cloud gaming and console Remote Play | Not implemented in xboks |
 
-The last local UI validation passed TypeScript, renderer/Electron compilation and **146 renderer tests**. This is not a passing claim for the full backend suite or CI; the badge above shows the current GitHub workflow result.
+The last local UI validation passed TypeScript, renderer/Electron compilation and **152 renderer/audio tests**. This is not a passing claim for the full backend suite or CI; the badge above shows the current GitHub workflow result.
 
 ## Getting started
 
@@ -85,6 +85,12 @@ npm run dist
 ```
 
 The packaging configuration writes output to `release/`. Upstream Nexus downloads and installation scripts install **Nexus**, not xboks.
+
+### Game Bar-style overlay
+
+Open the guide with **Ctrl+G**, the top-bar guide button, or the controller Guide button when the operating system exposes it. LB/RB switch sections and B/Escape closes the panel. System volume/mute requires PipeWire/WirePlumber (`wpctl`). Captures save the xboks window as PNG in `Pictures/xboks`. This first version does not overlay external games, record video or provide Xbox party/chat.
+
+See the [Game Bar package analysis](docs/analysis/gamebar-7.326.md).
 
 ## Roadmap
 

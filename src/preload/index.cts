@@ -6,6 +6,9 @@ import type { Game, InstallRequest, LauncherApi, Settings } from '../shared/type
 // preload stays a thin passthrough. Store pages always use the live
 // Microsoft Store catalog. No real credentials, tokens or account data.
 const api: LauncherApi = {
+  getGuideAudio: () => ipcRenderer.invoke('guide-audio-get'),
+  setGuideAudio: patch => ipcRenderer.invoke('guide-audio-set', patch),
+  captureLauncher: () => ipcRenderer.invoke('guide-capture'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   refreshBackend: () => ipcRenderer.invoke('backend-refresh'),
   checkBackendUpdate: () => ipcRenderer.invoke('backend-check-update'),

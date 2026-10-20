@@ -335,7 +335,12 @@ export interface AccountLibraryPage {
   skippedEntitlements?: number;
 }
 
+export type GuideAudio = { available: true; volume: number; muted: boolean } | { available: false; reason: string };
+
 export interface LauncherApi {
+  getGuideAudio(): Promise<GuideAudio>;
+  setGuideAudio(patch: { volume?: number; muted?: boolean }): Promise<GuideAudio>;
+  captureLauncher(): Promise<string>;
   getSnapshot(): Promise<AppSnapshot>;
   refreshBackend(): Promise<BackendStatus>;
   checkBackendUpdate(): Promise<BackendStatus>;

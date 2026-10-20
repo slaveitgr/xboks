@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
+import { guideAudio } from './guide-audio.js';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import type { AppSnapshot, AuthStatus, DownloadTask, Game, GameLaunchOptions, GameOperation, GameUpdate, InstallRequest, Settings } from '../shared/types.js';
 import { downloadFailure, safeProductId } from '../shared/utils.js';
@@ -1109,6 +1110,21 @@ function registerDemoIpc(catalogMarket: () => string): void {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('guide-audio-get', () => demoMode ? { available: false, reason: 'System audio controls are disabled in demo mode.' } : guideAudio());
+  ipcMain.handle('guide-audio-set', (_event, patch: { volume?: number; muted?: boolean }) => {
+    if (demoMode) return { available: false, reason: 'System audio controls are disabled in demo mode.' };
+    if (!patch || typeof patch !== 'object') throw new Error('Invalid audio request.');
+    return guideAudio({ volume: patch.volume, muted: patch.muted });
+  });
+  ipcMain.handle('guide-capture', async () => {
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The xboks window is unavailable.');
+    const folder = path.join(app.getPath('pictures'), 'xboks');
+    await fs.mkdir(folder, { recursive: true });
+    const image = await mainWindow.webContents.capturePage();
+    const target = path.join(folder, `xboks-${Date.now()}-${randomUUID().slice(0, 8)}.png`);
+    await fs.writeFile(target, image.toPNG());
+    return target;
+  });
   const catalogMarket = currentMarket;
   if (demoMode) {
     registerDemoIpc(catalogMarket);
