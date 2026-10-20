@@ -3,7 +3,7 @@ import {
   ArrowDownToLine, Check, ChevronRight, CircleAlert, CircleUserRound,
   Clock3, Cog, Download, FolderOpen, Gamepad2, Github, HardDrive, Home, Library,
   LoaderCircle, LogIn, MoreHorizontal, PackageCheck, Pause, Play, Plus, RefreshCw, Rocket, Search, Settings2,
-  Store, Terminal, Trash2, X, Maximize,
+  Store, Terminal, Trash2, X, Maximize, Minimize,
 } from 'lucide-react';
 import type { AccountLibraryPage, AppSnapshot, CatalogProduct, CatalogSearchResult, DiagnosticLog, Game, GameContentPlan, GameLaunchOptions, Page, Settings } from '../shared/types';
 import { estimateTimeRemaining } from '../shared/utils';
@@ -207,6 +207,25 @@ export function HomePage({ data, go, action, openGame }: {
     </section>
     {games[0]?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath) ? <button className="primary home-launch" onClick={() => action(() => window.launcher.launchGame(games[0].id))}><Play />Launch {games[0].title}</button> : null}
   </main>;
+}
+
+function XboxFullButton({ onError }: { onError: (message: string) => void }) {
+  const [full, setFull] = useState(() => Boolean(document.fullscreenElement));
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const changed = () => setFull(Boolean(document.fullscreenElement));
+    document.addEventListener('fullscreenchange', changed);
+    return () => document.removeEventListener('fullscreenchange', changed);
+  }, []);
+  async function toggle() {
+    setBusy(true);
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+    catch (error) { onError(errorMessage(error)); }
+    finally { setBusy(false); }
+  }
+  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Xbox Full' : 'Xbox Full'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Open Xbox Full in full screen'} onClick={() => void toggle()}>
+    {full ? <Minimize /> : <Maximize />}<span>{full ? 'Exit Xbox Full' : 'Xbox Full'}</span>
+  </button>;
 }
 
 function ShellClock() {
@@ -1071,7 +1090,7 @@ export default function App() {
     <Sidebar data={data} page={page} go={setPage} openGame={openLibraryGame} />
 
     <section className="content-shell">
-      <header className="topbar"><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="guide-trigger" aria-label="Open Game Bar" title="Game Bar (Ctrl+G)" onClick={() => setGuideOpen(true)}><Gamepad2 /></button><ShellClock /></header>
+      <header className="topbar"><XboxFullButton onError={message => setToast({ kind: 'error', message })} /><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="guide-trigger" aria-label="Open Game Bar" title="Game Bar (Ctrl+G)" onClick={() => setGuideOpen(true)}><Gamepad2 /></button><ShellClock /></header>
       <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={setPage} action={action} openGame={openLibraryGame} /> : null}{contentPage === 'store' ? <StorePage data={data} toast={setToast} go={setPage} initialQuery={submittedSearch} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} /> : null}</div>
     </section>
     {page === 'settings' ? <SettingsPage data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}

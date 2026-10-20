@@ -86,3 +86,10 @@ html[data-gamepad-navigation] .xbox-mode [data-gamepad-focus] { outline: 2px sol
 
 .guide-trigger { margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; padding: 5px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; }
 .guide-trigger:hover { background: #3c424b; }
+
+.xbox-full-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 12px; border: 1px solid #707780; border-radius: 6px; background: #343941; color: #fff; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.xbox-full-toggle:hover { background: #494f58; }
+.xbox-full-toggle[aria-pressed="true"] { border-color: #a8d99a; }
+.xbox-full-toggle:disabled { opacity: .5; cursor: wait; }
+.xbox-full-toggle svg { width: 18px; height: 18px; }
+@media (max-width: 700px) { .xbox-full-toggle { padding: 7px; } .xbox-full-toggle span { display: none; } }
