@@ -1,42 +1,85 @@
-/* Xbox mode foundation: horizontal navigation and controller-sized targets. */
-.xbox-mode.app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
-.xbox-mode .sidebar { flex-direction: row; align-items: center; gap: 24px; padding: 18px 4vw; border: 0; background: #171717; }
-.xbox-mode .account-summary { width: 190px; flex-shrink: 0; margin: 0; }
-.xbox-mode .sidebar nav { display: flex; gap: 12px; }
-.xbox-mode .sidebar .nav-item { display: flex; gap: 10px; width: auto; min-height: 52px; padding: 0 18px; font-size: 16px; }
-.xbox-mode .nav-item.active { background: #333; }
-.xbox-mode .nav-item.active::before { left: 18px; right: 18px; bottom: 0; width: auto; height: 3px; }
-.xbox-mode .recents { display: none; }
-.xbox-mode .sidebar-bottom { display: flex; align-items: center; gap: 12px; margin: 0 0 0 auto; padding: 0; border: 0; }
-.xbox-mode .queue-summary { min-width: 150px; }
-.xbox-mode .queue-preview { left: auto; right: 0; top: 100%; bottom: auto; padding: 12px 0 0; }
-.xbox-mode .content-shell { grid-template-rows: 64px minmax(0, 1fr); }
-.xbox-mode .topbar { justify-content: flex-start; gap: 18px; padding: 0 4vw; }
-.xbox-mode .search-box { width: min(560px, 48vw); height: 42px; }
-.xbox-mode .page { max-width: 1920px; padding: 24px 4vw 90px; }
-.xbox-mode .spotlight { min-height: clamp(300px, 42vh, 560px); border: 0; border-radius: 12px; }
-.xbox-mode .spotlight-copy { padding: 40px; }
-.xbox-mode .spotlight h1 { font-size: clamp(36px, 4.5vw, 72px); }
-.xbox-mode .poster-row { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; }
-.xbox-mode .poster-card .game-cover, .xbox-mode .poster-card .cover-placeholder { border-radius: 10px; }
-.xbox-mode button.primary, .xbox-mode button.secondary { min-height: 48px; padding: 0 22px; font-size: 14px; }
-.xbox-mode .section-title h2 { font-size: 26px; }
-.xbox-mode button:focus-visible { outline: 3px solid var(--green); outline-offset: 3px; }
-html[data-gamepad-navigation] .xbox-mode [data-gamepad-focus] { outline: 3px solid var(--green) !important; outline-offset: 3px; }
-@media (max-width: 1100px) {
-  .xbox-mode .sidebar { gap: 12px; padding: 12px 3vw; }
-  .xbox-mode .account-summary { width: 48px; }
-  .xbox-mode .sidebar .nav-item { padding: 0 12px; }
-  .xbox-mode .sidebar .nav-item span { display: inline; }
-  .xbox-mode .queue-summary { min-width: 48px; }
+/* Xbox app 2610.1001.20.0 reference, reconstructed for the Nexus renderer. */
+.xbox-mode.app-shell { grid-template-columns: 68px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.xbox-mode .sidebar { padding: 8px; gap: 12px; border: 0; background: #25282a; align-items: stretch; }
+.xbox-mode .account-summary { width: 52px; height: 44px; margin: 0; padding: 0; display: flex; justify-content: center; }
+.xbox-mode .account-summary > span, .xbox-mode .account-summary > svg, .xbox-mode .nav-item > span, .xbox-mode .recents, .xbox-mode .queue-summary-copy { display: none; }
+.xbox-mode .account-avatar { width: 32px; height: 32px; }
+.xbox-mode .sidebar nav { display: grid; gap: 8px; }
+.xbox-mode .nav-item { width: 52px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.xbox-mode .nav-item svg { width: 25px; height: 25px; color: #fff; stroke-width: 1.6; }
+.xbox-mode .nav-item.active { background: #64686a; }
+.xbox-mode .nav-item.active::before { display: none; }
+.xbox-mode .sidebar-bottom { margin-top: auto; border: 0; gap: 8px; }
+.xbox-mode .queue-summary, .xbox-mode .queue-summary:has(.queue-preview-art) { width: 52px; height: 48px; min-height: 48px; padding: 4px; display: flex; justify-content: center; }
+.xbox-mode .queue-preview { left: 100%; bottom: 0; padding-left: 12px; }
+.xbox-mode .content-shell { grid-template-rows: 88px minmax(0, 1fr); background: #1b1d1f; }
+.xbox-mode .topbar { background: transparent; border: 0; padding: 0 24px; gap: 14px; }
+.xbox-mode .search-box { position: absolute; left: 50%; transform: translateX(-50%); width: min(500px, 42vw); height: 33px; border-radius: 20px; background: #25282b; border-color: #78818b; }
+.xbox-mode .fullscreen-toggle { margin-right: auto; min-height: 34px; padding: 0 10px; font-size: 11px; }
+.xbox-mode .top-status { position: static; margin-left: auto; font-size: 11px; }
+.xbox-mode .shell-clock { white-space: nowrap; font-size: 19px; font-variant-numeric: tabular-nums; }
+.xbox-mode .page { max-width: 1920px; padding: 24px clamp(24px, 6.25vw, 120px) 80px; }
+.xbox-mode button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+html[data-gamepad-navigation] .xbox-mode [data-gamepad-focus] { outline: 2px solid #fff !important; outline-offset: 4px; }
+.xbox-mode .dashboard-home { position: relative; isolation: isolate; }
+.dashboard-home::before { content: ''; position: absolute; z-index: -1; top: -90px; left: 0; right: 0; height: 620px; pointer-events: none; background-image: linear-gradient(0deg, #1b1d1f, #1b1d1f55), var(--home-art); background-size: cover; background-position: center; filter: blur(55px); opacity: .45; }
+.dashboard-home h1, .dashboard-home h2 { margin: 0 0 18px; font-size: 26px; font-weight: 650; letter-spacing: -.02em; }
+.jump-back-row { display: flex; gap: 20px; overflow-x: auto; padding: 4px 4px 12px; margin: -4px; }
+.resume-tile { flex: 0 0 clamp(125px, 9.6vw, 184px); aspect-ratio: 1; position: relative; border: 0; padding: 0; border-radius: 8px; overflow: hidden; background: #292d30; cursor: pointer; text-align: left; }
+.resume-tile .game-cover, .resume-tile .cover-placeholder { height: 100%; border-radius: inherit; }
+.resume-tile > span { position: absolute; inset: auto 0 0; padding: 28px 10px 10px; background: linear-gradient(transparent, #000d); display: grid; gap: 4px; opacity: 0; transition: opacity .15s; }
+.resume-tile:hover > span, .resume-tile:focus-visible > span { opacity: 1; }
+.resume-tile strong { font-size: 13px; }
+.resume-tile small { color: #ccc; font-size: 11px; }
+.resume-empty { min-height: 150px; width: min(440px, 100%); display: grid; align-content: center; justify-items: start; gap: 10px; padding: 24px; border: 1px solid #555b60; border-radius: 8px; background: #25282bbb; cursor: pointer; text-align: left; }
+.resume-empty span { font-size: 13px; color: var(--muted); }
+.home-featured { margin-top: 42px; }
+.home-feature-grid { display: grid; grid-template-columns: 2fr 2fr 1fr; gap: 20px; }
+.home-feature-tile { position: relative; min-width: 0; border: 0; padding: 0; border-radius: 9px; overflow: hidden; background: #263239; aspect-ratio: 16 / 9; text-align: left; cursor: pointer; }
+.home-feature-tile > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.feature-copy { position: absolute; inset: auto 0 0; padding: 50px 16px 16px; background: linear-gradient(transparent, #080909ee); display: grid; gap: 4px; }
+.feature-copy > strong { font-size: clamp(15px, 1.1vw, 21px); font-weight: 500; }
+.feature-copy > span { font-size: 12px; color: #e2e2e2; }
+.feature-copy > small { font-size: 10px; letter-spacing: .08em; color: #ccc; }
+.feature-fallback { height: 100%; display: grid; place-items: center; background: radial-gradient(at 65% 20%, #316c58, #192623 75%); }
+.feature-fallback svg { width: 80px; height: 80px; opacity: .55; }
+.discovery-fallback { background: radial-gradient(at 65% 20%, #3c507e, #242136 75%); }
+.home-feature-stack { min-height: 0; display: grid; grid-template-rows: 1fr 1fr; gap: 20px; }
+.home-feature-stack .home-feature-tile { aspect-ratio: auto; }
+.utility-tile { background: linear-gradient(120deg, #33445b, #20242a); }
+.utility-tile > svg { position: absolute; right: 18px; top: 14px; height: 38px; width: 38px; opacity: .5; }
+.runtime-tile { background: linear-gradient(120deg, #37523d, #202923); }
+.home-discover { margin: 48px -32px 0; padding: 30px 32px 32px; background: #080909; border-radius: 18px; }
+.home-discover-heading { text-align: center; margin-bottom: 28px; }
+.home-discover-heading h2 { margin-bottom: 4px; }
+.home-discover-heading p { margin: 0 0 16px; color: #b5b5b5; font-size: 14px; }
+.home-catalog-row { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 20px; }
+.home-product { min-width: 0; border: 0; padding: 0; border-radius: 8px; background: #25282b; overflow: hidden; text-align: left; cursor: pointer; }
+.home-product > img, .home-product > .cover-placeholder { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+.home-product > span { padding: 10px; display: grid; gap: 5px; }
+.home-product strong { font-size: 12px; }
+.home-product small { font-size: 11px; color: #b5b5b5; }
+.home-catalog-state { min-height: 180px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px; color: #babfc2; font-size: 14px; }
+.home-launch { margin-top: 24px; }
+@media (prefers-reduced-motion: reduce) { .resume-tile > span { transition: none; } }
+@media (max-width: 1250px) {
+  .home-catalog-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .home-feature-grid { grid-template-columns: 1fr 1fr; }
+  .home-feature-stack { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; grid-template-rows: 120px; }
+  .xbox-mode .top-status > span { display: none; }
 }
 @media (max-width: 700px) {
-  .xbox-mode .sidebar { flex-wrap: wrap; gap: 8px; }
-  .xbox-mode .sidebar nav { order: 3; width: 100%; justify-content: center; }
-  .xbox-mode .sidebar-bottom { margin-left: auto; }
-  .xbox-mode .topbar { gap: 8px; }
-  .xbox-mode .search-box { width: auto; flex: 1; min-width: 0; }
-  .xbox-mode .fullscreen-toggle { font-size: 0 !important; padding: 0 12px !important; }
-  .xbox-mode .spotlight-copy { padding: 24px; }
-  .xbox-mode .poster-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .xbox-mode.app-shell { grid-template-columns: 60px minmax(0, 1fr); }
+  .xbox-mode .sidebar { padding: 4px; }
+  .xbox-mode .content-shell { grid-template-rows: 64px minmax(0, 1fr); }
+  .xbox-mode .page { padding: 20px 20px 60px; }
+  .xbox-mode .topbar { padding: 0 12px; }
+  .xbox-mode .search-box { position: static; transform: none; width: auto; flex: 1; min-width: 0; }
+  .xbox-mode .fullscreen-toggle { padding: 0 8px; font-size: 0; }
+  .xbox-mode .top-status, .xbox-mode .shell-clock { display: none; }
+  .home-feature-grid { grid-template-columns: 1fr; }
+  .home-feature-stack { grid-column: auto; grid-template-columns: 1fr; grid-template-rows: repeat(2, 120px); }
+  .home-discover { margin: 28px 0 0; padding: 20px 14px; }
+  .home-catalog-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dashboard-home h1, .dashboard-home h2 { font-size: 23px; }
 }

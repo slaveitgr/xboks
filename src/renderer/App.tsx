@@ -61,7 +61,7 @@ export function GameTitle({ title }: { title: string }) {
 function NavItem({ active, icon, label, badge, onClick, autoSelect = false }: {
   active: boolean; icon: React.ReactNode; label: string; badge?: number; onClick: () => void; autoSelect?: boolean;
 }) {
-  return <button className={`nav-item ${active ? 'active' : ''}`} data-gamepad-auto-select={autoSelect ? '' : undefined} onClick={onClick}>
+  return <button className={`nav-item ${active ? 'active' : ''}`} data-gamepad-auto-select={autoSelect ? '' : undefined} onClick={onClick} aria-label={label} title={label} aria-current={active ? 'page' : undefined}>
     {icon}<span>{label}</span>{badge ? <b>{badge}</b> : null}
   </button>;
 }
@@ -69,7 +69,7 @@ function NavItem({ active, icon, label, badge, onClick, autoSelect = false }: {
 export function Sidebar({ data, page, go, openGame }: { data: AppSnapshot; page: Page; go: (page: Page) => void; openGame?: (id: string) => void }) {
   const account = data.auth.gamertag ?? data.auth.username ?? (data.auth.stored === true ? 'Microsoft account' : 'Sign in');
   return <aside className="sidebar">
-    <button className="account-summary" onClick={() => go('settings')}><AccountAvatar auth={data.auth} /><span><strong>{account}</strong><AccountMembership auth={data.auth} /></span><ChevronRight /></button>
+    <button className="account-summary" aria-label={account} title={account} onClick={() => go('settings')}><AccountAvatar auth={data.auth} /><span><strong>{account}</strong><AccountMembership auth={data.auth} /></span><ChevronRight /></button>
     <nav><NavItem autoSelect active={page === 'home'} icon={<Home />} label="Home" onClick={() => go('home')} /><NavItem autoSelect active={page === 'library'} icon={<Library />} label="My Library" onClick={() => go('library')} /><NavItem autoSelect active={page === 'store'} icon={<Store />} label="Store" onClick={() => go('store')} /></nav>
     {data.games.length > 0 ? <div className="recents"><span>Most recent</span>{data.games.slice(0, 5).map(game => <button key={game.id} onClick={() => openGame ? openGame(game.id) : go('library')}><Cover game={game} /><GameTitle title={game.title} /></button>)}</div> : null}
     <div className="sidebar-bottom"><NavItem active={page === 'settings'} icon={<Cog />} label="Settings" onClick={() => go('settings')} /><InstallQueueShortcut downloads={data.downloads} games={data.games} active={page === 'downloads'} openQueue={() => go('downloads')} /></div>
@@ -151,48 +151,60 @@ function useGameLaunchOptions(game: Game | undefined, data: AppSnapshot): GameLa
   return options;
 }
 
-export function HomePage({ data, go, action }: {
+export function HomePage({ data, go, action, openGame }: {
   data: AppSnapshot; go: (page: Page) => void; action: (fn: () => Promise<unknown>, success?: string) => void;
+  openGame?: (id: string) => void;
 }) {
-  const featured = data.games[0];
-  const active = data.downloads.find((task) => task.status === 'running' || task.status === 'paused');
-  const canPlay = Boolean(featured?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath));
-  const launchOptions = useGameLaunchOptions(featured, data);
-  const spotlightArt = featured?.heroUrl ?? featured?.coverUrl;
-
-  return <main className="page home-page">
-    <section className={`spotlight ${spotlightArt ? 'has-art' : ''}`} style={spotlightArt ? { '--spotlight-art': `url(${spotlightArt})` } as React.CSSProperties : undefined}>
-      <div className="spotlight-copy">
-        <span className="overline">{featured ? 'CONTINUE PLAYING' : 'XODUS NEXUS'}</span>
-        <h1>{featured?.title ?? 'Your PC games, brought together.'}</h1>
-        <p>{featured
-          ? featured.installMessage ?? `${featured.publisher ?? 'Local Xbox PC installation'} · Ready in your library`
-          : 'Import an existing Xodus installation or install a game you own using its Microsoft Store Product ID.'}</p>
-        <div className="button-row">
-          {featured && canPlay
-            ? <button className="primary" onClick={() => action(() => window.launcher.launchGame(featured.id))}><Play fill="currentColor" />Play</button>
-            : <button className="primary" onClick={() => go(featured ? 'settings' : 'library')}><ChevronRight />{featured ? 'Finish setup' : 'Import a game'}</button>}
-          <button className="secondary" onClick={() => go('library')}><Library />View library</button>
+  const [catalog, setCatalog] = useState<CatalogSearchResult>();
+  const [catalogError, setCatalogError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    window.launcher.getFeaturedCatalog().then(result => { if (!cancelled) setCatalog(result); })
+      .catch(() => { if (!cancelled) setCatalogError(true); });
+    return () => { cancelled = true; };
+  }, []);
+  const games = data.games.slice(0, 6);
+  const products = catalog?.products ?? [];
+  const art = games[0]?.heroUrl ?? games[0]?.coverUrl ?? products[0]?.heroUrl;
+  const selectGame = (game: Game) => openGame ? openGame(game.id) : go('library');
+  return <main className="page home-page dashboard-home" style={art ? { '--home-art': `url(${JSON.stringify(art)})` } as React.CSSProperties : undefined}>
+    <section className="jump-back" aria-labelledby="jump-back-title">
+      <h1 id="jump-back-title">Jump back in</h1>
+      <div className="jump-back-row">{games.map(game => <button className="resume-tile" key={game.id} onClick={() => selectGame(game)} title={game.title}>
+        <Cover game={game} /><span><GameTitle title={game.title} /><StatePill game={game} /></span>
+      </button>)}{!games.length ? <button className="resume-empty" onClick={() => go('library')}><Library /><strong>Your next game starts here</strong><span>Open your library to import or install a game</span></button> : null}</div>
+    </section>
+    <section className="home-featured" aria-labelledby="home-featured-title">
+      <h2 id="home-featured-title">Featured</h2>
+      <div className="home-feature-grid">
+        <button className="home-feature-tile" onClick={() => games[0] ? selectGame(games[0]) : go('store')}>
+          {art ? <img src={art} alt="" /> : <div className="feature-fallback"><Gamepad2 /></div>}
+          <span className="feature-copy"><small>{games[0] ? 'FROM YOUR LIBRARY' : 'XBOKS FOR LINUX'}</small><strong>{games[0]?.title ?? 'Discover your next favorite'}</strong><span>{games[0] ? 'View game and launch options' : 'Explore PC games in the Store'}</span></span>
+        </button>
+        <button className="home-feature-tile" onClick={() => go('store')}>
+          {products[0]?.heroUrl || products[0]?.posterUrl ? <img src={products[0].heroUrl ?? products[0].posterUrl} alt="" /> : <div className="feature-fallback discovery-fallback"><Store /></div>}
+          <span className="feature-copy"><small>MICROSOFT STORE</small><strong>{products[0]?.title ?? 'Find something new to play'}</strong><span>Browse the live PC catalog</span></span>
+        </button>
+        <div className="home-feature-stack">
+          <button className="home-feature-tile utility-tile" onClick={() => go('downloads')}><Download /><span className="feature-copy"><strong>Install queue</strong><span>{data.downloads.filter(task => task.status === 'running' || task.status === 'queued').length} active or queued downloads</span></span></button>
+          <button className="home-feature-tile utility-tile runtime-tile" onClick={() => go('settings')}><Settings2 /><span className="feature-copy"><strong>Nexus runtime</strong><span>{data.runtime.installed ? 'Manage your shared runtime' : 'Set up your Linux runtime'}</span></span></button>
         </div>
       </div>
-      {featured ? <div className="spotlight-meta"><StatePill game={featured} />{launchOptions?.cloudSaves ? <span>Cloud saves</span> : null}<span>{featured.storeId ? `Store ID ${featured.storeId}` : 'Local import'}</span></div> : null}
     </section>
-
-    <SectionTitle title="Recently added" action="See all" onClick={() => go('library')} />
-    {data.games.length > 0 ? <div className="poster-row">
-      {data.games.slice(0, 6).map((game) => <button className="poster-card" key={game.id} onClick={() => go('library')}>
-        <Cover game={game} /><GameTitle title={game.title} /><span>{game.publisher ?? (game.storeId ? 'Microsoft Store installation' : 'Local installation')}</span>
-      </button>)}
-    </div> : <div className="empty-strip"><Gamepad2 /><div><strong>No games imported</strong><span>Your library is built only from real local manifests.</span></div><button className="secondary" onClick={() => go('library')}>Import folder</button></div>}
-
-    <SectionTitle title="Quick access" />
-    <div className="quick-grid">
-      <button onClick={() => go('store')}><Store /><span><strong>Install a game</strong><small>Use a verified Product ID</small></span><ChevronRight /></button>
-      <button onClick={() => go('downloads')}><Download /><span><strong>{active ? active.title : 'Install queue'}</strong><small>{active ? active.phase : 'No active downloads'}</small></span><ChevronRight /></button>
-      <button onClick={() => go('settings')}><Settings2 /><span><strong>Xodus runtime</strong><small>{data.runtime.installed ? 'Custom runtime ready' : 'Runtime setup required'}</small></span><ChevronRight /></button>
-    </div>
-    <div className="support-bar"><CircleAlert /><div><strong>Compatibility status</strong><span>Package ownership and installation do not guarantee Wine, GameRuntime, or anti-cheat compatibility. Unsupported features are labelled explicitly.</span></div></div>
+    <section className="home-discover" aria-labelledby="home-discover-title">
+      <div className="home-discover-heading"><h2 id="home-discover-title">Discover PC games</h2><p>Explore the Microsoft Store catalog</p><button className="secondary" onClick={() => go('store')}>Browse all games <ChevronRight /></button></div>
+      {products.length ? <div className="home-catalog-row">{products.slice(0, 8).map(product => <button className="home-product" key={product.productId} onClick={() => go('store')}>
+        {product.posterUrl ? <img src={product.posterUrl} alt="" loading="lazy" /> : <div className="cover-placeholder"><Gamepad2 /></div>}<span><GameTitle title={product.title} /><small>{product.publisher ?? 'Microsoft Store'}</small></span>
+      </button>)}</div> : <div className="home-catalog-state" role="status">{catalogError ? <><CircleAlert /><span>Store highlights are unavailable. Your local library is still available.</span><button className="secondary" onClick={() => go('store')}>Open Store</button></> : <><LoaderCircle className="spin" /><span>Loading Store highlights…</span></>}</div>}
+    </section>
+    {games[0]?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath) ? <button className="primary home-launch" onClick={() => action(() => window.launcher.launchGame(games[0].id))}><Play />Launch {games[0].title}</button> : null}
   </main>;
+}
+
+function ShellClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(timer); }, []);
+  return <time className="shell-clock" dateTime={now.toISOString()}>{now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>;
 }
 
 export function StoreProductCard({ product, selected, disabled, label, select, install }: {
@@ -1015,8 +1027,8 @@ export default function App() {
     <Sidebar data={data} page={page} go={setPage} openGame={openLibraryGame} />
 
     <section className="content-shell">
-      <header className="topbar"><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="secondary fullscreen-toggle" aria-label="Toggle full screen" onClick={() => action(() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}><Maximize />Full screen</button><TopStatus data={data} go={setPage} /></header>
-      <div className="page-scroll">{page === 'home' ? <HomePage data={data} go={setPage} action={action} /> : null}{page === 'store' ? <StorePage data={data} toast={setToast} go={setPage} initialQuery={submittedSearch} /> : null}{page === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} /> : null}{page === 'downloads' ? <DownloadsPage data={data} toast={setToast} /> : null}{page === 'settings' ? <SettingsPage data={data} toast={setToast} /> : null}</div>
+      <header className="topbar"><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="secondary fullscreen-toggle" aria-label="Toggle full screen" onClick={() => action(() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}><Maximize />Full screen</button><TopStatus data={data} go={setPage} /><ShellClock /></header>
+      <div className="page-scroll">{page === 'home' ? <HomePage data={data} go={setPage} action={action} openGame={openLibraryGame} /> : null}{page === 'store' ? <StorePage data={data} toast={setToast} go={setPage} initialQuery={submittedSearch} /> : null}{page === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} /> : null}{page === 'downloads' ? <DownloadsPage data={data} toast={setToast} /> : null}{page === 'settings' ? <SettingsPage data={data} toast={setToast} /> : null}</div>
     </section>
     {toast ? <div className={`toast ${toast.kind}`}>{toast.kind === 'success' ? <Check /> : toast.kind === 'error' ? <CircleAlert /> : <Terminal />}<span>{toast.message}</span><button onClick={() => setToast(undefined)}><X /></button></div> : null}
   </div><GamepadNavigation back={() => setPage('home')} page={delta => setPage(current => {
