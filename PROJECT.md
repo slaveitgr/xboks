@@ -5,6 +5,10 @@ The application source and its original MIT license are in `xodus-nexus/`.
 
 ## Direction
 
+The Windows Xbox client screenshots are the visual source of truth. Nexus/Xodus
+provides the backend only: do not add backend health labels or implementation
+controls to the main navigation or top bar. Keep diagnostics in Settings.
+
 Reference selected by the user: **Xbox full screen / Xbox mode**.
 Official reference: https://news.xbox.com/en-us/2026/04/30/xbox-mode-pc-windows-11/
 
