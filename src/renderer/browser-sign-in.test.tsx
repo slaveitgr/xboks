@@ -11,7 +11,7 @@ describe('alternative browser sign-in', () => {
     expect(html).not.toContain('Phone passkeys also need Bluetooth');
     expect(html).toContain('Passkey sign-in requires Google Chrome installed on this computer. Other browsers are not supported.');
     expect(html).toContain('choose Continue in browser in the sign-in window.');
-    expect(html).toContain(location === 'settings' ? 'Sign in with Xodus' : '>Sign in</button>');
+    expect(html).toContain(location === 'settings' ? 'Sign in with Microsoft' : '>Sign in</button>');
   });
   it.each(['settings', 'wizard'])('disables sign-in during authentication or with an incompatible backend in %s', location => {
     for (const running of [true, false]) {

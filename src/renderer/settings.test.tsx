@@ -64,3 +64,14 @@ describe('Settings diagnostics', () => {
     expect(main).toMatch(/<button[^>]*disabled=""[^>]*>[\s\S]*?Sign in again<\/button>/);
   });
 });
+
+ it('integrates account and Proton controls into Xbox-style categories', () => {
+  const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} initialSection="install" />);
+  expect(html).toContain('role="dialog" aria-modal="true" aria-label="Settings"');
+  expect(html).toContain('aria-orientation="vertical"');
+  expect(html).toContain('Install options');
+  expect(html).toContain('Managed Proton compatibility runtime');
+  expect(html).toContain('Wine / Xodus Proton binary');
+  expect(html).toContain('data-gamepad-cancel');
+  expect(html).toContain('id="settings-tab-install"');
+ });

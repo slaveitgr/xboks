@@ -16,6 +16,9 @@ import { defaultLibraryFilters, loadLibraryFilters, saveLibraryFilters, type Lib
 import { InstallQueueShortcut } from './InstallQueueShortcut';
 import { GamepadNavigation } from './GamepadNavigation';
 import { GuideOverlay, guideTabs, type GuideTab } from './GuideOverlay';
+import { SettingsFrame, type SettingsSection } from './SettingsFrame';
+import { AudioSettings } from './AudioSettings';
+import { applyAppearance, loadAppearance, saveAppearance } from './appearance';
 import { ConfirmationProvider, useConfirmation } from './Confirmation';
 import { GameRemovalContents } from './GameRemovalContents';
 import { GameDetails } from './GameDetails';
@@ -186,10 +189,14 @@ export function HomePage({ data, go, action, openGame }: {
           {products[0]?.heroUrl || products[0]?.posterUrl ? <img src={products[0].heroUrl ?? products[0].posterUrl} alt="" /> : <div className="feature-fallback discovery-fallback"><Store /></div>}
           <span className="feature-copy"><small>MICROSOFT STORE</small><strong>{products[0]?.title ?? 'Find something new to play'}</strong><span>Browse the live PC catalog</span></span>
         </button>
-        <div className="home-feature-stack">
-          <button className="home-feature-tile utility-tile" onClick={() => go('downloads')}><Download /><span className="feature-copy"><strong>Install queue</strong><span>{data.downloads.filter(task => task.status === 'running' || task.status === 'queued').length} active or queued downloads</span></span></button>
-          <button className="home-feature-tile utility-tile runtime-tile" onClick={() => go('settings')}><Settings2 /><span className="feature-copy"><strong>Nexus runtime</strong><span>{data.runtime.installed ? 'Manage your shared runtime' : 'Set up your Linux runtime'}</span></span></button>
-        </div>
+        <div className="home-feature-stack">{[0, 1].map(index => {
+          const product = products[index + 1];
+          const image = product?.heroUrl ?? product?.posterUrl;
+          return <button className="home-feature-tile utility-tile" key={index} onClick={() => go(product || index === 0 ? 'store' : 'library')}>
+            {image ? <img src={image} alt="" /> : index === 0 ? <Store /> : <Library />}
+            <span className="feature-copy"><strong>{product?.title ?? (index === 0 ? 'Explore PC games' : 'Your library')}</strong><span>{product?.publisher ?? (index === 0 ? 'Discover the Store catalog' : 'Find your next game')}</span></span>
+          </button>;
+        })}</div>
       </div>
     </section>
     <section className="home-discover" aria-labelledby="home-discover-title">
@@ -804,8 +811,19 @@ function ToggleStatus({ ok, label }: { ok: boolean; label: string }) {
   return <span className={`dependency ${ok ? 'ok' : ''}`}>{ok ? <Check /> : <X />}{label}</span>;
 }
 
-export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value: Toast) => void }) {
+export function SettingsPage({ data, toast, close = () => {}, initialSection = 'account' }: { data: AppSnapshot; toast: (value: Toast) => void; close?: () => void; initialSection?: SettingsSection }) {
   const confirm = useConfirmation();
+  const [section, setSection] = useState<SettingsSection>(initialSection);
+  const [appearance, setAppearance] = useState(loadAppearance);
+  async function requestClose() {
+    if (busy) return;
+    if (JSON.stringify(form) !== JSON.stringify(data.settings) && !await confirm({ title: 'Discard unsaved settings?', message: 'Unsaved installation and runtime settings will be discarded.', confirmLabel: 'Discard changes' })) return;
+    close();
+  }
+  function appearanceChange(patch: Partial<typeof appearance>) {
+    const next = { ...appearance, ...patch }; setAppearance(next);
+    if (!saveAppearance(next)) toast({ kind: 'error', message: 'Appearance applied for this session, but could not be saved.' });
+  }
   const [form, setForm] = useState<Settings>(data.settings);
   const [busy, setBusy] = useState<string>();
   const [logs, setLogs] = useState<string[]>([]);
@@ -832,14 +850,19 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
 
   const caps = data.backend.capabilities;
   const runtimeInfo = runtimeDisplay(data.runtime);
-  return <main className="page settings-page">
-    <header className="page-header"><div><h1>Settings</h1><p>Account, backend, runtime, and storage.</p></div></header>
+  return <SettingsFrame active={section} select={setSection} close={() => void requestClose()} busy={Boolean(busy)}>
+    <section className="settings-card" hidden={section !== 'application'}><h2>Application</h2><button className="secondary" onClick={() => void invoke('fullscreen', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}><Maximize />Toggle full screen</button><p>xboks is the Linux client. Backend and Proton setup live under Install options.</p><button className="secondary" onClick={() => setSection('install')}>Install options<ChevronRight /></button></section>
+    <section className="settings-card" hidden={section !== 'subscriptions'}><h2>Subscriptions</h2><p>{data.auth.stored === true ? subscriptionBadge(data.auth.subscription) ?? 'Subscription details are unavailable for this account.' : 'Sign in to view your account subscription.'}</p><p>Billing, renewal and purchase details are managed through Microsoft.</p><a href="https://account.microsoft.com/services" target="_blank" rel="noreferrer">Manage Microsoft subscriptions ↗</a></section>
+    <section className="settings-card" hidden={section !== 'notifications'}><h2>Notifications</h2><p>Download and operation results are shown in the app. Wishlist, friend and Game Pass notifications are not connected yet.</p></section>
+    <section className="settings-card" hidden={section !== 'library'}><h2>Library and extensions</h2><p>{data.games.length} local library entries.</p><p>Your Microsoft library uses the connected account. Third-party launcher discovery extensions are not connected yet.</p><button className="secondary" onClick={() => setSection('account')}>Account settings<ChevronRight /></button></section>
+    {section === 'audio' ? <AudioSettings /> : null}
+    <section className="settings-card" hidden={section !== 'accessibility'}><h2>Audio and visuals</h2><label className="xbox-setting-toggle">Disable background images<input type="checkbox" checked={appearance.hideBackground} onChange={event => appearanceChange({ hideBackground: event.target.checked })} /></label><label className="xbox-setting-toggle">Disable animations<input type="checkbox" checked={appearance.reduceMotion} onChange={event => appearanceChange({ reduceMotion: event.target.checked })} /></label><p>Appearance preferences are saved on this computer. Controller, keyboard and mouse navigation remain available.</p></section>
 
-    <section className="settings-card compact launcher-card">
+    <section className="settings-card compact launcher-card" hidden={section !== 'about'}>
       {data.launcherUpdate?.phase ? <p>{data.launcherUpdate.phase}</p> : null}
       {data.launcherUpdate?.updating ? <div className="progress-track"><i style={{ width: `${data.launcherUpdate.progress ?? 0}%` }} /></div> : null}
       {data.launcherUpdate?.error ? <div className="alert amber"><CircleAlert /><span>{data.launcherUpdate.error}</span></div> : null}
-      <div className="settings-heading"><div className="settings-icon"><Rocket /></div><div><span className="overline">XODUS NEXUS</span><h2>{data.launcherUpdate?.currentVersion ?? 'Development build'}</h2><p>{data.launcherUpdate?.latestVersion ? `Version ${data.launcherUpdate.latestVersion} is available.` : 'Check GitHub for launcher updates.'}</p></div></div>
+      <div className="settings-heading"><div className="settings-icon"><Rocket /></div><div><span className="overline">XBOKS</span><h2>{data.launcherUpdate?.currentVersion ?? 'Development build'}</h2><p>{data.launcherUpdate?.latestVersion ? `Version ${data.launcherUpdate.latestVersion} is available.` : 'Check GitHub for launcher updates.'}</p></div></div>
       <div className="button-row">
         {data.launcherUpdate?.latestVersion && data.launcherUpdate.canInstall && !data.launcherUpdate.restartRequired ? <button className="primary" disabled={data.launcherUpdate.updating || Boolean(busy)} onClick={async () => { if (await confirm({ title: 'Install launcher update?', message: 'The current AppImage will be backed up. Games and downloads must be stopped first.', confirmLabel: 'Install update' })) void invoke('launcher-install', () => window.launcher.installLauncherUpdate()); }}><ArrowDownToLine />{data.launcherUpdate.updating ? 'Updating…' : 'Install launcher update'}</button> : null}
         {data.launcherUpdate?.releaseUrl && !data.launcherUpdate.canInstall ? <a className="primary" href={data.launcherUpdate.releaseUrl} target="_blank" rel="noreferrer"><ArrowDownToLine />Download update</a> : null}
@@ -850,14 +873,14 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
       </div>
     </section>
 
-    <section className="settings-card account-card">
-      <div className="settings-heading"><AccountAvatar auth={data.auth} large /><div><span className="overline">MICROSOFT ACCOUNT</span><h2>{data.auth.gamertag ?? data.auth.username ?? (data.auth.stored === false ? 'Not signed in' : 'Account status unavailable')}</h2><p>{data.auth.stored === true ? 'Credentials stored by Xodus' : 'Authentication uses the original Xodus webview'}</p></div><span className={`status-label ${data.auth.stored === true ? 'ready' : data.auth.stored === false ? 'off' : 'unknown'}`}><StatusDot tone={data.auth.stored === true ? 'green' : data.auth.stored === false ? 'red' : 'amber'} />{data.auth.stored === true ? 'STORED' : data.auth.stored === false ? 'SIGNED OUT' : 'UNKNOWN'}</span></div>
+    <section className="settings-card account-card" hidden={section !== 'account'}>
+      <div className="settings-heading"><AccountAvatar auth={data.auth} large /><div><span className="overline">MICROSOFT ACCOUNT</span><h2>{data.auth.gamertag ?? data.auth.username ?? (data.auth.stored === false ? 'Not signed in' : 'Account status unavailable')}</h2><p>{data.auth.stored === true ? 'Signed in on this computer' : 'Sign in with your Microsoft account'}</p></div><span className={`status-label ${data.auth.stored === true ? 'ready' : data.auth.stored === false ? 'off' : 'unknown'}`}><StatusDot tone={data.auth.stored === true ? 'green' : data.auth.stored === false ? 'red' : 'amber'} />{data.auth.stored === true ? 'STORED' : data.auth.stored === false ? 'SIGNED OUT' : 'UNKNOWN'}</span></div>
       <div className="account-note"><CircleAlert /><span>{data.auth.note}</span></div>
-      <div className="button-row"><button className="primary" disabled={!caps.login || data.auth.running} onClick={() => invoke('login', () => window.launcher.login(), 'Xodus sign-in completed.')}>{data.auth.running ? <LoaderCircle className="spin" /> : <LogIn />}{data.auth.stored ? 'Sign in again' : 'Sign in with Xodus'}</button><button className="secondary" disabled={!caps.logout || data.auth.running || data.auth.stored === false} onClick={() => invoke('logout', () => window.launcher.logout(), 'Stored Xodus user credentials were removed.')}>Sign out</button><button className="secondary" disabled={!caps.account || data.auth.running} onClick={() => invoke('account', () => window.launcher.refreshAccount())}><RefreshCw />Refresh status</button></div>
+      <div className="button-row"><button className="primary" disabled={!caps.login || data.auth.running} onClick={() => invoke('login', () => window.launcher.login(), 'Microsoft sign-in completed.')}>{data.auth.running ? <LoaderCircle className="spin" /> : <LogIn />}{data.auth.stored ? 'Sign in again' : 'Sign in with Microsoft'}</button><button className="secondary" disabled={!caps.logout || data.auth.running || data.auth.stored === false} onClick={() => invoke('logout', () => window.launcher.logout(), 'Stored Xodus user credentials were removed.')}>Sign out</button><button className="secondary" disabled={!caps.account || data.auth.running} onClick={() => invoke('account', () => window.launcher.refreshAccount())}><RefreshCw />Refresh status</button></div>
       <PasskeySignInNotice />
     </section>
 
-    <section className="settings-card">
+    <section className="settings-card" hidden={section !== 'install'}>
       <div className="settings-heading"><div className="settings-icon"><Terminal /></div><div><h2>Xodus backend</h2><p>{data.backend.version ? `Nexus backend ${data.backend.version}` : data.backend.available ? `Backend CLI ${data.backend.capabilities.version ?? 'unknown version'}` : 'Install the prebuilt Nexus backend'}</p></div><span className={`status-label ${data.backend.available ? 'ready' : 'off'}`}><StatusDot tone={data.backend.available ? 'green' : 'red'} />{data.backend.available ? 'VALIDATED' : 'OFFLINE'}</span></div>
       {data.backend.blockReason ? <div className="alert amber"><CircleAlert /><span>{data.backend.blockReason}</span></div> : null}
       {data.backend.phase ? <p className="runtime-phase">{data.backend.phase}</p> : null}
@@ -865,8 +888,8 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
       <div className="button-row end"><button className="secondary" disabled={Boolean(busy) || data.backend.checking || data.backend.updating} onClick={() => invoke('backend-check', () => window.launcher.checkBackendUpdate())}>{busy === 'backend-check' || data.backend.checking ? <LoaderCircle className="spin" /> : <RefreshCw />}Check for updates</button>{data.backend.releaseAvailable && data.backend.updateAvailable ? <button className="primary" disabled={Boolean(busy) || data.backend.updating || data.backend.checking} onClick={() => invoke('backend-update', () => window.launcher.updateBackend(), 'The Nexus backend was verified, installed and activated.')}>{busy === 'backend-update' || data.backend.updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}{data.backend.available ? 'Update backend' : 'Install backend'}</button> : null}</div>
     </section>
 
-    <section className="settings-card">
-      <div className="settings-heading"><div className="settings-icon"><Gamepad2 /></div><div><h2>Nexus runtime</h2><p>{data.runtime.installed ? `Active: ${runtimeInfo.title} · ${runtimeInfo.version}` : 'No runtime selected'}</p></div><span className={`status-label ${data.runtime.installed && runtimeInfo.source === 'Nexus runtime' ? 'ready' : 'unknown'}`}><StatusDot tone={data.runtime.installed && runtimeInfo.source === 'Nexus runtime' ? 'green' : 'amber'} />{!data.runtime.installed ? 'MISSING' : runtimeInfo.source === 'Nexus runtime' ? 'READY' : 'OTHER RUNTIME'}</span></div>
+    <section className="settings-card" hidden={section !== 'install'}>
+      <div className="settings-heading"><div className="settings-icon"><Gamepad2 /></div><div><h2>Nexus runtime</h2><p>Managed Proton compatibility runtime for Windows PC games.</p><p>{data.runtime.installed ? `Active: ${runtimeInfo.title} · ${runtimeInfo.version}` : 'No runtime selected'}</p></div><span className={`status-label ${data.runtime.installed && runtimeInfo.source === 'Nexus runtime' ? 'ready' : 'unknown'}`}><StatusDot tone={data.runtime.installed && runtimeInfo.source === 'Nexus runtime' ? 'green' : 'amber'} />{!data.runtime.installed ? 'MISSING' : runtimeInfo.source === 'Nexus runtime' ? 'READY' : 'OTHER RUNTIME'}</span></div>
       {data.runtime.nexusError ? <div className="alert amber"><CircleAlert /><span>{data.runtime.nexusError}</span></div> : null}
       {data.runtime.error ? <div className="alert amber"><CircleAlert /><span>{data.runtime.error}</span></div> : null}{data.runtime.phase ? <div className="runtime-phase"><LoaderCircle className={data.runtime.updating ? 'spin' : ''} /><span>{data.runtime.phase}</span></div> : null}
       <div className="button-row end">
@@ -876,7 +899,7 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
       {data.runtime.updating || runtimeLogs.length > 0 ? <pre className="build-log">{runtimeLogs.join('\n') || 'Waiting for output…'}</pre> : null}
     </section>
 
-    <div className="settings-storage">
+    <div className="settings-storage" hidden={section !== 'install'}>
       <section className="settings-card compact">
         <div className="settings-heading"><div className="settings-icon"><Download /></div><div><h2>Downloads</h2><p>Limit the combined game download speed across all parallel streams.</p></div></div>
         <div className="form-grid"><label>Download speed limit (MiB/s)<input type="number" min="0" max="1024" step="0.1" value={form.downloadLimitMiB ?? 0} onChange={event => setForm({...form, downloadLimitMiB:Number(event.target.value)})} /></label></div>
@@ -884,7 +907,7 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
       </section>
       <section className="settings-card compact"><div className="settings-heading"><div className="settings-icon"><HardDrive /></div><div><h2>Storage and launch paths</h2><p>The external Xodus checkout is never modified.</p></div></div><div className="form-grid"><label>Default game location<div className="input-action"><input value={form.installRoot} onChange={(event) => setForm({ ...form, installRoot: event.target.value })} /><button onClick={() => pick('install')}><FolderOpen /></button></div></label><label>Market<input value={form.market} onChange={(event) => setForm({ ...form, market: event.target.value })} /></label><label>Parallel streams<input type="number" min="1" max="16" value={form.parallelDownloads} onChange={(event) => setForm({ ...form, parallelDownloads: Number(event.target.value) })} /></label><label>External Xodus source<div className="input-action"><input value={form.externalXodusRoot} onChange={(event) => setForm({ ...form, externalXodusRoot: event.target.value })} /><button onClick={() => pick('backend')}><FolderOpen /></button></div></label><label>Versioned runtime directory<div className="input-action"><input value={form.runtimeRoot} onChange={(event) => setForm({ ...form, runtimeRoot: event.target.value })} /><button onClick={() => pick('runtime')}><FolderOpen /></button></div></label><label>Wine / Xodus Proton binary<div className="input-action"><input value={form.winePath} onChange={(event) => setForm({ ...form, winePath: event.target.value })} placeholder="Selected automatically by the runtime manager" /><button onClick={() => pick('wine')}><FolderOpen /></button></div></label></div><div className="save-row"><span>Settings are stored locally in Electron userData.</span><button className="primary" disabled={busy === 'save'} onClick={() => invoke('save', () => window.launcher.updateSettings(form), 'Settings saved.')}>{busy === 'save' ? <LoaderCircle className="spin" /> : <Check />}Save</button></div></section>
     </div>
-    <details className="settings-card settings-diagnostics">
+    <details className="settings-card settings-diagnostics" hidden={section !== 'install'}>
       <summary><Settings2 /><span>Advanced / Diagnostics</span><ChevronRight /></summary>
       <div className="diagnostics-content">
         <section><h3>Game logging</h3><div className="toggle-row"><label className="toggle"><input type="checkbox" checked={form.verboseLogs} onChange={(event) => setForm({ ...form, verboseLogs: event.target.checked })} /><span>Verbose game logs</span></label><p>Writes full Wine, vkd3d-proton and Xodus diagnostics to the per-game log file and stops coalescing repeated lines. Slower and much larger logs; use temporarily when diagnosing a crash.</p></div><div className="button-row"><button className="secondary" disabled={Boolean(busy)} onClick={() => invoke('save-diagnostics', () => window.launcher.updateSettings({ verboseLogs: form.verboseLogs }), 'Logging settings saved.')}>Save diagnostics</button></div></section>
@@ -893,7 +916,7 @@ export function SettingsPage({ data, toast }: { data: AppSnapshot; toast: (value
         <section><h3>Build dependencies</h3><div className="dependency-grid"><ToggleStatus ok={data.backend.prerequisites.git} label="Git" /><ToggleStatus ok={data.backend.prerequisites.cargo} label="Cargo" /><ToggleStatus ok={data.backend.prerequisites.rustc} label="Rust 1.99" /><ToggleStatus ok={data.backend.prerequisites.protoc} label="protoc" /></div><p className="fine-print">Building Xodus also requires a C/C++ toolchain, CMake, OpenSSL 3 and D-Bus development packages.</p></section>
       </div>
     </details>
-  </main>;
+  </SettingsFrame>;
 }
 
 function backendSetupHint(backend: AppSnapshot['backend']): string {
@@ -989,6 +1012,10 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
   const [guideTab, setGuideTab] = useState<GuideTab>('home');
+  const previousPage = useRef<Page>('home');
+  useEffect(() => { if (page !== 'settings') previousPage.current = page; }, [page]);
+  useEffect(() => { applyAppearance(loadAppearance()); }, []);
+  const contentPage = page === 'settings' ? previousPage.current : page;
   const [submittedSearch, setSubmittedSearch] = useState('');
   // App stays mounted while pages change, unlike LibraryPage/AccountGames.
   const [libraryFilters, setLibraryFilters] = useState<LibraryFilters>(() => loadLibraryFilters());
@@ -1044,12 +1071,14 @@ export default function App() {
     <Sidebar data={data} page={page} go={setPage} openGame={openLibraryGame} />
 
     <section className="content-shell">
-      <header className="topbar"><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="secondary fullscreen-toggle" aria-label="Toggle full screen" onClick={() => action(() => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen())}><Maximize />Full screen</button><button className="guide-trigger" aria-label="Open Game Bar" title="Game Bar (Ctrl+G)" onClick={() => setGuideOpen(true)}><Gamepad2 /></button><ShellClock /></header>
-      <div className="page-scroll">{page === 'home' ? <HomePage data={data} go={setPage} action={action} openGame={openLibraryGame} /> : null}{page === 'store' ? <StorePage data={data} toast={setToast} go={setPage} initialQuery={submittedSearch} /> : null}{page === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} /> : null}{page === 'downloads' ? <DownloadsPage data={data} toast={setToast} /> : null}{page === 'settings' ? <SettingsPage data={data} toast={setToast} /> : null}</div>
+      <header className="topbar"><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><button className="guide-trigger" aria-label="Open Game Bar" title="Game Bar (Ctrl+G)" onClick={() => setGuideOpen(true)}><Gamepad2 /></button><ShellClock /></header>
+      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={setPage} action={action} openGame={openLibraryGame} /> : null}{contentPage === 'store' ? <StorePage data={data} toast={setToast} go={setPage} initialQuery={submittedSearch} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} /> : null}</div>
     </section>
+    {page === 'settings' ? <SettingsPage data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}
     {toast ? <div className={`toast ${toast.kind}`}>{toast.kind === 'success' ? <Check /> : toast.kind === 'error' ? <CircleAlert /> : <Terminal />}<span>{toast.message}</span><button onClick={() => setToast(undefined)}><X /></button></div> : null}
   </div>{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else setPage('home'); }} page={delta => {
     if (guideOpen) { setGuideTab(current => guideTabs[(guideTabs.indexOf(current) + delta + guideTabs.length) % guideTabs.length]); return; }
+    if (page === 'settings') { window.dispatchEvent(new CustomEvent('xboks-settings-section', { detail: delta })); return; }
     setPage(current => {
     const pages: Page[] = ['home', 'library', 'store'];
     const index = pages.indexOf(current);

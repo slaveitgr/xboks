@@ -84,5 +84,5 @@ html[data-gamepad-navigation] .xbox-mode [data-gamepad-focus] { outline: 2px sol
   .dashboard-home h1, .dashboard-home h2 { font-size: 23px; }
 }
 
-.guide-trigger { display: grid; place-items: center; width: 36px; height: 36px; padding: 5px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; }
+.guide-trigger { margin-left: auto; display: grid; place-items: center; width: 36px; height: 36px; padding: 5px; border: 0; background: transparent; border-radius: 6px; cursor: pointer; }
 .guide-trigger:hover { background: #3c424b; }

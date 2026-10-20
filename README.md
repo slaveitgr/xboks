@@ -29,7 +29,7 @@ Our visual reference is **Xbox app 2610.1001.20.0 in Xbox mode**, using screensh
 
 *Actual xboks development build. The library shown uses upstream sample data; Store highlights are fetched from the live catalog. This preview demonstrates the interface, not successful account authentication or game compatibility.*
 
-The current Home has a compact left rail, centered search, a clock, recent game tiles, large feature cards and a Store discovery section. Recent game cards open the selected library game. The current utility cards and other remaining Nexus layouts will be replaced as the reference-driven redesign progresses.
+The current Home has a compact left rail, centered search, a clock, recent game tiles, large feature cards and a Store discovery section. Recent game cards open the selected library game. Backend and runtime controls are contained in Settings. Remaining Nexus page layouts will be replaced as the reference-driven redesign progresses.
 
 ## Project status
 
@@ -40,12 +40,12 @@ The current Home has a compact left rail, centered search, a clock, recent game 
 | Microsoft sign-in and entitlement checks | Nexus integration retained; xboks account validation pending |
 | Installation and game launch | Existing Nexus backend/runtime paths retained; game-by-game verification required |
 | Controller navigation | Existing experimental navigation retained; full-screen focus testing continues |
-| Settings | Existing functional settings; reference modal redesign pending |
+| Settings | Xbox-style modal with categories; Nexus backend/runtime, storage, download controls and diagnostics integrated; remaining Windows features pending |
 | Friends, chat and party | Not implemented in xboks |
 | Game Bar-style guide | First in-app overlay implemented: tabs, navigation, PipeWire volume/mute and xboks window screenshots; external-game overlay and video capture pending |
 | Cloud gaming and console Remote Play | Not implemented in xboks |
 
-The last local UI validation passed TypeScript, renderer/Electron compilation and **152 renderer/audio tests**. This is not a passing claim for the full backend suite or CI; the badge above shows the current GitHub workflow result.
+The last local UI validation passed TypeScript, renderer/Electron compilation and **163 renderer/runtime tests**. This is not a passing claim for the full backend suite or CI; the badge above shows the current GitHub workflow result.
 
 ## Getting started
 
@@ -100,7 +100,8 @@ See the [Game Bar package analysis](docs/analysis/gamebar-7.326.md).
 - [x] Keep backend status out of the main top bar.
 - [ ] Match Home spacing, feature cards and navigation against the 1920×1080 references.
 - [ ] Rebuild Library, Game Pass browsing, Store, queue and product details.
-- [ ] Recreate the settings modal, profile menu and notification panel.
+- [x] Recreate the settings modal and integrate backend/Proton controls.
+- [ ] Recreate the profile menu and notification panel.
 - [ ] Validate controller focus, back behavior and handheld layouts.
 - [ ] Investigate supported Xbox social interfaces and Linux system overlays.
 - [ ] Validate authentication, downloads and supported game launch with real accounts.
