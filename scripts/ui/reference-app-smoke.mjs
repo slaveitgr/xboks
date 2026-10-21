@@ -15,8 +15,9 @@ const output = resolve(root, process.argv[2] ?? 'outputs/reference-ui-2026-10-21
 const fixturePath = '/__reference-app-smoke-fixture.js';
 const fixture = String.raw`
 import { demoSnapshot, demoAccountLibrary } from '/src/shared/demo-data.ts';
-const calls = [], listeners = new Set();
-window.__referenceSmoke = { calls, forbidden: [], unexpected: [], pad: null, deferLocales: false, localeRequests: [] };
+const calls = [], listeners = new Set(), fullscreenListeners = new Set();
+let nativeFullscreen = false;
+window.__referenceSmoke = { setSessionFullscreen(value){snapshot.desktopSettings.fullscreenExperience=value;for(const listener of listeners)listener(structuredClone(snapshot));}, setFullscreen(value){nativeFullscreen=value;for(const listener of fullscreenListeners)listener(value);}, calls, forbidden: [], unexpected: [], pad: null, deferLocales: false, localeRequests: [] };
 localStorage.clear(); localStorage.setItem('xboks.interface-language.v1', 'en');
 const xml = value => value.replace(/[<>&"]/g, char => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[char]));
 const artwork = (title, index = 0) => 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900"><defs><linearGradient id="g"><stop stop-color="'+['#2f5371','#5e2641','#235743','#7a5136'][index%4]+'"/><stop offset="1" stop-color="#131a22"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1180" cy="300" r="260" fill="#ffffff10"/><text x="80" y="640" font-family="sans-serif" font-size="76" fill="white">'+xml(title)+'</text><text x="84" y="730" font-family="sans-serif" font-size="32" fill="#bec9cf">Renderer test artwork · sample metadata</text></svg>');
@@ -44,6 +45,10 @@ const handlers = {
  getGameActivity:async()=>({status:'available',minutesPlayed:71,lastPlayed:'2026-10-20T15:00:00.000Z'}), getGameAchievements:async()=>({status:'available',items:[]}),
  getGameLocales:id=>window.__referenceSmoke.deferLocales ? new Promise(resolve=>window.__referenceSmoke.localeRequests.push({id,resolve})) : Promise.resolve(['en-US','el-GR']), getLibraryProviders:async()=>['steam','ea'].map(id=>({id,installed:true})),
  getGuideAudio:async()=>({available:false,reason:'Audio adapter is not connected in renderer fixtures.'}), getBatteryPercentage:async()=>null,
+ getBatteryStatus:async()=>({percentage:61,charging:true,externalPower:true}), getWindowFullscreen:async()=>nativeFullscreen,
+ getFullscreenExperience:async()=>({active:nativeFullscreen,available:true,source:'gnome-extension'}),
+ onWindowFullscreenChanged:listener=>{fullscreenListeners.add(listener);return()=>fullscreenListeners.delete(listener);},
+ setWindowFullscreen:async enabled=>{nativeFullscreen=enabled;for(const listener of fullscreenListeners)listener(enabled);return enabled;},
  checkKeyring:async()=>({state:'ready',gameMode:false,canStart:false,message:'Renderer fixture; no system wallet inspected.'}),
  getDownloadCancelOptions:async()=>({deleteFilesAllowed:false,reason:'Renderer fixture; no files can be deleted.'}),
  updateSettings:async patch=>{Object.assign(snapshot.settings,patch);for(const listener of listeners)listener(structuredClone(snapshot));return structuredClone(snapshot.settings);},
@@ -103,6 +108,20 @@ try {
   const accountSettings=async()=>{await click('.account-summary');await wait(`Boolean(document.querySelector('.shell-account-menu'))`);await evaluate(`(()=>{const button=[...document.querySelectorAll('.shell-account-menu button')].find(button=>button.textContent.trim()==='Settings');if(!button)throw Error('Settings menu action missing');button.click();})()`);await wait(`Boolean(document.querySelector('.xbox-settings-dialog'))`);};
 
   await wait(`Boolean(document.querySelector('.home-product[data-product-id="9N26X2PMTWBT"]'))`);await capture('home');
+  await check(`document.querySelector('.shell-header-controls')?.dataset.shellDisplayMode==='desktop'&&document.querySelectorAll('.shell-header-controls button').length===1&&!document.querySelector('.shell-header-controls time,.shell-header-controls .shell-battery,.shell-header-controls .guide-trigger')&&!window.__referenceSmoke.calls.some(call=>call.method==='getBatteryStatus')`,'Desktop header has only Xbox mode and does not read hidden power status');
+  await evaluate(`localStorage.setItem('xboks.interface-language.v1','el');window.dispatchEvent(new Event('storage'));`);await delay(120);await capture('header-desktop-el');
+  await check(`document.querySelector('.xbox-mode-entry')?.textContent==='Λειτουργία Xbox'`,'Desktop entry uses the requested Greek Xbox mode label');
+  await click('.xbox-mode-entry');await wait(`document.querySelector('.shell-header-controls')?.dataset.shellDisplayMode==='fullscreen'&&Boolean(document.querySelector('.shell-battery[data-power-icon="charging"]'))`);await capture('header-fullscreen-el');
+  await check(`!document.querySelector('.shell-header-controls button')&&Boolean(document.querySelector('.shell-header-controls time'))&&Boolean(document.querySelector('.shell-battery[data-power-icon="charging"]'))&&document.documentElement.hasAttribute('data-fullscreen-experience')`,'Native fullscreen displays only clock and real-boundary charging state');
+  await evaluate(`window.__referenceSmoke.setFullscreen(false)`);await wait(`Boolean(document.querySelector('.xbox-mode-entry'))`);
+  await check(`!document.querySelector('.shell-header-controls time,.shell-header-controls .shell-battery')&&!document.documentElement.hasAttribute('data-fullscreen-experience')`,'External native fullscreen exit restores desktop entry without stale clock or power controls');
+  await evaluate(`window.__referenceSmoke.setSessionFullscreen(true)`);await wait(`document.querySelector('.shell-header-controls')?.dataset.shellDisplayMode==='fullscreen'`);
+  await check(`!document.querySelector('.shell-header-controls button')&&Boolean(document.querySelector('.shell-header-controls time'))`,'An externally changed gaming-session snapshot activates fullscreen status without a button click');
+  await evaluate(`window.__referenceSmoke.setSessionFullscreen(false)`);await wait(`Boolean(document.querySelector('.xbox-mode-entry'))`);
+  await check(`!document.querySelector('.shell-header-controls time,.shell-header-controls .shell-battery')`,'Leaving the gaming session through a new snapshot restores desktop tools');
+
+  await evaluate(`localStorage.setItem('xboks.interface-language.v1','en');window.dispatchEvent(new Event('storage'));`);await delay(120);
+
   const origin='.home-product[data-product-id="9N26X2PMTWBT"]';await click(origin);
   await wait(`Boolean(document.querySelector('.catalog-details-page[data-product-id="9N26X2PMTWBT"]'))`);await capture('product-details');
   await check(`window.__referenceSmoke.calls.some(call=>call.method==='getCatalogDetails'&&call.args[0]==='9N26X2PMTWBT')&&!window.__referenceSmoke.calls.some(call=>call.method==='searchCatalog')`,'Home product click fetches exact Product ID without title search');

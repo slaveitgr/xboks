@@ -5,6 +5,15 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.13 — 2026-10-21
+
+- Add an optional GNOME Shell 51 Fullscreen Experience extension with a persistent local bridge, focused-app ownership checks and restoration on exit, connection loss, disable or lock. Ctrl+Super+Escape is the required emergency restore shortcut. This keeps the desktop and its applications running; it is not a separate gaming session or a memory-saving feature.
+- Separate acknowledged GNOME/session integration from ordinary app window fullscreen. Missing integration retains window fullscreen with an explicit notice.
+- Match the header display states: desktop windows show the sole Xbox mode entry button; fullscreen shows the clock and available real battery/charging/external-power status. Unknown readings do not become synthetic charging or battery indicators.
+- Package the extension source and an explicit staging/install helper that checks GNOME major 51 and refuses an existing extension destination. Installation is inactive. New local UUIDs require a fresh user-chosen GNOME login before enablement; neither installer nor application logs out or restarts the desktop.
+- Cover extension ownership/restoration, mocked Shell lifecycle, the real GJS helper over an isolated fake D-Bus service, native fullscreen orchestration and header/power states with automated tests. Live GNOME/dock/lock/multi-monitor/controller/game acceptance remains pending.
+- Document the GNOME integration and standalone Gamescope/Kiosk roadmap in English and Greek. A native compositor Game Bar over external games remains future work; the existing guide is a separate Electron window.
+
 ## Backend 0.2.7
 
 - Keep independently verified account-library records available when other license records are invalid or conflicting.

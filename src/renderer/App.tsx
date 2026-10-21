@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Github, HardDrive, LoaderCircle, LogIn, Terminal } from 'lucide-react';
 import { PackageCheck, Rocket } from './XboxIcons';
-import { ArrowDownToLine, Info, ArrowDownWideNarrow, ListFilter, BookmarkPlus, ChevronUp, Bell, Cable, MonitorPlay, Users, ChevronLeft, Check, ChevronRight, CircleAlert, CircleUserRound, Clock3, Cog, Download, FolderOpen, Gamepad2, Home, Library, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Settings2, Store, Trash2, X, Maximize, Minimize } from './XboxIcons';
+import { ArrowDownToLine, Info, ArrowDownWideNarrow, ListFilter, BookmarkPlus, ChevronUp, Bell, MonitorPlay, Users, ChevronLeft, Check, ChevronRight, CircleAlert, CircleUserRound, Clock3, Cog, Download, FolderOpen, Gamepad2, Home, Library, MoreHorizontal, Pause, Play, Plus, RefreshCw, Search, Settings2, Store, Trash2, X } from './XboxIcons';
 import type { AccountLibraryPage, AppSnapshot, CatalogProduct, CatalogSearchResult, DiagnosticLog, Game, GameContentPlan, GameLaunchOptions, Page, Settings } from '../shared/types';
 import { downloadRateLabel } from '../shared/download-display';
 import { estimateTimeRemaining } from '../shared/utils';
@@ -21,7 +21,7 @@ import { GuideOverlay, guideTabs, type GuideTab } from './GuideOverlay';
 import { SettingsFrame, type SettingsSection } from './SettingsFrame';
 import { LaunchExperience } from './LaunchExperience';
 import { installationReadiness } from '../shared/installation-state';
-import { BatteryStatus } from './BatteryStatus';
+import { ShellHeaderControls } from './ShellHeaderControls';
 import { OriginalSettings } from './OriginalSettings';
 import { InstallSettings } from './InstallSettings';
 import { AudioSettings } from './AudioSettings';
@@ -247,47 +247,6 @@ export function HomePage({ data, go, action, openGame, openProduct }: {
     </section>
     {games[0]?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath) ? <button className="primary home-launch" onClick={() => action(() => window.launcher.launchGame(games[0].id))}><Play />Launch {games[0].title}</button> : null}
   </main>;
-}
-
-function XboxFullButton({ onError }: { onError: (message: string) => void }) {
-  const [full, setFull] = useState(() => document.documentElement.hasAttribute('data-fullscreen-experience'));
-  const [busy, setBusy] = useState(false);
-  useEffect(() => {
-    const changed = () => {
-      if (!document.fullscreenElement && document.documentElement.hasAttribute('data-fullscreen-experience')) {
-        document.documentElement.removeAttribute('data-fullscreen-experience');
-        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: false }));
-      }
-      setFull(Boolean(document.fullscreenElement) && document.documentElement.hasAttribute('data-fullscreen-experience'));
-    };
-    document.addEventListener('fullscreenchange', changed);
-    return () => document.removeEventListener('fullscreenchange', changed);
-  }, []);
-  async function toggle() {
-    setBusy(true);
-    try {
-      if (full) {
-        if (document.fullscreenElement) await document.exitFullscreen();
-        document.documentElement.removeAttribute('data-fullscreen-experience'); setFull(false);
-        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: false }));
-      } else {
-        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-        document.documentElement.setAttribute('data-fullscreen-experience', ''); setFull(true);
-        window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: true }));
-      }
-    } catch (error) { onError(errorMessage(error)); }
-    finally { setBusy(false); }
-  }
-  return <button className="xbox-full-toggle" aria-label={full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'} aria-pressed={full} disabled={busy} title={full ? 'Return to windowed mode' : 'Fullscreen Experience with controller navigation'} onClick={() => void toggle()}>
-    {full ? <Minimize /> : <Maximize />}<span>{full ? 'Exit Fullscreen Experience' : 'Fullscreen Experience'}</span>
-  </button>;
-}
-
-function ShellClock() {
-  const { language } = useReferenceLocale();
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(timer); }, []);
-  return <time className="shell-clock" dateTime={now.toISOString()}>{now.toLocaleTimeString(language === 'el' ? 'el-GR' : [], { hour: '2-digit', minute: '2-digit' })}</time>;
 }
 
 export function StoreProductCard({ product, selected, select }: {
@@ -1376,7 +1335,7 @@ export default function App() {
     <Sidebar data={data} page={page} go={navigate} openGame={openLibraryGame} onPanel={setShellPanel} />
 
     <section className={`content-shell${contentPage === 'home' ? ' home-shell' : ''}`} style={contentPage === 'home' && (data.games[0]?.heroUrl || data.games[0]?.coverUrl) ? { '--shell-art': `url(${JSON.stringify(data.games[0].heroUrl ?? data.games[0].coverUrl)})` } as React.CSSProperties : undefined}>
-      <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">xboks · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><div className="shell-tools"><XboxFullButton onError={message => setToast({ kind: 'error', message })} /><button className="guide-trigger" aria-label="Open Game Bar" title="Game Bar (Win+G)" onClick={() => { if (window.desktopGuide) action(() => window.desktopGuide!.toggle()); else setGuideOpen(true); }}><Gamepad2 /></button><span className="shell-power" title="Connected to desktop session"><Cable /></span><BatteryStatus /><ShellClock /></div></header>
+      <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">xboks · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><ShellHeaderControls sessionFullscreen={data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true} integrationAvailable={data.fullscreenExperience?.available} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} /></header>
       <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
       const game = data.games.find(game => game.id === task.gameId || game.storeId === task.productId);
       if (game) { setLibraryView('games'); openLibraryGame(game.id); }

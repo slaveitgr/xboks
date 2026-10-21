@@ -232,6 +232,7 @@ export interface AppSnapshot {
   gameUpdates?: Record<string, GameUpdate>;
   downloadProgressSupported?: boolean;
   desktopSettings?: DesktopSettingsStatus;
+  fullscreenExperience?: import('./fullscreen-experience.js').FullscreenExperienceStatus;
 }
 
 /** Desktop session facts, separate from the application window's fullscreen state. */
@@ -239,7 +240,7 @@ export interface DesktopSettingsStatus {
   canSetAutostart: boolean;
   autostartReason?: string;
   fullscreenExperience: boolean;
-  fullscreenExperienceSource: 'environment' | 'none';
+  fullscreenExperienceSource: 'environment' | 'gnome-extension' | 'none';
   sessionType?: string;
   desktop?: string;
   /** Unknown until attempted; a successful Tray construction does not prove shell visibility. */
@@ -367,6 +368,12 @@ export interface AccountLibraryPage {
 export type GuideAudio = { available: true; volume: number; muted: boolean } | { available: false; reason: string };
 
 export interface LauncherApi {
+  getWindowFullscreen(): Promise<boolean>;
+  setWindowFullscreen(enabled: boolean): Promise<boolean>;
+  onWindowFullscreenChanged(callback: (enabled: boolean) => void): () => void;
+  getFullscreenExperience(): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
+  setFullscreenExperience(enabled: boolean): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
+  getBatteryStatus(): Promise<import('./fullscreen-experience.js').BatteryPowerStatus>;
   requestVoiceCapture(): Promise<void>;
   releaseVoiceCapture(): Promise<void>;
   onVoiceCaptureStop(callback: () => void): () => void;

@@ -6,6 +6,16 @@ import type { Game, InstallRequest, LauncherApi, Settings } from '../shared/type
 // preload stays a thin passthrough. Store pages always use the live
 // Microsoft Store catalog. No real credentials, tokens or account data.
 const api: LauncherApi = {
+  getWindowFullscreen: () => ipcRenderer.invoke('window-fullscreen-get'),
+  setWindowFullscreen: enabled => ipcRenderer.invoke('window-fullscreen-set', enabled),
+  onWindowFullscreenChanged: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, enabled: boolean) => callback(enabled);
+    ipcRenderer.on('window-fullscreen-changed', listener);
+    return () => ipcRenderer.removeListener('window-fullscreen-changed', listener);
+  },
+  getFullscreenExperience: () => ipcRenderer.invoke('fullscreen-experience-get'),
+  setFullscreenExperience: enabled => ipcRenderer.invoke('fullscreen-experience-set', enabled),
+  getBatteryStatus: () => ipcRenderer.invoke('battery-status'),
   requestVoiceCapture: () => ipcRenderer.invoke('voice-capture-request'),
   releaseVoiceCapture: () => ipcRenderer.invoke('voice-capture-release'),
   onVoiceCaptureStop: callback => {

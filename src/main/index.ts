@@ -72,6 +72,9 @@ import { addLiveSteamShortcut } from './steam-live.js';
 import { DownloadCompletionNotifications } from './download-notifications.js';
 import { KeyringSupport } from './keyring.js';
 import { launcherExecutablePath, showBeforeAccountCheck } from './launcher-startup.js';
+import { GnomeExperienceClient } from './experience-client.js';
+import { FullscreenExperience } from './fullscreen-experience.js';
+import { batteryPowerStatus } from './battery-status.js';
 import { managedPaths, migrateManagedPaths, type ManagedPathMigration } from './managed-paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -94,6 +97,7 @@ let settingsUpdates: Promise<unknown> = Promise.resolve();
 let pendingSettingsUpdates = 0;
 async function refreshDesktopSettingsStatus(): Promise<void> {
   desktopSettingsStatus = { ...await inspectDesktopSettings(autostartConfigRoot, process.env), trayAvailable: desktopSettingsStatus.trayAvailable };
+  updateExperienceSession();
 }
 function ensureSettingsTray(): void {
   if (settingsTray && !settingsTray.isDestroyed()) return;
@@ -169,6 +173,39 @@ function guidePowerActivity(): string | undefined {
 const guidePower = new GuidePowerConfirmations(guidePowerActivity);
 const accountLibrary = new AccountLibrary((ids, market) => catalog.licensedProducts(ids, market));
 const demoMode = process.env.XBOKS_DEMO === '1' || process.env.XODUS_DEMO === '1';
+const experienceBridge = new GnomeExperienceClient({
+  helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'experience-client.js')
+    : fileURLToPath(new URL('../../assets/desktop/experience-client.js', import.meta.url)),
+  // Demo/fixture operation never changes or probes the real GNOME shell.
+  environment: demoMode ? {} : process.env,
+  changed: () => fullscreenExperience.shellChanged(),
+});
+const fullscreenExperience = new FullscreenExperience({
+  bridge: experienceBridge,
+  session: !demoMode && desktopSession(process.env).fullscreenExperience,
+  windowFullscreen: () => mainWindow?.isFullScreen?.() ?? false,
+  setWindowFullscreen: setNativeFullscreen,
+  changed: () => { updateExperienceSession(); if (launchReady) emitSnapshot(); },
+});
+function updateExperienceSession(): void {
+  const status = fullscreenExperience.current;
+  desktopSettingsStatus.fullscreenExperience = status.active;
+  desktopSettingsStatus.fullscreenExperienceSource = status.source === 'session' ? 'environment' : status.active ? 'gnome-extension' : 'none';
+}
+async function setNativeFullscreen(enabled: boolean): Promise<void> {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) throw Error('The launcher window is unavailable.');
+  if (win.isFullScreen() === enabled) return;
+  await new Promise<void>((resolve, reject) => {
+    const done = () => { cleanup(); win.isFullScreen() === enabled ? resolve() : reject(Error('The desktop did not confirm the window mode.')); };
+    const closed = () => { cleanup(); reject(Error('The launcher window closed during the mode transition.')); };
+    const cleanup = () => { clearTimeout(timer); win.removeListener('enter-full-screen', done); win.removeListener('leave-full-screen', done); win.removeListener('closed', closed); };
+    const timer = setTimeout(() => { cleanup(); reject(Error('The desktop did not confirm the fullscreen transition.')); }, 5000);
+    if (enabled) win.once('enter-full-screen', done); else win.once('leave-full-screen', done);
+    win.once('closed', closed);
+    try { win.setFullScreen(enabled); } catch (error) { cleanup(); reject(error); }
+  });
+}
 const keyringSupport = new KeyringSupport();
 const demoArtwork = new Map<string, DemoArtwork>();
 let launcherUpdater: LauncherUpdater;
@@ -264,7 +301,7 @@ function receiveLaunchRequest(id?: string): void {
 
 function snapshot(): AppSnapshot {
   if (demoMode) return { ...demoSnapshot({ launcher: app.getVersion(), backend: backendLock.version,
-    backendCommit: backendLock.commit, backendCompatibility: backendLock.compatibility }, demoArtwork), desktopSettings: structuredClone(desktopSettingsStatus) };
+    backendCommit: backendLock.commit, backendCompatibility: backendLock.compatibility }, demoArtwork), desktopSettings: structuredClone(desktopSettingsStatus), fullscreenExperience: fullscreenExperience.current };
   return {
     backend: backend.current,
     runtime: runtime.current,
@@ -278,6 +315,7 @@ function snapshot(): AppSnapshot {
     downloadProgressSupported: Boolean(backend.current.capabilities.streamingProgressJson),
     gameOperation: gameOperation ? structuredClone(gameOperation) : undefined,
     desktopSettings: structuredClone(desktopSettingsStatus),
+    fullscreenExperience: fullscreenExperience.current,
   };
 }
 
@@ -1249,6 +1287,25 @@ function registerIpc(): void {
       event.senderFrame && event.senderFrame !== event.sender.mainFrame) throw Error('Invalid launcher window.');
   };
   const demoSystemReason = 'System controls are disabled in demo mode.';
+  ipcMain.handle('window-fullscreen-get', event => { systemSender(event); return mainWindow?.isFullScreen?.() ?? false; });
+  ipcMain.handle('window-fullscreen-set', async (event, enabled: unknown) => {
+    systemSender(event);
+    if (typeof enabled !== 'boolean') throw Error('Fullscreen mode must be a boolean.');
+    if (enabled && (event.sender !== mainWindow?.webContents || !mainWindow?.isFocused())) throw Error('Open Xbox mode from the focused launcher window.');
+    const result = await fullscreenExperience.setWindow(enabled);
+    if (!enabled) desktopGuide.hide();
+    return result;
+  });
+  ipcMain.handle('fullscreen-experience-get', event => { systemSender(event); return fullscreenExperience.refresh(); });
+  ipcMain.handle('fullscreen-experience-set', async (event, enabled: unknown) => {
+    systemSender(event);
+    if (demoMode) throw Error(demoSystemReason);
+    if (typeof enabled !== 'boolean') throw Error('Xbox mode must be a boolean.');
+    if (enabled && (event.sender !== mainWindow?.webContents || !mainWindow?.isFocused())) throw Error('Open Xbox mode from the focused launcher window.');
+    await fullscreenExperience.setWindow(enabled, enabled);
+    if (!enabled) desktopGuide.hide();
+    return fullscreenExperience.current;
+  });
   ipcMain.handle('voice-capture-request', event => {
     systemSender(event);
     if (demoMode) throw Error('Microphone capture is disabled in demo mode.');
@@ -1297,6 +1354,7 @@ function registerIpc(): void {
   });
   ipcMain.handle('library-providers', () => demoMode ? [] : scanLibraryProviders());
   ipcMain.handle('battery-percentage', () => batteryPercentage());
+  ipcMain.handle('battery-status', () => batteryPowerStatus());
   ipcMain.handle('remote-play-open', (event) => {
     if (event.sender !== mainWindow?.webContents) throw new Error('Remote Play must be opened from the launcher.');
     return remotePlay.open(mainWindow?.isFullScreen() ?? false);
@@ -1788,6 +1846,23 @@ async function createWindow(background = false): Promise<void> {
   });
   mainWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Renderer load failed', code, description));
   mainWindow.webContents.on('render-process-gone', (_event, details) => console.error('Renderer process exited', details.reason));
+  const windowModeChanged = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send('window-fullscreen-changed', mainWindow.isFullScreen());
+    desktopGuide.webContents?.send('window-fullscreen-changed', mainWindow.isFullScreen());
+    if (!mainWindow.isFullScreen() && !fullscreenExperience.transitioning && fullscreenExperience.current.active && fullscreenExperience.current.source === 'gnome-extension') {
+      void fullscreenExperience.setWindow(false).catch(console.error);
+    }
+  };
+  mainWindow.on('enter-full-screen', windowModeChanged);
+  mainWindow.on('leave-full-screen', windowModeChanged);
+  mainWindow.on('closed', () => fullscreenExperience.dispose());
+  mainWindow.webContents.on('render-process-gone', () => fullscreenExperience.dispose());
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F11' && mainWindow?.isFullScreen()) {
+      event.preventDefault(); void fullscreenExperience.setWindow(false).catch(console.error);
+    }
+  });
   const captureOwnerId = mainWindow.webContents.id;
   const releaseCapture = () => voiceCapture.release(captureOwnerId);
   mainWindow.on('hide', releaseCapture);
@@ -2005,6 +2080,7 @@ app.on('will-quit', () => { settingsTray?.destroy(); settingsTray = undefined; d
 
 app.on('before-quit', (event) => {
   quitting = true;
+  fullscreenExperience.dispose();
   voiceCapture.release();
   remotePlay.destroy();
   desktopGuide.destroy();

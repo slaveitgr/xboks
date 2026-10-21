@@ -36,6 +36,8 @@ jobs:
         run: npm run build
       - run: npm run test:runtime-tools
       - run: npm run test:ci-tools
+      - name: Check GNOME extension logic and staging without the host Shell
+        run: node --test scripts/desktop/gnome-experience.test.mjs
       - name: Build launcher candidate (never publish)
         if: github.ref == 'refs/heads/main'
         run: npx --no-install electron-builder --linux AppImage --publish never

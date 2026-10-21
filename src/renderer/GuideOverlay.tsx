@@ -9,6 +9,7 @@ import { useReferenceLocale } from './ReferenceLocale';
 import { GuideSystemControls } from './GuideSystemControls';
 import { XboxSocialPanel } from './XboxSocialPanel';
 import { LocalVoiceTest } from './LocalVoiceTest';
+import { observeWindowFullscreen, type NativeFullscreenBridge, type WindowFullscreenState } from './ShellHeaderControls';
 import './guide-overlay.css';
 
 export const guideTabs = ['home', 'settings', 'browser', 'social', 'audio', 'capture'] as const;
@@ -44,14 +45,22 @@ export interface GuideFullscreenSurface {
   exitFullscreen?: () => Promise<void>;
   documentElement: { requestFullscreen?: () => Promise<void> };
 }
-export function guideWindowFullscreenAvailable(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean): boolean {
+export function guideWindowFullscreenAvailable(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false): boolean {
+  if (bridge?.setWindowFullscreen) return !desktopGuide || nativeFullscreen;
   return !desktopGuide && Boolean(surface && (surface.fullscreenElement ? typeof surface.exitFullscreen === 'function'
     : surface.fullscreenEnabled !== false && typeof surface.documentElement.requestFullscreen === 'function'));
 }
-/** This changes only the inline launcher's browser window. It never enters an
- * OS gaming session or changes the separate desktop overlay window. */
-export async function toggleGuideWindowFullscreen(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean): Promise<boolean> {
-  if (!guideWindowFullscreenAvailable(surface, desktopGuide) || !surface) return false;
+/** Native controls address the main launcher, including from its separate
+ * guide. A browser-only fallback never makes the overlay itself fullscreen. */
+export async function toggleGuideWindowFullscreen(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false): Promise<boolean> {
+  if (!guideWindowFullscreenAvailable(surface, desktopGuide, bridge, nativeFullscreen)) return false;
+  if (bridge?.setWindowFullscreen) {
+    const enabled = !desktopGuide && !nativeFullscreen && !surface?.fullscreenElement;
+    if (await bridge.setWindowFullscreen(enabled) !== enabled) throw new Error('The window fullscreen state could not be changed.');
+    if (!enabled && !desktopGuide && surface?.fullscreenElement && surface.exitFullscreen) await surface.exitFullscreen();
+    return true;
+  }
+  if (!surface) return false;
   if (surface.fullscreenElement) await surface.exitFullscreen!();
   else await surface.documentElement.requestFullscreen!();
   return true;
@@ -70,8 +79,10 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
   const surface = typeof document === 'undefined' ? undefined : document;
   // The bridge is also exposed in the main window; the dedicated route identifies its host.
   const desktopGuide = typeof window !== 'undefined' && window.location?.hash === '#desktop-guide' && Boolean(window.desktopGuide);
-  const [windowFullscreen, setWindowFullscreen] = useState(() => Boolean(surface?.fullscreenElement));
-  const canFullscreen = guideWindowFullscreenAvailable(surface, desktopGuide);
+  const nativeFullscreenBridge = typeof window === 'undefined' ? undefined : window.launcher;
+  const [fullscreenState, setFullscreenState] = useState<WindowFullscreenState>(() => ({ documentFullscreen: Boolean(surface?.fullscreenElement), nativeFullscreen: false }));
+  const windowFullscreen = fullscreenState.documentFullscreen || fullscreenState.nativeFullscreen;
+  const canFullscreen = guideWindowFullscreenAvailable(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen);
   const canCapture = typeof window !== 'undefined' && typeof window.launcher?.captureLauncher === 'function';
   useBackHandler(() => handleGuideBack(root.current, close), true, () => root.current);
   useGuideLayoutEffect(() => {
@@ -89,8 +100,18 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
     return () => { cancelled = true; };
   }, [locale.language]);
   useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(timer); }, []);
-  useEffect(() => { const changed = () => setWindowFullscreen(Boolean(document.fullscreenElement)); document.addEventListener('fullscreenchange', changed); return () => document.removeEventListener('fullscreenchange', changed); }, []);
+  useEffect(() => { const observer = observeWindowFullscreen(document, window.launcher, setFullscreenState); return () => observer.stop(); }, []);
   const navigate = (page: Page) => { close(); go(page); };
+  async function changeFullscreen() {
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setMessage('');
+    try {
+      const changed = await toggleGuideWindowFullscreen(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen);
+      if (!changed) setMessage(t('Window fullscreen is unavailable.', 'Η πλήρης οθόνη παραθύρου δεν είναι διαθέσιμη.'));
+      else if (windowFullscreen) close();
+    } catch { setMessage(t('Window fullscreen could not be changed.', 'Δεν ήταν δυνατή η αλλαγή πλήρους οθόνης παραθύρου.')); }
+    finally { pending.current = false; setBusy(false); }
+  }
   async function updateAudio(patch: { volume?: number; muted?: boolean }) {
     if (pending.current || typeof window.launcher?.setGuideAudio !== 'function') return;
     pending.current = true; setBusy(true); setMessage('');
@@ -146,7 +167,7 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
           {!data.games.length ? <p className="guide-muted">{t('Your recent games will appear here after you add games to the library.', 'Τα πρόσφατα παιχνίδια σας θα εμφανιστούν εδώ μετά την προσθήκη τους στη βιβλιοθήκη.')}</p> : null}
           <hr /><button className="guide-row" onClick={() => navigate('downloads')}><Download />{t('Install queue', 'Ουρά εγκατάστασης')}<ChevronRight /></button>
         </> : null}
-        {tab === 'settings' ? <>{audioControls}<button className="guide-wide" disabled={!desktopGuide && !canFullscreen} onClick={() => { if (desktopGuide) { navigate('settings'); return; } void toggleGuideWindowFullscreen(surface, false).then(changed => { if (!changed) setMessage(t('Window fullscreen is unavailable.', 'Η πλήρης οθόνη παραθύρου δεν είναι διαθέσιμη.')); }).catch(() => setMessage(t('Window fullscreen could not be changed.', 'Δεν ήταν δυνατή η αλλαγή πλήρους οθόνης παραθύρου.'))); }}>{desktopGuide ? <Cog /> : <Maximize />}{desktopGuide ? t('Open app settings', 'Άνοιγμα ρυθμίσεων εφαρμογής') : windowFullscreen ? t('Exit window fullscreen', 'Έξοδος από πλήρη οθόνη παραθύρου') : t('Enter window fullscreen', 'Πλήρης οθόνη παραθύρου')}</button>{!desktopGuide ? <p className="guide-muted">{t('Changes the app window only. Fullscreen Experience is managed by the gaming session.', 'Αλλάζει μόνο το παράθυρο της εφαρμογής. Το Fullscreen Experience ελέγχεται από τη συνεδρία παιχνιδιών.')}</p> : null}<hr /><button className="guide-row" onClick={() => navigate('settings')}><Cog />{t('More settings', 'Περισσότερες ρυθμίσεις')}<ChevronRight /></button><GuideSystemControls /></> : null}
+        {tab === 'settings' ? <>{audioControls}<button className="guide-wide" data-guide-fullscreen disabled={busy || (!desktopGuide && !canFullscreen)} onClick={() => { if (desktopGuide && !canFullscreen) { navigate('settings'); return; } void changeFullscreen(); }}>{desktopGuide && !canFullscreen ? <Cog /> : <Maximize />}{windowFullscreen ? t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας') : desktopGuide ? t('Open app settings', 'Άνοιγμα ρυθμίσεων εφαρμογής') : nativeFullscreenBridge?.setWindowFullscreen ? t('Xbox mode', 'Λειτουργία Xbox') : t('Enter window fullscreen', 'Πλήρης οθόνη παραθύρου')}</button>{!desktopGuide && !nativeFullscreenBridge?.setWindowFullscreen ? <p className="guide-muted">{t('Changes the app window only. Fullscreen Experience is managed by the gaming session.', 'Αλλάζει μόνο το παράθυρο της εφαρμογής. Το Fullscreen Experience ελέγχεται από τη συνεδρία παιχνιδιών.')}</p> : null}<hr /><button className="guide-row" onClick={() => navigate('settings')}><Cog />{t('More settings', 'Περισσότερες ρυθμίσεις')}<ChevronRight /></button><GuideSystemControls /></> : null}
         {tab === 'audio' ? <>{audioControls}<hr /><h3>{t('Default output', 'Προεπιλεγμένη έξοδος')}</h3><p className="guide-muted">{audio?.available ? t('Uses the current system output through PipeWire.', 'Χρησιμοποιεί την τρέχουσα έξοδο συστήματος μέσω PipeWire.') : t('System output controls require an available audio service.', 'Τα στοιχεία εξόδου συστήματος απαιτούν διαθέσιμη υπηρεσία ήχου.')}</p><LocalVoiceTest /><h3>{t('App mixer', 'Μείκτης εφαρμογών')}</h3><p className="guide-note">{t('Individual app volume controls are not connected yet.', 'Η ένταση ανά εφαρμογή δεν έχει συνδεθεί ακόμη.')}</p></> : null}
         {tab === 'capture' ? <><button className="guide-wide guide-capture" disabled={busy || !canCapture} onClick={() => void capture()}><Camera />{busy ? t('Saving…', 'Αποθήκευση…') : t('Take screenshot', 'Λήψη στιγμιότυπου')}</button><p className="guide-muted">{t('Captures the xboks window without this overlay. Saved as PNG in Pictures/xboks.', 'Καταγράφει το παράθυρο xboks χωρίς αυτήν την επικάλυψη. Αποθηκεύεται ως PNG στον φάκελο Εικόνες/xboks.')}</p>{capturePath ? <button className="guide-wide" disabled={typeof window.launcher?.openPath !== 'function'} onClick={() => void window.launcher.openPath(capturePath).catch(() => setMessage(t('The screenshot could not be opened.', 'Δεν ήταν δυνατό το άνοιγμα του στιγμιότυπου.')))}>{t('Open screenshot', 'Άνοιγμα στιγμιότυπου')}<ExternalLink /></button> : null}<hr /><p className="guide-note">{t('Game video recording and capture outside xboks are not connected yet.', 'Η εγγραφή βίντεο παιχνιδιών και η καταγραφή εκτός xboks δεν έχουν συνδεθεί ακόμη.')}</p></> : null}
         {tab === 'social' ? <XboxSocialPanel auth={data.auth} variant="guide" accountSettings={() => navigate('settings')} /> : null}

@@ -1,6 +1,6 @@
 {
   "name": "xboks",
-  "version": "0.3.12",
+  "version": "0.3.13",
   "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
   "license": "MIT",
   "author": "xboks contributors",
@@ -50,7 +50,8 @@
       "!assets/fonts/**/*",
       "!assets/social-backend/**/*",
       "package.json",
-      "LICENSE"
+      "LICENSE",
+      "!assets/desktop/**/*"
     ],
     "extraResources": [
       {
@@ -63,6 +64,22 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "assets/desktop",
+        "to": "desktop",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "desktop/gnome",
+        "to": "gnome-extension",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "scripts/desktop/stage-gnome-experience.py",
+        "to": "desktop/stage-gnome-experience.py"
       }
     ],
     "afterPack": "scripts/launcher-fonts-after-pack.cjs",

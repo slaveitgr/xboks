@@ -1,0 +1,15 @@
+.xbox-mode .shell-header-controls .xbox-mode-entry { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 18px; border: 1px solid #77818d; border-radius: 8px; background: #3c424b; color: #fff; white-space: nowrap; font-size: 14px; line-height: 20px; cursor: pointer; }
+.xbox-mode .shell-header-controls[data-shell-display-mode="desktop"] { right: 36px; }
+.xbox-mode .shell-header-controls .xbox-mode-entry:hover { background: #4d545e; }
+.xbox-mode .shell-header-controls .xbox-mode-entry:disabled { opacity: .6; cursor: wait; }
+.xbox-mode .shell-header-controls .xbox-mode-entry > .xbox-icon { width: 16px; height: 16px; }
+.xbox-mode .shell-header-controls .shell-clock { display: block; font-size: 19px; line-height: 25px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.shell-header-controls .shell-battery { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; font-size: 14px; }
+.shell-header-controls .shell-battery > .xbox-icon { width: 24px; height: 22px; }
+.shell-header-controls .shell-battery[data-power-icon="plug"] > .xbox-icon { width: 19px; height: 22px; }
+@media (max-width: 700px) {
+  .xbox-mode .shell-header-controls .xbox-mode-entry { padding: 0 8px; gap: 6px; font-size: 12px; }
+  .xbox-mode .shell-header-controls[data-shell-display-mode="desktop"] { right: 16px; }
+  .xbox-mode .shell-header-controls .shell-clock { font-size: 16px; }
+  .xbox-mode .topbar:has(.shell-header-controls[data-shell-display-mode="desktop"]) .search-box { width: calc(100% - 190px); }
+}

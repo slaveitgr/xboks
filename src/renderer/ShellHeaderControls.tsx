@@ -1,0 +1,107 @@
+import { useEffect, useRef, useState } from 'react';
+import { Maximize } from './XboxIcons';
+import { BatteryStatus } from './BatteryStatus';
+import { useReferenceLocale } from './ReferenceLocale';
+import './shell-header-controls.css';
+
+export interface NativeFullscreenBridge {
+  getWindowFullscreen?(): Promise<boolean>;
+  onWindowFullscreenChanged?(callback: (fullscreen: boolean) => void): () => void;
+  setWindowFullscreen?(fullscreen: boolean): Promise<boolean>;
+  getFullscreenExperience?(): Promise<{ available: boolean }>;
+}
+export type FullscreenDocument = Pick<Document, 'fullscreenElement' | 'addEventListener' | 'removeEventListener'> & {
+  fullscreenEnabled?: boolean;
+  documentElement: { requestFullscreen?: () => Promise<void> };
+};
+export interface WindowFullscreenState { documentFullscreen: boolean; nativeFullscreen: boolean }
+
+export function shellIsFullscreen(sessionFullscreen: boolean, state: WindowFullscreenState): boolean {
+  return sessionFullscreen || state.documentFullscreen || state.nativeFullscreen;
+}
+
+/** A native event supersedes an older asynchronous initial read. No click or
+ * renderer attribute is treated as proof that fullscreen was entered. */
+export function observeWindowFullscreen(document: FullscreenDocument, bridge: NativeFullscreenBridge | undefined, changed: (state: WindowFullscreenState) => void) {
+  let active = true, revision = 0, nativeFullscreen = false;
+  const emit = () => { if (active) changed({ documentFullscreen: Boolean(document.fullscreenElement), nativeFullscreen }); };
+  const setNative = (value: boolean) => { if (active) { revision++; nativeFullscreen = value === true; emit(); } };
+  const documentChanged = () => emit();
+  document.addEventListener('fullscreenchange', documentChanged);
+  const unsubscribe = bridge?.onWindowFullscreenChanged?.(setNative);
+  const readRevision = revision;
+  if (bridge?.getWindowFullscreen) void bridge.getWindowFullscreen().then(value => {
+    if (active && revision === readRevision) { nativeFullscreen = value === true; emit(); }
+  }).catch(() => { /* DOM and session state remain usable without a native read. */ });
+  emit();
+  return { revision: () => revision, setNative, stop() { active = false; document.removeEventListener('fullscreenchange', documentChanged); unsubscribe?.(); } };
+}
+
+export async function enterWindowFullscreen(document: FullscreenDocument, bridge?: NativeFullscreenBridge): Promise<'native' | 'document'> {
+  if (bridge?.setWindowFullscreen) {
+    if (await bridge.setWindowFullscreen(true) !== true) throw new Error('The fullscreen window could not be opened.');
+    return 'native';
+  }
+  if (document.fullscreenEnabled === false || !document.documentElement.requestFullscreen) throw new Error('Fullscreen is unavailable in this window.');
+  await document.documentElement.requestFullscreen();
+  return 'document';
+}
+
+export function formatShellClock(now: Date, language: 'en' | 'el'): string {
+  return now.toLocaleTimeString(language === 'el' ? 'el-GR' : undefined, { hour: 'numeric', minute: '2-digit' })
+    .replace(/π\.μ\./g, 'πμ').replace(/μ\.μ\./g, 'μμ').replace(/[\u00a0\u202f]/g, ' ');
+}
+export function ShellClock() {
+  const { language } = useReferenceLocale();
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const timer = window.setInterval(() => setNow(new Date()), 30000); return () => window.clearInterval(timer); }, []);
+  return <time className="shell-clock" dateTime={now.toISOString()}>{formatShellClock(now, language)}</time>;
+}
+
+export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, onError, onNotice }: {
+  sessionFullscreen: boolean;
+  integrationAvailable?: boolean;
+  onError: (message: string) => void;
+  onNotice?: (message: string) => void;
+}) {
+  const { text } = useReferenceLocale();
+  const [state, setState] = useState<WindowFullscreenState>(() => ({ documentFullscreen: typeof document !== 'undefined' && Boolean(document.fullscreenElement), nativeFullscreen: false }));
+  const [busy, setBusy] = useState(false);
+  const observer = useRef<ReturnType<typeof observeWindowFullscreen>>();
+  const pending = useRef(false), mounted = useRef(false);
+  const full = shellIsFullscreen(sessionFullscreen, state);
+  useEffect(() => {
+    mounted.current = true;
+    observer.current = observeWindowFullscreen(document, window.launcher, setState);
+    return () => { mounted.current = false; observer.current?.stop(); observer.current = undefined; };
+  }, []);
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-fullscreen-experience', full);
+    window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: full }));
+  }, [full]);
+  async function enter() {
+    if (pending.current) return;
+    pending.current = true; setBusy(true);
+    const revision = observer.current?.revision();
+    try {
+      const entered = await enterWindowFullscreen(document, window.launcher);
+      if (!mounted.current) return;
+      const current = observer.current;
+      if (entered === 'native') { if (current && current.revision() === revision) current.setNative(true); }
+      else setState(value => ({ ...value, documentFullscreen: Boolean(document.fullscreenElement) }));
+      let integrationUnavailable = entered === 'document' && integrationAvailable === false;
+      if (entered === 'native' && window.launcher.getFullscreenExperience) {
+        try { integrationUnavailable = (await window.launcher.getFullscreenExperience()).available === false; }
+        catch { /* A missing status read cannot prove integration unavailable. */ }
+      }
+      if (mounted.current && integrationUnavailable) onNotice?.(text('The fullscreen window is open. System Xbox mode is unavailable in this session.', 'Το παράθυρο πλήρους οθόνης άνοιξε. Η λειτουργία Xbox του συστήματος δεν είναι διαθέσιμη σε αυτήν τη συνεδρία.'));
+    } catch (error) {
+      if (mounted.current) onError(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error:\s*/, '') : String(error));
+    } finally { pending.current = false; if (mounted.current) setBusy(false); }
+  }
+  return <div className="shell-tools shell-header-controls" data-shell-display-mode={full ? 'fullscreen' : 'desktop'}>
+    {full ? <><BatteryStatus /><ShellClock /></> : <button className="xbox-mode-entry" disabled={busy} aria-label={text('Xbox mode', 'Λειτουργία Xbox')} onClick={() => void enter()}>
+      <Maximize /><span>{text('Xbox mode', 'Λειτουργία Xbox')}</span>
+    </button>}
+  </div>;
+}

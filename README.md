@@ -28,7 +28,9 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Accounts and games | Microsoft account integration through xboks Engine, entitlement-aware access, installation and runtime tooling | Download-to-launch acceptance remains game-specific; owning a license is required |
 | Friends and presence | Shared app/guide service, player search and presence reported by Xbox | Authenticated friends and inbox reads have been exercised; unavailable presence stays unknown |
 | Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
-| Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | Wayland/global shortcuts, external-game stacking and video capture have separate limits |
+| Fullscreen Experience | Optional GNOME Shell 51 extension, acknowledged app/desktop transitions and emergency restoration | Prototype: live GNOME/dock/lock/controller acceptance remains pending; a standalone gaming session comes later |
+| Desktop header | Xbox mode entry in desktop windows; clock and real system power status in fullscreen | Unknown battery/charging data is not invented; window fullscreen and OS integration are reported separately |
+| Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | A native compositor Game Bar over external games remains pending; shortcuts and video capture have separate limits |
 | Linux controls | NetworkManager Wi-Fi, BlueZ paired-device controls and capability-gated session/power actions | New pairing/network setup uses desktop settings; disruptive actions require confirmation |
 | Audio tools | Explicit local microphone test, device selection, level meter, optional monitoring, mute, push to talk and supported noise suppression | These tools test audio on this PC; **Xbox party voice is not connected** |
 | Console Remote Play | Dedicated window for Microsoft's official console web client | Discovery, sign-in and streaming are owned by that site; the native Windows flow and Xbox One X acceptance remain open |
@@ -99,16 +101,60 @@ The private Cargo build output remains named `xodus-cli`; the bundler publishes 
 
 ## Fullscreen Experience & Game Bar
 
-The **Fullscreen Experience** button enters app fullscreen with controller-focused navigation. D-pad/left stick moves focus, A selects, B goes back and LB/RB switches the active page, tab or guide section. Mouse and keyboard remain available. A distribution gaming session is a separate integration: `XBOKS_FULLSCREEN_EXPERIENCE=1` describes an existing OS session; it does not create or replace the desktop shell.
+**0.3.13 adds an optional GNOME Shell 51 Fullscreen Experience prototype.** In a desktop window, the top-right header has one **Xbox mode** button. In fullscreen, that button is replaced by the clock and available system battery/power status. Battery level, charging and external power come from Linux; unknown values stay unknown. No desktop clock or fabricated charging indicator is shown beside the entry button.
 
-Open the guide through its app control, **Ctrl+G** in the app, the controller Guide button when exposed by the OS, or the launch argument **`--game-bar`**. For a GNOME **Win+G** binding to an existing AppImage:
+With the extension installed, discovered and enabled, an explicit request from the focused launcher can temporarily hide supported GNOME shell chrome. The app's persistent local bridge owns that mode and releases it on exit or connection loss. **Ctrl+Super+Escape** is the emergency restore shortcut; entering the mode requires that shortcut to be available. Locking or disabling the extension also releases its changes, and unlocking does not automatically re-enter.
+
+This keeps the existing desktop applications, GNOME compositor and desktop services running. It does **not** free their RAM, terminate background applications or create a dedicated gaming session. Without the extension, the app can still enter ordinary window fullscreen and reports that system Xbox mode is unavailable. A window becoming fullscreen is not evidence that GNOME integration is active.
+
+### Install the optional GNOME extension
+
+From a source checkout on **GNOME Shell 51**, use a new staging directory:
+
+```sh
+python3 scripts/desktop/stage-gnome-experience.py \
+  --output work/gnome-experience/install-stage --install
+```
+
+The script checks the Shell version, refuses an existing extension destination and installs the extension **inactive**. It does not enable it, enter Xbox mode, change desktop settings or end the session. Omit `--install` to stage files only. Other GNOME major versions are not supported by this prototype.
+
+Packaging also includes the extension source and installer. From an extracted AppImage directory containing `resources/`, the equivalent command is:
+
+```sh
+python3 resources/desktop/stage-gnome-experience.py \
+  --source resources/gnome-extension/xboks-experience@slaveitgr.github.io \
+  --output /tmp/xboks-experience-install-stage --install
+```
+
+The output directory must be new; neither command overwrites an existing extension.
+
+A **new local extension needs a fresh GNOME session to be discovered**. Save your work, then log out and back in when you choose; the installer and app do not do this automatically. Installation alone cannot activate the extension in the currently running session. After the fresh login:
+
+```sh
+gnome-extensions enable xboks-experience@slaveitgr.github.io
+gnome-extensions info xboks-experience@slaveitgr.github.io
+```
+
+Enablement makes the integration available; it does not enter the mode until you choose **Xbox mode** in xboks. To disable the extension:
+
+```sh
+gnome-extensions disable xboks-experience@slaveitgr.github.io
+```
+
+See the [extension setup and protocol](desktop/gnome/xboks-experience@slaveitgr.github.io/README.md) and [Linux session architecture](docs/analysis/fullscreen-experience-linux.md). A separate Gamescope/Kiosk gaming session for the distribution remains future work. `XBOKS_FULLSCREEN_EXPERIENCE=1` describes an already established distribution session; setting it does not create one.
+
+Automated tests cover ownership/restoration logic, mocked Shell behavior, the real GJS helper communicating with a fake service on an isolated D-Bus, app fullscreen transitions and battery/header states. These are **fixture/protocol tests**. Live GNOME panel/dock restoration, lock/unlock, multi-monitor operation, physical shortcuts/controllers and behavior over real games still need acceptance testing.
+
+### Controller navigation and Game Bar
+
+D-pad/left stick moves focus, A selects, B goes back and LB/RB switches the active page, tab or guide section. Mouse and keyboard remain available. Open the guide through its app control, **Ctrl+G** in the app, the controller Guide button when exposed by the OS, or **`--game-bar`**. For a GNOME **Win+G** binding to an existing AppImage:
 
 ```sh
 python3 scripts/desktop/install-gnome-gamebar.py \
   --command '/absolute/path/to/xboks.AppImage --game-bar'
 ```
 
-The helper preserves other bindings and refuses an existing Win+G conflict. The guide runs in its own desktop window; compositor policy, especially on Wayland, determines global-shortcut delivery and placement above other applications/games. Those physical desktop paths still need acceptance testing. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
+That shortcut helper preserves other bindings and refuses an existing Win+G conflict. The guide currently uses a separate Electron desktop window. The Fullscreen Experience extension does **not** turn it into a native compositor overlay: global Game Bar stacking/input over external games on Wayland remains pending. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
 
 ## Reconstruction and verification
 
@@ -131,12 +177,16 @@ Synthetic tests, authenticated service checks, physical-controller checks and au
 - [x] Add scoped controller navigation and the separate desktop guide.
 - [x] Integrate Xbox friends/text-chat adapters and Linux system controls.
 - [x] Add explicit local audio/device testing with cleanup and local push to talk.
+- [x] Implement the optional GNOME 51 Fullscreen Experience prototype and fullscreen-only clock/system-power header.
+- [ ] Complete live GNOME entry/restore, lock/unlock, dock, multi-monitor and physical-controller acceptance.
+- [ ] Add a native compositor Game Bar with verified global input and external-game stacking.
 - [ ] Complete screenshot-by-screenshot visual and interaction parity.
 - [ ] Verify live text-message delivery and broader account/service cases.
 - [ ] Complete independent Xbox party signaling and native Linux voice, including two-way audible acceptance.
 - [ ] Validate more games through installation, update, launch and recovery.
 - [ ] Validate physical controllers, Wayland/global overlay behavior and clean-machine packages.
-- [ ] Integrate distribution-level gaming sessions and publish reproducibly tested releases.
+- [ ] Integrate a separately supervised Gamescope/Kiosk gaming session with an explicit desktop-return flow.
+- [ ] Publish reproducibly tested releases after clean-machine and game acceptance.
 
 ## Built on Xodus and Xodus Nexus
 

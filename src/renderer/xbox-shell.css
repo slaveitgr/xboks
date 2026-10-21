@@ -11,14 +11,7 @@
 .xbox-mode .shell-version { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); font-size: 11px; line-height: 14px; color: #8d8d8d; white-space: nowrap; }
 .xbox-mode .search-box { top: 32px; }
 .xbox-mode .shell-tools { position: absolute; right: 16px; top: 32px; height: 33px; display: flex; align-items: center; gap: 12px; }
-.xbox-mode .shell-tools .guide-trigger { margin: 0; width: 28px; height: 30px; }
-.xbox-mode .shell-tools .guide-trigger svg { width: 20px; height: 20px; }
-.xbox-mode .shell-power { display: flex; align-items: center; }
-.xbox-mode .shell-power svg { width: 19px; height: 22px; stroke-width: 1.5; }
 .xbox-mode .shell-clock { line-height: 25px; }
-.xbox-mode .shell-tools .xbox-full-toggle { min-height: 30px; height: 30px; padding: 5px; border: 0; background: transparent; }
-.xbox-mode .shell-tools .xbox-full-toggle span { display: none; }
-.xbox-mode .shell-tools .xbox-full-toggle:hover { background: #3c424b; }
 .xbox-mode .shell-back { position: absolute; left: 16px; top: 32px; width: 30px; height: 32px; padding: 5px; border: 0; border-radius: 7px; background: #25282b; cursor: pointer; }
 .xbox-mode .shell-back svg { width: 20px; height: 20px; }
 .resume-group { flex: 0 0 184px; width: 184px; height: 184px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; background: #25282b; padding: 8px; border-radius: 8px; }

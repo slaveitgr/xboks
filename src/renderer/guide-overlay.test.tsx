@@ -33,7 +33,7 @@ it('renders settings safely without a browser bridge and distinguishes window fu
   expect(html).toContain('Enter window fullscreen');
   expect(html).toContain('Fullscreen Experience is managed by the gaming session.');
   expect(html).not.toContain('Fullscreen Experience settings');
-  expect(html).toMatch(/class="guide-wide" disabled=""/);
+  expect(html).toMatch(/<button[^>]*data-guide-fullscreen="[^"]*"[^>]*disabled=""/);
 });
 it('uses a truthful app settings destination in the desktop guide, without trying to toggle the guide window',()=>{
   vi.stubGlobal('window',{location:{hash:'#desktop-guide'},desktopGuide:{navigate:vi.fn()}});
@@ -74,6 +74,24 @@ describe('Guide window fullscreen boundary',()=>{
     expect(guideWindowFullscreenAvailable(doc,true)).toBe(false);
     await expect(toggleGuideWindowFullscreen(doc,true)).resolves.toBe(false);
     expect(doc.exitFullscreen).not.toHaveBeenCalled(); expect(doc.documentElement.requestFullscreen).not.toHaveBeenCalled();
+  });
+  it('returns the main launcher to desktop through the native bridge from the separate guide',async()=>{
+    const doc=fixture(), setWindowFullscreen=vi.fn(async()=>false);
+    expect(guideWindowFullscreenAvailable(doc,true,{setWindowFullscreen},true)).toBe(true);
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},true)).resolves.toBe(true);
+    expect(setWindowFullscreen).toHaveBeenCalledWith(false);
+    expect(doc.exitFullscreen).not.toHaveBeenCalled(); expect(doc.documentElement.requestFullscreen).not.toHaveBeenCalled();
+  });
+  it('does not offer native entry from the separate desktop guide and rejects a refused exit',async()=>{
+    const doc=fixture(), setWindowFullscreen=vi.fn(async()=>true);
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},false)).resolves.toBe(false);
+    expect(setWindowFullscreen).not.toHaveBeenCalled();
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},true)).rejects.toThrow('could not be changed');
+  });
+  it('exits an inline document fullscreen as well as its native window when both adapters exist',async()=>{
+    const doc=fixture(), setWindowFullscreen=vi.fn(async()=>false); doc.fullscreenElement={};
+    await expect(toggleGuideWindowFullscreen(doc,false,{setWindowFullscreen},false)).resolves.toBe(true);
+    expect(setWindowFullscreen).toHaveBeenCalledWith(false); expect(doc.exitFullscreen).toHaveBeenCalledOnce();
   });
   it('honors missing or disabled fullscreen capability and propagates real adapter failure',async()=>{
     const doc=fixture(); doc.fullscreenEnabled=false;
