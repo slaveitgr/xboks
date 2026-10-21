@@ -21,6 +21,10 @@ const h = vi.hoisted(() => ({
   liveImport: vi.fn(), offlineImport: vi.fn(), showMessage: vi.fn(),
   trash: vi.fn(), deleteFiles: vi.fn(), removeShortcut: vi.fn(async () => {}), createShortcut: vi.fn(async () => 'synthetic.desktop'), signals: [] as string[],
   notifications: [] as { title: string; body: string }[],
+  powerEvents: new Map<string, (...args: any[]) => any>(),
+  controllerOptions: undefined as any,
+  controllerStart: vi.fn(), controllerDispose: vi.fn(), controllerBlocked: vi.fn(),
+  controllerSessionActive: vi.fn(async () => true),
   holdCancellation: false,
   holdAccountReads: false,
   accountReads: [] as ((result: { code: number; output: string }) => void)[],
@@ -34,11 +38,25 @@ vi.mock('electron', () => ({
     whenReady: () => Promise.resolve(), getVersion: () => '0.0.0', isPackaged: false, quit: h.quit },
   ipcMain: { handle: (name: string, callback: (...args: any[]) => any) => h.handlers.set(name, callback) },
   session: { defaultSession: { setPermissionCheckHandler: h.permissionCheck, setPermissionRequestHandler: h.permissionRequest } },
+  powerMonitor: { on: (name: string, callback: (...args: any[]) => any) => h.powerEvents.set(name, callback),
+    removeListener: (name: string) => h.powerEvents.delete(name) },
   BrowserWindow: class { webContents = { on: vi.fn(), send: vi.fn(), setWindowOpenHandler: vi.fn() };
     on() {} once() {} show = h.showWindow; restore = h.restoreWindow; focus() {}
     isMinimized() { return false; } isVisible() { return true; } isDestroyed() { return false; } async loadFile() {} },
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1440, height: 900 } }) },
   dialog: { showMessageBox: h.showMessage }, nativeImage: {}, shell: { trashItem: h.trash }, powerSaveBlocker: { start: h.blockDisplay, stop: h.releaseDisplay },
+}));
+// Native controller topology is synthetic: lifecycle tests never open host
+// evdev devices or read the real login/lock state.
+vi.mock('./gamebar-controller.js', () => ({
+  controllerSessionActive: h.controllerSessionActive,
+  GameBarController: class {
+    current = { status: 'stopped', devices: 0 };
+    constructor(options: unknown) { h.controllerOptions = options; }
+    start = h.controllerStart;
+    dispose = h.controllerDispose;
+    setSessionBlocked = h.controllerBlocked;
+  },
 }));
 vi.mock('./managed-paths.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./managed-paths.js')>();
@@ -135,6 +153,31 @@ afterAll(async () => {
   await new Promise(resolve => setTimeout(resolve, 50));
   await fs.rm(h.root, { recursive: true, force: true });
   vi.unstubAllEnvs();
+});
+
+it('starts one native Guide listener after launch readiness and checks the session freshly for every activation', async () => {
+  expect(h.controllerStart).toHaveBeenCalledOnce();
+  expect(h.controllerOptions.helper).toBe(path.resolve('assets/desktop/gamebar-controller.py'));
+  h.controllerSessionActive.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+  expect(await h.controllerOptions.canActivate()).toBe(false);
+  expect(await h.controllerOptions.canActivate()).toBe(true);
+  expect(h.controllerSessionActive).toHaveBeenCalledTimes(2);
+});
+
+it('publishes controller ownership and preserves it through a desktop settings refresh', async () => {
+  h.controllerOptions.changed({ status: 'listening', devices: 1 });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1 });
+  await ipc('update-settings', { launchOnLogin: false });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1 });
+  h.controllerOptions.changed({ status: 'unavailable', devices: 0, reason: 'permission-denied' });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'unavailable', devices: 0, reason: 'permission-denied' });
+});
+
+it('blocks native Guide activation immediately across screen locks and suspend', () => {
+  for (const [event, blocked] of [['lock-screen', true], ['unlock-screen', false], ['suspend', true], ['resume', false]] as const) {
+    h.powerEvents.get(event)!();
+    expect(h.controllerBlocked).toHaveBeenLastCalledWith(blocked);
+  }
 });
 
 it('real account-refresh IPC shares status reads and cannot publish a late old backend response', async () => {
@@ -353,6 +396,9 @@ it('runs real queue IPC, pause/cancel/failure/restart and simultaneous play/down
   await ipc('cancel-download', fourth); await vi.waitFor(() => expect(h.downloads).toHaveLength(4));
   // Closing stops advancement, even when process termination finishes later.
   await install('F'); const preventDefault = vi.fn(); h.events.get('before-quit')!({ preventDefault });
+  expect(h.controllerDispose).toHaveBeenCalledOnce();
+  expect(h.powerEvents.size).toBe(0);
+  expect(await h.controllerOptions.canActivate()).toBe(false);
   await vi.waitFor(() => expect(h.quit).toHaveBeenCalled()); expect(preventDefault).toHaveBeenCalled();
   expect(h.downloads).toHaveLength(4);
   expect(h.notifications).toHaveLength(1); // no completion toast for cancelled/stopped jobs

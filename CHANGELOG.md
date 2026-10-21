@@ -5,6 +5,12 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.17 — 2026-10-21
+
+- Resolve the launcher's real path before locating its native executable, including user-bin symlinks and Debian alternatives. This fixes the reported Win+G command failing to find `xboks.bin`.
+- Add native Debian/Ubuntu packaging with the matching Chromium SUID sandbox installed under root-owned `/opt/xboks`. Keep Electron sandboxing enabled; do not disable Ubuntu's user-namespace policy. This addresses the reported AppImage startup failure from normal desktop and user-service sessions.
+- Listen for the controller's Guide button in the background through a joystick-only Linux input helper. Respect active, unlocked local sessions, release devices on shutdown, and prevent duplicate toggles from renderer polling. Device permissions and physical controller acceptance remain distinct from synthetic tests.
+
 ## 0.3.16 — 2026-10-21
 
 - Fix a main-process exception when closing Game Bar: retain the microphone ownership ID before Electron destroys its web contents, keep late callbacks bound to the old owner, and make repeated teardown safe.

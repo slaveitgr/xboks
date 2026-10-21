@@ -44,6 +44,8 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 
 The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
 
+**0.3.17 development update:** Ubuntu/Debian now have a native DEB option with the matching Chromium sandbox installed under root-owned `/opt/xboks`. This addresses AppImage failures in ordinary Ubuntu desktop/service sessions without disabling sandboxing. A joystick-only background listener handles the controller Guide button while the launcher is hidden, checks the active unlocked local session, and avoids duplicate renderer toggles. See [Ubuntu startup and installation](docs/linux-sandbox-installation.md) for package installation and migration of existing user launchers.
+
 **0.3.16 development update:** an opt-in resident Game Bar service and an isolated Remote Play view inside the launcher are added. Spotify permission denials now have explicit diagnostics and desktop-permission guidance, without changing Snap policy. Login enablement does not start or stop the current app. Native console streaming parity, service login/recovery and Xbox One X gameplay still need acceptance testing.
 
 The **0.3.15 Game Bar foundation** adds the widget directory, Spotify desktop controls, measured performance, an owned PNG gallery and expanded settings. The original package now has a dedicated [Game Bar reference library](docs/analysis/reference/gamebar-widgets.md): all 74 embedded XBF resources and their Greek labels are indexed alongside native interfaces. This is structural evidence, not a claim of complete native implementation or live Windows/Linux parity.
@@ -162,12 +164,14 @@ Automated tests cover ownership/restoration logic, mocked Shell behavior, the re
 
 ### Controller navigation and Game Bar
 
-D-pad/left stick moves focus, A selects, B goes back and LB/RB switches the active page, tab or guide section. Mouse and keyboard remain available. Open the guide through its app control, **Ctrl+G** in the app, the controller Guide button when exposed by the OS, or **`--game-bar`**. For a GNOME **Win+G** binding to an existing AppImage:
+D-pad/left stick moves focus, A selects, B goes back and LB/RB switches the active page, tab or guide section. Mouse and keyboard remain available. Open the guide through its app control, **Ctrl+G** in the app, the controller Guide button when exposed by the OS, or **`--game-bar`**. On Ubuntu/Debian, install the native DEB and bind GNOME **Win+G** to its stable launcher:
 
 ```sh
 python3 scripts/desktop/install-gnome-gamebar.py \
-  --command '/absolute/path/to/xboks.AppImage --game-bar'
+  --command '/opt/xboks/xboks --game-bar'
 ```
+
+The resident process also listens for Linux `BTN_MODE` from capability-verified, already-readable gamepads. It does not grab devices, change udev permissions or read keyboard/mouse nodes. Each activation requires an active, unlocked local graphical session; missing device permissions remain unavailable. Browser polling is a focused-window fallback and yields to the native listener. Physical button and external-game acceptance require a real controller test.
 
 That shortcut helper preserves other bindings and refuses an existing Win+G conflict. The guide currently uses a separate Electron desktop window. The Fullscreen Experience extension does **not** turn it into a native compositor overlay: global Game Bar stacking/input over external games on Wayland remains pending. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
 
@@ -181,7 +185,7 @@ To opt into a resident Game Bar at future graphical logins, install the [user se
 
 ```sh
 python3 scripts/desktop/install-gamebar-service.py \
-  --launcher "$HOME/.local/opt/xboks/xboks.AppImage" --enable
+  --launcher /opt/xboks/xboks --enable
 ```
 
 This enables future login startup without starting or stopping the current app. `--start` is a separate explicit option. The service starts without the main window; closing that window keeps the shared process available. Explicit Quit or stopping the service closes the app and its games. If an older instance already owns the profile, the request hands off to it; a fresh login lets the service own the primary process. Remove the validated owned unit with `python3 scripts/desktop/install-gamebar-service.py --uninstall`. This is user-session persistence, not a compositor overlay.

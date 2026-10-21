@@ -1,6 +1,7 @@
 {
   "name": "xboks",
-  "version": "0.3.16",
+  "version": "0.3.17",
+  "homepage": "https://github.com/slaveitgr/xboks",
   "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
   "license": "MIT",
   "author": "xboks contributors",
@@ -16,6 +17,7 @@
     "test:ci-tools": "node --test scripts/ci/*.test.mjs",
     "build": "npm run clean && npm run typecheck && npm run test && vite build && tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder --linux AppImage --publish never",
+    "dist:deb": "npm run build && electron-builder --linux deb --publish never",
     "pack": "npm run build && electron-builder --linux dir --publish never"
   },
   "dependencies": {
@@ -69,7 +71,9 @@
         "from": "assets/desktop",
         "to": "desktop",
         "filter": [
-          "**/*"
+          "**/*",
+          "!**/__pycache__/**/*",
+          "!**/*.pyc"
         ]
       },
       {
@@ -91,8 +95,13 @@
       "category": "Game",
       "icon": "assets/icon.png",
       "target": [
-        "AppImage"
+        "AppImage",
+        "deb"
       ]
+    },
+    "deb": {
+      "maintainer": "xboks maintainers <slaveitgr@users.noreply.github.com>",
+      "afterInstall": "scripts/linux/deb-after-install.sh"
     }
   },
   "allowScripts": {

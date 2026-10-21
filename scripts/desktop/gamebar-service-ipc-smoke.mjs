@@ -27,7 +27,7 @@ async function wait(predicate,label,timeout=8000){const end=Date.now()+timeout;w
 const fetchOriginal=globalThis.fetch;globalThis.fetch=async()=>{report.networkAttempts++;throw Error('Network forbidden in service IPC smoke.');};
 const originals={};
 for(const method of['spawn','spawnSync','execFile','execFileSync','exec','execSync']){
- originals[method]=childProcess[method];childProcess[method]=function(command,...args){if(/(?:^|\/)(?:gjs(?:-[\d.]+)?|wpctl|pw-dump|playerctl|spotify|xboks-engine|xodus-cli|xodus-service|systemctl)$/.test(String(command))){report.helperAttempts.push(String(command));throw Error('External helpers forbidden in service IPC smoke.');}return originals[method].call(this,command,...args);};
+ originals[method]=childProcess[method];childProcess[method]=function(command,...args){if(/(?:^|\/)(?:python3(?:\.\d+)?|gjs(?:-[\d.]+)?|wpctl|pw-dump|playerctl|spotify|xboks-engine|xodus-cli|xodus-service|systemctl)$/.test(String(command))){report.helperAttempts.push(String(command));throw Error('External helpers forbidden in service IPC smoke.');}return originals[method].call(this,command,...args);};
 }
 const shellOriginal=shell.openExternal;shell.openExternal=async target=>{report.externalOpens.push(String(target));throw Error('External applications forbidden.');};syncBuiltinESMExports();
 const facade=join(profile,'offscreen-electron.mjs');
@@ -64,6 +64,7 @@ async function run(){
   await wait(()=>evaluate(main,"typeof window.launcher?.getRemotePlayState==='function'"),'production preload');
   const snapshot=await evaluate(main,'window.launcher.getSnapshot()');
   check(snapshot.desktopSettings.gameBarResident===true,'native demo snapshot reports explicit service residency');
+  check(snapshot.desktopSettings.gameBarController?.status==='stopped'&&snapshot.desktopSettings.gameBarController?.devices===0,'demo service never starts the native controller listener or claims a host device');
   check(!main.isVisible()&&main.webContents.isOffscreen(),'activated launcher remains offscreen with no focus steal');
   check(JSON.stringify(await evaluate(main,'window.launcher.getRemotePlayState()'))===JSON.stringify({open:false,phase:'closed',canGoBack:false}),'Remote Play starts closed and claims no console connection');
   check(await blocked(main.webContents,'window.launcher.openRemotePlay()','disabled in demo mode'),'main Remote Play open rejects before any official web view or account access');

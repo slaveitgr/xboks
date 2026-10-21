@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const roots: string[] = [];
@@ -24,18 +25,34 @@ it.each(['xboks', 'xodus-nexus'])('packages and executes the actual Linux %s wra
   const { root, hook, fontModule } = await fixture();
   const output = path.join(root, "output with spaces and 'quote"); await fs.mkdir(output);
   const executable = path.join(output, executableName);
+  const helper = Buffer.from('Synthetic sandbox helper fixture, never executed.');
+  await fs.writeFile(path.join(output, 'chrome-sandbox'), helper, { mode: 0o755 });
   const binary = `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({args:process.argv.slice(2),pid:process.pid,node:process.env.ELECTRON_RUN_AS_NODE}));process.exitCode=37;\n`;
   await fs.writeFile(executable, binary, { mode: 0o755 });
   await hook({ electronPlatformName: 'linux', appOutDir: output, packager: { executableName } });
   expect(await fs.readFile(executable + '.bin', 'utf8')).toBe(binary);
   expect((await fs.stat(executable)).mode & 0o777).toBe(0o755);
+  expect((await fs.stat(output)).mode & 0o7777).toBe(0o755);
+  expect((await fs.stat(path.join(output, 'resources'))).mode & 0o7777).toBe(0o755);
+  expect((await fs.stat(path.join(output, 'chrome-sandbox'))).mode & 0o7777).toBe(0o755);
   expect(await fs.readFile(executable, 'utf8')).toBe(await fs.readFile('scripts/launcher-font-wrapper.sh', 'utf8'));
   expect(await fs.readFile(path.join(output, 'resources/font-bootstrap/launcher-fonts.mjs'), 'utf8')).toBe(fontModule);
   expect(await fs.readFile(path.join(output, 'resources/font-bootstrap/bootstrap.mjs'), 'utf8')).toBe(await fs.readFile('scripts/launcher-font-bootstrap.mjs', 'utf8'));
+  expect(await fs.readFile(path.join(output, 'resources/xboks-sandbox.sha256'), 'utf8')).toBe(
+    `${createHash('sha256').update(binary).digest('hex')}  ${executableName}.bin\n${createHash('sha256').update(helper).digest('hex')}  chrome-sandbox\n`);
   const args = ['--native-helper', 'argument with spaces', "it's quoted", '', '$literal;value'];
   const result = spawnSync(executable, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 10_000 });
   expect(result.error).toBeUndefined(); expect(result.status, result.stderr).toBe(37);
   expect(JSON.parse(result.stdout)).toEqual({ args, pid: result.pid, node: '1' });
+  // User launchers and /usr/bin -> alternatives can use different basenames
+  // and multiple symlink hops. Native sibling lookup follows the real wrapper.
+  const links = path.join(root, 'user bin'); await fs.mkdir(links);
+  await fs.symlink(executable, path.join(links, 'alternative target'));
+  const alias = path.join(links, 'different-command');
+  await fs.symlink('alternative target', alias);
+  const linked = spawnSync(alias, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, encoding: 'utf8', timeout: 10_000 });
+  expect(linked.error).toBeUndefined(); expect(linked.status, linked.stderr).toBe(37);
+  expect(JSON.parse(linked.stdout)).toEqual({ args, pid: linked.pid, node: '1' });
 });
 it('does not change non-Linux package outputs', async () => {
   const { root, hook } = await fixture();

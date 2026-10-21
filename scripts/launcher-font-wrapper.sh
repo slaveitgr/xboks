@@ -37,8 +37,11 @@ if [ -n "${LD_PRELOAD-}" ]; then
   fi
   unset xboks_filtered_preload
 fi
-app_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
-binary="$app_root/${0##*/}.bin"
+# Application-menu entries, user commands and Debian alternatives can reach
+# this wrapper through symlinks outside its package directory.
+launcher_path=$(readlink -f -- "$0") || exit 1
+app_root=$(CDPATH= cd -- "$(dirname -- "$launcher_path")" && pwd) || exit 1
+binary="$app_root/${launcher_path##*/}.bin"
 # Native helper modes must retain their normal behavior, including Crashpad.
 if [ "${ELECTRON_RUN_AS_NODE-}" = 1 ]; then exec "$binary" "$@"; fi
 # Steam's GTK input module can deliver the same text twice to Electron. Scope

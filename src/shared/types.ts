@@ -247,6 +247,12 @@ export interface DesktopSettingsStatus {
   trayAvailable?: boolean;
   gameBarResident?: boolean;
   gameBarServiceEnabled?: boolean;
+  /** Native joystick listener ownership; never a claim about a pressed button. */
+  gameBarController?: {
+    status: 'starting' | 'listening' | 'unavailable' | 'error' | 'stopped';
+    devices: number;
+    reason?: string;
+  };
 }
 
 export interface InstallRequest {

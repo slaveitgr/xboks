@@ -45,6 +45,8 @@ jobs:
           done
       - name: Check resident Game Bar installer without changing user services
         run: python3 scripts/desktop/install-gamebar-service.test.py
+      - name: Check Guide-only controller input with synthetic events
+        run: python3 scripts/desktop/gamebar-controller.test.py
       - name: Build launcher candidate (never publish)
         if: github.ref == 'refs/heads/main'
         run: npx --no-install electron-builder --linux AppImage --publish never

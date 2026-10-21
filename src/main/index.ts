@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, Notification, powerSaveBlocker, screen, session, shell, Tray, Menu } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, Notification, powerMonitor, powerSaveBlocker, screen, session, shell, Tray, Menu } from 'electron';
 import { constants, createWriteStream, promises as fs, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -9,6 +9,7 @@ import { scanLibraryProviders } from './library-providers.js';
 import { applyDesktopSettings, backgroundStartupRequested, batteryPercentage, desktopConfigRoot, desktopSession, inspectDesktopSettings, startDesktopLauncher } from './desktop-settings.js';
 import { RemotePlay } from './remote-play.js';
 import { GameBarResidency, gameBarServiceEnabled } from './gamebar-residency.js';
+import { GameBarController, controllerSessionActive } from './gamebar-controller.js';
 import { DesktopGuide } from './desktop-guide.js';
 import { guideAudio } from './guide-audio.js';
 import { GuidePerformanceReader } from './guide-performance.js';
@@ -110,7 +111,8 @@ let settingsUpdates: Promise<unknown> = Promise.resolve();
 let pendingSettingsUpdates = 0;
 async function refreshDesktopSettingsStatus(): Promise<void> {
   desktopSettingsStatus = { ...await inspectDesktopSettings(autostartConfigRoot, process.env), trayAvailable: desktopSettingsStatus.trayAvailable,
-    gameBarResident: gameBarResidency.active, gameBarServiceEnabled: desktopSettingsStatus.gameBarServiceEnabled };
+    gameBarResident: gameBarResidency.active, gameBarServiceEnabled: desktopSettingsStatus.gameBarServiceEnabled,
+    gameBarController: desktopSettingsStatus.gameBarController };
   updateExperienceSession();
 }
 function ensureSettingsTray(): void {
@@ -262,6 +264,28 @@ let preparingContent = false;
 let finalizingGame = false;
 let shortcutOnly = false;
 let launchReady = false;
+const gameBarController = new GameBarController({
+  helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'gamebar-controller.py')
+    : fileURLToPath(new URL('../../assets/desktop/gamebar-controller.py', import.meta.url)),
+  environment: demoMode ? {} : process.env,
+  changed: state => { desktopSettingsStatus.gameBarController = state; if (launchReady) emitSnapshot(); },
+  canActivate: async () => {
+    if (demoMode || !launchReady || quitting || shutdownStarted) return false;
+    const active = await controllerSessionActive();
+    return active && launchReady && !quitting && !shutdownStarted;
+  },
+  onGuide: () => toggleDesktopGuide(),
+});
+desktopSettingsStatus.gameBarController = gameBarController.current;
+const blockControllerSession = () => { gameBarController.setSessionBlocked(true); desktopGuide.hide(); };
+const unblockControllerSession = () => gameBarController.setSessionBlocked(false);
+function disposeGameBarController(): void {
+  gameBarController.dispose();
+  powerMonitor.removeListener('lock-screen', blockControllerSession);
+  powerMonitor.removeListener('suspend', blockControllerSession);
+  powerMonitor.removeListener('unlock-screen', unblockControllerSession);
+  powerMonitor.removeListener('resume', unblockControllerSession);
+}
 let windowOpening: Promise<void> | undefined;
 const pendingRequests: (string | undefined)[] = [];
 const pendingShortcutErrors: unknown[] = [];
@@ -2064,6 +2088,12 @@ app.whenReady().then(async () => {
   if (startupError) { dialog.showErrorBox('Invalid xboks shortcut', startupError.message); app.quit(); return; }
   voiceCapture.install(session.defaultSession);
   if (!demoMode) {
+    powerMonitor.on('lock-screen', blockControllerSession);
+    powerMonitor.on('suspend', blockControllerSession);
+    powerMonitor.on('unlock-screen', unblockControllerSession);
+    powerMonitor.on('resume', unblockControllerSession);
+  }
+  if (!demoMode) {
     backendDiagnostics = new BackendDiagnostics(app.getPath('userData'), () => ({
       launcher: app.getVersion(), backend: backend?.current.version, source: backend?.current.source,
     }));
@@ -2156,6 +2186,7 @@ app.whenReady().then(async () => {
   void checkLauncherUpdate().then(() => emitSnapshot());
   registerIpc();
   launchReady = true;
+  gameBarController.start();
   if (startupRequest.gameId) {
     await refreshAccount(false);
     receiveLaunchRequest(startupRequest.gameId);
@@ -2185,10 +2216,11 @@ app.on('window-all-closed', () => {
   if (gameBarResidency.shouldQuitWithoutWindows(process.platform, shortcutOnly)) app.quit();
 });
 
-app.on('will-quit', () => { settingsTray?.destroy(); settingsTray = undefined; desktopGuide.destroy(); gameDisplay.stop(); });
+app.on('will-quit', () => { disposeGameBarController(); settingsTray?.destroy(); settingsTray = undefined; desktopGuide.destroy(); gameDisplay.stop(); });
 
 app.on('before-quit', (event) => {
   quitting = true;
+  disposeGameBarController();
   fullscreenExperience.dispose();
   voiceCapture.release();
   spotify.dispose();

@@ -15,6 +15,7 @@ import { InstalledCheck } from './XboxIcons';
 import { LibraryTabs, useLibraryCollections, collectionKey, loadCollections, saveCollections, type LibraryView } from './LibraryChrome';
 import { InstallQueueShortcut } from './InstallQueueShortcut';
 import { dispatchBackHandlers } from './gamepad-navigation';
+import { GuideButtonFallback } from './guide-button';
 import { GamepadNavigation, useBackHandler } from './GamepadNavigation';
 import { GamePassIcon, GamePassPage, ShellFlyout, type ShellPanel } from './XboxShell';
 import { GuideOverlay, cycleGuideTab, type GuideTab } from './GuideOverlay';
@@ -1222,18 +1223,17 @@ export default function App() {
     const key = (event: KeyboardEvent) => {
       if (event.ctrlKey && event.key.toLowerCase() === 'g' && !event.repeat) { event.preventDefault(); if (window.desktopGuide) void window.desktopGuide.toggle().catch(error => setToast({ kind: 'error', message: errorMessage(error) })); else setGuideOpen(value => !value); }
     };
-    let held = false;
+    const input = new GuideButtonFallback();
     const timer = window.setInterval(() => {
       const pressed = Array.from(navigator.getGamepads?.() ?? []).some(pad => pad?.buttons[16]?.pressed);
-      if (pressed && !held) {
+      if (input.poll(pressed, document.hasFocus(), !document.hidden, data.desktopSettings?.gameBarController)) {
         if (window.desktopGuide) void window.desktopGuide.toggle().catch(error => setToast({ kind: 'error', message: errorMessage(error) }));
         else setGuideOpen(value => !value);
       }
-      held = pressed;
     }, 100);
     window.addEventListener('keydown', key);
     return () => { window.removeEventListener('keydown', key); window.clearInterval(timer); };
-  }, []);
+  }, [data.desktopSettings?.gameBarController?.status, data.desktopSettings?.gameBarController?.devices, data.desktopSettings?.gameBarController?.reason]);
 
   function changeLibraryFilters(filters: LibraryFilters) {
     setLibraryFilters(filters);
