@@ -1,0 +1,161 @@
+import { useBatteryPercentage } from './BatteryStatus';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { libraryProviders, type LibraryProviderStatus } from '../shared/library-providers';
+import type { AppSnapshot } from '../shared/types';
+import type { SettingsSection } from './SettingsFrame';
+import { ChevronLeft, ChevronRight, CircleUserRound, ExternalLink, Info } from './XboxIcons';
+import { accountIdentityViews } from '../shared/account-identities';
+import { subscriptionBadge } from '../shared/subscription';
+import type { Appearance } from './appearance';
+import type { InterfaceLanguage, InterfaceLanguagePreference } from './ReferenceLocale';
+
+const localize = (language: InterfaceLanguage) => (en: string, el: string) => language === 'el' ? el : en;
+export function SettingGroup({ title, children, action, className = '' }: { title: string; children: ReactNode; action?: ReactNode; className?: string }) {
+  return <section className={`original-setting-group ${className}`}><h2><span>{title}</span>{action}</h2>{children}</section>;
+}
+export function SettingToggle({ label, checked = false, change, reason, switchStyle = false, disabled = false }: { label: string; checked?: boolean; change?: (value: boolean) => void; reason?: string; switchStyle?: boolean; disabled?: boolean }) {
+  const reasonId = useId();
+  const unavailable = disabled || !change;
+  return <div className="original-setting-control" title={reason}><label className={switchStyle ? 'original-setting-switch' : 'original-setting-check'}><span>{label}</span><input type="checkbox" role={switchStyle ? 'switch' : undefined} checked={checked} disabled={unavailable} onChange={event => { if (!unavailable) change?.(event.target.checked); }} aria-describedby={reason ? reasonId : undefined} /></label>{reason ? <small className="settings-control-reason" id={reasonId}>{reason}</small> : null}</div>;
+}
+export function SettingLink({ href, children }: { href: string; children: ReactNode }) { return <a className="original-setting-link" href={href} target="_blank" rel="noreferrer">{children}<ExternalLink /></a>; }
+export function NexusSettings({ children, language = 'en' }: { children: ReactNode; language?: InterfaceLanguage }) {
+  return <details className="settings-nexus-extension"><summary>{localize(language)('Nexus settings', 'Ρυθμίσεις Nexus')}</summary><div>{children}</div></details>;
+}
+/** OS session facts are deliberately separate from compact UI and window fullscreen. */
+export function applicationControlState(data: AppSnapshot, appearance: Appearance, battery: number | null) {
+  const session = data.desktopSettings;
+  const fullscreenExperience = session?.fullscreenExperience === true;
+  const autostartDisabled = session?.canSetAutostart !== true || fullscreenExperience;
+  return { fullscreenExperience, batteryDisabled: !appearance.compactMode || battery === null, autostartDisabled,
+    backgroundVisible: data.settings.launchOnLogin === true,
+    backgroundDisabled: autostartDisabled || data.settings.launchOnLogin !== true,
+    trayDisabled: fullscreenExperience || session?.trayAvailable === false };
+}
+/** Closing social UI is a required first step when entering the compact shell. */
+export function changeCompactMode(value: boolean, change: (patch: Partial<Appearance>) => void, closeSocialSurface?: () => void, announce?: (value: boolean) => void) {
+  if (value) closeSocialSurface?.();
+  announce?.(value);
+  change({ compactMode: value });
+}
+export function OriginalSettings({ section, data, appearance, changeAppearance, gameBar, notificationChange, desktopChange, accountSettings, editAccount, language = 'en', languagePreference = 'system', changeLanguage, closeSocialSurface, openSystemSettings }: {
+  section: SettingsSection; data: AppSnapshot; appearance: Appearance; changeAppearance: (value: Partial<Appearance>) => void;
+  accountSettings?: () => void; editAccount?: () => void; language?: InterfaceLanguage; languagePreference?: InterfaceLanguagePreference;
+  changeLanguage?: (value: InterfaceLanguagePreference) => void; closeSocialSurface?: () => void; openSystemSettings?: () => void;
+  desktopChange: (patch: { launchOnLogin?: boolean; launchInBackground?: boolean; minimizeToTray?: boolean }) => void;
+  gameBar: () => void; notificationChange: (value: boolean) => void;
+}) {
+  const t = localize(language), battery = useBatteryPercentage();
+  const [announcement, announce] = useState('');
+  const [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
+  const serviceUnavailable = t('Requires an Xbox service connection that is not implemented yet.', 'Απαιτείται σύνδεση με υπηρεσία Xbox που δεν έχει υλοποιηθεί ακόμη.');
+  const controls = applicationControlState(data, appearance, battery);
+  const startupReason = controls.fullscreenExperience ? t('Startup options are managed by Fullscreen Experience.', 'Οι επιλογές εκκίνησης ελέγχονται από το Fullscreen Experience.') : data.desktopSettings?.autostartReason ?? t('Desktop startup settings are unavailable in this session.', 'Οι ρυθμίσεις εκκίνησης δεν είναι διαθέσιμες σε αυτήν τη συνεδρία.');
+  if (section === 'application') return <div className="original-settings original-application-settings">
+    <SettingGroup title={t('General', 'Γενικά')}>
+      <SettingToggle switchStyle label={t('Compact mode', 'Περιεκτική λειτουργία')} checked={appearance.compactMode} change={value => changeCompactMode(value, changeAppearance, closeSocialSurface, enabled => announce(enabled ? t('Compact mode enabled', 'Η περιεκτική λειτουργία ενεργοποιήθηκε') : t('Compact mode disabled', 'Η περιεκτική λειτουργία απενεργοποιήθηκε')))} />
+      <SettingToggle switchStyle label={t('Show battery percentage', 'Εμφάνιση ποσοστού ένδειξης μπαταρίας')} checked={appearance.showBattery} disabled={controls.batteryDisabled} change={value => changeAppearance({ showBattery: value })} reason={!appearance.compactMode ? t('Available in compact mode.', 'Διαθέσιμο στην περιεκτική λειτουργία.') : battery === null ? t('No battery is reported by this device.', 'Δεν αναφέρεται μπαταρία από αυτήν τη συσκευή.') : undefined} />
+    </SettingGroup>
+    <SettingGroup title={t('Startup', 'Εκκίνηση')}>
+      {controls.fullscreenExperience ? <div className="original-setting-info settings-startup-notice"><Info /><div><strong>{t('Startup options are disabled', 'Οι επιλογές εκκίνησης είναι απενεργοποιημένες')}</strong><p>{t('These settings do not apply while Fullscreen Experience is enabled.', 'Οι ρυθμίσεις δεν ισχύουν όταν είναι ενεργοποιημένο το Fullscreen Experience.')}</p><button className="original-setting-text-button" disabled={!openSystemSettings} onClick={openSystemSettings}>{t('Open system settings', 'Άνοιγμα ρυθμίσεων συστήματος')}</button></div></div> : null}
+      <SettingToggle switchStyle label={t('Launch Xbox when I start my computer', 'Εκκίνηση του XBOX κατά την εκκίνηση του υπολογιστή μου')} checked={data.settings.launchOnLogin === true} disabled={controls.autostartDisabled} change={value => desktopChange({ launchOnLogin: value })} reason={controls.autostartDisabled ? startupReason : undefined} />
+      {controls.backgroundVisible ? <SettingToggle switchStyle label={t('Launch the app in the background', 'Εκκίνηση της εφαρμογής στο παρασκήνιο')} checked={data.settings.launchInBackground === true} disabled={controls.backgroundDisabled} change={value => desktopChange({ launchInBackground: value })} reason={controls.backgroundDisabled ? startupReason : undefined} /> : null}
+      <SettingToggle switchStyle label={t('On close, minimize the app to the system tray', 'Κατά το κλείσιμο, ελαχιστοποιήστε την εφαρμογή στην περιοχή συστήματος')} checked={data.settings.minimizeToTray === true} disabled={controls.trayDisabled} change={value => desktopChange({ minimizeToTray: value })} reason={controls.trayDisabled ? controls.fullscreenExperience ? startupReason : t('The system tray is unavailable in this desktop session.', 'Η περιοχή συστήματος δεν είναι διαθέσιμη σε αυτήν τη συνεδρία.') : undefined} />
+    </SettingGroup>
+    {accountIdentityViews(data.auth, now).store.name ? <SettingGroup title={t('Offline permissions', 'Δικαιώματα κοινής χρήσης')}><SettingToggle switchStyle label={t('Offline permissions enabled', 'Τα δικαιώματα κοινής χρήσης είναι ενεργοποιημένα')} reason={t('Xbox device licensing cannot be changed by this client.', 'Τα δικαιώματα συσκευής Xbox δεν μπορούν να αλλάξουν από αυτήν την εφαρμογή.')} /><p>{t('Allow other people to play your games on this device. Microsoft manages device authorization and change limits.', 'Επιτρέψτε σε άλλα άτομα να παίζουν τα παιχνίδια σας σε αυτήν τη συσκευή. Η Microsoft διαχειρίζεται την εξουσιοδότηση και τα όρια αλλαγών της συσκευής.')}</p></SettingGroup> : null}
+    <SettingGroup title={t('Developer', 'Προγραμματιστής')}><SettingToggle switchStyle label={t('Show developer options', 'Εμφάνιση επιλογών προγραμματιστή')} checked={appearance.developerOptions} change={value => changeAppearance({ developerOptions: value })} /></SettingGroup>
+    <NexusSettings language={language}><label className="settings-language-field">{t('Interface language', 'Γλώσσα περιβάλλοντος')}<select value={languagePreference} disabled={!changeLanguage} onChange={event => { const value = event.target.value; if (value === 'system' || value === 'en' || value === 'el') changeLanguage?.(value); }}><option value="system">{t('System', 'Σύστημα')}</option><option value="en">English</option><option value="el">Ελληνικά</option></select></label></NexusSettings>
+    <span className="settings-announcement" role="status" aria-live="polite">{announcement}</span>
+  </div>;
+  if (section === 'notifications') return <div className="original-settings">
+    <SettingGroup title="Game Pass"><SettingToggle label={t('Notify me when changes are made to the Game Pass catalog', 'Να ειδοποιούμαι όταν γίνονται αλλαγές στον κατάλογο του Game Pass')} reason={serviceUnavailable} /></SettingGroup>
+    <SettingGroup title="Store"><SettingToggle label={t('Notify me when something on my wishlist is on sale', 'Να ειδοποιούμαι όταν πωλείται κάτι στη λίστα επιθυμιών μου')} reason={serviceUnavailable} /><SettingToggle label={t('Notify me when something on my wishlist is available in Game Pass', 'Να ειδοποιούμαι όταν κάτι από τη λίστα επιθυμιών μου διατίθεται στο Game Pass')} reason={serviceUnavailable} /><SettingToggle label={t('Notify me when a pre-order on my wishlist is available to buy', 'Να ειδοποιούμαι όταν ένα στοιχείο προπαραγγελίας στη λίστα επιθυμιών μου είναι διαθέσιμο για αγορά')} reason={serviceUnavailable} /></SettingGroup>
+    <SettingGroup title={t('More notification settings', 'Περισσότερες ρυθμίσεις ειδοποιήσεων')}><button className="original-setting-text-button" onClick={gameBar}>Game Bar <ExternalLink /></button><p>{t('Manage notifications for messages, followers and friends in Game Bar.', 'Διαχειριστείτε ειδοποιήσεις για τα μηνύματα, τους ακολούθους σας και τους φίλους σας.')}</p></SettingGroup>
+    <NexusSettings language={language}><SettingToggle label={t('Notify me when a game download finishes', 'Ειδοποίηση ολοκλήρωσης λήψης παιχνιδιού')} checked={data.settings.downloadNotifications !== false} change={notificationChange} /></NexusSettings>
+  </div>;
+  if (section === 'accessibility') return <div className="original-settings">
+    <SettingGroup title={t('Audio and visuals', 'Ήχος και απεικονίσεις')}>
+      <SettingToggle label={t('Show profile themes', 'Εμφάνιση θεμάτων σε προφίλ')} reason={serviceUnavailable} />
+      <SettingToggle label={t('Show video previews on hover', 'Εμφάνιση προεπισκόπησης βίντεο με κατάδειξη')} reason={t('The catalog does not provide video previews yet.', 'Ο κατάλογος δεν παρέχει ακόμη προεπισκοπήσεις βίντεο.')} />
+      <SettingToggle label={t('Disable background images', 'Απενεργοποίηση εικόνων φόντου')} checked={appearance.hideBackground} change={value => changeAppearance({ hideBackground: value })} />
+      <SettingToggle label={t('Disable animations', 'Απενεργοποίηση κινήσεων')} checked={appearance.reduceMotion} change={value => changeAppearance({ reduceMotion: value })} />
+      <SettingToggle label={t('Show accessibility features on game card hover', 'Εμφάνιση δυνατοτήτων προσβασιμότητας στην κατάδειξη κάρτας παιχνιδιού')} reason={t('Game accessibility metadata is not available yet.', 'Τα δεδομένα προσβασιμότητας παιχνιδιών δεν είναι ακόμη διαθέσιμα.')} />
+    </SettingGroup>
+    <SettingGroup title={t('More accessibility settings', 'Περισσότερες ρυθμίσεις προσβασιμότητας')}><button className="original-setting-text-button" onClick={gameBar}>Game Bar <ExternalLink /></button><p>{t('Game chat transcription and other Game Bar accessibility features require platform support.', 'Η μεταγραφή συνομιλίας παιχνιδιού και άλλες λειτουργίες Game Bar απαιτούν υποστήριξη πλατφόρμας.')}</p><button className="original-setting-text-button" disabled={!openSystemSettings} onClick={openSystemSettings}>{t('System settings', 'Ρυθμίσεις συστήματος')}</button><p>{t('Change display size, color filters and other desktop accessibility settings.', 'Αλλαγή μεγέθους οθόνης, φίλτρων χρωμάτων και άλλων ρυθμίσεων προσβασιμότητας.')}</p><SettingLink href="https://www.xbox.com/accessories">{t('Xbox Accessories app', 'Εφαρμογή Αξεσουάρ XBOX')}</SettingLink><p>{t('Controller configuration requires support from your Linux desktop or gaming session.', 'Η προσαρμογή του χειριστηρίου απαιτεί υποστήριξη από τη συνεδρία Linux.')}</p><SettingLink href="https://www.xbox.com/community/for-everyone/accessibility">{t('Learn more about accessible gaming', 'Μάθετε περισσότερα σχετικά με τα προσβάσιμα παιχνίδια')}</SettingLink></SettingGroup>
+  </div>;
+  if (section === 'account') return <div className="original-settings">
+    <SettingGroup title={t('Account', 'Λογαριασμός')} action={<button className="settings-heading-action" disabled={!editAccount} onClick={editAccount}>{t('Edit', 'Επεξεργασία')}</button>}><div className="original-account-profile">{data.auth.stored === true && data.auth.avatarDataUrl ? <img src={data.auth.avatarDataUrl} alt={t('Xbox profile', 'Προφίλ Xbox')} /> : <CircleUserRound />}<strong>{data.auth.stored === true ? data.auth.gamertag ?? data.auth.username ?? t('Profile unavailable', 'Μη διαθέσιμο προφίλ') : t('Not signed in', 'Δεν έχετε συνδεθεί')}</strong><SettingLink href="https://social.xbox.com/changegamertag">{t('Change gamertag', 'Αλλαγή ετικέτας παίκτη')}</SettingLink></div><div className="original-account-links"><SettingLink href="https://account.microsoft.com/billing/orders">{t('View order history', 'Προβολή ιστορικού παραγγελιών')}</SettingLink><SettingLink href="https://support.xbox.com/help/subscriptions-billing/buy-games-apps/refund-orders">{t('Request a refund', 'Αίτηση επιστροφής χρημάτων')}</SettingLink><SettingLink href="https://account.microsoft.com/">{t('Manage Microsoft account', 'Διαχείριση λογαριασμού Microsoft')}</SettingLink></div></SettingGroup>
+    <SettingGroup title={t('Redeem a code', 'Εξαργύρωση κωδικού')}><a className="primary original-redeem" href="https://redeem.microsoft.com/" target="_blank" rel="noreferrer">{t('Redeem', 'Εξαργύρωση')}</a></SettingGroup>
+    <SettingGroup title={t('Linked accounts', 'Συνδεδεμένοι λογαριασμοί')}><p>{t('Connect with friends from social networks.', 'Συνδεθείτε με φίλους από τα κοινωνικά δίκτυα.')}</p><p role="status">{t('Linked account information is not available in this client.', 'Οι πληροφορίες συνδεδεμένων κοινωνικών λογαριασμών δεν είναι διαθέσιμες.')}</p></SettingGroup>
+    <SettingGroup title={t('Privacy settings', 'Ρυθμίσεις απορρήτου')} action={<SettingLink href="https://account.xbox.com/settings">{t('Manage', 'Διαχείριση')}</SettingLink>}><h4>{t('Others can see your PC game activity', 'Οι άλλοι μπορούν να δουν τη δραστηριότητα παιχνιδιού στον υπολογιστή σας')}</h4><p>{t('Manage who can see your activity and online presence in your Microsoft Xbox privacy settings.', 'Διαχειριστείτε ποιος μπορεί να βλέπει τη δραστηριότητα και την παρουσία σας στις ρυθμίσεις απορρήτου Xbox.')}</p><select aria-label={t('PC game activity visibility', 'Ορατότητα δραστηριότητας παιχνιδιού')} disabled><option>{t('Managed by Xbox privacy settings', 'Διαχείριση από τις ρυθμίσεις απορρήτου Xbox')}</option></select></SettingGroup>
+    <SettingGroup title={t('Purchase sign-in', 'Είσοδος για αγορές')}><SettingToggle label={t('Skip sign-in for purchases', 'Παράλειψη εισόδου για αγορές')} reason={t("Purchases are handled on Microsoft's website.", 'Οι αγορές πραγματοποιούνται στον ιστότοπο της Microsoft.')} /></SettingGroup>
+  </div>;
+  if (section === 'subscriptions') return <div className="original-settings original-subscriptions-settings"><SettingGroup title={t('Subscriptions', 'Συνδρομές')}><div className="original-subscription"><h3><img className="settings-gamepass-brand" src="./original-xbox/icons/GamePassInline5.svg" alt="" aria-hidden="true" /><span className="settings-gamepass-fallback">XBOX GAME PASS</span></h3><dl><div><dt>{t('Plan', 'Σχέδιο')}</dt><dd>{data.auth.stored === true ? subscriptionBadge(data.auth.subscription) ?? '—' : '—'}</dd></div><div><dt>{t('Status', 'Κατάσταση')}</dt><dd>{data.auth.stored === true ? t('Billing status unavailable', 'Μη διαθέσιμη κατάσταση χρέωσης') : t('Sign in required', 'Απαιτείται σύνδεση')}</dd></div><div><dt>{t('Expiration date', 'Ημερομηνία λήξης')}</dt><dd>—</dd></div></dl><h3>{t('Billing', 'Εξόφληση')}</h3><dl><div><dt>{t('Price', 'Τιμή')}</dt><dd>—</dd></div><div><dt>{t('Next payment', 'Επόμενη εξόφληση')}</dt><dd>—</dd></div><div><dt>{t('Last payment', 'Τελευταία εξόφληση')}</dt><dd><SettingLink href="https://account.microsoft.com/billing/orders">{t('History', 'Ιστορικό')}</SettingLink></dd></div></dl><div className="settings-subscription-manage"><SettingLink href="https://account.microsoft.com/services">{t('Manage', 'Διαχείριση')}</SettingLink></div></div><p className="settings-account-source-note">{t('Renewal dates, payment errors and prices are not returned by the backend. View current details on Microsoft.', 'Η υπηρεσία δεν επιστρέφει ημερομηνίες ανανέωσης, σφάλματα πληρωμής ή τιμές. Δείτε τα τρέχοντα στοιχεία στη Microsoft.')}</p></SettingGroup><ConnectedSubscriptionAccounts data={data} accountSettings={accountSettings} language={language} /></div>;
+  if (section === 'library') return <WindowsLibrarySettings data={data} language={language} />;
+  if (section === 'about') return <div className="original-settings original-about-settings"><SettingGroup title={t('Version', 'Έκδοση')}><p>{data.launcherUpdate?.currentVersion ?? t('Development build', 'Έκδοση ανάπτυξης')} (xboks)<br />{data.backend.version ? `${data.backend.version} (Xodus)` : t('Xodus backend version unavailable', 'Μη διαθέσιμη έκδοση Xodus')}<br />{data.runtime.name ?? t('Runtime not installed', 'Δεν έχει εγκατασταθεί περιβάλλον εκτέλεσης')} (Proton)</p></SettingGroup><SettingGroup title={t('Device', 'Συσκευή')}><p>{data.desktopSettings?.desktop ?? 'Linux'}{data.desktopSettings?.sessionType ? ` · ${data.desktopSettings.sessionType}` : ''}</p><p>{t('Xbox network device identity is not available.', 'Το αναγνωριστικό συσκευής δικτύου Xbox δεν είναι διαθέσιμο.')}</p></SettingGroup><SettingGroup title={t('PC Insider program', 'Πρόγραμμα Insider υπολογιστή')}><p>{t('Windows Xbox Insider enrollment is not available on Linux.', 'Η εγγραφή Xbox Insider των Windows δεν είναι διαθέσιμη στο Linux.')}</p><SettingLink href="https://insider.xbox.com/">Xbox Insider</SettingLink></SettingGroup><SettingGroup title={t('Links', 'Συνδέσεις')}>{[
+    ['https://support.xbox.com/', t('Help', 'Βοήθεια')], ['https://www.microsoft.com/storedocs/terms-of-sale', t('Microsoft Store terms of sale', 'Όροι πώλησης του Microsoft Store')], ['https://privacy.microsoft.com/privacystatement', t('Microsoft privacy statement', 'Δήλωση προστασίας προσωπικών δεδομένων της Microsoft')], ['https://www.microsoft.com/servicesagreement', t('Microsoft services agreement', 'Σύμβαση παροχής υπηρεσιών της Microsoft')], ['https://www.xbox.com/legal/usage-rules', t('Terms of use', 'Όροι χρήσης')], ['https://github.com/slaveitgr/xboks', t('Third-party notices and source', 'Γνωστοποιήσεις τρίτων μερών και πηγαίος κώδικας')], ['https://www.xbox.com/community/for-everyone/accessibility', t('Accessible gaming on Xbox and Windows', 'Προσβάσιμα παιχνίδια στο XBOX και τα Windows')],
+  ].map(([href, label]) => <SettingLink key={href} href={href}>{label}</SettingLink>)}</SettingGroup></div>;
+  return null;
+}
+
+export function ConnectedSubscriptionAccounts({ data, accountSettings, language = 'en' }: { data: AppSnapshot; accountSettings?: () => void; editAccount?: () => void; language?: InterfaceLanguage }) {
+  const t = localize(language), [now, setNow] = useState(Date.now);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 60000); return () => clearInterval(timer); }, []);
+  const identities = accountIdentityViews(data.auth, now);
+  const xboxStatus = data.auth.stored === false ? t('Not signed in', 'Δεν έχετε συνδεθεί') : data.auth.stored === true ? data.auth.gamertag ? t('Xbox profile available', 'Διαθέσιμο προφίλ Xbox') : t('Microsoft credentials stored', 'Αποθηκευμένα διαπιστευτήρια Microsoft') : t('Account status unavailable', 'Μη διαθέσιμη κατάσταση λογαριασμού');
+  return <SettingGroup title={t('Connected accounts', 'Συνδεδεμένοι λογαριασμοί')}><div className="settings-identity-list">
+    <article className="settings-connected-account" aria-label={t('Xbox gaming account', 'Λογαριασμός παιχνιδιών Xbox')}>
+      {data.auth.stored === true && data.auth.avatarDataUrl ? <img src={data.auth.avatarDataUrl} alt={t('Xbox profile', 'Προφίλ Xbox')} /> : <CircleUserRound />}
+      <div><small>{t('Xbox gaming account', 'Λογαριασμός παιχνιδιών Xbox')}</small>{identities.xbox.name ? <strong>{identities.xbox.name}</strong> : null}{identities.xbox.detail && identities.xbox.detail !== identities.xbox.name ? <span>{identities.xbox.detail}</span> : null}<small>{xboxStatus}</small></div>
+      <button className="secondary" disabled={!accountSettings} onClick={accountSettings}>{t('Manage account', 'Διαχείριση λογαριασμού')}</button>
+    </article>
+    <article className="settings-connected-account" aria-label={t('Microsoft Store account', 'Λογαριασμός Microsoft Store')}><CircleUserRound /><div><small>{t('Microsoft Store account', 'Λογαριασμός Microsoft Store')}</small>{identities.store.name ? <strong>{identities.store.name}</strong> : null}<small>{identities.store.name ? t('Store identity verified by backend', 'Η ταυτότητα Store επιβεβαιώθηκε από την υπηρεσία') : t('Store identity unavailable', 'Μη διαθέσιμη ταυτότητα Store')}</small></div><SettingLink href="https://account.microsoft.com/">{t('Manage on Microsoft', 'Διαχείριση στη Microsoft')}</SettingLink></article>
+    </div>{data.auth.stored === false ? <p>{t('No Xbox account is connected.', 'Δεν έχει συνδεθεί λογαριασμός Xbox.')}</p> : null}
+    {identities.namesDiffer ? <p className="original-setting-info" role="status">{t('Xbox and Store use different sign-in names. Store purchases belong to the Store account.', 'Το Xbox και το Store χρησιμοποιούν διαφορετικά ονόματα σύνδεσης. Οι αγορές Store ανήκουν στον λογαριασμό Store.')}</p> : null}
+    <p className="settings-account-source-note">{t("Xbox profile and Microsoft Store identity are checked separately. Opening Microsoft's website does not connect a Store account to xboks.", 'Το προφίλ Xbox και η ταυτότητα Microsoft Store ελέγχονται χωριστά. Το άνοιγμα του ιστότοπου Microsoft δεν συνδέει λογαριασμό Store στο xboks.')}</p>
+  </SettingGroup>;
+}
+/** Exact order/names from the captured Windows aggregated library pane (36020). */
+export const referenceLibraryProviders = [
+  { id: 'ea', name: 'EA App', extension: true }, { id: 'epic', name: 'Epic Games Store', extension: false },
+  { id: 'gog', name: 'GOG GALAXY', extension: false }, { id: 'steam', name: 'Steam', extension: false },
+  { id: 'ubisoft', name: 'Ubisoft Connect PC', extension: true },
+] as const;
+type ReferenceProvider = typeof referenceLibraryProviders[number];
+export function WindowsLibrarySettings({ data, language = 'en' }: { data: AppSnapshot; language?: InterfaceLanguage }) {
+  const t = localize(language);
+  const [providers, setProviders] = useState<LibraryProviderStatus[]>();
+  const [busy, setBusy] = useState(true), [error, setError] = useState(''), [importing, setImporting] = useState(false);
+  const [page, setPage] = useState<ReferenceProvider['id'] | 'licenses'>();
+  const generation = useRef(0), surface = useRef<HTMLDivElement>(null), returnFocus = useRef<HTMLButtonElement | null>(null);
+  async function refresh() {
+    const request = ++generation.current; setBusy(true); setError('');
+    try { const result = await window.launcher.getLibraryProviders(); if (request === generation.current) setProviders(result); }
+    catch { if (request === generation.current) setError(t('Launcher detection failed. Try again.', 'Ο εντοπισμός εκκινητών απέτυχε. Δοκιμάστε ξανά.')); }
+    finally { if (request === generation.current) setBusy(false); }
+  }
+  useEffect(() => { void refresh(); return () => { generation.current++; }; }, []);
+  useEffect(() => { if (page) { surface.current?.querySelector<HTMLButtonElement>('[data-settings-subpage-back]')?.focus(); const content = surface.current?.closest('.xbox-settings-content'); if (content) content.scrollTop = 0; } }, [page]);
+  async function importGame() {
+    setImporting(true); setError('');
+    try { await window.launcher.importGame(); } catch { setError(t('The game could not be imported.', 'Δεν ήταν δυνατή η εισαγωγή του παιχνιδιού.')); }
+    finally { setImporting(false); }
+  }
+  const selected = referenceLibraryProviders.find(provider => provider.id === page);
+  const detection = (id: ReferenceProvider['id']) => busy ? t('Checking…', 'Έλεγχος…') : providers ? providers.some(value => value.id === id && value.installed) ? t('Detected on this PC', 'Εντοπίστηκε σε αυτόν τον υπολογιστή') : t('Not detected on this PC', 'Δεν εντοπίστηκε σε αυτόν τον υπολογιστή') : t('Detection unavailable', 'Μη διαθέσιμος εντοπισμός');
+  const back = () => { setPage(undefined); requestAnimationFrame(() => returnFocus.current?.focus()); };
+  const open = (next: typeof page, target: HTMLButtonElement) => { returnFocus.current = target; setPage(next); };
+  return <div ref={surface} className="original-settings original-library-settings">
+    <div hidden={Boolean(page)}>
+      <SettingGroup title={t('Aggregated library', 'Συγκεντρωτική βιβλιοθήκη')} className="aggregated-library-group"><p>{t('Bring installed games from other PC stores together in your Xbox library.', 'Συγκεντρώστε εγκατεστημένα παιχνίδια από άλλα καταστήματα υπολογιστή στη βιβλιοθήκη Xbox.')}</p><SettingLink href="https://support.xbox.com/help/games-apps/game-setup-and-play/aggregated-gaming-library">{t('Learn more', 'Μάθετε περισσότερα')}</SettingLink><div className="settings-reference-provider-list">{referenceLibraryProviders.map(provider => <button key={provider.id} className="settings-reference-provider-card" onClick={event => open(provider.id, event.currentTarget)} aria-label={`${provider.name} · ${t('Settings', 'Ρυθμίσεις')}`}><ProviderLogo id={provider.id} /><span><strong>{provider.name}</strong><small>{t('Display installed games: unavailable', 'Εμφάνιση εγκατεστημένων παιχνιδιών: μη διαθέσιμη')}</small>{provider.extension ? <small>{t('Extension: not connected', 'Επέκταση: δεν έχει συνδεθεί')}</small> : null}</span><ChevronRight /></button>)}</div></SettingGroup>
+      <SettingGroup title={t('My apps and games', 'Οι εφαρμογές και τα παιχνίδια μου')} className="settings-my-apps"><SettingToggle switchStyle label={t('Show My apps in the library', 'Εμφάνιση των εφαρμογών μου στη βιβλιοθήκη')} reason={t('Application library discovery is not available yet.', 'Ο εντοπισμός εφαρμογών βιβλιοθήκης δεν είναι ακόμη διαθέσιμος.')} /><button className="original-setting-text-button" onClick={event => open('licenses', event.currentTarget)}>{t('Digital license history', 'Ιστορικό ψηφιακών αδειών')}</button><p>{t('View the history of digital licenses associated with your account.', 'Δείτε το ιστορικό των ψηφιακών αδειών που συσχετίζονται με τον λογαριασμό σας.')}</p></SettingGroup>
+      <NexusSettings language={language}><p>{t(`${data.games.length} games in your local library.`, `${data.games.length} παιχνίδια στην τοπική βιβλιοθήκη σας.`)}</p><button className="secondary" disabled={importing} onClick={() => void importGame()}>{importing ? t('Importing…', 'Εισαγωγή…') : t('Add a game', 'Προσθήκη παιχνιδιού')}</button><button className="secondary" disabled={busy} onClick={() => void refresh()}>{busy ? t('Checking launchers…', 'Έλεγχος εκκινητών…') : t('Check again', 'Νέος έλεγχος')}</button><ul className="settings-provider-detection">{referenceLibraryProviders.map(provider => <li key={provider.id}>{provider.name}: {detection(provider.id)}</li>)}</ul><p className="settings-account-source-note">{t('Detection checks desktop entries. It does not connect accounts, import libraries or start Windows Xbox extensions.', 'Ο εντοπισμός ελέγχει καταχωρίσεις επιφάνειας εργασίας. Δεν συνδέει λογαριασμούς, δεν εισάγει βιβλιοθήκες και δεν εκκινεί επεκτάσεις Xbox των Windows.')}</p></NexusSettings>
+    </div>
+    {page ? <div className="settings-provider-detail"><button className="settings-subpage-back" data-settings-subpage-back onClick={back}><ChevronLeft />{t('Library and extensions', 'Βιβλιοθήκη και επεκτάσεις')}</button>{selected ? <SettingGroup title={selected.name}><div className="settings-provider-detail-identity"><ProviderLogo id={selected.id} /><p>{detection(selected.id)}</p></div><SettingToggle switchStyle label={t('Display installed games', 'Εμφάνιση εγκατεστημένων παιχνιδιών')} reason={t('Automatic library discovery for this provider is not implemented.', 'Ο αυτόματος εντοπισμός βιβλιοθήκης για αυτόν τον πάροχο δεν έχει υλοποιηθεί.')} />{selected.extension ? <><SettingToggle switchStyle label={t('Enable extension', 'Ενεργοποίηση επέκτασης')} reason={t('The Windows Xbox extension requires a Linux integration.', 'Η επέκταση Xbox των Windows απαιτεί ενσωμάτωση στο Linux.')} /><p>{t('Extension: not connected', 'Επέκταση: δεν έχει συνδεθεί')}</p></> : null}<SettingLink href={libraryProviders.find(provider => provider.id === selected.id)!.site}>{t('Provider website', 'Ιστότοπος παρόχου')}</SettingLink><NexusSettings language={language}><button className="secondary" disabled={importing} onClick={() => void importGame()}>{t('Add a game manually', 'Χειροκίνητη προσθήκη παιχνιδιού')}</button></NexusSettings></SettingGroup> : <SettingGroup title={t('Digital license history', 'Ιστορικό ψηφιακών αδειών')}><p role="status">{t('Digital license history is not returned by the connected backend.', 'Το ιστορικό ψηφιακών αδειών δεν επιστρέφεται από τη συνδεδεμένη υπηρεσία.')}</p></SettingGroup>}</div> : null}
+    {error ? <p role="alert">{error}</p> : null}
+  </div>;
+}
+function ProviderLogo({ id }: { id: ReferenceProvider['id'] }) {
+  return <span className="settings-provider-logo" aria-hidden="true"><img src={`./original-xbox/providers/${id}.png`} alt="" /></span>;
+}

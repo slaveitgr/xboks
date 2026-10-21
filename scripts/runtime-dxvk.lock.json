@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "baseProtonCommit": "7c0b435495814349735c913fde78da906aecea52",
+  "version": "3.0.2-10-g6227b633",
+  "sources": {
+    "dxvk": {"path": "dxvk-src", "url": "https://github.com/doitsujin/dxvk.git", "commit": "6227b633e8d528952873c4c146773663964fcb31"},
+    "compiler": {"path": "dxvk-src/subprojects/dxbc-spirv", "url": "https://github.com/doitsujin/dxbc-spirv.git", "commit": "c5c1a5b9b61773d59592f628faa39be9add26282"},
+    "compilerSpirv": {"path": "dxvk-src/subprojects/dxbc-spirv/submodules/spirv_headers", "url": "https://github.com/KhronosGroup/SPIRV-Headers.git", "commit": "c8ad050fcb29e42a2f57d9f59e97488f465c436d"},
+    "directx": {"path": "dxvk-src/include/native/directx", "url": "https://github.com/Joshua-Ashton/mingw-directx-headers.git", "commit": "9df86f2341616ef1888ae59919feaa6d4fad693d"},
+    "vulkan": {"path": "dxvk-src/include/vulkan", "url": "https://github.com/KhronosGroup/Vulkan-Headers.git", "commit": "8864cdc896bbc2a9b6eb36b3218fc9ef57908d77"},
+    "spirv": {"path": "dxvk-src/include/spirv", "url": "https://github.com/KhronosGroup/SPIRV-Headers.git", "commit": "04f10f650d514df88b76d25e83db360142c7b174"},
+    "display": {"path": "dxvk-src/subprojects/libdisplay-info", "url": "https://github.com/doitsujin/libdisplay-info.git", "commit": "275e6459c7ab1ddd4b125f28d0440716e4888078"},
+    "meson": {"path": "dxvk-tools/meson", "url": "https://github.com/mesonbuild/meson.git", "commit": "751b09390996163348612f0b106114256305ee40"},
+    "ninja": {"path": "dxvk-tools/ninja", "url": "https://github.com/ninja-build/ninja.git", "commit": "79feac0f3e3bc9da9effc586cd5fea41e7550051"}
+  },
+  "patch": {"file": "assets/dxbc-spirv-constant-compare.patch", "sha256": "0704c5195b638efe3b987567ff03aca34fd6c4cba6c8092c7d3c66bf287770f3", "upstream": "8dae2d8573af08378c6059aca3d5987da99d20b5"},
+  "expectedCompilerSource": "10bbe7c8831e9efd24bbbc9ec228aa06203d3d1138e36f13706427bde9d9a8e3"
+}

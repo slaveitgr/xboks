@@ -1,5 +1,10 @@
 import type { RuntimeStatus } from './types.js';
 
+export function nexusRuntimeUpdateAvailable(runtime: RuntimeStatus): boolean {
+  return Boolean(runtime.nexusAvailable && runtime.nexusName &&
+    runtime.name !== runtime.nexusName.replace(/-x86_64\.tar\.xz$/, ''));
+}
+
 // Describe the active runtime, not the available update. Older Nexus builds
 // used upstream-looking folder names with explicit local patch suffixes.
 export function runtimeDisplay(runtime: RuntimeStatus): { title: string; source: string; version: string } {

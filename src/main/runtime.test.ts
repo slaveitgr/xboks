@@ -96,18 +96,19 @@ describe('previewBaseRelease', () => {
     await expect(manager.installNexus(() => undefined)).rejects.toThrow('while a Xodus operation is active');
   });
 
-  it.each(['valid', 'bad-digest', 'wrong-file'])('verifies a downloaded Nexus runtime before activation: %s', async scenario => {
+  it.each(['valid', 'stderr-warning', 'bad-digest', 'wrong-file', 'unsafe-root', 'mixed-root'])('verifies a downloaded Nexus runtime before activation: %s', async scenario => {
     // Build a real tar.xz runtime archive with a fake wine binary, publish it
     // through the mocked release API, and run the full install path:
     // download, SHA-512 verification, extraction, canonical naming, pointer.
     const releaseName = 'xodus-nexus-runtime-11.0-20261011-g3fd4ae10';
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xodus-nexus-install-test-'));
     const build = path.join(root, 'build');
-    const top = 'proton-xodus-bleeding-edge-11.0-20260803-3-g7c0b4354-x86_64';
+    const top = scenario === 'unsafe-root' ? 'unexpected-root' : 'proton-xodus-bleeding-edge-11.0-20260803-3-g7c0b4354-x86_64';
     const wine = path.join(build, top, 'files', 'bin', 'wine');
     await fs.mkdir(path.dirname(wine), { recursive: true });
     await fs.writeFile(wine, '#!/bin/sh\necho wine-11.0-test\n', { mode: 0o755 });
-    const packed = await run('tar', ['-cJf', path.join(build, `${releaseName}-x86_64.tar.xz`), '-C', build, top]);
+    if (scenario === 'mixed-root') await fs.mkdir(path.join(build, 'second-root'));
+    const packed = await run('tar', ['-cJf', path.join(build, `${releaseName}-x86_64.tar.xz`), '-C', build, top, ...(scenario === 'mixed-root' ? ['second-root'] : [])]);
     if (packed.code !== 0) throw new Error('The tar fixture could not be created.');
     const digest = createHash('sha512').update(await fs.readFile(path.join(build, `${releaseName}-x86_64.tar.xz`))).digest('hex');
     await fs.writeFile(path.join(build, `${releaseName}-x86_64.sha512sum`), `${scenario === 'bad-digest' ? '0'.repeat(128) : digest}  ${scenario === 'wrong-file' ? 'other.tar.xz' : `${releaseName}-x86_64.tar.xz`}\n`);
@@ -123,6 +124,8 @@ describe('previewBaseRelease', () => {
       return new Response(await fs.readFile(file), { status: 200 });
     }) as typeof fetch;
     const manager = new RuntimeManager(root, () => undefined, () => false, fetcher);
+    const originalPreload = process.env.LD_PRELOAD;
+    if (scenario === 'stderr-warning') process.env.LD_PRELOAD = path.join(root, 'nonexistent-test-overlay.so');
     try {
       const previousWine = path.join(root, 'releases', 'previous', 'files', 'bin', 'wine');
       await fs.mkdir(path.dirname(previousWine), { recursive: true });
@@ -130,8 +133,8 @@ describe('previewBaseRelease', () => {
       const previous = { name: 'previous', winePath: previousWine, commit: 'previous', installedAt: 'before' };
       await fs.writeFile(path.join(root, 'current.json'), JSON.stringify(previous));
       await manager.refresh(); // detect tar and sha512sum prerequisites
-      if (scenario !== 'valid') {
-        await expect(manager.installNexus(() => undefined)).rejects.toThrow(/SHA-512/);
+      if (!['valid', 'stderr-warning'].includes(scenario)) {
+        await expect(manager.installNexus(() => undefined)).rejects.toThrow(['unsafe-root', 'mixed-root'].includes(scenario) ? /runtime structure/ : /SHA-512/);
         expect(JSON.parse(await fs.readFile(path.join(root, 'current.json'), 'utf8'))).toEqual(previous);
         expect(manager.current.name).toBe('previous');
         expect(manager.current.updating).toBe(false);
@@ -147,6 +150,8 @@ describe('previewBaseRelease', () => {
       expect(manager.current.installed).toBe(true);
       expect(await fs.readFile(previousWine, 'utf8')).toContain('wine-previous');
     } finally {
+      if (originalPreload === undefined) delete process.env.LD_PRELOAD;
+      else process.env.LD_PRELOAD = originalPreload;
       await fs.rm(root, { recursive: true, force: true });
     }
   });

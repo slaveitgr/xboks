@@ -4,10 +4,10 @@ import { AccountGames, Cover, GameLaunchToolFields, GameTitle, HomePage, Library
 import { defaultLaunchTools } from '../shared/launch-tools';
 import { demoSnapshot } from '../shared/demo-data';
 
-it('keeps one My Library and Store navigation, no separate Game Pass page',()=>{
+it('keeps My Library and Store alongside the separate Xbox Game Pass destination',()=>{
   const html=renderToStaticMarkup(<Sidebar data={demoSnapshot()} page="library" go={()=>{}} />);
   expect(html).toContain('My Library'); expect(html).toContain('Store');
-  expect(html).not.toContain('<span>Game Pass</span>');
+  expect(html).toContain('<span>Game Pass</span>');
 });
 
 it('counts waiting installations in the queue shortcut while a game is running', () => {

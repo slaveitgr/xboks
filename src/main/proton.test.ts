@@ -18,6 +18,35 @@ afterEach(async () => {
 });
 
 describe('prepareProtonRunner', () => {
+  it('provisions every verified shared DXVK module, without modifying prior runtime symlinks', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'nexus-dxvk-prefix-')); created.push(root);
+    const runtime = path.join(root, 'runtime'), compat = path.join(root, 'compat');
+    const wine = path.join(runtime, 'files/bin/wine');
+    const system32 = path.join(compat, 'pfx/drive_c/windows/system32');
+    const modules = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll'];
+    const source = path.join(runtime, 'files/lib/wine/dxvk/x86_64-windows');
+    await mkdir(path.dirname(wine), { recursive: true }); await mkdir(source, { recursive: true });
+    await mkdir(path.join(runtime, 'files/share/default_pfx'), { recursive: true }); await mkdir(system32, { recursive: true });
+    await writeFile(wine, '#!/bin/sh\nprintf "%s" "$WINEDLLOVERRIDES"\n', { mode: 0o700 });
+    await writeFile(path.join(runtime, 'proton'), '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+    for (const name of ['libvkd3d-utils-1.dll', 'd3d12.dll']) await writeFile(path.join(system32, name), 'ready');
+    const components: Record<string, string> = {};
+    const previous = path.join(root, 'previous-dxvk.dll'); await writeFile(previous, 'unchanged');
+    for (const name of modules) {
+      await writeFile(path.join(source, name), `new ${name}`);
+      await symlink(previous, path.join(system32, name));
+      components[name] = createHash('sha256').update(`new ${name}`).digest('hex');
+    }
+    await writeFile(path.join(runtime, 'XODUS_NEXUS_PATCH.json'), JSON.stringify({ features: ['dxvk-constant-compare-v1'], components }));
+    const runner = (await prepareProtonRunner(wine, compat, path.join(root, 'steam')))!;
+    for (const name of modules) expect(await readFile(path.join(system32, name), 'utf8')).toBe(`new ${name}`);
+    expect(await readFile(previous, 'utf8')).toBe('unchanged');
+    expect((await execFile(runner.command)).stdout).toContain('d3d8=n');
+    for (const name of modules) await writeFile(path.join(system32, name), `previous ${name}`);
+    await writeFile(path.join(source, 'dxgi.dll'), 'corrupt');
+    await expect(prepareProtonRunner(wine, compat, path.join(root, 'steam'))).rejects.toThrow('dxgi.dll checksum');
+    for (const name of modules) expect(await readFile(path.join(system32, name), 'utf8')).toBe(`previous ${name}`);
+  });
   it.each([false, true])('keeps the prefix and applies game tools only to Play (tools enabled: %s)', async (withTools) => {
     const root=await mkdtemp(path.join(tmpdir(),'nexus-proton-game-tools-')); created.push(root);
     const runtime=path.join(root,"runtime's directory"), wine=path.join(runtime,'files/bin/wine'), compat=path.join(root,'compat');

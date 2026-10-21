@@ -4,11 +4,11 @@ import { demoAccountLibrary, demoSnapshot } from '../shared/demo-data';
 import { LibraryPage, Sidebar, LibraryProductCard, StoreProductCard } from './App';
 const queuedProduct = demoAccountLibrary('all', new Map()).products.find(p => p.productId === '9NPKGVXPFRSX')!;
 
-it('only the three main sidebar pages select automatically, not recents/settings/queue/account', () => {
+it('only the four main sidebar pages select automatically, not recents/settings/queue/account', () => {
   const html = renderToStaticMarkup(<Sidebar data={demoSnapshot()} page="home" go={() => {}} />);
   const auto = [...html.matchAll(/<button\b[^>]*data-gamepad-auto-select=""[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]);
-  expect(auto).toHaveLength(3);
-  for (const name of ['Home', 'My Library', 'Store']) expect(auto.some(button => button.includes(`<span>${name}</span>`))).toBe(true);
+  expect(auto).toHaveLength(4);
+  for (const name of ['Home', 'Game Pass', 'My Library', 'Store']) expect(auto.some(button => button.includes(`<span>${name}</span>`))).toBe(true);
   for (const name of ['Settings', 'Most recent', 'queue-summary', 'account-summary']) expect(auto.some(button => button.includes(name))).toBe(false);
 });
 
@@ -42,11 +42,11 @@ it('includes explicit library header actions without automatic activation', () =
   expect(header).not.toContain('data-gamepad-auto-select');
 });
 
-it.each([false, true])('Store card selection is focus-only and A uses the guarded action (disabled=%s)', disabled => {
+it.each([false, true])('Store cards open details independently of installation support (disabled=%s)', disabled => {
   const html = renderToStaticMarkup(<StoreProductCard product={queuedProduct} selected disabled={disabled} label={disabled ? 'In Install Queue' : 'Install'} select={() => {}} install={() => {}} />);
   expect(html).toContain('class="catalog-card selected" data-gamepad-card');
   expect(html).toMatch(/<button[^>]*data-gamepad-auto-select="focus"[^>]*data-gamepad-card-activate/);
-  const action = html.match(/<button[^>]*data-gamepad-card-action[^>]*>/)?.[0];
-  expect(action).toContain('data-gamepad-skip');
-  expect(action?.includes('disabled=""')).toBe(disabled);
+  expect(html).not.toContain('data-gamepad-card-action');
+  expect(html).toContain('View game details:');
+  expect(html).not.toContain('disabled=');
 });

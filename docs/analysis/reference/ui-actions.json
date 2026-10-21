@@ -1,0 +1,4567 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "application": "Microsoft.GamingApp",
+    "version": "2610.1001.20.0",
+    "architecture": "x64",
+    "guide_package": "Microsoft.XboxGamingOverlay",
+    "guide_version": "7.326.10141.0",
+    "locale": "el-GR screenshots",
+    "viewport": [
+      1920,
+      1080
+    ]
+  },
+  "coverage_statement": "Evidence-backed UI control and proposed transition inventory; not complete original behavior recovery. No original Windows runtime interaction was recorded.",
+  "status_meanings": {
+    "observed": "Visible control/state in supplied screenshot; not proof of its activation result.",
+    "static": "Direct indexed symbol/function evidence in the pinned package; reachability and runtime result not proven.",
+    "inferred": "Destination/effect inferred from visible text and/or explicit static references. Requires dynamic validation.",
+    "unverified": "Evidence does not establish the control, exact transition or behavior."
+  },
+  "evidence": {
+    "S36018": {
+      "kind": "screenshot",
+      "basename": "3-36018.png",
+      "description": "Notifications; focus on a different category",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "f2b4db171b14db3fbfccf71b4cc0a4df411d18b3f34d691ee098e9990f1485aa",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36017": {
+      "kind": "screenshot",
+      "basename": "4-36017.png",
+      "description": "Application settings; Xbox-mode startup restriction",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "8f118aa4e8ab24c43a59ba3da54f93d439538e8def9020d44b52ba4306f2ed6e",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36016": {
+      "kind": "screenshot",
+      "basename": "5-36016.png",
+      "description": "Subscriptions; failed renewal",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "a587eef0d467831e69d0662774cc9b9a56840da0a64b8aca92ebb099ed0c9092",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36015": {
+      "kind": "screenshot",
+      "basename": "1-36015.png",
+      "description": "Account settings; linked-account loading",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "14acadd29c55bdad12fe067c29364b5ec71d99ee365ca1daf63a9cde0bf9b794",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36014": {
+      "kind": "screenshot",
+      "basename": "2-36014.png",
+      "description": "About settings",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "a5d00a7c46e162a21d33992100defed46bde8ced60cd8589d469368a68c495d8",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36013": {
+      "kind": "screenshot",
+      "basename": "3-36013.png",
+      "description": "Notifications settings",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "3c834cb01c6970b5fa4ef5ef016133af35a893aa2f416c7eda2250855f2abab1",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36012": {
+      "kind": "screenshot",
+      "basename": "4-36012.png",
+      "description": "Notification drawer overflow menu",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "6444a982597222d92b4fda4dca5f6b3925ec1d7502e5ec430ce723eb50a6bc16",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36011": {
+      "kind": "screenshot",
+      "basename": "5-36011.png",
+      "description": "Notification drawer; hovered notification",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "2e70a1004065f0e518457b4ea73fca5baea031e4092f5e3e02be2aa2c53773e9",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36010": {
+      "kind": "screenshot",
+      "basename": "1-36010.png",
+      "description": "Home",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "c93e11c88e884baee4d9649516869d568b2811183a91244bd5780dfa547107c1",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36009": {
+      "kind": "screenshot",
+      "basename": "2-36009.png",
+      "description": "Console sign-in instruction dialog",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "19f5f269fdf5d1480951f73a0b51f4bfce0d652a31e174a258e8320f29d7dd8b",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36008": {
+      "kind": "screenshot",
+      "basename": "3-36008.png",
+      "description": "Windows desktop switch confirmation over Store",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "9043e1db7af4330ec2f864a5234ca3d951c7a4b20b516d345145d63856782389",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36007": {
+      "kind": "screenshot",
+      "basename": "4-36007.png",
+      "description": "Windows Xbox-mode task switcher; Store selected",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "1bd75b9560a405ef59a27ce2cd8793eacd289639cea630d373f7c1514feae864",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36006": {
+      "kind": "screenshot",
+      "basename": "5-36006.png",
+      "description": "Windows Xbox-mode task switcher; Xbox selected",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "c8ac6c98ac4a63243af4f15a19329dd10e7efc208dcc90141b19a3aece92a198",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36005": {
+      "kind": "screenshot",
+      "basename": "1-36005.png",
+      "description": "Guide settings and power submenu",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "0d5399520ddc2497aafeff3d68e35f7b5a6f3a58fab23377bea9f36d1e3cd03d",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36004": {
+      "kind": "screenshot",
+      "basename": "2-36004.png",
+      "description": "Guide settings; scrolled",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "dad9190d00aff2e635482835ffa2bed5dd007f80501f50c9910ca9daf6d6370d",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36003": {
+      "kind": "screenshot",
+      "basename": "3-36003.png",
+      "description": "Guide capture; horizontally shifted tab strip",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "224cc1256712e4eb8a1c605d2d7f97042fc8466c61ffb24dc06b5b9ff98848fe",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36002": {
+      "kind": "screenshot",
+      "basename": "4-36002.png",
+      "description": "Guide audio",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "99c0cd8f7a9d46f7a790217d4344c9d6e73e9228cae288e038c43ef85831725b",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36001": {
+      "kind": "screenshot",
+      "basename": "5-36001.png",
+      "description": "Guide Xbox social",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "e17f6bb555445bb76af9fe14079155f87a678d9b7387ac9de2de182a227d32c1",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36000": {
+      "kind": "screenshot",
+      "basename": "1-36000.png",
+      "description": "Guide Edge browser",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "702c9cca4d02568d386f8be13e7dec966abbbdb4d0905a496edfa753a0aaa463",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35998": {
+      "kind": "screenshot",
+      "basename": "2-35998.png",
+      "description": "Guide Home",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "f8015b85b69d26bf9c8fc49057d5cccf381d6efa627f149bfbf105d975ea393b",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35997": {
+      "kind": "screenshot",
+      "basename": "3-35997.png",
+      "description": "Avatar anchored menu",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "7a22f24cad2b4988cb6e1273bdc7d80b887be132dd3e18e8f60704c701c17763",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35999": {
+      "kind": "screenshot",
+      "basename": "4-35999.png",
+      "description": "Guide settings; top",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "bf3b4f4ee5fce01db335bf7a4b7e5a47752796ffc074cfdeb257089f9b15ed20",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35996": {
+      "kind": "screenshot",
+      "basename": "5-35996.png",
+      "description": "Product detail; failed installation and loading lower sections",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "02b1c15be1c7c31bdf00af16e89a9357d792ea4b8fe8d050262edb32b6051dad",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35995": {
+      "kind": "screenshot",
+      "basename": "1-35995.png",
+      "description": "Install queue; overflow menu",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "72d50f64e8746380dcae8ef4192d6588e8ba4d1ff937396a7ae52e651fac3ee4",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35994": {
+      "kind": "screenshot",
+      "basename": "2-35994.png",
+      "description": "Install queue; error summary tooltip",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "8ea5a57ab4cf5ad478f39398790418edfd12713402d19b61d398a40eecbb4818",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35992": {
+      "kind": "screenshot",
+      "basename": "3-35992.png",
+      "description": "Store; loading skeletons",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "100436b095339ea83a0dd7e743b28e3d7412bc041b22ced9e8afa16b1471b491",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35991": {
+      "kind": "screenshot",
+      "basename": "4-35991.png",
+      "description": "Library; installed filter",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "b897e2ae79a3f5ac7cea872fc07f64937081417e5f3dd30b6b933ddd8f0e9a44",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35990": {
+      "kind": "screenshot",
+      "basename": "5-35990.png",
+      "description": "Game Pass",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "3348f1762d14d30e08290a7e89c58968e6bedfd23e3d82977de65d6eeaef2258",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35993": {
+      "kind": "screenshot",
+      "basename": "1-35993.png",
+      "description": "App social drawer over loaded Store",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "1c823a494f3b503c46c47c568f200ae08ba10573fbf144a314676b9223231b87",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35987": {
+      "kind": "screenshot",
+      "basename": "2-35987.png",
+      "description": "Audio settings",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "79cf60dd945cfc0c6e73c6e639160cfb3edc65671c6325021a3194f3c1f0c370",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35988": {
+      "kind": "screenshot",
+      "basename": "3-35988.png",
+      "description": "Accessibility settings",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "01c2b8e3fd6c3c19c3b7c17dd1d987d7d0e7bae7a8e2a599956727dc3a36f1eb",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S35989": {
+      "kind": "screenshot",
+      "basename": "4-35989.png",
+      "description": "About settings; focus and selection differ",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "564757a6773c54f44b3794f8328f9a530304c7a06a38088275d28946e7f729af",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "F10548": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 10548,
+      "name": "",
+      "instructions": 112,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F21824": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 21824,
+      "name": "gameDetails",
+      "instructions": 32,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F46872": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 46872,
+      "name": "render",
+      "instructions": 869,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F47071": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 47071,
+      "name": "_SettingsAccessibilityTab",
+      "instructions": 59,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F47111": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 47111,
+      "name": "_SettingsAccountTab",
+      "instructions": 36,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F47982": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 47982,
+      "name": "_SettingsAudioTab",
+      "instructions": 80,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48194": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48194,
+      "name": "_SettingsGeneralTab",
+      "instructions": 33,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48201": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48201,
+      "name": "renderGeneralSection",
+      "instructions": 102,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48202": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48202,
+      "name": "renderStartupSection",
+      "instructions": 27,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48203": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48203,
+      "name": "renderOfflinePermissionsSection",
+      "instructions": 59,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48207": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48207,
+      "name": "renderDevModeSection",
+      "instructions": 20,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48373": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48373,
+      "name": "_SettingsInstallOptionsTab",
+      "instructions": 13,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F48595": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 48595,
+      "name": "_SettingsNotificationsTab",
+      "instructions": 51,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F53004": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 53004,
+      "name": "useNavigateToGameDetailsCallback",
+      "instructions": 20,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F53005": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 53005,
+      "name": "",
+      "instructions": 86,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F56316": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 56316,
+      "name": "getGameDetailsActions",
+      "instructions": 124,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F57124": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 57124,
+      "name": "useProductActionCategory",
+      "instructions": 178,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F62778": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 62778,
+      "name": "StoreGameDetailsScreenBody",
+      "instructions": 139,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F62779": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 62779,
+      "name": "StoreGameDetailsScreenContent",
+      "instructions": 157,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F62791": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 62791,
+      "name": "StoreGameDetailsScreenBodyError",
+      "instructions": 114,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F64024": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 64024,
+      "name": "useViewGameDetailsItem",
+      "instructions": 25,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F64025": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 64025,
+      "name": "action",
+      "instructions": 21,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F64100": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 64100,
+      "name": "useViewGameOperationDetails",
+      "instructions": 29,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F64101": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 64101,
+      "name": "",
+      "instructions": 24,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "F64107": {
+      "kind": "hermes_function_index",
+      "local_index": "work/reference/hermes96-code-index.json",
+      "function_id": 64107,
+      "name": "useInstallOperationDetails",
+      "instructions": 135,
+      "scope": "Indexed explicit operands only; not a verified dynamic trace or complete semantic reconstruction."
+    },
+    "K3437": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3437,
+      "symbol": "/gamepass",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K3790": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3790,
+      "symbol": "/library",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K3865": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3865,
+      "symbol": "/store",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K3866": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3866,
+      "symbol": "/store/gamedetails",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K3867": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3867,
+      "symbol": "/store/gamedetails/postinstall",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K3868": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 3868,
+      "symbol": "/store/subscriptiondetails",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K12148": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 12148,
+      "symbol": "Settings_Enable_Automatic_Updates_Description",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K12587": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 12587,
+      "symbol": "SettingsSubscriptionsTab_FailedToRenewErrorBody",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K12837": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 12837,
+      "symbol": "Settings_Throttle_Downloads_Max_Bandwidth",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K13248": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 13248,
+      "symbol": "ThirdPartyLauncher_Epic",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K13330": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 13330,
+      "symbol": "Settings_Throttle_Downloads",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K14389": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 14389,
+      "symbol": "Settings_Startup_Options_Disabled",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K14390": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 14390,
+      "symbol": "Settings_Startup_Options_Disabled_Subtext",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K14541": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 14541,
+      "symbol": "LibraryAndExtensionsSettings_ThirdPartyTitle",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K15939": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 15939,
+      "symbol": "SettingsAccountTab_MismatchStoreAccount",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K17440": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 17440,
+      "symbol": "SettingsAccessibilityTab_ShowThemes",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K19101": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 19101,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_PlanColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K19509": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 19509,
+      "symbol": "Extension_UbisoftConnectPC",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K20074": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 20074,
+      "symbol": "Settings_ShowBatteryPercentage",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K20986": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 20986,
+      "symbol": "Settings_AudioSettingsVoiceVolume",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K21694": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 21694,
+      "symbol": "LibraryAndExtensionsSettings_ShowHiddenGames",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K22846": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 22846,
+      "symbol": "LibraryAndExtensionsSettings_DisplayMyApps",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K23436": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 23436,
+      "symbol": "Extension_RiotClient",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K24536": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 24536,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_ExpiresColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K26053": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 26053,
+      "symbol": "Settings_Enable_Downloads_Updates_During_Gameplay",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K26395": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 26395,
+      "symbol": "LibraryAndExtensionsSettings_ActionableErrorText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K27323": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 27323,
+      "symbol": "Settings_CompactMode",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K28172": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 28172,
+      "symbol": "SettingsAccessibilityTab_DisableAnimations",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K28567": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 28567,
+      "symbol": "ThirdPartyLauncher_Ubisoft",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K29420": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 29420,
+      "symbol": "ThirdPartyLauncher_BattleNet",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K29820": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 29820,
+      "symbol": "Settings_AudioSettingsEnableControllerSounds",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K30706": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 30706,
+      "symbol": "SettingsModal_LibraryAndExtensionsTab",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K30864": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 30864,
+      "symbol": "Settings_Create_Desktop_Shortcut_On_Install_Description",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K31087": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 31087,
+      "symbol": "Extension_BattleNet",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K35496": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 35496,
+      "symbol": "Settings_AudioSettingsInputDevice",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K35507": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 35507,
+      "symbol": "Settings_AudioSettingsOutputDevice",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K35761": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 35761,
+      "symbol": "SettingsAccessibilityTab_ShowVideoPreviews",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K36212": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 36212,
+      "symbol": "Settings_RemoteInstall",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K36467": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 36467,
+      "symbol": "LibraryAndExtensionsSettings_AutoStartExtensionTitle",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K37095": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 37095,
+      "symbol": "Settings_AudioSettingsEnableKeyboardSounds",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K37157": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 37157,
+      "symbol": "LibraryAndExtensionsSettings_ThirdPartyHeaderText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K38617": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 38617,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_LastPaymentColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K38802": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 38802,
+      "symbol": "MyGameListItem_ContextMenu_ViewGameDetails",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K39229": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 39229,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_NextPaymentColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K39988": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 39988,
+      "symbol": "SettingsAccountTab_IdentitySocialAccountsTitleText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41609": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41609,
+      "symbol": "LibraryAndExtensionsSettings_ExtensionsHeaderText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41616": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41616,
+      "symbol": "LibraryAndExtensionsSettings_Incompatible",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41618": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41618,
+      "symbol": "LibraryAndExtensionsSettings_NoExtensionsInstalled",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41619": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41619,
+      "symbol": "LibraryAndExtensionsSettings_NoProvidersInstalled",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41813": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41813,
+      "symbol": "SettingsAccountTab_IdentityGamingAccountTitleText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41956": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41956,
+      "symbol": "SettingsNotificationsTab_StoreWishlist",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41957": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41957,
+      "symbol": "SettingsNotificationsTab_StoreWishlistOnGamePass",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K45326": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 45326,
+      "symbol": "SettingsNotificationsTab_StoreWishlistPreorder",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47012": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47012,
+      "symbol": "SettingsAccessibilityTab_DisableBackgroundImages",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47022": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47022,
+      "symbol": "SettingsAccessibilityTab_ShowAccessibilityFeaturesOnGameCardHover",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47048": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47048,
+      "symbol": "SettingsAccountTab_IdentityStoreAccountTitleText",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47211": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47211,
+      "symbol": "SettingsNotificationsTab_CatalogChanges",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47260": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47260,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_PriceColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47263": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47263,
+      "symbol": "SettingsSubscriptionsTab_ActiveState_StatusColumnHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47273": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47273,
+      "symbol": "SettingsSubscriptionsTab_FailedToRenewErrorHeader",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47318": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47318,
+      "symbol": "Settings_AudioSettingsNavigationSounds",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47323": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47323,
+      "symbol": "Settings_AudioSettingsNoiseSuppression",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47325": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47325,
+      "symbol": "Settings_AudioSettingsPushToTalk",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47342": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47342,
+      "symbol": "Settings_Install_Options_Ask_Every_Install_Description",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47904": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47904,
+      "symbol": "ThirdPartyLauncher_Steam",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K47934": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 47934,
+      "symbol": "StoreGameDetailsRoute",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K67432": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 67432,
+      "symbol": "/home",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K73954": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 73954,
+      "symbol": "Apps_GOG",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "GB-manifest": {
+      "kind": "manifest",
+      "local_path": "work/reference/gamebar-AppxManifest.xml",
+      "scope": "Microsoft.XboxGamingOverlay separate package; GameBar.exe/GameBar.App; overlay extension, protocols and capabilities. Not Linux behavior."
+    },
+    "S36020": {
+      "kind": "screenshot",
+      "basename": "1-36020.png",
+      "description": "Library and extensions; aggregated library provider cards",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "fdc49e017c81686dd77d2aab7b518da1b49a29f73fe0c971f673fd3a05c9d9ff",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "S36019": {
+      "kind": "screenshot",
+      "basename": "2-36019.png",
+      "description": "Install options; location, shortcut, update and speed-unit settings",
+      "viewport": [
+        1920,
+        1080
+      ],
+      "sha256": "4c532ff44b299f64f525616acce2a64a18a4e4a8d13e972a62668b56c609a8c2",
+      "scope": "Visible pixels only; no recorded action sequence or runtime result."
+    },
+    "K13606": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 13606,
+      "symbol": "SettingsDownloadSpeedUnit",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K15202": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 15202,
+      "symbol": "setDefaultInstallLocationAsync",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K37067": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 37067,
+      "symbol": "Extension_EAApp",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K48745": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 48745,
+      "symbol": "ThirdPartyLauncher_EA",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K29474": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 29474,
+      "symbol": "LibraryAndExtensionsSettings_Disabled",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41605": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41605,
+      "symbol": "LibraryAndExtensionsSettings_Connecting",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K36627": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 36627,
+      "symbol": "LibraryAndExtensionsSettings_Connected",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K41608": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 41608,
+      "symbol": "LibraryAndExtensionsSettings_Enabled",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    },
+    "K38309": {
+      "kind": "hermes_string",
+      "local_index": "work/reference/hermes96-decoded.json",
+      "string_id": 38309,
+      "symbol": "LibraryAndExtensionsSettings_Error",
+      "scope": "Symbol presence; does not prove visible order, reachability or service behavior."
+    }
+  },
+  "actions": [
+    {
+      "id": "shell.home",
+      "surface": "shell",
+      "control": "Home",
+      "destination_or_effect": "HomeRoute",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36010",
+        "S35990",
+        "S35991",
+        "S35992",
+        "F10548",
+        "K67432"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.game-pass",
+      "surface": "shell",
+      "control": "Game Pass",
+      "destination_or_effect": "GamePassRoute",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36010",
+        "S35990",
+        "S35991",
+        "S35992",
+        "F10548",
+        "K3437"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.library",
+      "surface": "shell",
+      "control": "Library",
+      "destination_or_effect": "LibraryRoute",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36010",
+        "S35990",
+        "S35991",
+        "S35992",
+        "F10548",
+        "K3790"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.store",
+      "surface": "shell",
+      "control": "Store",
+      "destination_or_effect": "StoreRoute",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36010",
+        "S35990",
+        "S35991",
+        "S35992",
+        "F10548",
+        "K3865"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.avatar",
+      "surface": "shell",
+      "control": "Avatar",
+      "destination_or_effect": "Anchored profile menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.friends",
+      "surface": "shell",
+      "control": "Social icon",
+      "destination_or_effect": "App friends drawer",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.notifications",
+      "surface": "shell",
+      "control": "Bell",
+      "destination_or_effect": "App notifications drawer",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36011"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.queue",
+      "surface": "shell",
+      "control": "Active download thumbnail",
+      "destination_or_effect": "Install queue / download summary",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "shell.back",
+      "surface": "shell",
+      "control": "Back",
+      "destination_or_effect": "Previous navigation entry",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35996",
+        "F21824"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Screenshot has a back button; exact history/scroll restoration not observed."
+    },
+    {
+      "id": "shell.search",
+      "surface": "shell",
+      "control": "Search field",
+      "destination_or_effect": "Search results for entered query",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36010"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Query",
+        "Market",
+        "Catalog result state"
+      ]
+    },
+    {
+      "id": "shell.console",
+      "surface": "shell",
+      "control": "Console/remote-play entry",
+      "destination_or_effect": "Console sign-in instruction dialog",
+      "control_evidence_status": "unverified",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36009"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Dialog is observed; the initiating control and subsequent console picker were not recorded."
+    },
+    {
+      "id": "profile.profile",
+      "surface": "profile-menu",
+      "control": "View profile",
+      "destination_or_effect": "Player profile",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.subscriptions",
+      "surface": "profile-menu",
+      "control": "My subscriptions",
+      "destination_or_effect": "Subscriptions settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.deals",
+      "surface": "profile-menu",
+      "control": "Offers and discounts",
+      "destination_or_effect": "Offer gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.insider",
+      "surface": "profile-menu",
+      "control": "Xbox Insider Program",
+      "destination_or_effect": "Insider experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.settings",
+      "surface": "profile-menu",
+      "control": "Settings",
+      "destination_or_effect": "Settings modal",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.support",
+      "surface": "profile-menu",
+      "control": "Support",
+      "destination_or_effect": "Support experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.feedback",
+      "surface": "profile-menu",
+      "control": "Feedback",
+      "destination_or_effect": "Feedback experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.offline",
+      "surface": "profile-menu",
+      "control": "Appear offline",
+      "destination_or_effect": "Presence mutation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.sign-out",
+      "surface": "profile-menu",
+      "control": "Sign out",
+      "destination_or_effect": "Account sign-out",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35997"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "notifications.unread",
+      "surface": "notifications-drawer",
+      "control": "Show unread only",
+      "destination_or_effect": "Filter notification list",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36011"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Notification read state"
+      ]
+    },
+    {
+      "id": "notifications.menu",
+      "surface": "notifications-drawer",
+      "control": "Overflow",
+      "destination_or_effect": "Two-item menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36012"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "notifications.mark-all-read",
+      "surface": "notifications-menu",
+      "control": "Mark all as read",
+      "destination_or_effect": "Persist read state",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36012"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Notification provider"
+      ]
+    },
+    {
+      "id": "notifications.settings",
+      "surface": "notifications-menu",
+      "control": "Settings",
+      "destination_or_effect": "Notifications settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36012",
+        "S36013"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "notifications.item",
+      "surface": "notifications-drawer",
+      "control": "Notification row",
+      "destination_or_effect": "Type-specific destination",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36011"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Update, discovery, achievement and social rows are visible; their activation destinations were not captured."
+    },
+    {
+      "id": "notifications.close",
+      "surface": "notifications-drawer",
+      "control": "Close",
+      "destination_or_effect": "Underlying page",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36011"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "home.recent",
+      "surface": "home",
+      "control": "Recent game tile",
+      "destination_or_effect": "Context-sensitive recent-game action",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36010",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Installation",
+        "Item source/type",
+        "Launchability"
+      ],
+      "notes": "Do not infer that every recent tile launches, or that every recent tile opens catalog details."
+    },
+    {
+      "id": "home.featured",
+      "surface": "home",
+      "control": "Editorial card",
+      "destination_or_effect": "Content-specific target",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36010"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Editorial target; not just artwork/title"
+      ]
+    },
+    {
+      "id": "store.product",
+      "surface": "catalog-card",
+      "control": "Product card",
+      "destination_or_effect": "Shared product details for selected productId",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35992",
+        "F53004",
+        "F53005",
+        "K47934",
+        "K3866"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Stable catalog productId",
+        "Product details state"
+      ],
+      "notes": "Static navigation callback supports the route; no before/after Windows click trace is supplied."
+    },
+    {
+      "id": "game-pass.product",
+      "surface": "catalog-card",
+      "control": "Product card",
+      "destination_or_effect": "Shared product details for selected productId",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35990",
+        "F53004",
+        "F53005",
+        "K47934",
+        "K3866"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Stable catalog productId",
+        "Product details state"
+      ],
+      "notes": "Static navigation callback supports the route; no before/after Windows click trace is supplied."
+    },
+    {
+      "id": "home-catalog.product",
+      "surface": "catalog-card",
+      "control": "Product card",
+      "destination_or_effect": "Shared product details for selected productId",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36010",
+        "F53004",
+        "F53005",
+        "K47934",
+        "K3866"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Stable catalog productId",
+        "Product details state"
+      ],
+      "notes": "Static navigation callback supports the route; no before/after Windows click trace is supplied."
+    },
+    {
+      "id": "store.all-pc",
+      "surface": "store-shortcuts",
+      "control": "All PC games",
+      "destination_or_effect": "PC game gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35992"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "store.paid",
+      "surface": "store-shortcuts",
+      "control": "Top paid",
+      "destination_or_effect": "Top-paid gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35992"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "store.addons",
+      "surface": "store-shortcuts",
+      "control": "Add-ons",
+      "destination_or_effect": "Add-on gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35992"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "store.redeem",
+      "surface": "store-shortcuts",
+      "control": "Redeem",
+      "destination_or_effect": "Code redemption experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35992"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "store.wishlist",
+      "surface": "store-shortcuts",
+      "control": "My wishlist",
+      "destination_or_effect": "Wishlist gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35992"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.all",
+      "surface": "game-pass-shortcuts",
+      "control": "All games",
+      "destination_or_effect": "Game Pass catalog",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.genres",
+      "surface": "game-pass-shortcuts",
+      "control": "Browse genres",
+      "destination_or_effect": "Genre gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.later",
+      "surface": "game-pass-shortcuts",
+      "control": "Play later",
+      "destination_or_effect": "Library Play later tab",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.benefits",
+      "surface": "game-pass-shortcuts",
+      "control": "My benefits",
+      "destination_or_effect": "Benefits gallery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.subscribe",
+      "surface": "game-pass-shortcuts",
+      "control": "Get Game Pass",
+      "destination_or_effect": "Subscription purchase/details",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "game-pass.carousel",
+      "surface": "game-pass",
+      "control": "Carousel pagination / pause",
+      "destination_or_effect": "Select or pause editorial carousel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35990"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Carousel state"
+      ]
+    },
+    {
+      "id": "library.tab.games",
+      "surface": "library-tabs",
+      "control": "My games",
+      "destination_or_effect": "Library games tab",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35991",
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.tab.later",
+      "surface": "library-tabs",
+      "control": "Play later",
+      "destination_or_effect": "Library saved-list tab",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35991",
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.tab.history",
+      "surface": "library-tabs",
+      "control": "Play history",
+      "destination_or_effect": "Library history tab",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35991",
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.tab.queue",
+      "surface": "library-tabs",
+      "control": "Install queue",
+      "destination_or_effect": "Library queue tab",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35991",
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.filter.platform",
+      "surface": "library-filters",
+      "control": "Platform",
+      "destination_or_effect": "Stateful filter/sort menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Closed pills observed; exact menu options, ordering and selection semantics are not shown."
+    },
+    {
+      "id": "library.filter.access",
+      "surface": "library-filters",
+      "control": "Access",
+      "destination_or_effect": "Stateful filter/sort menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Closed pills observed; exact menu options, ordering and selection semantics are not shown."
+    },
+    {
+      "id": "library.filter.play-state",
+      "surface": "library-filters",
+      "control": "Play state",
+      "destination_or_effect": "Stateful filter/sort menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Closed pills observed; exact menu options, ordering and selection semantics are not shown."
+    },
+    {
+      "id": "library.filter.sort",
+      "surface": "library-filters",
+      "control": "Last used",
+      "destination_or_effect": "Stateful filter/sort menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Closed pills observed; exact menu options, ordering and selection semantics are not shown."
+    },
+    {
+      "id": "library.filter.all",
+      "surface": "library-filters",
+      "control": "Filter icon",
+      "destination_or_effect": "Stateful filter/sort menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Closed pills observed; exact menu options, ordering and selection semantics are not shown."
+    },
+    {
+      "id": "library.remove-filter",
+      "surface": "library-filters",
+      "control": "Applied filter chip close",
+      "destination_or_effect": "Remove selected installed filter",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.add",
+      "surface": "library",
+      "control": "Plus",
+      "destination_or_effect": "Add game/app flow",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "library.card-primary",
+      "surface": "library",
+      "control": "Installed game card",
+      "destination_or_effect": "Item-specific primary action",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35991",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Installed item identity",
+        "Source",
+        "Action category"
+      ]
+    },
+    {
+      "id": "library.details",
+      "surface": "library-context-menu",
+      "control": "View game details",
+      "destination_or_effect": "Shared product detail route",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "K38802",
+        "F64024",
+        "F64025",
+        "F21824"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Catalog product mapping"
+      ],
+      "notes": "The supplied library screenshot has no open game context menu."
+    },
+    {
+      "id": "queue.collapse.active",
+      "surface": "install-queue",
+      "control": "Active section",
+      "destination_or_effect": "Toggle section expansion",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "queue.collapse.detected",
+      "surface": "install-queue",
+      "control": "Ready to install section",
+      "destination_or_effect": "Toggle section expansion",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "queue.settings",
+      "surface": "install-queue",
+      "control": "Installation options",
+      "destination_or_effect": "Install options settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.resume-all",
+      "surface": "install-queue",
+      "control": "Resume all",
+      "destination_or_effect": "Resume eligible operations",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.pause-all",
+      "surface": "install-queue",
+      "control": "Pause all",
+      "destination_or_effect": "Pause eligible operations",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.add-all",
+      "surface": "install-queue",
+      "control": "Add all",
+      "destination_or_effect": "Import detected installations",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.ignore-all",
+      "surface": "install-queue",
+      "control": "Ignore all",
+      "destination_or_effect": "Dismiss detected installation candidates",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.add-item",
+      "surface": "install-queue",
+      "control": "Plus on detected item",
+      "destination_or_effect": "Import selected detected installation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.menu",
+      "surface": "install-queue",
+      "control": "Active operation overflow",
+      "destination_or_effect": "Game details / resume / cancel menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35994",
+        "S35995"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Operation or detected-installation state"
+      ]
+    },
+    {
+      "id": "queue.menu.details",
+      "surface": "queue-operation-menu",
+      "control": "View game details",
+      "destination_or_effect": "Shared product details",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35995",
+        "F64100",
+        "F64101",
+        "F64107"
+      ],
+      "original_runtime_verified": false,
+      "notes": "This screenshot is the failed-install state; do not always show resume/pause/cancel irrespective of state."
+    },
+    {
+      "id": "queue.menu.resume",
+      "surface": "queue-operation-menu",
+      "control": "Resume installation",
+      "destination_or_effect": "Resume selected operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35995",
+        "F64100",
+        "F64101",
+        "F64107"
+      ],
+      "original_runtime_verified": false,
+      "notes": "This screenshot is the failed-install state; do not always show resume/pause/cancel irrespective of state."
+    },
+    {
+      "id": "queue.menu.cancel",
+      "surface": "queue-operation-menu",
+      "control": "Cancel installation",
+      "destination_or_effect": "Cancellation flow",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35995",
+        "F64100",
+        "F64101",
+        "F64107"
+      ],
+      "original_runtime_verified": false,
+      "notes": "This screenshot is the failed-install state; do not always show resume/pause/cancel irrespective of state."
+    },
+    {
+      "id": "details.progress",
+      "surface": "product-details",
+      "control": "Error / View progress",
+      "destination_or_effect": "Selected game operation in queue",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Error state at 4% is observed; exact resulting navigation is inferred."
+    },
+    {
+      "id": "details.subscribe",
+      "surface": "product-details",
+      "control": "Subscribe / Included with tier",
+      "destination_or_effect": "Entitlement/subscription action",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Product-specific offer, not a hardcoded account tier."
+    },
+    {
+      "id": "details.unavailable",
+      "surface": "product-details",
+      "control": "Unavailable",
+      "destination_or_effect": "Disabled action",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Disabled control is observed; no activation is implied."
+    },
+    {
+      "id": "details.wishlist",
+      "surface": "product-details",
+      "control": "Heart",
+      "destination_or_effect": "Toggle wishlist membership",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Requires account-specific wishlist state."
+    },
+    {
+      "id": "details.later",
+      "surface": "product-details",
+      "control": "Play later icon",
+      "destination_or_effect": "Toggle saved-list membership",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Icon meaning supported by package action family; exact result not runtime observed."
+    },
+    {
+      "id": "details.overflow",
+      "surface": "product-details",
+      "control": "Overflow",
+      "destination_or_effect": "Product action menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35996",
+        "F57124"
+      ],
+      "original_runtime_verified": false,
+      "notes": "No expanded product menu supplied; do not copy queue/library menu contents blindly."
+    },
+    {
+      "id": "details.tab.details",
+      "surface": "product-details",
+      "control": "Details",
+      "destination_or_effect": "Selected product detail section",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F62778"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "details.tab.reviews",
+      "surface": "product-details",
+      "control": "Reviews",
+      "destination_or_effect": "Selected product detail section",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F62778"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "details.tab.more",
+      "surface": "product-details",
+      "control": "More",
+      "destination_or_effect": "Selected product detail section",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35996",
+        "F62778"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "details.media",
+      "surface": "product-details",
+      "control": "Media thumbnails",
+      "destination_or_effect": "Select screenshot/video media",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35996"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Only six loading placeholders are shown; no completed media selector is observed."
+    },
+    {
+      "id": "details.load",
+      "surface": "product-details",
+      "control": "Route entry",
+      "destination_or_effect": "Loading → content or product-specific error",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "F62778",
+        "F62779",
+        "F62791"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "productId",
+        "Product metadata",
+        "Entitlements",
+        "Installation",
+        "Offer",
+        "Media",
+        "Ratings",
+        "Friends who play"
+      ],
+      "notes": "No full loaded lower-details/reviews/more reference is supplied. Render only actual data, and preserve the selected product identity."
+    },
+    {
+      "id": "settings.tab.account",
+      "surface": "settings-categories",
+      "control": "Account",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.application",
+      "surface": "settings-categories",
+      "control": "Application",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.subscriptions",
+      "surface": "settings-categories",
+      "control": "Subscriptions",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36016",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.notifications",
+      "surface": "settings-categories",
+      "control": "Notifications",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.install",
+      "surface": "settings-categories",
+      "control": "Install options",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.library",
+      "surface": "settings-categories",
+      "control": "Library and extensions",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36020",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.audio",
+      "surface": "settings-categories",
+      "control": "Audio",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.accessibility",
+      "surface": "settings-categories",
+      "control": "Accessibility",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.tab.about",
+      "surface": "settings-categories",
+      "control": "About",
+      "destination_or_effect": "Selected settings content pane",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36014",
+        "F46872"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.close",
+      "surface": "settings-frame",
+      "control": "Close",
+      "destination_or_effect": "Underlying surface",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Escape/B behavior and focus restoration are implementation requirements pending Windows runtime verification."
+    },
+    {
+      "id": "settings.account.edit",
+      "surface": "settings-account",
+      "control": "Edit profile",
+      "destination_or_effect": "Account profile edit",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.gamertag",
+      "surface": "settings-account",
+      "control": "Change gamertag",
+      "destination_or_effect": "External profile experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.orders",
+      "surface": "settings-account",
+      "control": "Order history",
+      "destination_or_effect": "Microsoft order-history experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.refund",
+      "surface": "settings-account",
+      "control": "Request refund",
+      "destination_or_effect": "Microsoft refund experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.store-account",
+      "surface": "settings-account",
+      "control": "Change Microsoft Store account",
+      "destination_or_effect": "Store identity selection",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Gaming identity",
+        "Separate Store identity"
+      ]
+    },
+    {
+      "id": "settings.account.learn-more",
+      "surface": "settings-account",
+      "control": "Learn more",
+      "destination_or_effect": "Identity help",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.redeem",
+      "surface": "settings-account",
+      "control": "Redeem code",
+      "destination_or_effect": "Code redemption experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.privacy",
+      "surface": "settings-account",
+      "control": "Manage privacy",
+      "destination_or_effect": "External privacy experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.presence",
+      "surface": "settings-account",
+      "control": "Activity privacy dropdown",
+      "destination_or_effect": "Persist activity visibility selection",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "F47111"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.account.linked",
+      "surface": "settings-account",
+      "control": "Linked accounts section",
+      "destination_or_effect": "Loading / linked accounts / error",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36015",
+        "K39988"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Linked provider identities"
+      ],
+      "notes": "Screenshot shows loading only. Do not synthesize connected accounts from installed providers."
+    },
+    {
+      "id": "settings.account.identities",
+      "surface": "settings-account",
+      "control": "Gaming account / Store account roles",
+      "destination_or_effect": "Render independently verified identities",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "F47111",
+        "K41813",
+        "K47048",
+        "K15939"
+      ],
+      "original_runtime_verified": false,
+      "notes": "New identity-role layout exists in package; supplied account screenshot shows one profile and a Store-switch link. Their exact conditional layout is not fully observed."
+    },
+    {
+      "id": "settings.application.compact",
+      "surface": "settings-application",
+      "control": "Compact mode",
+      "destination_or_effect": "Persist application compact preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.application.battery",
+      "surface": "settings-application",
+      "control": "Show battery percentage",
+      "destination_or_effect": "Persist battery indicator preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.application.autostart",
+      "surface": "settings-application",
+      "control": "Start Xbox at PC startup",
+      "destination_or_effect": "Autostart setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Autostart and tray controls are disabled while Xbox mode is active in this screenshot."
+    },
+    {
+      "id": "settings.application.tray",
+      "surface": "settings-application",
+      "control": "Minimize to system tray on close",
+      "destination_or_effect": "Close policy",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Autostart and tray controls are disabled while Xbox mode is active in this screenshot."
+    },
+    {
+      "id": "settings.application.offline",
+      "surface": "settings-application",
+      "control": "Offline permissions",
+      "destination_or_effect": "Offline device authorization",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.application.developer",
+      "surface": "settings-application",
+      "control": "Show developer options",
+      "destination_or_effect": "Developer options visibility",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "F48194",
+        "F48201",
+        "F48203",
+        "F48207"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.application.windows",
+      "surface": "settings-application",
+      "control": "Open Windows Settings",
+      "destination_or_effect": "System gaming settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36017",
+        "K14389",
+        "K14390"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Windows system integration must map through a Linux distribution adapter; ordinary window fullscreen is separate."
+    },
+    {
+      "id": "settings.subscriptions.update",
+      "surface": "settings-subscriptions",
+      "control": "Update payment",
+      "destination_or_effect": "Payment update experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36016"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Actual subscription record",
+        "Billing service"
+      ]
+    },
+    {
+      "id": "settings.subscriptions.renew",
+      "surface": "settings-subscriptions",
+      "control": "Renew",
+      "destination_or_effect": "Subscription renewal experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36016"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Actual subscription record",
+        "Billing service"
+      ]
+    },
+    {
+      "id": "settings.subscriptions.history",
+      "surface": "settings-subscriptions",
+      "control": "Payment history",
+      "destination_or_effect": "Payment history experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36016"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Actual subscription record",
+        "Billing service"
+      ]
+    },
+    {
+      "id": "settings.subscriptions.manage",
+      "surface": "settings-subscriptions",
+      "control": "Manage",
+      "destination_or_effect": "Subscription management experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36016"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Actual subscription record",
+        "Billing service"
+      ]
+    },
+    {
+      "id": "settings.subscriptions.states",
+      "surface": "settings-subscriptions",
+      "control": "Plan/status/expiry and payment rows",
+      "destination_or_effect": "Render loading/content/empty/error/expired/failed-renewal states",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36016",
+        "K47273",
+        "K12587",
+        "K19101",
+        "K24536",
+        "K38617",
+        "K39229",
+        "K47260",
+        "K47263"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Plan",
+        "Status",
+        "Expiry",
+        "Price",
+        "Next and last payment"
+      ],
+      "notes": "Only failed renewal with unavailable payment cells is screenshot-observed. Connected accounts in Subscriptions is a user-requested extension, not evidence from this reference."
+    },
+    {
+      "id": "settings.notifications.catalog",
+      "surface": "settings-notifications",
+      "control": "Game Pass catalog changes",
+      "destination_or_effect": "Persist specific notification preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F48595",
+        "K47211"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Preference store",
+        "Notification service"
+      ]
+    },
+    {
+      "id": "settings.notifications.sale",
+      "surface": "settings-notifications",
+      "control": "Wishlist sale",
+      "destination_or_effect": "Persist specific notification preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F48595",
+        "K41956"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Preference store",
+        "Notification service"
+      ]
+    },
+    {
+      "id": "settings.notifications.game-pass",
+      "surface": "settings-notifications",
+      "control": "Wishlist available on Game Pass",
+      "destination_or_effect": "Persist specific notification preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F48595",
+        "K41957"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Preference store",
+        "Notification service"
+      ]
+    },
+    {
+      "id": "settings.notifications.preorder",
+      "surface": "settings-notifications",
+      "control": "Wishlist preorder available to purchase",
+      "destination_or_effect": "Persist specific notification preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F48595",
+        "K45326"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Preference store",
+        "Notification service"
+      ]
+    },
+    {
+      "id": "settings.notifications.guide",
+      "surface": "settings-notifications",
+      "control": "Game Bar link",
+      "destination_or_effect": "Game Bar notification settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36013",
+        "F48595"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.install.ask",
+      "surface": "settings-install",
+      "control": "Ask on every installation",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "F48373",
+        "K47342"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Package symbol only; visibility gates, order, default, units and control geometry require further evidence."
+    },
+    {
+      "id": "settings.install.shortcut",
+      "surface": "settings-install",
+      "control": "Create desktop shortcut on install",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "F48373",
+        "K30864"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Visible control in reference; persistence and backend result need Windows runtime validation."
+    },
+    {
+      "id": "settings.install.updates",
+      "surface": "settings-install",
+      "control": "Automatic updates",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "F48373",
+        "K12148"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Visible control in reference; persistence and backend result need Windows runtime validation."
+    },
+    {
+      "id": "settings.install.during-play",
+      "surface": "settings-install",
+      "control": "Downloads/updates during gameplay",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "F48373",
+        "K26053"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Visible control in reference; persistence and backend result need Windows runtime validation."
+    },
+    {
+      "id": "settings.install.throttle",
+      "surface": "settings-install",
+      "control": "Throttle downloads",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "F48373",
+        "K13330"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Package symbol only; visibility gates, order, default, units and control geometry require further evidence."
+    },
+    {
+      "id": "settings.install.bandwidth",
+      "surface": "settings-install",
+      "control": "Maximum download bandwidth",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "F48373",
+        "K12837"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Package symbol only; visibility gates, order, default, units and control geometry require further evidence."
+    },
+    {
+      "id": "settings.install.remote",
+      "surface": "settings-install",
+      "control": "Remote installation",
+      "destination_or_effect": "Corresponding installation preference",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "F48373",
+        "K36212"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Package symbol only; visibility gates, order, default, units and control geometry require further evidence."
+    },
+    {
+      "id": "settings.library.providers-section",
+      "surface": "settings-library",
+      "control": "Third-party providers",
+      "destination_or_effect": "Provider/extension visibility or lifecycle setting",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K30706",
+        "K37157"
+      ],
+      "original_runtime_verified": false,
+      "notes": "No original content screenshot. Provider detection, authentication, connection and extension enablement must remain distinct states."
+    },
+    {
+      "id": "settings.library.extension-section-candidate",
+      "surface": "settings-library",
+      "control": "Installed extensions",
+      "destination_or_effect": "Provider/extension visibility or lifecycle setting",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K30706",
+        "K41609"
+      ],
+      "original_runtime_verified": false,
+      "notes": "No original content screenshot. Provider detection, authentication, connection and extension enablement must remain distinct states."
+    },
+    {
+      "id": "settings.library.autostart",
+      "surface": "settings-library",
+      "control": "Auto-start extension",
+      "destination_or_effect": "Provider/extension visibility or lifecycle setting",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K30706",
+        "K36467"
+      ],
+      "original_runtime_verified": false,
+      "notes": "No original content screenshot. Provider detection, authentication, connection and extension enablement must remain distinct states."
+    },
+    {
+      "id": "settings.library.hidden",
+      "surface": "settings-library",
+      "control": "Show hidden games",
+      "destination_or_effect": "Provider/extension visibility or lifecycle setting",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K30706",
+        "K21694"
+      ],
+      "original_runtime_verified": false,
+      "notes": "No original content screenshot. Provider detection, authentication, connection and extension enablement must remain distinct states."
+    },
+    {
+      "id": "settings.library.my-apps",
+      "surface": "settings-library",
+      "control": "Display my apps",
+      "destination_or_effect": "Provider/extension visibility or lifecycle setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36020",
+        "K30706",
+        "K22846"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Observed in aggregated-library page. Provider submenu contents were not supplied."
+    },
+    {
+      "id": "settings.library.provider-states",
+      "surface": "settings-library",
+      "control": "Provider/extension status",
+      "destination_or_effect": "Disconnected / connecting / connected / enabled / incompatible / error / absent",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K41618",
+        "K41619",
+        "K41616",
+        "K26395",
+        "K29474",
+        "K41605",
+        "K36627",
+        "K41608",
+        "K38309"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.library.providers",
+      "surface": "settings-library",
+      "control": "Five observed aggregated-library provider cards",
+      "destination_or_effect": "EA App → Epic Games Store → GOG GALAXY → Steam → Ubisoft Connect PC (visible order)",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36020",
+        "S36020",
+        "K47904",
+        "K13248",
+        "K73954",
+        "K28567",
+        "K29420",
+        "K48745"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Five visible rows in this captured state, not proof of the full installed-provider inventory. Battle.net appears elsewhere in package vocabulary, not in this visible provider list."
+    },
+    {
+      "id": "settings.library.extensions",
+      "surface": "settings-library",
+      "control": "Extension vocabulary",
+      "destination_or_effect": "Ubisoft Connect, Battle.net, Riot client",
+      "control_evidence_status": "static",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "K19509",
+        "K31087",
+        "K23436",
+        "S36020",
+        "K37067"
+      ],
+      "original_runtime_verified": false,
+      "notes": "EA App and Ubisoft cards in screenshot also show disconnected-extension substatus. A standalone all-extensions panel/list is not captured."
+    },
+    {
+      "id": "settings.audio.input",
+      "surface": "settings-audio",
+      "control": "Input device",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K35496"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Device provider"
+      ]
+    },
+    {
+      "id": "settings.audio.output",
+      "surface": "settings-audio",
+      "control": "Output device",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K35507"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Device provider"
+      ]
+    },
+    {
+      "id": "settings.audio.voice",
+      "surface": "settings-audio",
+      "control": "Voice volume",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K20986"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.audio.push",
+      "surface": "settings-audio",
+      "control": "Enable push-to-talk",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K47325"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.audio.noise",
+      "surface": "settings-audio",
+      "control": "Enable noise suppression",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K47323"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.audio.controller",
+      "surface": "settings-audio",
+      "control": "Controller navigation sounds",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K29820"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.audio.keyboard",
+      "surface": "settings-audio",
+      "control": "Keyboard navigation sounds",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K37095"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.audio.navigation-volume",
+      "surface": "settings-audio",
+      "control": "Navigation sounds volume",
+      "destination_or_effect": "Corresponding audio setting",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35987",
+        "F47982",
+        "K47318"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Audio/voice service"
+      ]
+    },
+    {
+      "id": "settings.accessibility.themes",
+      "surface": "settings-accessibility",
+      "control": "Show profile themes",
+      "destination_or_effect": "Corresponding visual/accessibility preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F47071",
+        "K17440"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.previews",
+      "surface": "settings-accessibility",
+      "control": "Video previews on hover",
+      "destination_or_effect": "Corresponding visual/accessibility preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F47071",
+        "K35761"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.backgrounds",
+      "surface": "settings-accessibility",
+      "control": "Disable background images",
+      "destination_or_effect": "Corresponding visual/accessibility preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F47071",
+        "K47012"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.motion",
+      "surface": "settings-accessibility",
+      "control": "Disable animations",
+      "destination_or_effect": "Corresponding visual/accessibility preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F47071",
+        "K28172"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.hover-accessibility",
+      "surface": "settings-accessibility",
+      "control": "Show accessibility features on game-card hover",
+      "destination_or_effect": "Corresponding visual/accessibility preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35988",
+        "F47071",
+        "K47022"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.link.game-bar",
+      "surface": "settings-accessibility",
+      "control": "Game Bar",
+      "destination_or_effect": "Game Bar accessibility settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35988",
+        "F47071"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.link.windows",
+      "surface": "settings-accessibility",
+      "control": "Windows",
+      "destination_or_effect": "System accessibility settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35988",
+        "F47071"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.link.accessories",
+      "surface": "settings-accessibility",
+      "control": "Xbox Accessories",
+      "destination_or_effect": "Controller accessory settings",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35988",
+        "F47071"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.accessibility.link.learn",
+      "surface": "settings-accessibility",
+      "control": "Accessible games information",
+      "destination_or_effect": "External accessible-gaming information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35988",
+        "F47071"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.insider",
+      "surface": "settings-about",
+      "control": "Manage preview ring",
+      "destination_or_effect": "Insider management experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.help",
+      "surface": "settings-about",
+      "control": "Help",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.sales",
+      "surface": "settings-about",
+      "control": "Microsoft Store terms of sale",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.privacy",
+      "surface": "settings-about",
+      "control": "Microsoft privacy statement",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.services",
+      "surface": "settings-about",
+      "control": "Microsoft services agreement",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.terms",
+      "surface": "settings-about",
+      "control": "Terms of use",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.third-party",
+      "surface": "settings-about",
+      "control": "Third-party notices",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.web-notices",
+      "surface": "settings-about",
+      "control": "Third-party web notices",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.ranking",
+      "surface": "settings-about",
+      "control": "Ranking disclosure",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.accessible",
+      "surface": "settings-about",
+      "control": "Accessible games on Xbox and Windows",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.about.updates",
+      "surface": "settings-about",
+      "control": "Application updates",
+      "destination_or_effect": "Corresponding external information",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36014"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "social.search",
+      "surface": "app-social-drawer",
+      "control": "Search people",
+      "destination_or_effect": "Search results",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.add",
+      "surface": "app-social-drawer",
+      "control": "Add person",
+      "destination_or_effect": "Friend-request flow",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.overflow",
+      "surface": "app-social-drawer",
+      "control": "Overflow",
+      "destination_or_effect": "Social menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.friends",
+      "surface": "app-social-drawer",
+      "control": "Friends tab",
+      "destination_or_effect": "Grouped friends list",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.chats",
+      "surface": "app-social-drawer",
+      "control": "Chats tab",
+      "destination_or_effect": "Conversation list",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.party",
+      "surface": "app-social-drawer",
+      "control": "Start party",
+      "destination_or_effect": "Party flow",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.requests",
+      "surface": "app-social-drawer",
+      "control": "Friend requests",
+      "destination_or_effect": "Friend-request list",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.person",
+      "surface": "app-social-drawer",
+      "control": "Friend row",
+      "destination_or_effect": "Player card / quick actions",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social service"
+      ]
+    },
+    {
+      "id": "social.close",
+      "surface": "app-social-drawer",
+      "control": "Close",
+      "destination_or_effect": "Underlying app",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35993"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "remote-play.dialog",
+      "surface": "remote-play",
+      "control": "Console sign-in instruction",
+      "destination_or_effect": "Wait for console/account discovery",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36009"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Console discovery",
+        "Matching signed-in identity",
+        "Remote features"
+      ],
+      "notes": "No connect button, console list or stream is visible in the supplied dialog. A new Connect button is a Linux implementation choice, not screenshot parity."
+    },
+    {
+      "id": "guide.tab.home",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Home",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35998",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.tab.settings",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Settings",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S35999",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.tab.edge",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Edge",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36000",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.tab.social",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Xbox social",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36001",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.tab.audio",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Audio",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36002",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.tab.capture",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Capture",
+      "destination_or_effect": "Selected guide panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36003",
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Separate overlay-hosting boundary; should not be implemented solely as a child of the launcher page."
+    },
+    {
+      "id": "guide.performance",
+      "surface": "desktop-guide-tab-strip",
+      "control": "Performance icon after horizontal tab shift",
+      "destination_or_effect": "Performance panel",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Only icon is visible; performance panel not supplied."
+    },
+    {
+      "id": "guide.global-toggle",
+      "surface": "desktop-guide",
+      "control": "Win+G",
+      "destination_or_effect": "Toggle desktop overlay",
+      "control_evidence_status": "unverified",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "GB-manifest"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Win+G is explicitly requested by the user. These screenshots do not demonstrate hotkey delivery, focus or compositor stacking."
+    },
+    {
+      "id": "guide.home.home",
+      "surface": "guide-home",
+      "control": "Home",
+      "destination_or_effect": "Main launcher Home",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35998"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "guide.home.library",
+      "surface": "guide-home",
+      "control": "Library",
+      "destination_or_effect": "Main launcher Library",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35998"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "guide.home.recent",
+      "surface": "guide-home",
+      "control": "Recent app row",
+      "destination_or_effect": "Activate specific application",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35998"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "guide.home.launcher",
+      "surface": "guide-home",
+      "control": "Launcher icon",
+      "destination_or_effect": "Activate third-party launcher",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35998"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "guide.settings.microphone",
+      "surface": "guide-settings",
+      "control": "Enable microphone",
+      "destination_or_effect": "Microphone mute state",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.volume",
+      "surface": "guide-settings",
+      "control": "Volume slider / speaker",
+      "destination_or_effect": "Output volume or mute",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.keyboard",
+      "surface": "guide-settings",
+      "control": "Show keyboard",
+      "destination_or_effect": "System on-screen keyboard",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.exit",
+      "surface": "guide-settings",
+      "control": "Exit Xbox mode",
+      "destination_or_effect": "Leave system Xbox experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.compact",
+      "surface": "guide-settings",
+      "control": "Compact mode",
+      "destination_or_effect": "Experience compact preference",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.more",
+      "surface": "guide-settings",
+      "control": "More settings",
+      "destination_or_effect": "Additional system/settings surface",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.network",
+      "surface": "guide-settings",
+      "control": "Network",
+      "destination_or_effect": "Network flyout",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.bluetooth",
+      "surface": "guide-settings",
+      "control": "Bluetooth",
+      "destination_or_effect": "Bluetooth flyout",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.airplane",
+      "surface": "guide-settings",
+      "control": "Airplane mode",
+      "destination_or_effect": "Radio policy",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.cursor",
+      "surface": "guide-settings",
+      "control": "Game controller cursor",
+      "destination_or_effect": "Controller-pointer mode",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.settings.power",
+      "surface": "guide-settings",
+      "control": "Power",
+      "destination_or_effect": "Power submenu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S35999",
+        "S36004",
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/session adapter"
+      ]
+    },
+    {
+      "id": "guide.power.lock",
+      "surface": "guide-power-menu",
+      "control": "Lock",
+      "destination_or_effect": "Corresponding system session operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop session authority"
+      ],
+      "notes": "Visible menu item is not evidence that Linux integration is implemented or tested."
+    },
+    {
+      "id": "guide.power.sign-out",
+      "surface": "guide-power-menu",
+      "control": "Sign out",
+      "destination_or_effect": "Corresponding system session operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop session authority"
+      ],
+      "notes": "Visible menu item is not evidence that Linux integration is implemented or tested."
+    },
+    {
+      "id": "guide.power.sleep",
+      "surface": "guide-power-menu",
+      "control": "Sleep",
+      "destination_or_effect": "Corresponding system session operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop session authority"
+      ],
+      "notes": "Visible menu item is not evidence that Linux integration is implemented or tested."
+    },
+    {
+      "id": "guide.power.shutdown",
+      "surface": "guide-power-menu",
+      "control": "Shut down",
+      "destination_or_effect": "Corresponding system session operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop session authority"
+      ],
+      "notes": "Visible menu item is not evidence that Linux integration is implemented or tested."
+    },
+    {
+      "id": "guide.power.restart",
+      "surface": "guide-power-menu",
+      "control": "Restart",
+      "destination_or_effect": "Corresponding system session operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36005"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop session authority"
+      ],
+      "notes": "Visible menu item is not evidence that Linux integration is implemented or tested."
+    },
+    {
+      "id": "guide.audio.speaker",
+      "surface": "guide-audio",
+      "control": "Speaker enable/mute",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.microphone",
+      "surface": "guide-audio",
+      "control": "Enable microphone",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.output-volume",
+      "surface": "guide-audio",
+      "control": "Output volume",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.microphone-volume",
+      "surface": "guide-audio",
+      "control": "Microphone volume",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.default-output",
+      "surface": "guide-audio",
+      "control": "Default output device",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.default-input",
+      "surface": "guide-audio",
+      "control": "Default input device",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.manage-devices",
+      "surface": "guide-audio",
+      "control": "Manage all devices",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.mixer",
+      "surface": "guide-audio",
+      "control": "Per-application volume",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.audio.favorite",
+      "surface": "guide-audio",
+      "control": "Mixer row favorite star",
+      "destination_or_effect": "Corresponding guide audio operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36002"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "System audio adapter"
+      ]
+    },
+    {
+      "id": "guide.capture.screenshot",
+      "surface": "guide-capture",
+      "control": "Screenshot",
+      "destination_or_effect": "Corresponding system capture operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/game capture service"
+      ],
+      "notes": "Replay control is disabled in this screenshot; screenshot/video scope is the active application, not necessarily xboks."
+    },
+    {
+      "id": "guide.capture.replay",
+      "surface": "guide-capture",
+      "control": "Record last interval",
+      "destination_or_effect": "Corresponding system capture operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/game capture service"
+      ],
+      "notes": "Replay control is disabled in this screenshot; screenshot/video scope is the active application, not necessarily xboks."
+    },
+    {
+      "id": "guide.capture.record",
+      "surface": "guide-capture",
+      "control": "Start recording",
+      "destination_or_effect": "Corresponding system capture operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/game capture service"
+      ],
+      "notes": "Replay control is disabled in this screenshot; screenshot/video scope is the active application, not necessarily xboks."
+    },
+    {
+      "id": "guide.capture.mic",
+      "surface": "guide-capture",
+      "control": "Recording microphone",
+      "destination_or_effect": "Corresponding system capture operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/game capture service"
+      ],
+      "notes": "Replay control is disabled in this screenshot; screenshot/video scope is the active application, not necessarily xboks."
+    },
+    {
+      "id": "guide.capture.gallery",
+      "surface": "guide-capture",
+      "control": "Show my captures",
+      "destination_or_effect": "Corresponding system capture operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36003"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Desktop/game capture service"
+      ],
+      "notes": "Replay control is disabled in this screenshot; screenshot/video scope is the active application, not necessarily xboks."
+    },
+    {
+      "id": "guide.browser.address",
+      "surface": "guide-browser",
+      "control": "Address/search",
+      "destination_or_effect": "Embedded browser operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36000"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Isolated browser surface"
+      ]
+    },
+    {
+      "id": "guide.browser.back",
+      "surface": "guide-browser",
+      "control": "Back",
+      "destination_or_effect": "Embedded browser operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36000"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Isolated browser surface"
+      ]
+    },
+    {
+      "id": "guide.browser.tabs",
+      "surface": "guide-browser",
+      "control": "Tab count",
+      "destination_or_effect": "Embedded browser operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36000"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Isolated browser surface"
+      ]
+    },
+    {
+      "id": "guide.browser.overflow",
+      "surface": "guide-browser",
+      "control": "Browser overflow",
+      "destination_or_effect": "Embedded browser operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36000"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Isolated browser surface"
+      ]
+    },
+    {
+      "id": "guide.browser.shortcut",
+      "surface": "guide-browser",
+      "control": "Web shortcut",
+      "destination_or_effect": "Embedded browser operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36000"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Isolated browser surface"
+      ]
+    },
+    {
+      "id": "guide.social.notifications",
+      "surface": "guide-social",
+      "control": "Notification bell",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.search",
+      "surface": "guide-social",
+      "control": "Search people",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.add",
+      "surface": "guide-social",
+      "control": "Add person",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.party",
+      "surface": "guide-social",
+      "control": "Party/headset",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.overflow",
+      "surface": "guide-social",
+      "control": "Overflow",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.friends",
+      "surface": "guide-social",
+      "control": "Friends",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.chats",
+      "surface": "guide-social",
+      "control": "Chats",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.requests",
+      "surface": "guide-social",
+      "control": "Friend requests",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "guide.social.person",
+      "surface": "guide-social",
+      "control": "Friend row",
+      "destination_or_effect": "Corresponding Xbox social operation",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36001"
+      ],
+      "original_runtime_verified": false,
+      "required_data_or_platform": [
+        "Xbox social/party service"
+      ]
+    },
+    {
+      "id": "settings.install.location",
+      "surface": "settings-install",
+      "control": "Default installation location dropdown",
+      "destination_or_effect": "Choose default game installation target",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "K15202"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.install.speed-unit",
+      "surface": "settings-install",
+      "control": "Download speed unit dropdown",
+      "destination_or_effect": "Change displayed transfer-rate unit",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36019",
+        "K13606"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.library.license-history",
+      "surface": "settings-library",
+      "control": "Digital license history link",
+      "destination_or_effect": "Digital license history experience",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "inferred",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "settings.library.provider.ea",
+      "surface": "settings-library",
+      "control": "EA App card with chevron",
+      "destination_or_effect": "Provider-specific configuration pane/menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Main-page card seen; expanded provider configuration not supplied. Enabled installed-game visibility and disconnected extension are distinct statuses."
+    },
+    {
+      "id": "settings.library.provider.epic",
+      "surface": "settings-library",
+      "control": "Epic Games Store card with chevron",
+      "destination_or_effect": "Provider-specific configuration pane/menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Main-page card seen; expanded provider configuration not supplied. Enabled installed-game visibility and disconnected extension are distinct statuses."
+    },
+    {
+      "id": "settings.library.provider.gog",
+      "surface": "settings-library",
+      "control": "GOG GALAXY card with chevron",
+      "destination_or_effect": "Provider-specific configuration pane/menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Main-page card seen; expanded provider configuration not supplied. Enabled installed-game visibility and disconnected extension are distinct statuses."
+    },
+    {
+      "id": "settings.library.provider.steam",
+      "surface": "settings-library",
+      "control": "Steam card with chevron",
+      "destination_or_effect": "Provider-specific configuration pane/menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Main-page card seen; expanded provider configuration not supplied. Enabled installed-game visibility and disconnected extension are distinct statuses."
+    },
+    {
+      "id": "settings.library.provider.ubisoft",
+      "surface": "settings-library",
+      "control": "Ubisoft Connect PC card with chevron",
+      "destination_or_effect": "Provider-specific configuration pane/menu",
+      "control_evidence_status": "observed",
+      "transition_evidence_status": "unverified",
+      "evidence": [
+        "S36020"
+      ],
+      "original_runtime_verified": false,
+      "notes": "Main-page card seen; expanded provider configuration not supplied. Enabled installed-game visibility and disconnected extension are distinct statuses."
+    }
+  ],
+  "counts": {
+    "screenshots": 34,
+    "actions": 233,
+    "original_runtime_verified_actions": 0
+  },
+  "implementation_rules": [
+    "Card focus and hover must remain distinct from activation.",
+    "Catalog product identity and local installation identity are different keys.",
+    "Product details route must retain productId through asynchronous load/retry and Back.",
+    "Context menu actions depend on item category, entitlement and operation state.",
+    "Do not invent account, subscription, friends, offer or installation state.",
+    "App Settings, app drawers and desktop Game Bar have separate surface ownership.",
+    "Linux Nexus/Proton additions must be marked as product additions, not evidence of original layout.",
+    "A static symbol is never sufficient to mark behavior runtime-verified."
+  ],
+  "known_gaps": [
+    "No Windows input/action trace.",
+    "No complete loaded product-details lower section, Reviews or More capture.",
+    "No expanded original Library filter or product-overflow menus.",
+    "No console discovery, pairing or streaming capture.",
+    "No feature-flight/gate state, DPI or handheld reference.",
+    "No authenticated subscription/social/provider behavior validation.",
+    "No expanded default-install location, speed-unit or provider configuration controls; only closed main Settings panes."
+  ]
+}

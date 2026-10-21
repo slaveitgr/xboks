@@ -1,0 +1,1789 @@
+{
+  "schema_version": 1,
+  "reference": {
+    "application": "Microsoft.GamingApp",
+    "version": "2610.1001.20.0",
+    "architecture": "x64",
+    "bytecode_version": 96
+  },
+  "scope": "Bounded menu/input/navigation dataflow, not complete semantic recovery. All source offsets identify decoded instructions; imported services and original runtime behavior remain unverified.",
+  "rules": [
+    {
+      "id": "catalog.primary-routing",
+      "surface": "catalog-game-card",
+      "condition": "GameCard onClick invoked with product object",
+      "effect": "Optional onBeforeClick(product); forward product.id and product.productType to dispatchNavigation, with captured dispatch and channel context.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 56947,
+          "instruction_offsets": [
+            17,
+            32,
+            339,
+            344,
+            434
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-56947.json"
+        },
+        {
+          "function_id": 56948,
+          "instruction_offsets": [
+            0,
+            22,
+            27,
+            37,
+            260,
+            264,
+            278,
+            284
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-56948.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "All callers and whether the card shell supplies the intended current product are not exhaustively traced."
+      ]
+    },
+    {
+      "id": "catalog.route-by-type",
+      "surface": "catalog-game-card",
+      "condition": "dispatchNavigation(productId, productType, dispatch, refComponent, catalogId, ocid, attribution)",
+      "effect": "DLC type→dlcDetails; subscription type→subscriptionDetails; otherwise→gameDetails; dispatch returned action.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 21800,
+          "instruction_offsets": [
+            0,
+            3,
+            6,
+            9,
+            12,
+            15,
+            33,
+            38,
+            51,
+            60,
+            87,
+            91,
+            119,
+            123,
+            155,
+            159
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-21800.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Product type predicate internals and every alternate card/MRU path remain open."
+      ]
+    },
+    {
+      "id": "catalog.secondary-menu",
+      "surface": "catalog-game-card",
+      "condition": "Context-menu/key invocation",
+      "effect": "Build anchored GameCardContextMenu request with selected productId, anchor, telemetry and modifiers; return separate onContextMenu/onKeyDown handlers.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 57086,
+          "instruction_offsets": [
+            0,
+            14,
+            18,
+            26,
+            109,
+            141,
+            145,
+            151,
+            159,
+            164
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57086.json"
+        },
+        {
+          "function_id": 57088,
+          "instruction_offsets": [
+            6,
+            18,
+            26,
+            35,
+            44
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57088.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual keyboard shortcut interpretation and shell event propagation are in untraced context-menu hook internals."
+      ]
+    },
+    {
+      "id": "catalog.action-category",
+      "surface": "product-actions",
+      "condition": "Product/action category selection",
+      "effect": "Use product identity, overview, cloud/PC capability, offline shell, installed state and modifiers; category selects distinct operation builder.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 57124,
+          "instruction_offsets": [
+            35,
+            60,
+            76,
+            87,
+            113,
+            129,
+            168,
+            205,
+            226,
+            243,
+            259,
+            296,
+            324,
+            345,
+            424,
+            451,
+            472,
+            496,
+            520,
+            550,
+            665,
+            774
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57124.json"
+        },
+        {
+          "function_id": 57126,
+          "instruction_offsets": [
+            21,
+            770
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57126.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Not a complete semantic formula for every feature gate or cloud category."
+      ]
+    },
+    {
+      "id": "catalog.operation-list",
+      "surface": "product-actions",
+      "condition": "Game category builder selected",
+      "effect": "Construct an ordered candidate sequence from provider/operation/install/play/cloud/extension/purchase/wishlist/saved-list/hide/share/post-install/package hooks. Candidate presence is not final menu visibility.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 57758,
+          "instruction_offsets": [
+            46,
+            76,
+            102,
+            128,
+            154,
+            180,
+            206,
+            232,
+            258,
+            284,
+            324,
+            353,
+            383,
+            409,
+            435,
+            461,
+            492,
+            503
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57758.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Each individual CTA hook determines eligibility/render state; those internals are not all traced."
+      ]
+    },
+    {
+      "id": "menu.hide-disabled-loading",
+      "surface": "product-context-menu",
+      "condition": "Transform a candidate CTA",
+      "effect": "Omit renderState Hide; otherwise preserve title, icon, icon flow, action, disabled and loading independently.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 58069,
+          "instruction_offsets": [
+            3,
+            21,
+            27,
+            69,
+            74,
+            78,
+            87,
+            98,
+            103,
+            107,
+            112,
+            116,
+            122,
+            127
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-58069.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "menu.override-anchor",
+      "surface": "product-context-menu",
+      "condition": "CTA candidate survives suppression and operation override",
+      "effect": "Merge override by operationId, wrap action and supply the menu anchor to the underlying candidate action.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 57116,
+          "instruction_offsets": [
+            21,
+            27,
+            32,
+            47,
+            53,
+            79,
+            120,
+            125,
+            131,
+            138
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57116.json"
+        },
+        {
+          "function_id": 57117,
+          "instruction_offsets": [
+            7,
+            20,
+            27,
+            39,
+            45
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57117.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Suppressed-operation list values and all override-map entries are not reconstructed."
+      ]
+    },
+    {
+      "id": "menu.loading-empty",
+      "surface": "product-context-menu",
+      "condition": "Resolved candidate list contains Wait / has no visible items",
+      "effect": "Wait→LoadingContextMenu; nonempty resolved visible list→ContextMenu; empty resolved visible list→null and effect dismisses this popupId.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 57113,
+          "instruction_offsets": [
+            147,
+            184,
+            207,
+            212,
+            215,
+            222,
+            239,
+            260,
+            274,
+            282,
+            297,
+            305
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57113.json"
+        },
+        {
+          "function_id": 57119,
+          "instruction_offsets": [
+            3,
+            21,
+            27
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57119.json"
+        },
+        {
+          "function_id": 57118,
+          "instruction_offsets": [
+            7,
+            14,
+            25,
+            31,
+            41,
+            47
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-57118.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Cache timing and React effect scheduling are not runtime tested."
+      ]
+    },
+    {
+      "id": "menu.press-dismiss-order",
+      "surface": "generic-context-menu-item",
+      "condition": "onPress runs",
+      "effect": "Optional telemetry; dismiss specified popupId or all popups if absent; optional accessibility announcement; then invoke non-null element.action.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47516,
+          "instruction_offsets": [
+            24,
+            51,
+            243,
+            256,
+            275,
+            284,
+            311,
+            331,
+            337,
+            377,
+            397,
+            404,
+            428
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47516.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "This callback has no local disabled test; disabled input prevention must be verified at its rendered control/host. Generic press is not proof of a successful service operation."
+      ]
+    },
+    {
+      "id": "menu.hover-focus",
+      "surface": "generic-context-menu-item",
+      "condition": "onMouseEnter receives event",
+      "effect": "Focus event.currentTarget only.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47517,
+          "instruction_offsets": [
+            0,
+            3,
+            9,
+            14
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47517.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Does not establish every game-card hover/focus handler."
+      ]
+    },
+    {
+      "id": "queue.identity-boundary",
+      "surface": "active-install-menu",
+      "condition": "Hook receives item identifier",
+      "effect": "Read itemIdentifier.productId with empty-string fallback for product selectors and View details; retain original item identifier for operation action requests.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            2,
+            14,
+            55,
+            60,
+            64,
+            71,
+            74,
+            127,
+            153,
+            175,
+            256
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64029,
+          "instruction_offsets": [
+            73
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64029.json"
+        },
+        {
+          "function_id": 64030,
+          "instruction_offsets": [
+            73
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64030.json"
+        },
+        {
+          "function_id": 64033,
+          "instruction_offsets": [
+            73
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64033.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Identifier schema beyond productId is not recovered here."
+      ]
+    },
+    {
+      "id": "queue.details-first",
+      "surface": "active-install-menu",
+      "condition": "Operation state and item identifier are truthy",
+      "effect": "Append View game details first, independently of pauseResumeCancelInstallSupported.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            190,
+            193,
+            490,
+            496,
+            507,
+            512
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "queue.resume",
+      "surface": "active-install-menu",
+      "condition": "Valid active item AND capability pauseResumeCancelInstallSupported AND state in Paused/Error",
+      "effect": "Append resume action; use pre-update label when item catalog state is Preupdating; action dispatches resumeItemInstall.start(originalItemIdentifier).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            207,
+            229,
+            512,
+            562,
+            567,
+            595,
+            604,
+            617,
+            640,
+            644
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64029,
+          "instruction_offsets": [
+            73,
+            78
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64029.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "queue.pause",
+      "surface": "active-install-menu",
+      "condition": "Valid active item AND pauseResumeCancelInstallSupported AND state in Downloading/Installing",
+      "effect": "Append pause action, with pre-update label variant; dispatch pauseItemInstall.start(originalItemIdentifier).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            649,
+            700,
+            705,
+            733,
+            742,
+            755,
+            778,
+            782
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64030,
+          "instruction_offsets": [
+            73,
+            78
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64030.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "queue.prioritize",
+      "surface": "active-install-menu",
+      "condition": "Valid active item AND pauseResumeCancelInstallSupported AND state Queued",
+      "effect": "Append prioritize action; dispatch prioritizeItemInstall.start(originalItemIdentifier).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            787,
+            806,
+            841,
+            864,
+            868
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64031,
+          "instruction_offsets": [
+            80,
+            85
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64031.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Post-dispatch continuation behavior and callbacks are not fully traced."
+      ]
+    },
+    {
+      "id": "queue.cancel",
+      "surface": "active-install-menu",
+      "condition": "Valid active item AND pauseResumeCancelInstallSupported AND state in Downloading/Installing/Paused/Queued/Error",
+      "effect": "Append cancel/uninstall/pre-update-cancel label selected by item state; dispatch cancelItemInstall.start(originalItemIdentifier).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            873,
+            971,
+            976,
+            986,
+            1008,
+            1012
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64027,
+          "instruction_offsets": [
+            63,
+            96,
+            129
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64027.json"
+        },
+        {
+          "function_id": 64033,
+          "instruction_offsets": [
+            73,
+            78
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64033.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Filesystem deletion, downstream confirmation and rollback are not established by this action request."
+      ]
+    },
+    {
+      "id": "queue.manage",
+      "surface": "active-install-menu",
+      "condition": "Capabilities object exists AND intelligentDeliverySupported",
+      "effect": "Append Manage installation independently of pause/resume capability; action opens install customization for normalized productId.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            1017,
+            1021,
+            1027,
+            1055,
+            1061,
+            1084,
+            1088
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        },
+        {
+          "function_id": 64034,
+          "instruction_offsets": [
+            47
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64034.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Full customization dialog and write-side safety policy remain separate."
+      ]
+    },
+    {
+      "id": "queue.expand",
+      "surface": "active-install-menu",
+      "condition": "Hook argument2 and argument4 are truthy",
+      "effect": "Append expand/collapse row, selected by argument3; execute passed argument4 callback.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64026,
+          "instruction_offsets": [
+            5,
+            8,
+            1093,
+            1096,
+            1099,
+            1127,
+            1136,
+            1149,
+            1162,
+            1183,
+            1187
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64026.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Semantic names of boolean arguments are inferred from labels; all callers not traced."
+      ]
+    },
+    {
+      "id": "queue.row-error-details",
+      "surface": "install-operation-row",
+      "condition": "Truthy item identifier (arg1), item state (arg2), and operation.state (arg3?.state), with operation.state equal to Error",
+      "effect": "Return warning icon/error-detail target; this differs from overflow View game details.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64107,
+          "instruction_offsets": [
+            0,
+            3,
+            8,
+            16,
+            19,
+            24,
+            30,
+            36,
+            39,
+            74,
+            79,
+            532,
+            538,
+            566,
+            572,
+            591,
+            597
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64107.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "The selector returns presentation/target metadata, not the downstream modal implementation."
+      ]
+    },
+    {
+      "id": "apps.menu-supported-order",
+      "surface": "custom-or-external-app-menu",
+      "condition": "Supported flags returned by per-item hooks",
+      "effect": "Append supported items in order Launch, Download, Uninstall, Remove, Edit; do not show every item unconditionally.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64337,
+          "instruction_offsets": [
+            23,
+            29,
+            58,
+            64,
+            93,
+            99,
+            128,
+            134,
+            163,
+            169,
+            238,
+            243
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64337.json"
+        },
+        {
+          "function_id": 64338,
+          "instruction_offsets": [
+            11,
+            23,
+            32,
+            44,
+            53,
+            65,
+            74,
+            86,
+            95,
+            107
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64338.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "apps.launch",
+      "surface": "custom-or-external-app-menu",
+      "condition": "app.actionType equals ActionType.Launch",
+      "effect": "Expose Launch; bind getExecuteActionAsyncHandler(app); initial disabled/loading false.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64328,
+          "instruction_offsets": [
+            5,
+            9,
+            27,
+            33,
+            37,
+            103,
+            109,
+            114,
+            118,
+            120,
+            124
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64328.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "apps.download",
+      "surface": "custom-or-external-app-menu",
+      "condition": "app.actionType equals ActionType.Download",
+      "effect": "Expose Download with app-card asynchronous action handler.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64330,
+          "instruction_offsets": [
+            9,
+            27,
+            33,
+            37,
+            93,
+            97
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64330.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Download service execution is not traced."
+      ]
+    },
+    {
+      "id": "apps.uninstall",
+      "surface": "custom-or-external-app-menu",
+      "condition": "app.source is not AppSource.User AND app.actionType is not ActionType.Download",
+      "effect": "Expose external Uninstall using getOpenWindowsSettingsAsyncHandler; this is not direct file deletion.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64332,
+          "instruction_offsets": [
+            9,
+            27,
+            33,
+            37,
+            44,
+            59,
+            65,
+            69,
+            74,
+            147,
+            153,
+            157
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64332.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Linux must supply a platform-specific alternative; Windows Settings behavior not portable."
+      ]
+    },
+    {
+      "id": "apps.remove",
+      "surface": "custom-or-external-app-menu",
+      "condition": "app.source equals AppSource.User",
+      "effect": "Expose Remove from library using getRemoveAsyncHandler(app); disabled for non-user source, though unsupported rows are normally omitted.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64334,
+          "instruction_offsets": [
+            9,
+            27,
+            33,
+            37,
+            103,
+            109,
+            114,
+            118,
+            135,
+            139
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64334.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "apps.edit",
+      "surface": "custom-or-external-app-menu",
+      "condition": "app.source equals AppSource.User",
+      "effect": "Expose Edit in library using getEditAsyncHandler(app); disabled for non-user source.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 64336,
+          "instruction_offsets": [
+            9,
+            27,
+            33,
+            37,
+            103,
+            109,
+            114,
+            118,
+            135,
+            139
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-64336.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.list-gates",
+      "surface": "profile-flyout",
+      "condition": "getListItems(signedIn, connected, profileData, devConfig)",
+      "effect": "Offline shell uses dedicated list; normal profile/subscription rows require signedIn and usable profileData; rewards and offers have separate gates; presence row changes with current online state; sign-in/out disabled when disconnected; normal-list Quit omitted in FSE; offline-list policy is separate.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67716,
+          "instruction_offsets": [
+            7,
+            13,
+            19,
+            25,
+            50,
+            64,
+            76
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67716.json"
+        },
+        {
+          "function_id": 67711,
+          "instruction_offsets": [
+            0,
+            3,
+            6,
+            29,
+            35,
+            45,
+            48,
+            51,
+            54,
+            135,
+            177,
+            230,
+            236,
+            508,
+            518,
+            529,
+            674,
+            685,
+            702,
+            705,
+            727,
+            739,
+            889,
+            895,
+            1035
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67711.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Some developer/catalog and unsubscribe flights remain separately gated; not every possible list state is runtime validated."
+      ]
+    },
+    {
+      "id": "profile.offline-list",
+      "surface": "profile-flyout",
+      "condition": "isOfflineShell true",
+      "effect": "Use Settings, separator, Feedback and Quit entries; not the online account list.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67711,
+          "instruction_offsets": [
+            35,
+            1029,
+            1035
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67711.json"
+        },
+        {
+          "function_id": 67715,
+          "instruction_offsets": [
+            45,
+            113,
+            150,
+            187
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67715.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.settings",
+      "surface": "profile-flyout",
+      "condition": "Settings selected",
+      "effect": "Request recurrence refresh, then showSettingsModal(SettingsTab.Account).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67701,
+          "instruction_offsets": [
+            18,
+            53
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67701.json"
+        },
+        {
+          "function_id": 67722,
+          "instruction_offsets": [
+            26,
+            32
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67722.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.subscriptions",
+      "surface": "profile-flyout",
+      "condition": "My subscriptions selected",
+      "effect": "Request recurrence refresh, then showSettingsModal(SettingsTab.Subscriptions).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67702,
+          "instruction_offsets": [
+            18,
+            53
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67702.json"
+        },
+        {
+          "function_id": 67722,
+          "instruction_offsets": [
+            26,
+            32
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67722.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.player",
+      "surface": "profile-flyout",
+      "condition": "Loaded Xbox profile exists and View profile selected",
+      "effect": "Call navigateToProfile(profile.xuid), then Popup.dismissAll.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67697,
+          "instruction_offsets": [
+            32,
+            62,
+            83
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67697.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "The bound navigateToProfile prop is not expanded here; social profile route action is separately traced below."
+      ]
+    },
+    {
+      "id": "profile.insider",
+      "surface": "profile-flyout",
+      "condition": "Insider selected",
+      "effect": "launchDeeplink chooses existing-insider URL versus non-insider URL from isWindowsGamingInsider.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67703,
+          "instruction_offsets": [
+            12,
+            27,
+            40,
+            43,
+            51,
+            57
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67703.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Exact resolved URI constant and external handler behavior are not traced."
+      ]
+    },
+    {
+      "id": "profile.support",
+      "surface": "profile-flyout",
+      "condition": "Support selected",
+      "effect": "Call showSupportModal(), not merely an arbitrary support URL.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67706,
+          "instruction_offsets": [
+            15
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67706.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "profile.feedback",
+      "surface": "profile-flyout",
+      "condition": "Feedback selected",
+      "effect": "Call showFeedbackModal(launchFeedbackHub prop).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67707,
+          "instruction_offsets": [
+            33
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67707.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Modal fields and Feedback Hub implementation are not traced."
+      ]
+    },
+    {
+      "id": "profile.quit-signout",
+      "surface": "profile-flyout",
+      "condition": "Quit versus Sign out",
+      "effect": "Quit dispatches shellActions.exitApp; Sign out separately dispatches userActions.signOut.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67700,
+          "instruction_offsets": [
+            143
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67700.json"
+        },
+        {
+          "function_id": 67719,
+          "instruction_offsets": [
+            26,
+            32
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67719.json"
+        },
+        {
+          "function_id": 67720,
+          "instruction_offsets": [
+            26,
+            32
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67720.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Quit item visibility depends on FSE; translated visible labels alone can be ambiguous."
+      ]
+    },
+    {
+      "id": "profile.presence",
+      "surface": "profile-flyout",
+      "condition": "Presence toggle selected and usable profile exists",
+      "effect": "Call appearOnline or appearOffline and announce localized resulting mode; bound callbacks dispatch corresponding userActions.*.start requests.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 67709,
+          "instruction_offsets": [
+            32,
+            57,
+            106
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67709.json"
+        },
+        {
+          "function_id": 67710,
+          "instruction_offsets": [
+            32,
+            57,
+            106
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67710.json"
+        },
+        {
+          "function_id": 67723,
+          "instruction_offsets": [
+            31,
+            37
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67723.json"
+        },
+        {
+          "function_id": 67724,
+          "instruction_offsets": [
+            31,
+            37
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-67724.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Announcement/request is not proof that service persisted new presence."
+      ]
+    },
+    {
+      "id": "about.link.help",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported pcInfoUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46886,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46886.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.sales",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported termsOfSaleUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46887,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46887.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.privacy",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported privacyStatementUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46888,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46888.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.services",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported servicesAgreementUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46889,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46889.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.terms",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported termsOfUseUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46890,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46890.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.third-party",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported thirdPartyNoticesUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46891,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46891.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.web-third-party",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported webThirdPartyNoticesUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46892,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46892.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.ranking",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported rankingDisclosureUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46893,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46893.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.accessible",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported accessibleGamingSupportUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46894,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46894.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "about.link.updates",
+      "surface": "settings-about",
+      "condition": "Corresponding About link activated",
+      "effect": "Pass imported xboxAppUpdatesUrl to openURLWithTelemetry along with link/app-settings telemetry arguments.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 46895,
+          "instruction_offsets": [
+            7,
+            22,
+            32,
+            50
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-46895.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual URI value, browser handling and network result not resolved here."
+      ]
+    },
+    {
+      "id": "friends.chat",
+      "surface": "social-quick-actions",
+      "condition": "Chat callback activated",
+      "effect": "Dispatch navigateToConversation({chatType:OneToOne, recipientXuid:targetXuid}); then dismiss quick-action popupId.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47803,
+          "instruction_offsets": [
+            8,
+            14
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47803.json"
+        },
+        {
+          "function_id": 47812,
+          "instruction_offsets": [
+            20,
+            44,
+            53,
+            58,
+            65,
+            96
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47812.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "No local privacy check is present in this callback; upstream visibility/disabled guards and service enforcement need separate validation."
+      ]
+    },
+    {
+      "id": "friends.game-details",
+      "surface": "social-quick-actions",
+      "condition": "targetUserProductId truthy AND targetUserGameInGamePass truthy",
+      "effect": "Dispatch navigationActions.gameDetails(targetUserProductId); do not use currently selected local game ID.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47803,
+          "instruction_offsets": [
+            47,
+            53,
+            57,
+            63
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47803.json"
+        },
+        {
+          "function_id": 47826,
+          "instruction_offsets": [
+            3,
+            7,
+            13,
+            17,
+            111,
+            155,
+            161,
+            166
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47826.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "friends.profile",
+      "surface": "social-quick-actions",
+      "condition": "View profile callback activated",
+      "effect": "Dismiss socialHub modal, then dispatch navigationActions.profile(targetXuid).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47827,
+          "instruction_offsets": [
+            23,
+            29,
+            51,
+            57,
+            61,
+            68
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47827.json"
+        },
+        {
+          "function_id": 21815,
+          "instruction_offsets": [
+            0,
+            11,
+            19,
+            23,
+            44,
+            50,
+            90,
+            101,
+            105,
+            117,
+            127,
+            141
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-21815.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Profile action optionally adds content and chooses push/replace; serialization internals not followed."
+      ]
+    },
+    {
+      "id": "friends.escape",
+      "surface": "social-quick-actions",
+      "condition": "event.nativeEvent.key equals KeyboardEventKeys.Escape",
+      "effect": "Stop propagation and Popup.dismissAll; non-Escape does neither in this callback.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47828,
+          "instruction_offsets": [
+            3,
+            8,
+            26,
+            32,
+            42,
+            62
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47828.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "friends.multiplayer-guard",
+      "surface": "social-quick-actions",
+      "condition": "Invite-to-game action",
+      "effect": "Check userMultiplayerDenied and canInviteToGame before inviteUsersToGame.start; denied branch throws; join-game checks current user and activity first.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 47803,
+          "instruction_offsets": [
+            97,
+            103,
+            117,
+            123
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47803.json"
+        },
+        {
+          "function_id": 47808,
+          "instruction_offsets": [
+            3,
+            7,
+            10,
+            14,
+            66,
+            143
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47808.json"
+        },
+        {
+          "function_id": 47811,
+          "instruction_offsets": [
+            3,
+            10,
+            39,
+            65,
+            108,
+            185
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-47811.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Full visual hiding/disabling rules are not recovered; a request is not a successful invite/join."
+      ]
+    },
+    {
+      "id": "back.controller-dispatch",
+      "surface": "application-back-handlers",
+      "condition": "First enable-back-hook subscription",
+      "effect": "Register Gamepad B Down event with dispatcher closure F22448 and a callback set.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 22447,
+          "instruction_offsets": [
+            53,
+            57,
+            70,
+            86,
+            98,
+            106,
+            122,
+            151,
+            157,
+            181,
+            196,
+            211,
+            217
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-22447.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Native input delivery, repeats and physical controller behavior are not runtime verified."
+      ]
+    },
+    {
+      "id": "back.last-handler-wins",
+      "surface": "application-back-handlers",
+      "condition": "B dispatcher invoked",
+      "effect": "Convert registered callback Set values to array, reverse, invoke in reverse insertion order until one returns truthy; return true when consumed, otherwise false.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 22448,
+          "instruction_offsets": [
+            21,
+            27,
+            31,
+            36,
+            42,
+            54,
+            65,
+            69,
+            74,
+            77,
+            79,
+            88,
+            90
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-22448.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Exact modal/popup registration lifetime still determines which handler is newest."
+      ]
+    },
+    {
+      "id": "back.subscription",
+      "surface": "application-back-handlers",
+      "condition": "useBackHandler(callback) mounted",
+      "effect": "Subscribe callback to hardwareBackPress through BackHandler.addEventListener and retain removal handle.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 22501,
+          "instruction_offsets": [
+            9,
+            15,
+            24,
+            28,
+            32,
+            38,
+            42
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-22501.json"
+        }
+      ],
+      "original_runtime_verified": false
+    },
+    {
+      "id": "back.focus-identity",
+      "surface": "navigation-focus",
+      "condition": "Focus bookkeeping hook receives itemId and optional autoFocusDisabled",
+      "effect": "Compare validated back-focus itemId with supplied item; callback dispatches updateBackNavAutoFocusTarget({itemId,autoFocusDisabled}).",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 43501,
+          "instruction_offsets": [
+            2,
+            9,
+            38,
+            42,
+            81,
+            87,
+            98,
+            104,
+            133,
+            138,
+            146
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-43501.json"
+        },
+        {
+          "function_id": 43502,
+          "instruction_offsets": [
+            3,
+            7,
+            10,
+            14,
+            34,
+            46,
+            55,
+            60,
+            67
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-43502.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Actual element focusing and scroll restoration are outside these hooks."
+      ]
+    },
+    {
+      "id": "back.overlay-type-boundaries",
+      "surface": "overlay-host",
+      "condition": "Dismiss all modal versus popup operations",
+      "effect": "Modal.dismissAll requests OverlayType.Modal; Popup.dismissAll requests OverlayType.Popup; these are separate surface classes.",
+      "classification": "bounded_static_dataflow",
+      "evidence": [
+        {
+          "function_id": 43679,
+          "instruction_offsets": [
+            82
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-43679.json"
+        },
+        {
+          "function_id": 43782,
+          "instruction_offsets": [
+            74
+          ],
+          "private_trace": "work/reference/library/traces/menus/function-43782.json"
+        }
+      ],
+      "original_runtime_verified": false,
+      "unknowns": [
+        "Not proof that dismissAll closes every possible window or that a global Escape should always close the whole app."
+      ]
+    }
+  ],
+  "counts": {
+    "rules": 55,
+    "original_runtime_verified": 0
+  },
+  "proposed_xboks_contract": {
+    "not_original_types": true,
+    "item_fields": [
+      "stable id",
+      "label",
+      "icon",
+      "visible",
+      "disabled",
+      "loading",
+      "operation/product/target identity",
+      "execute",
+      "anchor/focus origin",
+      "platform capability",
+      "dismiss scope"
+    ],
+    "rules": [
+      "Resolve primary activation separately from context menu.",
+      "Resolve by source, product type, operation state, account/capabilities and input scope.",
+      "Preserve disabled/loading/hidden as independent dimensions.",
+      "Share action definitions between card context menus and matching details overflow; allow source-specific action sets.",
+      "Use productId for catalog detail; retain operation identifier for install actions and XUID for social actions.",
+      "Dismiss only the owning popup before opening its next surface.",
+      "Use a last-registered-first-considered Back handler with explicit consumed result and stable focus identity.",
+      "Maintain Linux adapter capabilities and actual failure states; no fabricated account/provider data."
+    ]
+  },
+  "unknowns": [
+    "Not every catalog, installed, DLC, cloud, third-party or MRU CTA eligibility hook was recovered.",
+    "Not every menu list or shortcut variant is runtime observed.",
+    "Disabled press suppression belongs partly to control/host implementation and is not established by the generic press callback.",
+    "Network, billing, social, launch, install cancellation and native OS effects are not verified.",
+    "Focus/scroll restoration and controller B delivery need original and Linux runtime traces."
+  ]
+}

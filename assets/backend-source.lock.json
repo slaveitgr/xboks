@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "version": "0.2.8",
+  "version": "0.3.0",
   "repository": "https://github.com/xodus-gaming/xodus.git",
   "commit": "53ea781dcd073e31d7ea68e894134e9c959bff04",
   "rust": "1.99.0",
   "cargoLockSha256": "2259b343e00dadc263018beb7664b12e9d58a0b73bff502ad566f5f8619ce28a",
-  "patchId": "linux-run-v32",
+  "patchId": "linux-run-v33",
   "compatibility": "linux-run-v22",
   "patches": [
     { "file": "xodus-linux-run.patch", "sha256": "68f260ec2c6e9264c47ed1a650868511f5412a756725d4000a865804f4712e8b" },
@@ -39,6 +39,7 @@
     { "file": "xodus-metadata-recovery.patch", "sha256": "b72c473615f2e5d359101cb5fae404aa3b54a34a73118b1c7f99238bd16860e3" },
     { "file": "xodus-streaming-handoff.patch", "sha256": "3be60b5dbca7fae0cb97e18e64665662620b9527c4c1340acfb4c2e2d497e648" },
     { "file": "xodus-store-ticket.patch", "sha256": "5302a699a06208c9b51809eea31261a2a53facce1af3177611ecfc050abb4eb5" },
-    { "file": "xodus-keyring-encoding.patch", "sha256": "fa6a0d4ce87f39fdb74950248f1dfd6ccecc4724c76773f5cbf84a8a003729b8" }
+    { "file": "xodus-keyring-encoding.patch", "sha256": "fa6a0d4ce87f39fdb74950248f1dfd6ccecc4724c76773f5cbf84a8a003729b8" },
+    { "file": "xodus-social.patch", "sha256": "599a07038d998d099d013153ce11d7a7dec319b258c287886863fefed9011cb9" }
   ]
 }

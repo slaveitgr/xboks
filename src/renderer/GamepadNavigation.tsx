@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { installGamepadNavigation } from './gamepad-navigation';
+import { installGamepadNavigation, registerBackHandler, type BackHandler, type BackScope } from './gamepad-navigation';
+
+/** A handler must return true only when it handled Back. Supplying the popup's
+ * ref keeps it behind any newer modal scope; callback changes retain its order. */
+export function useBackHandler(handler: BackHandler, enabled = true, scope?: BackScope) {
+  const callback = useRef(handler); callback.current = handler;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+  const scoped = Boolean(scope);
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+    return registerBackHandler(window, () => callback.current(), scoped ? () => scopeRef.current?.() ?? null : undefined);
+  }, [enabled, scoped]);
+}
 
 export function GamepadNavigation({ back, page }: { back: () => void; page: (delta: number) => void }) {
   const callbacks = useRef({ back, page }); callbacks.current = { back, page };

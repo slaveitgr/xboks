@@ -1,5 +1,45 @@
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type PadAction = Direction | 'accept' | 'back' | 'options' | 'previous-page' | 'next-page';
+export type BackHandler = () => boolean;
+export type BackScope = () => HTMLElement | null;
+type BackRegistration = { handler: BackHandler; scope?: BackScope };
+
+/** Last registered handler gets the first chance to consume Back. Returning
+ * false lets the previous layer try; removing a handler is safe during dispatch.
+ * This is the bounded F22448/F22449 behavior, not a Windows runtime claim. */
+export class BackHandlerStack {
+  private handlers = new Set<BackRegistration>();
+  register(handler: BackHandler, scope?: BackScope): () => void {
+    const registration = { handler, scope };
+    this.handlers.add(registration);
+    return () => { this.handlers.delete(registration); };
+  }
+  dispatch(eligible: (registration: BackRegistration) => boolean = () => true): boolean {
+    for (const registration of [...this.handlers].reverse()) {
+      if (this.handlers.has(registration) && eligible(registration) && registration.handler()) return true;
+    }
+    return false;
+  }
+}
+
+const backHandlers = new WeakMap<Window, BackHandlerStack>();
+export function registerBackHandler(win: Window, handler: BackHandler, scope?: BackScope): () => void {
+  let stack = backHandlers.get(win);
+  if (!stack) { stack = new BackHandlerStack(); backHandlers.set(win, stack); }
+  return stack.register(handler, scope);
+}
+
+/** DOM scope protects an outer registered popup while a newer, as-yet
+ * unregistered modal is open. Its existing cancel button remains the fallback.
+ * Without a scope, this is the ordered consumable dispatcher itself. */
+export function dispatchBackHandlers(win: Window, activeScope?: HTMLElement | Document): boolean {
+  return backHandlers.get(win)?.dispatch(registration => {
+    if (!activeScope) return true;
+    if (activeScope === win.document) return !registration.scope;
+    const root = registration.scope?.();
+    return Boolean(root?.isConnected && (root === activeScope || activeScope.contains(root)));
+  }) ?? false;
+}
 type Rect = Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>;
 type Pad = Pick<Gamepad, 'buttons' | 'axes'>;
 const directions: Direction[] = ['up', 'down', 'left', 'right'];
@@ -80,6 +120,25 @@ export function revealDelta(top: number, bottom: number, viewTop: number, viewBo
   return bottom > viewBottom ? bottom - viewBottom : 0;
 }
 
+/** undefined: not an editable range; false: native step did not change it;
+ * true: changed. A detached native control owns min/max/step rounding. Bypass
+ * React's instance value tracker so its real onChange sees input/change. */
+export function stepGamepadRange(input: HTMLInputElement, direction: 'left' | 'right'): boolean | undefined {
+  if (input.type !== 'range' || input.disabled || input.readOnly) return;
+  const owner = input.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+  const setter = owner && Object.getOwnPropertyDescriptor(owner.HTMLInputElement.prototype, 'value')?.set;
+  if (!owner || !setter) return;
+  const previous = input.value, probe = input.cloneNode(false) as HTMLInputElement;
+  probe.value = previous;
+  try { probe.stepUp(direction === 'right' ? 1 : -1); }
+  catch { return false; } // Native step='any' has no discrete step.
+  if (probe.value === previous) return false;
+  setter.call(input, probe.value);
+  input.dispatchEvent(new owner.Event('input', { bubbles: true }));
+  input.dispatchEvent(new owner.Event('change', { bubbles: true }));
+  return true;
+}
+
 /** Renderer-only navigation. Never intercepts pointer/keyboard defaults, changes
  * Steam mappings, or sends gamepad events to another window/process. */
 export function installGamepadNavigation(win: Window, options: Options): () => void {
@@ -90,7 +149,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   let active = false, stopped = false, frame = 0, previousTime = 0;
   let scope: HTMLElement | Document = doc;
   let picker: HTMLElement | undefined;
-  let escapeFromPad = false;
+  let keyboardFromPad = false;
   let pendingDetail: { id: string; origin: HTMLElement; deadline: number } | undefined;
   let detailReturn: { id: string; origin: HTMLElement } | undefined;
   const visible = (element: HTMLElement) => {
@@ -188,10 +247,12 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   const pointer = () => { pendingDetail = undefined; setMode(false); inputs.forEach(input => input.reset()); };
   const pointerMove = (event: PointerEvent) => { if (event.movementX || event.movementY) pointer(); };
   const keyboard = (event: KeyboardEvent) => {
-    if (!escapeFromPad) {
-      if (picker && event.key === 'Escape') { closePicker(true); event.stopImmediatePropagation(); }
-      pointer();
+    if (keyboardFromPad) return;
+    if (event.key === 'Escape') {
+      const consumed = picker ? (closePicker(true), true) : dispatchBackHandlers(win, currentScope());
+      if (consumed) { event.preventDefault(); event.stopImmediatePropagation(); }
     }
+    pointer();
   };
   const blur = () => { pointer(); closePicker(false); };
 
@@ -241,6 +302,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       // on focus and ordinary pointer/keyboard clicks never start an install.
       const target = element.closest('[data-gamepad-card]')?.querySelector<HTMLElement>('[data-gamepad-card-action]');
       if (target && scope.contains(target) && enabled(target)) target.click();
+      else if (!target) element.click(); // Catalog cards without an action open their product details.
     }
     else {
       const id = element.getAttribute('data-gamepad-detail-target');
@@ -256,11 +318,15 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   };
   const back = () => {
     if (picker) { closePicker(true); return; }
+    if (dispatchBackHandlers(win, scope)) {
+      if (scope === doc) { pendingDetail = undefined; detailReturn = undefined; }
+      return;
+    }
     if (scope instanceof HTMLElement) {
       if (scope.hasAttribute('data-game-menu')) {
-        escapeFromPad = true;
+        keyboardFromPad = true;
         try { win.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); }
-        finally { escapeFromPad = false; }
+        finally { keyboardFromPad = false; }
       } else {
         const cancel = scope.querySelector<HTMLElement>('[data-gamepad-cancel]');
         if (cancel && enabled(cancel)) cancel.click();
@@ -281,6 +347,23 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       const element = focused();
       if (element) {
         const direction = value as Direction;
+        if ((direction === 'left' || direction === 'right') && element instanceof HTMLInputElement && scope.contains(element) && enabled(element)) {
+          const changed = stepGamepadRange(element, direction);
+          if (changed !== undefined) {
+            if (changed) {
+              const originScope = scope, key = direction === 'right' ? 'ArrowRight' : 'ArrowLeft';
+              // React must render the new controlled value before existing
+              // Guide/AudioSettings keyup handlers commit it to the backend.
+              win.requestAnimationFrame(() => {
+                if (stopped || doc.activeElement !== element || !enabled(element) || element.readOnly || currentScope() !== originScope || !originScope.contains(element)) return;
+                keyboardFromPad = true;
+                try { element.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, bubbles: true })); }
+                finally { keyboardFromPad = false; }
+              });
+            }
+            return; // Keep focus at the range's min/max; up/down exits it.
+          }
+        }
         // The sidebar and page are separate navigation regions. Their controls
         // need not line up vertically, so enter the page explicitly instead of
         // applying the strict within-region directional beam across that gap.
@@ -353,7 +436,16 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     } else if (value === 'accept') activate();
     else if (value === 'back') back();
     else if (value === 'options') {
+      if (scope !== doc) return; // Options must not open a menu behind another popup.
       const origin = detailReturn && focused()?.closest('[data-gamepad-detail]')?.getAttribute('data-gamepad-detail') === detailReturn.id ? detailReturn.origin : focused();
+      // The same card handler serves X, Shift+F10 and the keyboard Menu key.
+      // Keep the existing explicit library trigger for unmigrated surfaces.
+      if (origin) {
+        keyboardFromPad = true;
+        try {
+          if (!origin.dispatchEvent(new KeyboardEvent('keydown', { key: 'ContextMenu', code: 'ContextMenu', bubbles: true, cancelable: true }))) return;
+        } finally { keyboardFromPad = false; }
+      }
       const trigger = origin?.closest('.library-card-wrap')?.querySelector<HTMLElement>('[data-game-menu-trigger]');
       if (trigger && enabled(trigger)) trigger.click();
     } else if (scope instanceof HTMLElement && scope.hasAttribute('data-gamepad-gallery')) {
@@ -363,6 +455,13 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     } else if (scope instanceof HTMLElement && scope.hasAttribute('data-gamepad-sections')) {
       options.page(value === 'previous-page' ? -1 : 1);
     } else if (scope === doc) {
+      const sections = [...doc.querySelectorAll<HTMLElement>('[data-gamepad-section-tabs]')].find(visible);
+      const tabs = sections ? [...sections.querySelectorAll<HTMLElement>('[role="tab"]')].filter(enabled) : [];
+      if (tabs.length) {
+        const current = Math.max(0, tabs.findIndex(tab => tab.getAttribute('aria-selected') === 'true'));
+        const target = tabs[(current + (value === 'previous-page' ? -1 : 1) + tabs.length) % tabs.length];
+        target.click(); focus(target); return;
+      }
       options.page(value === 'previous-page' ? -1 : 1);
       pageFocus();
     }

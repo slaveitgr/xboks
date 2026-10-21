@@ -1,4 +1,4 @@
-export type Page = 'home' | 'store' | 'library' | 'downloads' | 'settings';
+export type Page = 'home' | 'gamepass' | 'store' | 'library' | 'downloads' | 'settings';
 
 export interface BackendCapabilities {
   commands: string[];
@@ -7,6 +7,7 @@ export interface BackendCapabilities {
   gameActivity?: boolean;
   achievements?: boolean;
   library?: boolean;
+  social?: boolean;
   login: boolean;
   externalAuth?: boolean;
   logout: boolean;
@@ -27,6 +28,7 @@ export interface AuthStatus {
   gamertag?: string;
   avatarDataUrl?: string;
   subscription?: GamePassSubscription;
+  storeAccount?: import('./account-identities.js').StoreAccountIdentity;
   lastResult?: 'success' | 'failed';
   lastAction?: 'login' | 'logout';
   note: string;
@@ -172,6 +174,13 @@ export interface Settings {
   market: string;
   parallelDownloads: number;
   downloadLimitMiB?: number;
+  downloadNotifications?: boolean;
+  /** Display preference only; downloadLimitMiB always remains MiB/s. */
+  downloadSpeedUnit?: 'bits' | 'bytes';
+  createDesktopShortcut?: boolean;
+  launchOnLogin?: boolean;
+  launchInBackground?: boolean;
+  minimizeToTray?: boolean;
   winePath: string;
   externalXodusRoot: string;
   runtimeRoot: string;
@@ -204,6 +213,13 @@ export interface GameUpdate {
 
 export interface DiagnosticLog { name: string; content: string; truncated: boolean }
 
+export interface KeyringStatus {
+  state: 'ready' | 'locked' | 'stopped' | 'disabled' | 'missing' | 'needs-setup' | 'unavailable';
+  gameMode: boolean;
+  canStart: boolean;
+  message: string;
+}
+
 export interface AppSnapshot {
   backend: BackendStatus;
   runtime: RuntimeStatus;
@@ -215,6 +231,19 @@ export interface AppSnapshot {
   gameOperation?: GameOperation;
   gameUpdates?: Record<string, GameUpdate>;
   downloadProgressSupported?: boolean;
+  desktopSettings?: DesktopSettingsStatus;
+}
+
+/** Desktop session facts, separate from the application window's fullscreen state. */
+export interface DesktopSettingsStatus {
+  canSetAutostart: boolean;
+  autostartReason?: string;
+  fullscreenExperience: boolean;
+  fullscreenExperienceSource: 'environment' | 'none';
+  sessionType?: string;
+  desktop?: string;
+  /** Unknown until attempted; a successful Tray construction does not prove shell visibility. */
+  trayAvailable?: boolean;
 }
 
 export interface InstallRequest {
@@ -338,6 +367,22 @@ export interface AccountLibraryPage {
 export type GuideAudio = { available: true; volume: number; muted: boolean } | { available: false; reason: string };
 
 export interface LauncherApi {
+  requestVoiceCapture(): Promise<void>;
+  releaseVoiceCapture(): Promise<void>;
+  onVoiceCaptureStop(callback: () => void): () => void;
+  getGuideSystem(): Promise<import('./guide-system.js').GuideSystemState>;
+  prepareGuidePower(action: import('./guide-system.js').GuidePowerAction): Promise<import('./guide-system.js').GuidePowerConfirmation>;
+  executeGuideSystem(action: import('./guide-system.js').GuideSystemAction, confirmationToken?: string): Promise<import('./guide-system.js').GuideSystemActionResult>;
+  openGuideSystemSettings(section: import('./guide-system.js').GuideSystemSettingsSection): Promise<void>;
+  getXboxFriends(refresh?: boolean): Promise<import('./xbox-social.js').XboxSocialResult>;
+  getXboxChats(refresh?: boolean): Promise<import('./xbox-social.js').XboxSocialResult>;
+  getXboxConversation(peerXuid: string, refresh?: boolean): Promise<import('./xbox-social.js').XboxSocialResult>;
+  searchXboxPeople(query: string): Promise<import('./xbox-social.js').XboxSocialResult>;
+  sendXboxMessage(peerXuid: string, text: string): Promise<import('./xbox-social.js').XboxSocialResult>;
+  quitLauncher(): Promise<void>;
+  openRemotePlay(): Promise<void>;
+  getBatteryPercentage(): Promise<number | null>;
+  getLibraryProviders(): Promise<import('./library-providers.js').LibraryProviderStatus[]>;
   getGuideAudio(): Promise<GuideAudio>;
   setGuideAudio(patch: { volume?: number; muted?: boolean }): Promise<GuideAudio>;
   captureLauncher(): Promise<string>;
@@ -353,17 +398,22 @@ export interface LauncherApi {
   installNexusRuntime(): Promise<void>;
   rollbackRuntimePreview(): Promise<void>;
   refreshAccount(): Promise<AuthStatus>;
+  checkKeyring(): Promise<KeyringStatus>;
+  startKeyring(): Promise<KeyringStatus>;
   checkLauncherUpdate(): Promise<LauncherUpdate | undefined>;
   installLauncherUpdate(): Promise<void>;
   restartLauncher(): Promise<void>;
   rollbackLauncherUpdate(): Promise<void>;
   checkGameUpdates(id?: string): Promise<void>;
   readDiagnosticLog(operationId: string): Promise<DiagnosticLog>;
+  copyDiagnosticLog(operationId: string): Promise<void>;
+  revealDiagnosticLog(operationId: string): Promise<void>;
   readBackendDiagnosticLog(): Promise<DiagnosticLog>;
   login(): Promise<void>;
   logout(): Promise<void>;
   searchCatalog(query: string, cursor?: string): Promise<CatalogSearchResult>;
   getFeaturedCatalog(): Promise<CatalogSearchResult>;
+  getCatalogDetails(productId: string): Promise<GameStoreDetails | undefined>;
   getAccountLibrary(kind: AccountLibraryPage['kind'], cursor?: string, refresh?: boolean): Promise<AccountLibraryPage>;
   startInstall(request: InstallRequest): Promise<string>;
   getInstallPlan(productId: string): Promise<InstallPlan>;

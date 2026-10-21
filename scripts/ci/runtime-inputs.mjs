@@ -13,6 +13,6 @@ export function runtimeInputsChanged(files, metadataOnly = false) {
   files = files.filter(file => !promotionOnly.has(file) && !(metadataOnly && file === 'scripts/runtime-patches.lock.json'));
   // xodus-* patches belong to the independently built backend, not Wine/GDK.
   return files.some(file => (/^assets\/.*\.patch$/s.test(file) && !/^assets\/xodus-[a-z-]+\.patch$/.test(file)) ||
-    /^scripts\/(?:ci\/|runtime-tests\/|runtime-compat\/|runtime-.*\.lock\.json$|(?:build-shared-runtime|build-runtime-media|assemble-shared-runtime|verify-runtime-base)\.mjs$)/.test(file) ||
+    /^scripts\/(?:ci\/|runtime-tests\/|runtime-compat\/|runtime-.*\.lock\.json$|(?:build-shared-runtime|build-runtime-media|build-runtime-dxvk|assemble-shared-runtime|verify-runtime-base)\.mjs$)/.test(file) ||
     file === '.github/workflows/runtime.yml' || /^src\/main\/proton\./.test(file));
 }

@@ -1,0 +1,29 @@
+.xbox-icon { width: 24px; height: 24px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; color: inherit; vertical-align: middle; line-height: 1; }
+.xbox-icon > svg { width: 100% !important; height: 100% !important; flex-shrink: 0; }
+.xbox-icon > .xbox-original-icon, .xbox-icon > .xbox-original-glyph { display: none; }
+.xbox-original-icon { mask-repeat: no-repeat; mask-position: center; mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; -webkit-mask-size: contain; }
+html[data-original-xbox-ui] .xbox-icon > .xbox-fallback-icon { display: none; }
+html[data-original-xbox-ui] .xbox-icon > .xbox-original-icon { display: block; }
+html[data-original-xbox-ui] .xbox-icon > .xbox-original-glyph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-family: 'Xbox Segoe MDL2' !important; font-size: inherit; font-weight: 400 !important; font-style: normal; line-height: 1; }
+.xbox-icon:has(> .xbox-original-glyph) { font-size: 24px; }
+.xbox-mode .nav-item > .xbox-icon { width: 26px; height: 26px; font-size: 24px; }
+.xbox-mode .sidebar-bottom .nav-item > .xbox-icon { width: 22px; height: 22px; font-size: 20px; }
+.xbox-mode .account-avatar > .xbox-icon { width: 32px; height: 32px; }
+.xbox-mode .search-box > .xbox-icon { width: 16px; height: 16px; }
+.shell-tools .xbox-icon, .xbox-full-toggle .xbox-icon, .shell-back .xbox-icon { width: 20px; height: 20px; }
+.shell-power .xbox-icon { width: 20px; height: 22px; }
+.library-filters .xbox-icon, .queue-toolbar .xbox-icon, .queue-group-heading .xbox-icon { width: 17px; height: 17px; }
+.library-import > .xbox-icon { width: 24px; height: 24px; }
+.catalog-card-status .xbox-icon { width: 16px; height: 16px; }
+.queue-row-options .xbox-icon { width: 20px; height: 20px; }
+.queue-row-options .xbox-icon > svg { transform: rotate(90deg); }
+.guide-tabs .xbox-icon { width: 28px; height: 28px; font-size: 28px; }
+.shell-account-menu .xbox-icon { width: 16px; height: 16px; }
+.shell-account-menu .xbox-icon:last-child:not(:first-child) { width: 12px; height: 12px; margin-left: auto; }
+.xbox-mode .nav-item > .xbox-icon { display: inline-flex; }
+.guide-recent-list button > .xbox-icon { display: inline-flex; flex: 0 0 24px; }
+.xbox-mode .shell-tools .xbox-full-toggle > .xbox-icon { display: inline-flex; }
+html[data-original-xbox-ui] .xbox-icon > .xbox-original-glyph.xbox-fluent-glyph { font-family: 'Xbox Fluent 2' !important; }
+.shell-notification-list > button > .xbox-icon:first-child { width: 28px; height: 28px; color: #17ace0; }
+.guide-panel h3 > .xbox-icon, .shell-friends-search > .xbox-icon { width: 20px; height: 20px; }
+.xbox-settings-close > .xbox-icon { width: 20px; height: 20px; }

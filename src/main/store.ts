@@ -15,11 +15,17 @@ interface PersistedState {
 }
 
 const defaultDataRoot = path.join(os.homedir(), '.local', 'share', 'xodus-nexus');
+const legacyDefaultInstallRoot = path.join(os.homedir(), 'Games', 'Xodus Nexus');
 const defaultSettings: Settings = {
-  installRoot: path.join(os.homedir(), 'Games', 'Xodus Nexus'),
+  installRoot: path.join(os.homedir(), 'Games', 'Xboks'),
   market: 'neutral',
   parallelDownloads: 4,
   downloadLimitMiB: 0,
+  downloadSpeedUnit: 'bytes',
+  createDesktopShortcut: false,
+  launchOnLogin: false,
+  launchInBackground: false,
+  minimizeToTray: false,
   winePath: '',
   externalXodusRoot: '',
   runtimeRoot: path.join(defaultDataRoot, 'runtimes'),
@@ -28,6 +34,7 @@ const defaultSettings: Settings = {
 
 export class StateStore {
   private writes: Promise<void> = Promise.resolve();
+  private settingsWrites: Promise<unknown> = Promise.resolve();
   private state: PersistedState = { games: [], downloads: [], settings: defaultSettings };
   private readonly file: string;
 
@@ -53,7 +60,17 @@ export class StateStore {
             ...task, status: 'paused' as const, canPause: true, controlPending: false,
             transferRate: undefined, phase: 'Paused — resume to reconnect and restore saved download checkpoints',
           } : task) : [],
-        settings: Object.fromEntries(Object.entries({ ...defaultSettings, ...parsed.settings, downloadLimitMiB }).filter(([key]) => key !== 'separateGameProcess')) as unknown as Settings,
+        settings: Object.fromEntries(Object.entries({
+          ...defaultSettings, ...parsed.settings, downloadLimitMiB,
+          // Rename only the former default for future installs. Existing game
+          // paths, resumable download destinations and custom roots stay intact.
+          ...(parsed.settings?.installRoot === legacyDefaultInstallRoot ? { installRoot: defaultSettings.installRoot } : {}),
+          downloadSpeedUnit: parsed.settings?.downloadSpeedUnit === 'bits' ? 'bits' : 'bytes',
+          createDesktopShortcut: parsed.settings?.createDesktopShortcut === true,
+          launchOnLogin: parsed.settings?.launchOnLogin === true,
+          launchInBackground: parsed.settings?.launchInBackground === true,
+          minimizeToTray: parsed.settings?.minimizeToTray === true,
+        }).filter(([key]) => key !== 'separateGameProcess')) as unknown as Settings,
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') console.warn('State could not be loaded', error);
@@ -65,8 +82,9 @@ export class StateStore {
   get settings(): Settings { return this.state.settings; }
 
   save(): Promise<void> {
-    const data = JSON.stringify(this.state, null, 2);
     const write = this.writes.then(async () => {
+      // A preceding failed settings transaction may have rolled back while this save was queued.
+      const data = JSON.stringify(this.state, null, 2);
       await fs.mkdir(path.dirname(this.file), { recursive: true });
       const temporary = `${this.file}.tmp`;
       await fs.writeFile(temporary, data, { mode: 0o600 });
@@ -78,9 +96,20 @@ export class StateStore {
 
   async setSettings(patch: Partial<Settings>): Promise<Settings> {
     if (patch.downloadLimitMiB !== undefined) downloadLimitKiB(patch.downloadLimitMiB);
-    this.state.settings = { ...this.state.settings, ...patch };
-    await this.save();
-    return this.state.settings;
+    if (patch.downloadSpeedUnit !== undefined && patch.downloadSpeedUnit !== 'bits' && patch.downloadSpeedUnit !== 'bytes') throw new Error('Invalid download speed display unit.');
+    for (const key of ['createDesktopShortcut', 'launchOnLogin', 'launchInBackground', 'minimizeToTray'] as const) {
+      if (patch[key] !== undefined && typeof patch[key] !== 'boolean') throw new Error(`Invalid ${key} preference.`);
+    }
+    // Keep settings updates ordered, and do not leave an unsaved preference in the live snapshot.
+    const write = this.settingsWrites.then(async () => {
+      const previous = this.state.settings;
+      this.state.settings = { ...previous, ...patch };
+      try { await this.save(); }
+      catch (error) { this.state.settings = previous; throw error; }
+      return this.state.settings;
+    });
+    this.settingsWrites = write.catch(() => {});
+    return write;
   }
 
   async upsertGame(game: Game): Promise<Game> {

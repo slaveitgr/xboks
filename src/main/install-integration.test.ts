@@ -14,10 +14,12 @@ const h = vi.hoisted(() => ({
   downloads: [] as { args: string[]; progress: (paused?: boolean, phase?: string) => void; finish: (code: number) => void }[],
   game: undefined as undefined | { finish: () => void },
   quit: vi.fn(),
+  permissionCheck: vi.fn(), permissionRequest: vi.fn(),
+  showWindow: vi.fn(), restoreWindow: vi.fn(),
   blockDisplay: vi.fn(() => 7), releaseDisplay: vi.fn(() => true),
   steamProfiles: [] as string[], steamIsRunning: true,
   liveImport: vi.fn(), offlineImport: vi.fn(), showMessage: vi.fn(),
-  trash: vi.fn(), deleteFiles: vi.fn(), removeShortcut: vi.fn(async () => {}), signals: [] as string[],
+  trash: vi.fn(), deleteFiles: vi.fn(), removeShortcut: vi.fn(async () => {}), createShortcut: vi.fn(async () => 'synthetic.desktop'), signals: [] as string[],
   notifications: [] as { title: string; body: string }[],
   holdCancellation: false,
   holdAccountReads: false,
@@ -27,11 +29,14 @@ const h = vi.hoisted(() => ({
 vi.mock('electron', () => ({
   Notification: class { static isSupported() { return true; } constructor(private options: { title: string; body: string }) {} on() {} show() { h.notifications.push(this.options); } },
   app: { requestSingleInstanceLock: () => true, getPath: (name: string) => path.join(h.root, name),
+    getAppPath: () => path.join(h.root, 'source'),
     setPath: vi.fn(), on: (name: string, callback: (...args: any[]) => any) => h.events.set(name, callback), once: vi.fn(),
     whenReady: () => Promise.resolve(), getVersion: () => '0.0.0', isPackaged: false, quit: h.quit },
   ipcMain: { handle: (name: string, callback: (...args: any[]) => any) => h.handlers.set(name, callback) },
+  session: { defaultSession: { setPermissionCheckHandler: h.permissionCheck, setPermissionRequestHandler: h.permissionRequest } },
   BrowserWindow: class { webContents = { on: vi.fn(), send: vi.fn(), setWindowOpenHandler: vi.fn() };
-    on() {} once() {} show() {} focus() {} isDestroyed() { return false; } async loadFile() {} },
+    on() {} once() {} show = h.showWindow; restore = h.restoreWindow; focus() {}
+    isMinimized() { return false; } isVisible() { return true; } isDestroyed() { return false; } async loadFile() {} },
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1440, height: 900 } }) },
   dialog: { showMessageBox: h.showMessage }, nativeImage: {}, shell: { trashItem: h.trash }, powerSaveBlocker: { start: h.blockDisplay, stop: h.releaseDisplay },
 }));
@@ -47,7 +52,7 @@ vi.mock('./launcher-fonts.js', () => ({ adoptLauncherFonts: () => undefined, ext
 vi.mock('./game-delete.js', () => ({ deleteGameDirectory: (target: { path: string }) => h.deleteFiles(target.path) }));
 vi.mock('./session-environment.js', () => ({ prepareGameModeKeyring: async () => 'skipped' }));
 vi.mock('./game-shortcuts.js', () => ({ shortcutArguments: () => ({}), shortcutInstanceData: () => ({}), shortcutInstanceRequest: () => ({}),
-  GameShortcuts: class { async initialize() {} remove = h.removeShortcut; async steamDesktop() { return { file: path.join(h.root, 'game.desktop'),
+  GameShortcuts: class { async initialize() {} remove = h.removeShortcut; create = h.createShortcut; async steamDesktop() { return { file: path.join(h.root, 'game.desktop'),
     launch: { icon: h.wine, title: 'Sample game', executable: '/bin/sh', options: 'fixture', directory: h.root, identity: 'fixture' } }; } } }));
 vi.mock('./steam-shortcuts.js', async original => ({ ...await original<typeof import('./steam-shortcuts.js')>(),
   steamAccounts: async () => h.steamProfiles, steamRunning: async () => h.steamIsRunning, addSteamShortcut: h.offlineImport }));
@@ -89,6 +94,8 @@ const install = (letter: string, destination = path.join(h.root, `download-${let
 
 beforeAll(async () => {
   h.root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-install-integration-'));
+  vi.stubEnv('XDG_CONFIG_HOME', path.join(h.root, 'config'));
+  vi.stubEnv('XBOKS_FULLSCREEN_EXPERIENCE', '0');
   h.wine = path.join(h.root, 'runtime', 'wine'); await fs.mkdir(path.dirname(h.wine)); await fs.writeFile(h.wine, 'fixture', { mode: 0o700 });
   const data = demoSnapshot(); h.backend = { ...data.backend, capabilities: { ...data.backend.capabilities, packageSelection: true }, binaryPath: path.join(h.root, 'synthetic-cli'), linuxRunPatch: 'test-patch' }; h.runtime = data.runtime;
   const store = new StateStore(path.join(h.root, 'userData'));
@@ -110,11 +117,18 @@ beforeAll(async () => {
   });
   await import('./index.js');
   await vi.waitFor(() => expect(h.handlers.has('start-install')).toBe(true));
+  await vi.waitFor(() => expect(h.showWindow).toHaveBeenCalled());
+  expect(h.permissionCheck).toHaveBeenCalledWith(expect.any(Function));
+  expect(h.permissionRequest).toHaveBeenCalledWith(expect.any(Function));
+  // The lifecycle fixture installs the real deny-by-default permission broker.
+  expect(h.permissionCheck.mock.calls[0][0](null, 'media', '', { isMainFrame: true, mediaType: 'audio' })).toBe(false);
+  expect(h.quit).not.toHaveBeenCalled(); // Startup must not bypass the shutdown cleanup assertions below.
 });
 afterAll(async () => {
   h.game?.finish(); for (const job of h.downloads) job.finish(130);
   await new Promise(resolve => setTimeout(resolve, 50));
   await fs.rm(h.root, { recursive: true, force: true });
+  vi.unstubAllEnvs();
 });
 
 it('real account-refresh IPC shares status reads and cannot publish a late old backend response', async () => {
@@ -260,6 +274,45 @@ it('keeps new partials by default and refuses deletion of an existing folder or 
   expect(await fs.readFile(path.join(h.root, 'installed-game/Game.exe'), 'utf8')).toBe('MZ fixture');
   await ipc('cancel-download', update, 'keep'); h.downloads.splice(0);
   await expect(ipc('cancel-download', update, 'invalid')).rejects.toThrow('Invalid cancellation');
+});
+
+it('creates a desktop shortcut only for a new ready install when enabled, without failing a completed install on shortcut errors', async () => {
+  const complete = async (letter: string, ready: boolean) => {
+    const id = await install(letter);
+    await vi.waitFor(() => expect(h.downloads).toHaveLength(1));
+    const destination = snapshot().downloads.find((task: any) => task.id === id).destination;
+    await fs.writeFile(path.join(destination, 'MicrosoftGame.config'), `<Game><ShellVisuals DefaultDisplayName="Sample ${letter}"/><ExecutableList><Executable Name="Game.exe"/></ExecutableList><StoreId>9${letter.repeat(11)}</StoreId></Game>`);
+    await fs.writeFile(path.join(destination, 'Game.exe'), 'MZ fixture');
+    if (ready) await fs.writeFile(path.join(destination, '.xodus-streaming.msixvc'), 'synthetic container');
+    const notifications = h.notifications.length;
+    h.downloads[0].progress(false, 'complete'); h.downloads[0].finish(0);
+    // A toast occurs after metadata validation and the optional shortcut hook, so
+    // waiting for it verifies the whole completion path rather than just transfer status.
+    await vi.waitFor(() => expect(h.notifications).toHaveLength(notifications + 1));
+    expect(snapshot().downloads.find((task: any) => task.id === id).status).toBe('complete');
+    expect(snapshot().games.find((game: any) => game.path === destination).installState).toBe(ready ? 'ready' : 'imported');
+    h.downloads.splice(0);
+    return { id, destination };
+  };
+  try {
+    expect(snapshot().settings.createDesktopShortcut).toBe(false);
+    await complete('G', true);
+    expect(h.createShortcut).not.toHaveBeenCalled();
+    await ipc('update-settings', { createDesktopShortcut: true });
+    const enabled = await complete('H', true);
+    expect(h.createShortcut).toHaveBeenCalledOnce();
+    expect(h.createShortcut).toHaveBeenCalledWith(expect.objectContaining({ title: 'Sample H', path: enabled.destination, installState: 'ready' }), 'desktop');
+    await complete('I', false);
+    expect(h.createShortcut).toHaveBeenCalledTimes(1); // Imported metadata is not a runnable installation.
+    h.createShortcut.mockRejectedValueOnce(new Error('Synthetic shortcut failure'));
+    const failedShortcut = await complete('J', true);
+    expect(h.createShortcut).toHaveBeenCalledTimes(2);
+    expect(snapshot().downloads.find((task: any) => task.id === failedShortcut.id).log).toContain('The game is installed, but its desktop shortcut could not be created. Use Game options to try again.');
+    expect(snapshot().games.find((game: any) => game.path === failedShortcut.destination).installState).toBe('ready');
+  } finally {
+    await ipc('update-settings', { createDesktopShortcut: false });
+    h.notifications.splice(0);
+  }
 });
 
 it('runs real queue IPC, pause/cancel/failure/restart and simultaneous play/download safely', async () => {

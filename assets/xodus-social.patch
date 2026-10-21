@@ -1,0 +1,566 @@
+diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -73,6 +73,13 @@
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Read Xbox friends/chats or explicitly send a one-to-one message")]
++    Social {
++        #[arg(long, global = true)]
++        json: bool,
++        #[command(subcommand)]
++        command: commands::social::SocialCommand,
++    },
+     #[command(about = "Read Xbox time played and last activity for one title without starting sign-in")]
+     GameActivity {
+         title_id: u32,
+@@ -188,7 +195,12 @@
+ 
+ #[tokio::main]
+ async fn main() -> ExitCode {
+-    let filter = tracing_subscriber::EnvFilter::from_env("XODUS_LOG");
++    let args = CliArgs::parse();
++    // Social search/message bodies and Xbox credentials must never enter a
++    // verbose transport trace, including when XODUS_LOG is inherited.
++    let filter = if matches!(&args.command, SubCommand::Social { .. }) {
++        tracing_subscriber::EnvFilter::new("off")
++    } else { tracing_subscriber::EnvFilter::from_env("XODUS_LOG") };
+     let registry =
+         tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr).with_filter(filter));
+ 
+@@ -212,7 +224,6 @@
+         .connection_verbose(true)
+         .build()
+         .unwrap();
+-    let args = CliArgs::parse();
+     #[cfg(not(feature = "native-webview"))]
+     if args.external_webview_stdio {
+         webview::enable_stdio();
+@@ -229,7 +240,9 @@
+         xodus::tokens::store::TokenStoreError::from(error).report();
+         return ExitCode::FAILURE;
+     }
+-    let tokens = TokenManager::with_keychain_and_memory();
++    let tokens = if matches!(&args.command, SubCommand::Social { .. }) {
++        commands::social::readonly_manager()
++    } else { TokenManager::with_keychain_and_memory() };
+ 
+     // Clep/SpLicense are pure local data transforms and Logout only removes
+     // stored credentials - none of them need a device identity, so don't
+@@ -241,6 +254,7 @@
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::Social { .. }
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+             | SubCommand::Library { .. }
+@@ -306,6 +320,7 @@
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::Social { command, json } => commands::social::run(&tokens, command, json).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
+         SubCommand::Login => commands::login::run(&client, &tokens).await,
+diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -15,3 +15,4 @@
+ pub mod run;
+ pub mod splicense;
+ pub mod streaming;
++pub mod social;
+diff --git a/crates/xodus-cli/src/commands/profile.rs b/crates/xodus-cli/src/commands/profile.rs
+--- a/crates/xodus-cli/src/commands/profile.rs
++++ b/crates/xodus-cli/src/commands/profile.rs
+@@ -52,6 +52,36 @@
+     let (account, device, user) = super::session::prepare(tokens, &client).await.map_err(|stage| {
+         super::session::diagnostic(stage); stage
+     })?;
++    bearer_session(client,account,device,user).await
++}
++
++// The companion must coexist with backends using the older keyring encoding.
++// Read current cached credentials only: no device renewal, provisioning, login,
++// migration, cache save or TokenManager mutation. Expiry remains an explicit gate.
++pub(super) fn readonly_credentials(tokens: &TokenManager) -> Result<(String, xodus::models::secrets::LegacyToken, xodus::models::secrets::LegacyToken), &'static str> {
++    use xodus::tokens::session::{state,State};
++    let account = tokens.get_user().map_err(|_| "stored-account")?.username;
++    let device = tokens.get_device_sts_token().map_err(|_| "session-device-renewal-required")?;
++    let user = tokens.get_user_sts_token().map_err(|_| "session-user-renewal-required")?;
++    for (token,expired) in [(&device,"session-device-renewal-required"),(&user,"session-user-renewal-required")] {
++        match state(token,chrono::Utc::now()) {
++            State::Current => {}, State::Expired => return Err(expired), State::Invalid => return Err("session-token-invalid")
++        }
++    }
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed"); }
++    let (Token::Legacy(device),Token::Legacy(user)) = (device,user) else { return Err("session-token-invalid"); };
++    Ok((account,device,user))
++}
++pub(super) async fn xbox_session_readonly(tokens: &TokenManager) -> Result<(reqwest::Client, String, String), &'static str> {
++    let (account,device,user) = readonly_credentials(tokens)?;
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
++        .retry(reqwest::retry::never()).timeout(super::session::REQUEST_TIMEOUT)
++        .user_agent("xboks-social-session/1").build().map_err(|_| "http-client")?;
++    bearer_session(client,account,device,user).await
++}
++// This exchange receives values, not a TokenManager: it cannot persist or renew
++// cached credentials. Xbox user/XSTS tickets exist only in this process memory.
++async fn bearer_session(client: reqwest::Client, account: String, device: xodus::models::secrets::LegacyToken, user: xodus::models::secrets::LegacyToken) -> Result<(reqwest::Client, String, String), &'static str> {
+     // Reuse the upstream RPS -> Xbox user -> XSTS exchange. This is a bearer
+     // user token (no ProofKey); it must not use the runtime's PoP-bound token.
+     let outcome = super::session::exchange(|| async { xodus::api::live::exchange_user_token(&client, user.clone(), account.clone(), device.clone(),
+diff --git a/crates/xodus-cli/src/commands/social.rs b/crates/xodus-cli/src/commands/social.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/social.rs
+@@ -0,0 +1,447 @@
++//! Bounded Xbox consumer social adapter. Contracts: OpenXbox/xbox-webapi-python
++//! 672f34f256f18640d387147867950234fc2e140f, people/message/usersearch providers.
++//! No presence writes, mark-read, friendship mutations, group chat or party media.
++use std::{collections::HashSet, process::ExitCode, time::Duration};
++use clap::Subcommand;
++use serde_json::{Value, json};
++use xodus::tokens::TokenManager;
++use super::profile::{bounded, xbox_session_readonly};
++
++const BODY_LIMIT: usize = 2 * 1024 * 1024;
++const INPUT_LIMIT: usize = 8192;
++const OWN_PROFILE: &str = "https://profile.xboxlive.com/users/me/profile/settings?settings=Gamertag";
++const FRIENDS: &str = "https://peoplehub.xboxlive.com/users/me/people/friends/decoration/detail,presenceDetail";
++const INBOX: &str = "https://xblmessaging.xboxlive.com/network/Xbox/users/me/inbox";
++const SEARCH: &str = "https://usersearch.xboxlive.com/suggest";
++
++// Defense in depth: even a future social helper cannot rewrite credentials in
++// an encoding an independently selected older backend cannot read.
++struct ReadOnlyBackend { inner: std::sync::Arc<dyn xodus::tokens::store::TokenBackend> }
++impl xodus::tokens::store::TokenBackend for ReadOnlyBackend {
++    fn get(&self,key:&str) -> Result<Option<Vec<u8>>,xodus::tokens::store::TokenStoreError> { self.inner.get(key) }
++    fn set(&self,_:&str,_:&[u8]) -> Result<(),xodus::tokens::store::TokenStoreError> {
++        Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,"read-only social credentials").into())
++    }
++    fn remove(&self,_:&str) -> Result<(),xodus::tokens::store::TokenStoreError> {
++        Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,"read-only social credentials").into())
++    }
++}
++pub fn readonly_manager() -> TokenManager {
++    use std::sync::Arc;
++    use xodus::tokens::backend::{KeychainBackend,MemoryBackend};
++    TokenManager::new(Arc::new(ReadOnlyBackend {inner:Arc::new(KeychainBackend)}),Arc::new(MemoryBackend::default()))
++}
++
++#[derive(Subcommand)]
++pub enum SocialCommand {
++    #[command(about = "Read friends and explicitly supplied presence without publishing presence")]
++    Friends,
++    #[command(about = "Read the latest 100 primary one-to-one conversations without marking them read")]
++    Inbox,
++    #[command(about = "Read the latest 100 messages with one Xbox player without marking them read")]
++    Conversation { #[arg(value_parser = parse_peer)] peer: String },
++    #[command(about = "Find players; supply JSON {\"query\":\"name\"} on stdin, never in arguments")]
++    Search,
++    #[command(about = "Send once to one player; supply JSON {\"text\":\"message\"} on stdin; no automatic retry")]
++    Send { #[arg(value_parser = parse_peer)] peer: String },
++}
++
++fn decimal(s: &str) -> bool {
++    !s.is_empty() && !s.starts_with('0') && s.len() <= 20
++        && s.bytes().all(|b| b.is_ascii_digit()) && s.parse::<u64>().is_ok()
++}
++fn parse_peer(s: &str) -> Result<String, String> {
++    if decimal(s) { Ok(s.into()) } else { Err("Expected a positive decimal Xbox player ID".into()) }
++}
++fn clean(s: &str, max: usize, multiline: bool) -> bool {
++    !s.is_empty() && s.len() <= max && !s.chars().any(|c| c.is_control() && !(multiline && matches!(c, '\n' | '\r' | '\t')))
++}
++fn field(v: &Value, key: &str, max: usize) -> Option<String> {
++    v[key].as_str().filter(|s| clean(s, max, false)).map(str::to_owned)
++}
++fn id(v: &Value, key: &str) -> Result<String, &'static str> {
++    field(v, key, 256).filter(|s| !s.chars().any(char::is_whitespace)).ok_or("response-id")
++}
++fn date(v: &Value, key: &str) -> Option<String> {
++    v[key].as_str().filter(|s| s.len() <= 40)
++        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
++        .map(|d| d.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))
++}
++fn picture(v: &Value, key: &str) -> Option<String> {
++    let s = v[key].as_str().filter(|s| s.len() <= 4096)?;
++    let u = reqwest::Url::parse(s).ok()?;
++    if u.scheme() != "https" || !u.username().is_empty() || u.password().is_some() || u.port().is_some()
++        || !["gamerpic.xboxlive.com", "images-eds-ssl.xboxlive.com", "avatar-ssl.xboxlive.com", "xboxavatargamerpic.azureedge.net"].contains(&u.host_str()?) { return None; }
++    Some(u.into())
++}
++fn self_xuid(v: &Value) -> Result<String, &'static str> {
++    let users = v["profileUsers"].as_array().ok_or("profile-shape")?;
++    if users.len() != 1 { return Err("profile-count"); }
++    users[0]["id"].as_str().filter(|s| decimal(s)).map(str::to_owned).ok_or("profile-id")
++}
++fn person(v: &Value, search: bool) -> Result<Value, &'static str> {
++    let xuid = v[if search { "id" } else { "xuid" }].as_str().filter(|s| decimal(s)).ok_or("people-id")?;
++    let name = field(v, "gamertag", 256).filter(|s| !s.trim().is_empty()).ok_or("people-name")?;
++    let state = if search || v["isCloaked"] == true { "unknown" } else {
++        match v["presenceState"].as_str().unwrap_or("").to_ascii_lowercase().as_str() {
++            "online" => "online", "away" => "away", "offline" => "offline", _ => "unknown"
++        }
++    };
++    let mut p = json!({"xuid":xuid,"gamertag":name,"presence":state});
++    if let Some(url) = picture(v, if search { "displayPicUri" } else { "displayPicRaw" }) { p["gamerpicUrl"] = json!(url); }
++    if !search && v["isCloaked"] != true {
++        if let Some(t) = field(v, "presenceText", 512) { p["activity"] = json!(t); }
++        if let Some(t) = date(v, "lastSeenDateTimeUtc") { p["lastSeenAt"] = json!(t); }
++    }
++    Ok(p)
++}
++fn people(v: &Value, search: bool) -> Result<Vec<Value>, &'static str> {
++    let rows = v[if search { "results" } else { "people" }].as_array().ok_or("people-shape")?;
++    if rows.len() > if search { 100 } else { 2000 } { return Err("people-count"); }
++    let mut seen = HashSet::new();
++    rows.iter().map(|r| {
++        let p = person(if search { &r["result"] } else { r }, search)?;
++        if !seen.insert(p["xuid"].as_str().unwrap().to_owned()) { return Err("people-duplicate"); }
++        Ok(p)
++    }).collect()
++}
++fn message(v: &Value, own: &str, peer: &str, conversation: &str) -> Result<Value, &'static str> {
++    if v["networkId"] != "Xbox" || v["conversationType"] != "OneToOne" || v["conversationId"] != conversation { return Err("message-conversation"); }
++    let sender = v["sender"].as_str().filter(|s| *s == own || *s == peer).ok_or("message-sender")?;
++    let deleted = v["isDeleted"].as_bool().ok_or("message-deleted")?;
++    let mut m = json!({"id":id(v,"messageId")?,"senderXuid":sender,"deleted":deleted});
++    if let Some(t) = date(v,"timestamp") { m["sentAt"] = json!(t); }
++    if !deleted && v["type"] == "ContentMessage" {
++        if let Some(parts) = v["contentPayload"]["content"]["parts"].as_array() {
++            if parts.len() > 32 { return Err("message-parts"); }
++            // Treat any safety-filtered or malformed part as unavailable. Never
++            // expose locators, HTML/media or text the server marked unsuitable.
++            let safe = parts.iter().all(|p| p["contentType"] == "text" && p["version"] == 0
++                && (p["unsuitableFor"].is_null() || p["unsuitableFor"].as_array().is_some_and(Vec::is_empty))
++                && p["text"].as_str().is_some_and(|s| clean(s, 16384, true)));
++            if safe && !parts.is_empty() {
++                let text = parts.iter().map(|p| p["text"].as_str().unwrap()).collect::<Vec<_>>().join("\n");
++                if text.len() <= 16384 { m["text"] = json!(text); }
++            }
++        }
++    }
++    Ok(m)
++}
++fn participants(v: &Value, own: &str, requested: Option<&str>) -> Result<Option<(String, Vec<String>)>, &'static str> {
++    let Some(rows) = v["participants"].as_array() else {
++        // The service uses null participants for a new/empty OneToOne thread.
++        return if v["participants"].is_null() && requested.is_some() && v["messages"].is_null() {
++            Ok(Some((requested.unwrap().into(), Vec::new())))
++        } else { Err("conversation-participants") };
++    };
++    if rows.len() != 2 { return Ok(None); }
++    let ids = rows.iter().map(|v| v.as_str().map(str::to_owned).ok_or("conversation-participants")).collect::<Result<Vec<_>,_>>()?;
++    // Xbox system notices use player ID 0 and have no supported reply target.
++    if ids.iter().any(|s| s == "0") { return Ok(None); }
++    if ids.iter().any(|s| !decimal(s)) || ids[0] == ids[1] || !ids.iter().any(|s| s == own) { return Err("conversation-identity"); }
++    let peer = ids.iter().find(|s| s.as_str() != own).unwrap().clone();
++    if requested.is_some_and(|r| r != peer) { return Err("conversation-target"); }
++    Ok(Some((peer, ids)))
++}
++fn inbox(v: &Value, own: &str) -> Result<(Vec<Value>, usize), &'static str> {
++    let rows = v["primary"]["conversations"].as_array().ok_or("inbox-shape")?;
++    if rows.len() > 100 { return Err("inbox-count"); }
++    let mut result = Vec::new(); let mut omitted = 0; let mut seen = HashSet::new();
++    for row in rows {
++        if row["networkId"] != "Xbox" || row["type"] != "OneToOne" { omitted += 1; continue; }
++        let Some((peer, ids)) = participants(row, own, None)? else { omitted += 1; continue; };
++        let key = id(row,"conversationId")?;
++        if !seen.insert(key.clone()) { return Err("inbox-duplicate"); }
++        let read = row["isRead"].as_bool().ok_or("inbox-read")?;
++        let mut c = json!({"id":key,"peerXuid":peer,"participants":ids,"unread":!read});
++        if let Some(t) = date(row,"timestamp") { c["updatedAt"] = json!(t); }
++        if !row["lastMessage"].is_null() { c["lastMessage"] = message(&row["lastMessage"],own,&peer,&key)?; }
++        result.push(c);
++    }
++    Ok((result, omitted))
++}
++fn conversation(v: &Value, own: &str, peer: &str) -> Result<(Vec<Value>, Option<String>), &'static str> {
++    if v["networkId"] != "Xbox" || v["type"] != "OneToOne" { return Err("conversation-type"); }
++    participants(v,own,Some(peer))?.ok_or("conversation-type")?;
++    let key = id(v,"conversationId")?;
++    let mut seen = HashSet::new();
++    let mut result = Vec::new();
++    if !v["messages"].is_null() {
++        let rows = v["messages"].as_array().ok_or("messages-shape")?;
++        if rows.len() > 100 { return Err("messages-count"); }
++        for row in rows {
++            let m = message(row,own,peer,&key)?;
++            if !seen.insert(m["id"].as_str().unwrap().to_owned()) { return Err("message-duplicate"); }
++            result.push(m);
++        }
++    }
++    let token = if v["continuationToken"].is_null() { None } else { Some(field(v,"continuationToken",8192).ok_or("continuation-token")?) };
++    Ok((result,token))
++}
++fn input(bytes: &[u8], send: bool) -> Result<String, &'static str> {
++    if bytes.len() > INPUT_LIMIT { return Err("stdin-size"); }
++    let v: Value = serde_json::from_slice(bytes).map_err(|_| "stdin-json")?;
++    let key = if send { "text" } else { "query" };
++    if v.as_object().is_none_or(|o| o.len() != 1 || !o.contains_key(key)) { return Err("stdin-shape"); }
++    let s = v[key].as_str().ok_or("stdin-shape")?;
++    if !clean(s,2048,send) || s.trim().is_empty() || s.chars().count() > if send { 256 } else { 64 } { return Err("stdin-text"); }
++    Ok(if send { s.to_owned() } else { s.trim().to_owned() })
++}
++#[cfg(unix)]
++fn read_input(send: bool) -> Result<String, &'static str> {
++    use std::io::IsTerminal;
++    use nix::libc;
++    if std::io::stdin().is_terminal() { return Err("stdin-required"); }
++    let until = std::time::Instant::now() + Duration::from_secs(5);
++    let mut bytes = Vec::new();
++    loop {
++        let remaining = until.saturating_duration_since(std::time::Instant::now());
++        if remaining.is_zero() { return Err("stdin-timeout"); }
++        let mut fd = libc::pollfd { fd:libc::STDIN_FILENO,events:libc::POLLIN|libc::POLLHUP,revents:0 };
++        // poll/read are bounded to stdin only; no terminal prompting or input echo.
++        let ready = unsafe { libc::poll(&mut fd,1,remaining.as_millis().min(i32::MAX as u128) as i32) };
++        if ready < 0 { if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted { continue; } return Err("stdin-read"); }
++        if ready == 0 { return Err("stdin-timeout"); }
++        if fd.revents & (libc::POLLERR|libc::POLLNVAL) != 0 { return Err("stdin-read"); }
++        let mut chunk = [0u8;1024];
++        let n = unsafe { libc::read(libc::STDIN_FILENO,chunk.as_mut_ptr().cast(),chunk.len()) };
++        if n < 0 { if std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted { continue; } return Err("stdin-read"); }
++        if n == 0 { return input(&bytes,send); }
++        if bytes.len()+n as usize > INPUT_LIMIT { return Err("stdin-size"); }
++        bytes.extend_from_slice(&chunk[..n as usize]);
++    }
++}
++#[cfg(not(unix))]
++fn read_input(_: bool) -> Result<String, &'static str> { Err("stdin-unsupported") }
++
++fn account_matches(tokens: &TokenManager, account: &str) -> Result<(), &'static str> {
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed"); }
++    Ok(())
++}
++fn get(client: &reqwest::Client, url: &str, auth: &str, contract: &str) -> reqwest::RequestBuilder {
++    client.get(url).header("Authorization",auth).header("x-xbl-contract-version",contract)
++        .header("Accept-Language","en-US").header("Accept","application/json")
++}
++async fn json_response(response: reqwest::Response) -> Result<Value, &'static str> {
++    let bytes = bounded(response,BODY_LIMIT).await?;
++    serde_json::from_slice(&bytes).map_err(|_| "response-json")
++}
++// Deliberately one POST, no retry, including after timeout/reset. Tests exercise
++// this transport against a local fixture only, never a stored Xbox session.
++async fn send_once(request: reqwest::RequestBuilder) -> Result<Value, &'static str> {
++    let response = request.send().await.map_err(|_| "send-delivery-unconfirmed")?;
++    if !response.status().is_success() { return Err("send-http-rejected"); }
++    // Receipt of a 2xx confirms acceptance even if an optional response body is
++    // absent/malformed or the connection drops afterwards. Retrying duplicates it.
++    let mut receipt = json!({});
++    if let Ok(bytes) = bounded(response,64*1024).await {
++        if let Ok(v) = serde_json::from_slice::<Value>(&bytes) {
++            for key in ["messageId","conversationId"] { if let Ok(value) = id(&v,key) { receipt[key] = json!(value); } }
++        }
++    }
++    Ok(receipt)
++}
++async fn lookup(tokens: &TokenManager, command: &SocialCommand, payload: Option<String>) -> Result<Value, &'static str> {
++    let (_, auth, account) = xbox_session_readonly(tokens).await?;
++    // Disable reqwest's protocol-level retries as well as application retries.
++    // A POST whose outcome is unknown must never be silently replayed.
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
++        .retry(reqwest::retry::never()).timeout(Duration::from_secs(8))
++        .user_agent("xboks-social/1").build().map_err(|_| "http-client")?;
++    let profile = get(&client,OWN_PROFILE,&auth,"2").send().await.map_err(|_| "profile-request")?;
++    let own = self_xuid(&json_response(profile).await?)?;
++    let mut result = json!({"schema":1,"status":"ready","account":account,"selfXuid":own,
++        "capabilities":{"friends":true,"presence":true,"inbox":true,"conversation":true,"send":true,"search":true,"partyVoice":false}});
++    match command {
++        SocialCommand::Friends => {
++            let response = get(&client,FRIENDS,&auth,"7").send().await.map_err(|_| "friends-request")?;
++            result["friends"] = json!(people(&json_response(response).await?,false)?);
++        },
++        SocialCommand::Search => {
++            let mut url = reqwest::Url::parse(SEARCH).map_err(|_| "search-url")?;
++            url.query_pairs_mut().append_pair("q",&payload.ok_or("stdin-required")?);
++            let response = get(&client,url.as_str(),&auth,"1").send().await.map_err(|_| "search-request")?;
++            result["friends"] = json!(people(&json_response(response).await?,true)?);
++        },
++        SocialCommand::Inbox => {
++            let response = get(&client,&format!("{INBOX}?maxItems=100"),&auth,"1")
++                .send().await.map_err(|_| "inbox-request")?;
++            let v = json_response(response).await?;
++            let (rows, omitted) = inbox(&v,&own)?;
++            result["conversations"] = json!(rows); result["omittedConversations"] = json!(omitted);
++            if let Some(n) = v["primary"]["totalCount"].as_u64() { result["totalCount"] = json!(n); result["hasMore"] = json!(n > v["primary"]["conversations"].as_array().unwrap().len() as u64); }
++        },
++        SocialCommand::Conversation { peer } => {
++            if peer == &own { return Err("conversation-self"); }
++            let url = format!("https://xblmessaging.xboxlive.com/network/Xbox/users/me/conversations/users/xuid({peer})");
++            let response = get(&client,&format!("{url}?maxItems=100"),&auth,"1")
++                .send().await.map_err(|_| "conversation-request")?;
++            let (rows,token) = conversation(&json_response(response).await?,&own,peer)?;
++            result["peerXuid"] = json!(peer); result["messages"] = json!(rows);
++            if let Some(token) = token { result["continuationToken"] = json!(token); }
++        },
++        SocialCommand::Send { peer } => {
++            if peer == &own { return Err("conversation-self"); }
++            let url = format!("https://xblmessaging.xboxlive.com/network/Xbox/users/me/conversations/users/xuid({peer})");
++            account_matches(tokens,&account)?;
++            let request = client.post(url).header("Authorization",&auth).header("x-xbl-contract-version","1")
++                .json(&json!({"parts":[{"contentType":"text","version":0,"text":payload.ok_or("stdin-required")?}]}));
++            result["sent"] = send_once(request).await?; result["peerXuid"] = json!(peer);
++        }
++    }
++    account_matches(tokens,&account)?;
++    Ok(result)
++}
++pub async fn run(tokens: &TokenManager, command: SocialCommand, json_output: bool) -> ExitCode {
++    if !json_output { eprintln!("Xbox social unavailable: json-required"); return ExitCode::FAILURE; }
++    let sending = matches!(command,SocialCommand::Send { .. });
++    let payload = if sending || matches!(command,SocialCommand::Search) {
++        match read_input(sending) { Ok(s) => Some(s), Err(stage) => { eprintln!("Xbox social unavailable: {stage}"); return ExitCode::FAILURE; } }
++    } else { None };
++    match tokio::time::timeout(Duration::from_secs(35),lookup(tokens,&command,payload)).await {
++        Ok(Ok(value)) => { println!("{value}"); ExitCode::SUCCESS },
++        Ok(Err(stage)) => { eprintln!("Xbox social unavailable: {stage}"); ExitCode::FAILURE },
++        Err(_) => { eprintln!("Xbox social unavailable: {}",if sending { "send-delivery-unconfirmed" } else { "request-timeout" }); ExitCode::FAILURE }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn msg() -> Value { json!({"networkId":"Xbox","conversationType":"OneToOne","conversationId":"thread-1","sender":"123","messageId":"m-1","isDeleted":false,"type":"ContentMessage","timestamp":"2026-10-21T10:00:00.1234567Z","contentPayload":{"content":{"parts":[{"contentType":"text","version":0,"text":"Hello","unsuitableFor":[]}]}}}) }
++    fn thread() -> Value { json!({"networkId":"Xbox","type":"OneToOne","conversationId":"thread-1","participants":["123","456"],"isRead":false,"messages":[msg()],"lastMessage":msg()}) }
++    fn readonly_fixture(expires: &str) -> (TokenManager,std::sync::Arc<xodus::tokens::backend::MemoryBackend>) {
++        use std::sync::Arc;
++        use xodus::{models::{secrets::{User,Token,LegacyToken},soap::Timestamp},tokens::{backend::MemoryBackend,PASSPORT_STS}};
++        let persistent=Arc::new(MemoryBackend::default());
++        let seed=TokenManager::new(persistent.clone(),Arc::new(MemoryBackend::default()));
++        seed.save_user(&User {puid:"fixture".into(),username:"fixture@example.test".into()}).unwrap();
++        let t=Token::Legacy(LegacyToken {key_name:None,token:"synthetic-only".into(),binary_secret:None,tpm_key:None,
++            lifetime:Timestamp {id:None,created:"2000-01-01T00:00:00Z".into(),expires:expires.into()}});
++        seed.save_device_token(PASSPORT_STS.into(),t.clone()).unwrap();seed.save_user_token(PASSPORT_STS.into(),t).unwrap();
++        (TokenManager::new(Arc::new(ReadOnlyBackend {inner:persistent.clone()}),Arc::new(MemoryBackend::default())),persistent)
++    }
++    #[test] fn social_readonly_current_session_never_mutates_or_migrates_credentials() {
++        use xodus::tokens::store::TokenBackend;
++        let (tokens,raw)=readonly_fixture("2099-01-01T00:00:00Z");
++        let before=["user-DA","user-tokens","device-tokens"].map(|k|raw.get(k).unwrap());
++        assert_eq!(super::super::profile::readonly_credentials(&tokens).unwrap().0,"fixture@example.test");
++        assert!(tokens.save_device_token("test".into(),xodus::models::secrets::Token::Compact("synthetic".into())).is_err());
++        assert!(tokens.remove_persistent().is_err());
++        assert_eq!(["user-DA","user-tokens","device-tokens"].map(|k|raw.get(k).unwrap()),before);
++    }
++    #[tokio::test] async fn social_readonly_expiry_fails_before_exchange_without_renewal_or_writes() {
++        use xodus::tokens::store::TokenBackend;
++        let (tokens,raw)=readonly_fixture("2001-01-01T00:00:00Z");
++        let before=raw.get("device-tokens").unwrap();
++        assert_eq!(xbox_session_readonly(&tokens).await.unwrap_err(),"session-device-renewal-required");
++        assert_eq!(raw.get("device-tokens").unwrap(),before);
++        assert!(raw.get("dev_license").unwrap().is_none());
++    }
++    #[test] fn social_peer_ids_are_positive_bounded_decimal_only() {
++        for s in ["123","18446744073709551615"] { assert!(parse_peer(s).is_ok()); }
++        for s in ["0","0123","18446744073709551616","123)/other","", "-1"] { assert!(parse_peer(s).is_err()); }
++    }
++    #[test] fn social_stdin_rejects_argv_like_fields_oversize_and_control_text() {
++        assert_eq!(input(br#"{"text":"Hi\nthere"}"#,true).unwrap(),"Hi\nthere");
++        assert_eq!(input(br#"{"query":"  Friend  "}"#,false).unwrap(),"Friend");
++        for v in [json!({"text":" "}),json!({"text":"a","peer":"123"}),json!({"text":"a\u{0}b"}),json!({"text":false}),json!({"text":"a".repeat(257)})] { assert!(input(&serde_json::to_vec(&v).unwrap(),true).is_err()); }
++        assert!(input(&vec![b' ';8193],true).is_err());
++        assert!(input(&serde_json::to_vec(&json!({"query":"a".repeat(65)})).unwrap(),false).is_err());
++        assert!(input(br#"{"query":"a\nb"}"#,false).is_err());
++    }
++    #[test] fn social_text_limit_counts_unicode_characters_and_preserves_message() {
++        let text = "😀".repeat(256);
++        assert_eq!(input(&serde_json::to_vec(&json!({"text":text})).unwrap(),true).unwrap(),text);
++        assert!(input(&serde_json::to_vec(&json!({"text":"😀".repeat(257)})).unwrap(),true).is_err());
++    }
++    #[test] fn social_identity_requires_one_self_profile() {
++        assert_eq!(self_xuid(&json!({"profileUsers":[{"id":"123"}]})).unwrap(),"123");
++        for v in [json!({"profileUsers":[]}),json!({"profileUsers":[{"id":"123"},{"id":"456"}]}),json!({"profileUsers":[{"id":"0"}]})] { assert!(self_xuid(&v).is_err()); }
++    }
++    #[test] fn social_presence_is_explicit_unknown_and_cloaking_is_respected() {
++        let mut p = json!({"xuid":"456","gamertag":"Friend","presenceState":"Online","presenceText":"Game"});
++        assert_eq!(person(&p,false).unwrap()["presence"],"online");
++        p["presenceState"] = json!("mystery"); assert_eq!(person(&p,false).unwrap()["presence"],"unknown");
++        p["isCloaked"] = json!(true); p["presenceState"] = json!("Online");
++        let p = person(&p,false).unwrap(); assert_eq!(p["presence"],"unknown"); assert!(p.get("activity").is_none());
++    }
++    #[test] fn social_search_profiles_do_not_invent_presence_or_friendship() {
++        let v=json!({"results":[{"result":{"id":"456","gamertag":"Found","presenceState":"Online","displayPicUri":"https://evil.invalid/a"}}]});
++        let p=people(&v,true).unwrap(); assert_eq!(p[0]["presence"],"unknown"); assert!(p[0].get("gamerpicUrl").is_none());
++    }
++    #[test] fn social_picture_hosts_and_duplicate_players_are_validated() {
++        let p=json!({"xuid":"456","gamertag":"Friend","displayPicRaw":"https://gamerpic.xboxlive.com/a.png"});
++        assert!(person(&p,false).unwrap().get("gamerpicUrl").is_some());
++        assert!(people(&json!({"people":[p.clone(),p]}),false).is_err());
++        for url in ["http://gamerpic.xboxlive.com/a","https://user:pw@gamerpic.xboxlive.com/a","https://evil.invalid/a"] { assert!(picture(&json!({"pic":url}),"pic").is_none()); }
++    }
++    #[test] fn social_message_binds_sender_conversation_and_timestamp() {
++        let v=message(&msg(),"123","456","thread-1").unwrap(); assert_eq!(v["text"],"Hello"); assert_eq!(v["sentAt"],"2026-10-21T10:00:00.123Z");
++        assert!(message(&msg(),"123","456","thread-2").is_err());
++        let mut m=msg();m["sender"]=json!("789"); assert!(message(&m,"123","456","thread-1").is_err());
++    }
++    #[test] fn social_deleted_filtered_media_and_unknown_messages_never_expose_text() {
++        for which in 0..5 { let mut m=msg(); match which {
++            0=>m["isDeleted"]=json!(true),
++            1=>m["contentPayload"]["content"]["parts"][0]["unsuitableFor"]=json!(["sender"]),
++            2=>m["contentPayload"]["content"]["parts"][0]["contentType"]=json!("image"),
++            3=>m["type"]=json!("UnknownMessage"),
++            _=>m["contentPayload"]["content"]["parts"][0]["unsuitableFor"]=json!("malformed") }
++            assert!(message(&m,"123","456","thread-1").unwrap().get("text").is_none()); }
++    }
++    #[test] fn social_inbox_omits_system_and_group_conversations_without_hiding_valid_threads() {
++        let t=thread(); let mut system=t.clone();system["participants"]=json!(["123","0"]);
++        let mut group=t.clone();group["type"]=json!("Group");group["participants"]=json!(["123","456","789"]);
++        let (rows,omitted)=inbox(&json!({"primary":{"conversations":[t,system,group]}}),"123").unwrap();
++        assert_eq!(rows.len(),1);assert_eq!(omitted,2);assert_eq!(rows[0]["peerXuid"],"456");assert_eq!(rows[0]["unread"],true);
++    }
++    #[test] fn social_conversation_rejects_wrong_peer_self_and_duplicate_messages() {
++        assert!(conversation(&thread(),"123","789").is_err());
++        let mut t=thread();t["messages"]=json!([msg(),msg()]);assert!(conversation(&t,"123","456").is_err());
++        t["participants"]=json!(["456","789"]);assert!(conversation(&t,"123","456").is_err());
++    }
++    #[test] fn social_empty_new_conversations_and_continuation_are_preserved() {
++        let mut t=thread();t["participants"]=Value::Null;t["messages"]=Value::Null;
++        assert!(conversation(&t,"123","456").unwrap().0.is_empty());
++        t=thread();t["continuationToken"]=json!("opaque-token");assert_eq!(conversation(&t,"123","456").unwrap().1.as_deref(),Some("opaque-token"));
++    }
++    async fn fixture(response: &'static [u8], delay: Duration) -> (String,std::sync::Arc<std::sync::atomic::AtomicUsize>,tokio::task::JoinHandle<()>) {
++        use tokio::{net::TcpListener,io::{AsyncReadExt,AsyncWriteExt}};
++        let listener=TcpListener::bind("127.0.0.1:0").await.unwrap();let addr=listener.local_addr().unwrap();
++        let count=std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));let c=count.clone();
++        let job=tokio::spawn(async move {loop { let Ok((mut stream,_))=listener.accept().await else{return;};c.fetch_add(1,std::sync::atomic::Ordering::SeqCst);let mut b=[0u8;2048];let _=stream.read(&mut b).await;tokio::time::sleep(delay).await;let _=stream.write_all(response).await; }});
++        (format!("http://{addr}/fixture"),count,job)
++    }
++    #[tokio::test] async fn social_send_accepts_empty_http_success_without_fabricated_ids() {
++        let (url,n,job)=fixture(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",Duration::ZERO).await;
++        let receipt=send_once(reqwest::Client::new().post(url).body("synthetic-only")).await.unwrap();
++        assert_eq!(receipt,json!({}));assert_eq!(n.load(std::sync::atomic::Ordering::SeqCst),1);job.abort();
++    }
++    #[tokio::test] async fn social_send_timeout_is_unconfirmed_and_never_retried() {
++        let (url,n,job)=fixture(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}",Duration::from_millis(200)).await;
++        let c=reqwest::Client::builder().timeout(Duration::from_millis(40)).build().unwrap();
++        assert_eq!(send_once(c.post(url).body("synthetic-only")).await.unwrap_err(),"send-delivery-unconfirmed");
++        assert_eq!(n.load(std::sync::atomic::Ordering::SeqCst),1);job.abort();
++    }
++    #[tokio::test] async fn social_send_http_rejection_is_not_success_and_not_retried() {
++        let (url,n,job)=fixture(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",Duration::ZERO).await;
++        assert_eq!(send_once(reqwest::Client::new().post(url)).await.unwrap_err(),"send-http-rejected");
++        assert_eq!(n.load(std::sync::atomic::Ordering::SeqCst),1);job.abort();
++    }
++    #[test] fn social_lists_enforce_bounds_before_processing() {
++        assert!(people(&json!({"people":vec![Value::Null;2001]}),false).is_err());
++        assert!(people(&json!({"results":vec![Value::Null;101]}),true).is_err());
++        assert!(inbox(&json!({"primary":{"conversations":vec![Value::Null;101]}}),"123").is_err());
++        let mut t=thread();t["messages"]=json!(vec![msg();101]);assert!(conversation(&t,"123","456").is_err());
++    }
++    #[tokio::test] async fn social_send_success_does_not_require_an_optional_json_body() {
++        let (url,n,job)=fixture(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\n???",Duration::ZERO).await;
++        assert_eq!(send_once(reqwest::Client::new().post(url)).await.unwrap(),json!({}));
++        assert_eq!(n.load(std::sync::atomic::Ordering::SeqCst),1);job.abort();
++    }
++    #[tokio::test] async fn social_read_body_rejects_oversized_declared_response() {
++        let (url,_,job)=fixture(b"HTTP/1.1 200 OK\r\nContent-Length: 9999999\r\nConnection: close\r\n\r\n",Duration::ZERO).await;
++        let r=reqwest::Client::new().get(url).send().await.unwrap();assert!(json_response(r).await.is_err());job.abort();
++    }
++}

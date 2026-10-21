@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Eye, LoaderCircle, LockKeyhole, RefreshCw, Trophy, X } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
+import { Eye, LockKeyhole, Trophy } from './XboxIcons';
+import { Check, RefreshCw, X } from './XboxIcons';
 import type { AppSnapshot, GameAchievement, GameAchievements } from '../shared/types';
 import './achievements.css';
 

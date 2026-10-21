@@ -89,6 +89,24 @@ unknown handle fails. Duplicates retain the existing shared-handle semantics,
 so callers must still balance each successful duplicate with one close and
 must not reuse stale handles after their storage can have been recycled.
 
+### Game process replacement
+
+`XLaunchNewGame` starts the requested executable in a new desktop process with
+UTF-8 paths and arguments, preserving the current directory, package environment
+and existing account bridge. The calling process exits normally even if the
+request is invalid or the new process cannot start. A selected default user must
+be the current retained signed-in user. Switching accounts, mounted DLC transfer
+and crash-triggered restarts are unsupported.
+
+### DXVK shader compiler
+
+DXVK is rebuilt at the base runtime's exact revision, with pinned submodules and
+build tools from `runtime-dxvk.lock.json`. The DXBC-SPIRV constant-comparison
+backport preserves dynamic find-bit comparisons without treating them as
+constants. All five x64 DXVK DLLs are supplied together. Compiler unit and
+arithmetic regressions run before assembly; a software-Vulkan compute/readback
+probe runs in a disposable prefix. These probes do not establish game compatibility.
+
 ### App-state subscriptions
 
 App-state and app-constrained subscriptions support registration and
@@ -217,12 +235,13 @@ above; it is not an installed Microsoft service or part of the cloud-session UI.
 
 ## Build
 
-Requirements: Linux x86-64, Node 22+, Git, GCC/Make, MinGW-w64 x86-64,
+Requirements: Linux x86-64, Node 22+, Git, GCC/G++/Make, MinGW-w64 x86-64 C/C++, glslang,
 CMake, autoconf, flex, bison, Perl, Python 3, file, curl, GStreamer development
 headers, and Wine build prerequisites (including freetype/GnuTLS development
 packages). See the workflow's apt list.
 Native tests additionally require pgrep, OpenSSL, a working Proton loader and
-its host libraries. CI uses Xvfb; desktop tests can use the current display.
+its host libraries. The graphics probe requires Mesa lavapipe software Vulkan.
+CI uses Xvfb; desktop tests can use the current display.
 
 ```sh
 node scripts/build-shared-runtime.mjs \
@@ -243,12 +262,14 @@ The source lock is [`runtime-patches.lock.json`](runtime-patches.lock.json).
 It pins Wine b1dd3273, xgameruntime 64aebcab, nghttp2 85e300c7/v1.70.0 and
 the base Proton's external vkd3d 2.0 (be62407e) with its Vulkan/SPIR-V headers,
 plus SHA-256 for every applied patch and all modified/added runtime
-source files. After patching, those files must byte-match the online-tested
-development tree. No fuzz or automatic latest-upstream fallback is allowed.
+source files. After patching, those files must match their locked source hashes.
+The parent lock also binds `runtime-dxvk.lock.json`, which pins DXVK, compiler,
+headers and build tools. No fuzz or automatic latest-upstream fallback is allowed.
 
 Optional `--wine-mirror`, `--xgameruntime-mirror`, `--nghttp2-mirror`,
 `--vkd3d-mirror`, `--vulkan-headers-mirror` and `--spirv-headers-mirror`
-arguments supply local Git object repositories for offline builds. They do
+arguments supply local Git object repositories for those source inputs. DXVK
+inputs are fetched separately at their locked commits. These options do
 **not** copy dirty working-tree files, headers, DLLs, or build directories.
 The same pinned commits are fetched into fresh empty checkouts and verified.
 
@@ -268,13 +289,13 @@ but those results are not automatically evidence for the CI distribution.
 
 Output:
 
-- `components/`: newly built xgameruntime, winhttp, mscoree, libnghttp2, windows.web, twinapi.appcore and libvkd3d-shader-1,
+- `components/`: newly built xgameruntime, winhttp, mscoree, libnghttp2, windows.web, twinapi.appcore, libvkd3d-shader-1 and five x64 DXVK DLLs,
   licenses and a source/patch/toolchain/component checksum manifest.
 - `media/`: pinned FFmpeg 4.4.8 source archive, LGPL build, six shared
   libraries, configure options and checksums. The archive accompanies the
   distributed runtime source package.
 - `tests/`: native ABI, WinRT JSON and HLSL compiler regression probes.
-- `runtime/`: a **new copy** of the supplied Proton base with the seven DLLs
+- `runtime/`: a **new copy** of the supplied Proton base with the twelve DLLs
   installed in both runtime and default-prefix locations, plus provenance.
 
 The base Wine/Unix loader and other Proton components are supplied by that
@@ -339,6 +360,8 @@ node scripts/runtime-tests/run-http2-suite.mjs \
   /absolute/build/runtime /absolute/build
 node scripts/runtime-tests/run-media-suite.mjs \
   /absolute/build/runtime /absolute/build/media-tests
+node scripts/runtime-tests/run-dxvk-suite.mjs \
+  /absolute/build/runtime /absolute/build
 npm run typecheck
 npm test
 npm run test:runtime-tools
@@ -348,27 +371,19 @@ Expected contract checks: queue teardown 20, queue stress 1,302, XAsync
 provider 116, completion lifetime 2,805, scheduling 16, file saves 21,
 WinRT JSON 9, token dispatch/lifetime 88, Store entitlements/licenses 181, installed
 content 274, PlayFab folder/session 153 and initialization 19 (5,004 total),
-plus HTTP/1.1 and HTTP/2 transport, certificate-chain and response-decompression
+plus 64 game-process replacement checks, 40 software-Vulkan compute checks,
+and HTTP/1.1 and HTTP/2 transport, certificate-chain and response-decompression
 checks. The JSON probe exercises real activation, parsing,
 object access and nested array/object access without account data or network.
 The token-dispatch probe uses a synthetic delayed failure, not a real identity
 or token. ABI/transport tests are not a substitute for a game test: test the clean-build
 candidate in a separate prefix before promotion, without overwriting the
-known-working runtime. The previous development candidate reached the Gears
-online lobby; that user confirmation must not be misattributed to a newly
-built DLL before testing it in-game.
+known-working runtime.
 
 The media suite checks that GStreamer's libav plugin resolves FFmpeg only from
-the bundled runtime and registers H.264/AAC decoders. An isolated local
-candidate also decoded Minecraft Dungeons II's H.264/AAC intro MP4 to fake
-sinks. This is media evidence, not a sign-in or game-compatibility claim.
-
-The corrected five-component clean build has now passed the isolated Gears
-game test according to the user, after restoring the WinRT JSON dependency.
-The game log confirms ten cloud-save files downloaded and none uploaded by
-that synchronization pass. This does not establish cloud-upload correctness,
-multiplayer-match stability or universal game compatibility. The installed
-production runtime was not switched as part of verification.
+the bundled runtime and registers H.264/AAC decoders. This is media evidence,
+not a sign-in or game-compatibility claim. The DXVK build runs upstream compiler
+unit tests and the dynamic find-bit comparison regression before copying DLLs.
 
 Launcher provisioning installs checksum-verified nghttp2, windows.web,
 twinapi.appcore and libvkd3d-shader-1 DLLs

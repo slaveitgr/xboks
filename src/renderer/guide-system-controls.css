@@ -1,0 +1,29 @@
+.guide-system-controls fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+/* A system subpage replaces the settings body; Back restores its original row. */
+.guide-panel-scroll:has(.guide-system-controls[data-guide-system-subpage]:not([data-guide-system-subpage="busy"])) > :not(.guide-system-controls) { display: none; }
+.guide-system-controls .guide-system-row { min-height: 78px; padding: 10px 16px; }
+.guide-system-row > span, .guide-system-device > span { display: grid; min-width: 0; flex: 1; gap: 3px; }
+.guide-system-row strong, .guide-system-device strong { font-size: 18px; font-weight: 400; }
+.guide-system-row small, .guide-system-device small, .guide-system-toggle small { display: block; color: #b5b8bd; font-size: 16px; line-height: 1.35; overflow-wrap: anywhere; }
+.guide-system-controls .guide-system-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 20px; }
+.guide-system-heading button:first-child { background: transparent; border-color: transparent; justify-content: flex-start; padding-left: 0; }
+.guide-system-toggle { display: flex; align-items: center; gap: 16px; min-height: 68px; }
+.guide-system-toggle > span { flex: 1; }
+.guide-system-toggle input { appearance: none; width: 44px; height: 23px; border: 1px solid #fff; border-radius: 30px; flex-shrink: 0; background: transparent; cursor: pointer; position: relative; }
+.guide-system-toggle input:before { content: ''; position: absolute; width: 13px; height: 13px; top: 4px; left: 4px; background: #fff; border-radius: 50%; }
+.guide-system-toggle input:checked { background: #fff; }
+.guide-system-toggle input:checked:before { transform: translateX(20px); background: #25282c; }
+.guide-system-toggle input:disabled { opacity: .4; cursor: default; }
+.guide-system-device-list { display: grid; gap: 12px; margin: 20px 0; }
+.guide-system-device { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 12px 0; }
+.guide-system-device > button { font-size: 14px; padding: 8px; }
+.guide-system-controls .guide-system-refresh { background: transparent; border: 0; min-height: 40px; font-size: 14px; color: #b5b8bd; }
+.guide-power-actions .guide-row { min-height: 64px; }
+.guide-power-actions p { margin: 0 12px 12px; }
+.guide-system-error { background: #542b2f; padding: 12px; border-radius: 8px; color: #ffe0de; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+.guide-power-confirm-backdrop { position: fixed; inset: 0; background: #0009; display: flex; align-items: center; justify-content: center; z-index: 220; padding: 20px; }
+.guide-power-confirm { width: 440px; max-width: 100%; padding: 24px; background: #25282c; border: 1px solid #737e8c; border-radius: 16px; box-shadow: 0 12px 40px #0008; }
+.guide-power-confirm h3 { margin: 0 0 16px; }
+.guide-power-confirm p { color: #c8cbd0; font-size: 16px; line-height: 1.5; }
+.guide-power-confirm > div { display: flex; gap: 16px; margin-top: 24px; }
+.guide-power-confirm > div button { flex: 1; }

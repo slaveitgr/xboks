@@ -22,7 +22,7 @@ it('opens an explicitly requested game on its own page while keeping the library
   expect(html).toContain('data-gamepad-detail-back="true"');
   expect(html).toContain(`data-gamepad-detail="${data.games[0].id}"`);
   expect(html).toContain('<summary>Installation details</summary>');
-  expect(html).toContain('Open game folder');
+  expect(html).toContain('Browse game files');
   expect(html).toContain('Manage content');
   expect(play(html)).not.toContain('disabled');
 });

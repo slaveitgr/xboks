@@ -1,0 +1,1637 @@
+{
+  "schema_version": 1,
+  "baseline_date": "2026-10-20",
+  "purpose": "Track independent evidence and acceptance, not a reverse-engineering or parity percentage.",
+  "baseline": {
+    "gaming_app": {
+      "identity": "Microsoft.GamingApp",
+      "version": "2610.1001.20.0",
+      "architecture": "x64"
+    },
+    "gamebar": {
+      "identity": "Microsoft.XboxGamingOverlay",
+      "version": "7.326.10141.0",
+      "architecture": "x64"
+    },
+    "supporting_gaming_services": {
+      "supplied_version": "38.118.9001.0",
+      "screenshot_version": "39.118.16001.0",
+      "interchangeability": "not_assumed"
+    },
+    "screenshots": {
+      "width": 1920,
+      "height": 1080,
+      "locale": "Greek",
+      "storage": "private ignored reference storage"
+    },
+    "xboks": {
+      "source_version": "0.3.9",
+      "source_commit": "dirty working tree; record Git revision plus local diff for each new run"
+    }
+  },
+  "evidence_rules": [
+    "Package indexing does not establish semantic decompilation or every runtime path.",
+    "Static declarations, strings and file presence are not live service contracts.",
+    "Screenshots establish visible state only; original Windows click outcomes are unverified unless a run record is added.",
+    "A Linux unit test or demo fixture is not proof of real account, game, console, OS overlay or pixel parity.",
+    "The earlier source/document audit is retained; separately dated implementation verification records only the tests and fixture runs actually executed.",
+    "Use exact build, locale, viewport, profile, input mode and state for every visual acceptance run.",
+    "No global completion percentage is derived from this matrix."
+  ],
+  "levels": {
+    "original_index": "available bounds-checked package/bytecode index; feature semantics still separate",
+    "original_static": "partial evidence with explicitly stated inference",
+    "screenshot_observation": "observed named surface or missing complete reference",
+    "original_windows_dynamic": "recorded real original app action/result; currently absent",
+    "linux_implementation": "actual source exists, full function acceptance separate",
+    "linux_verification": "named current tests and scoped dated run reports; not inferred from presence",
+    "overall_gate": "open until per-feature acceptance is demonstrated"
+  },
+  "evidence_paths_relative_to": "repository_root",
+  "features": [
+    {
+      "id": "shell",
+      "name": "Shared rail, header, icons and clock",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Original asset inventory, measured shell anchors and local icon/font mapping; generic fallback icons still exist.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/pri-resources.md",
+          "docs/analysis/reference/xbf-resources.md"
+        ],
+        "additional_findings_2026_10_21": "PRI adds named Greek candidates; XBF glyph/font and geometry findings belong to native tray/recap surfaces, not the main React Native rail."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36010",
+          "35991"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/renderer/XboxIcons.tsx",
+          "src/renderer/xbox-mode.css"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/renderer/library-layout.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Visual placement and exact icon/Greek text parity remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "home",
+      "name": "Home recent, feature and discovery content",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot observes primary recent tile plus mosaic and editorial proportions; current public catalog and local games are distinct sources.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36010"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/renderer/xbox-mode.css",
+          "src/renderer/catalog-navigation.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/gamepad-selection.test.tsx",
+          "src/renderer/catalog-navigation.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Product clicks retain their exact Product ID; current shell return points retain page, query, product/game identity, focus selector and scroll state.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Real catalog/editorial account/market variants and same-state Greek visual comparisons remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "catalog-navigation",
+      "name": "Card click, detail identity and Back",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Reference has a product page; source has separate catalog and installed-game detail paths.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/menu-behavior-traces.md",
+          "docs/analysis/reference/product-navigation-trace.md"
+        ],
+        "additional_findings_2026_10_21": "F56948 forwards selected product.id/productType into F21800 type-specific routing; F21824 reconstructs game-details route/query payload."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35996"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/renderer/CatalogDetails.tsx",
+          "src/renderer/GameDetails.tsx",
+          "src/renderer/catalog-navigation.ts",
+          "src/renderer/ReferenceMenu.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/catalog-details.test.tsx",
+          "src/renderer/game-details.test.tsx",
+          "src/renderer/gamepad-selection.test.tsx",
+          "src/renderer/catalog-navigation.test.ts",
+          "src/renderer/reference-menu.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Public product details and installed-library navigation use exact product/game identities, with scoped Back and restoration to the originating control.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "All live account/market entry points, original Windows click results and physical controller/focus/scroll acceptance remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "store",
+      "name": "Store loading, collections and quick links",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot distinguishes feature skeletons and loaded content; public CatalogService exposes metadata and catalog results.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35992",
+          "35993"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/main/catalog.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/main/catalog.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Reference quick links, skeleton geometry, collection semantics and error/offline states remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "gamepass",
+      "name": "Game Pass editorial browsing versus account access",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Current page requests authenticated Game Pass entitlement products; screenshot editorial carousel is a separate presentation/data requirement.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35990"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/XboxShell.tsx",
+          "src/main/account-library.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/main/account-library.test.ts",
+          "src/renderer/account-library.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Do not present entitlement list as verified editorial collection; original collection actions require further evidence.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "game-metadata",
+      "name": "Public product information and screenshots",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "GameStoreDetails includes description, publisher, categories, screenshots, artwork and release date; public data does not prove ownership.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35996"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/main/catalog.ts",
+          "src/renderer/CatalogDetails.tsx",
+          "src/renderer/GameDetails.tsx",
+          "src/shared/types.ts",
+          "src/renderer/catalog-navigation.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/main/catalog.test.ts",
+          "src/main/game-details.test.ts",
+          "src/renderer/catalog-details.test.tsx",
+          "src/renderer/game-details.test.tsx",
+          "src/renderer/catalog-navigation.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "The selected Product ID drives the detail fetch, loading/retry and screenshot gallery; installed products expose their exact library game. Reviews remain explicitly unavailable from the current catalog.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Original live content, Reviews/More service contracts, all stale/error states and Greek same-state pixel comparison remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "library",
+      "name": "Library tabs, filters and cards",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Measured screenshot and current four-tab/filter implementation.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35991"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/LibraryChrome.tsx",
+          "src/renderer/App.tsx",
+          "src/renderer/xbox-library.css"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/renderer/library-layout.test.tsx",
+          "src/renderer/library-preferences.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Complete card/menu/Back interaction inventory and pixel comparison in Greek.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "collections",
+      "name": "Play later and play history",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial_or_unresolved",
+        "finding": "Current source stores per-account device-local collections; screenshot tab labels support presence, not cloud semantics.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_tab_labels_only_not_tab_contents_or_click_outcomes",
+        "reference_ids": [
+          "35991"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/LibraryChrome.tsx",
+          "src/renderer/App.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/renderer/library-collections.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Original synchronization and every tab state are unverified; do not claim local history is cloud history.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "queue",
+      "name": "Install queue rows, progress and overflow",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Original row/menu screenshot and Gaming Services metadata separate install state, launchable flag and bytes.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/menu-behavior-traces.md",
+          "docs/analysis/reference/menu-behavior-contracts.json"
+        ],
+        "additional_findings_2026_10_21": "F64026/64029/64030/64031/64033 reconstruct valid-item/capability/state guards and separate catalog versus install-operation identity."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35994",
+          "35995"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/shared/installation-state.ts",
+          "src/main/index.ts",
+          "src/renderer/queue-menu.tsx",
+          "src/renderer/ReferenceMenu.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/shared/installation-state.test.ts",
+          "src/renderer/download-cancel.test.tsx",
+          "src/renderer/install-queue-preview.test.tsx",
+          "src/renderer/queue-menu.test.ts",
+          "src/main/install-integration.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "One state-derived ReferenceMenu preserves Product ID for navigation and operation ID for transfer actions. Pending/cancelling controls stay guarded; unsupported prioritization stays disabled.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Real transfer control/error/cancellation behavior, same-state original row/menu geometry and all installation package variants still need end-to-end acceptance.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "menus",
+      "name": "Profile, notification and game menu destinations",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot observes open menus and source shares GameMenuActions; static names do not establish every click result.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/native-contracts.md",
+          "docs/analysis/reference/menu-behavior-traces.md",
+          "docs/analysis/reference/menu-behavior-contracts.json"
+        ],
+        "additional_findings_2026_10_21": "F47516 dismisses popup before action; F47517 focuses on hover without activation. Hidden/disabled/loading/Wait are distinct. Profile actions use distinct settings/modal routes; F22448 consumes Back in reverse handler-registration order."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35997",
+          "36011",
+          "36012",
+          "35995"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/XboxShell.tsx",
+          "src/renderer/App.tsx",
+          "src/renderer/ReferenceMenu.tsx",
+          "src/renderer/reference-menu.css",
+          "src/renderer/queue-menu.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/game-menu.test.tsx",
+          "src/renderer/guide-overlay.test.tsx",
+          "src/renderer/reference-menu.test.tsx",
+          "src/renderer/queue-menu.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Shared ReferenceMenu supplies stable action IDs, guard states, measured anchors, focus without hover activation, dismiss-before-action and scoped Escape/B; profile and notification destinations close the active surface first.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Original dynamic menu reachability, all source/feature-flag variants, physical inputs and exact visual comparison remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-frame",
+      "name": "Nine Settings categories and frame",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot frame 800x950 at (560,65), category column 230; historical demo report confirms frame geometry only.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36015",
+          "36014",
+          "36013",
+          "36017",
+          "36016",
+          "35987",
+          "35988",
+          "35989",
+          "36019",
+          "36020"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/SettingsFrame.tsx",
+          "src/renderer/settings-frame.css",
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/InstallSettings.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/settings.test.tsx",
+          "src/renderer/install-settings.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "All nine categories remain; focus and tab selection are separate, and scoped Back dismisses nested provider pages before Settings while busy work retains ownership.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "All inner-content states, Greek geometry/icons/scroll and original Windows interaction acceptance remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-account",
+      "name": "Account, privacy and linked accounts",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Original Account groups and TCUI/identity declarations; actual auth/keyring route is Linux-specific.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36015"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/App.tsx",
+          "src/main/keyring.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/original-settings.test.tsx",
+          "src/main/keyring.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Offline permissions are gated by a freshly bound Store identity. Unavailable identity/link/privacy operations are not represented as authenticated provider capabilities.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Live Store identity, linked account/privacy mutations, original account states and exact geometry remain unavailable/unverified.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-application",
+      "name": "Application preferences and startup",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot observes controls; local compact/battery/autostart/tray/appearance adapters exist.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/settings-behavior-traces.md"
+        ],
+        "additional_findings_2026_10_21": "Static dataflow recovers Compact/battery dependency, Store-identity gate for offline permissions, FSE/settable/autolaunch conditions for startup controls and separate setting actions."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36017"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/appearance.ts",
+          "src/main/desktop-settings.ts",
+          "src/main/index.ts",
+          "src/main/store.ts",
+          "src/shared/types.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/original-settings.test.tsx",
+          "src/main/desktop-settings.test.ts",
+          "src/main/store.test.ts",
+          "src/main/launcher-startup.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Compact-mode transition ordering, retained battery preference and real battery availability are modeled. Autostart/background/tray are separate saved settings with explicit OS FSE capability guards, transaction rollback and safe background startup.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Physical desktop login/tray behavior, actual shell tray visibility, battery hardware and a distribution FSE session remain unverified. Window fullscreen is not an OS FSE signal.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-subscriptions",
+      "name": "Subscriptions and independent account roles",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Gaming Services IUser.IsStoreUser and GamingApp identity resource keys distinguish roles; source enforces fresh account-bound Store identity. Xbox.Web also declares GetPlatformStoreUserInfoAsync and SetPlatformStoreAccountAsync; Windows declarations do not implement the Linux contract.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/native-contracts.md",
+          "docs/analysis/reference/winmd-signatures.md"
+        ],
+        "additional_findings_2026_10_21": "WinMD signatures distinguish parameterless Store-user query from SetPlatformStoreAccountAsync(string webAccountId); these are metadata contracts only."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36016"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/shared/account-identities.ts",
+          "src/shared/subscription.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/shared/account-identities.test.ts",
+          "src/shared/subscription.test.ts",
+          "src/renderer/original-settings.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Subscription card precedes separately bound Xbox and Microsoft Store account surfaces; missing Store identity/billing fields are not fabricated.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Live Store identity, billing/renewal/price state, subscription changes and original account-dependent UI remain unavailable/unverified.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-notifications",
+      "name": "Game Pass, Store and desktop download notifications",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshot contains catalog/wishlist toggles and Game Bar link; Linux source gates actual download completion notification.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36013",
+          "36018"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/XboxShell.tsx",
+          "src/main/index.ts",
+          "src/renderer/ReferenceMenu.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/original-settings.test.tsx",
+          "src/renderer/reference-menu.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Notification menu uses the shared guarded/dismiss-first surface; catalog/wishlist/social provider-only settings remain unavailable instead of simulating provider success.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Real catalog/wishlist/social notification providers and original same-state geometry remain unverified.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-install",
+      "name": "Install options and Nexus runtime controls",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial_or_unresolved",
+        "finding": "Source default game root is ~/Games/Xboks. Screenshot36019 observes location dropdown, desktop shortcut checkbox, automatic updates checkbox, downloads during gameplay checkbox, and transfer-speed unit selector; captured location value is empty.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/settings-behavior-traces.md"
+        ],
+        "additional_findings_2026_10_21": "Provider-scoped asynchronous getters/setters, optimistic update/error restoration and display units distinct from maxNetworkBandwidthMbps are traced in F48375–F48405."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36019"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/main/store.ts",
+          "src/main/runtime.ts",
+          "src/main/backend.ts",
+          "src/renderer/InstallSettings.tsx",
+          "src/main/desktop-settings.ts",
+          "src/shared/types.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/main/store.test.ts",
+          "src/renderer/settings.test.tsx",
+          "src/renderer/install-settings.test.tsx",
+          "src/main/install-integration.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Original location/shortcut/update/gameplay/unit groups are rendered. Exact preference patches preserve normalized results/newer snapshots on errors; desktop shortcuts apply only to new ready installs. Only the exact former default future install root migrates to Games/Xboks; game and resumable download paths never move.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Automatic provider-update and gameplay-download policies are unavailable/disabled. Clean-machine install, real shortcut launch and same-state original geometry remain open; Nexus/Proton settings remain a separate extension area.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-providers",
+      "name": "Library providers and extensions",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial_or_unresolved",
+        "finding": "Screenshot36020 observes five aggregated-library cards in order EA App, Epic Games Store, GOG GALAXY, Steam, Ubisoft Connect PC; installed-game visibility enabled, EA/Ubisoft extension disconnected; My apps toggle off and digital-license-history link. Other provider resource names do not establish unconditional main-pane rows.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_provider_cards_and_main_pane_only_subpages_unobserved",
+        "reference_ids": [
+          "36020"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/shared/library-providers.ts",
+          "src/main/library-providers.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/main/library-providers.test.ts",
+          "src/renderer/original-settings.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "The five main cards follow EA App, Epic Games Store, GOG GALAXY, Steam, Ubisoft Connect PC order. Provider detail/history pages expose actual detection and unavailable extension/import capabilities; Nexus extras are collapsed.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Detection is not provider authentication/import or a portable Windows extension. Live provider/extension actions and original Windows dynamic outcomes remain unverified.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-audio-accessibility",
+      "name": "Audio and accessibility preferences",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Reference groups and check states visible; Linux system audio and persisted local visual preferences are separate adapters.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35987",
+          "35988"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/AudioSettings.tsx",
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/appearance.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/renderer/original-settings.test.tsx",
+          "src/renderer/original-settings.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Party voice, input device selection, push-to-talk, suppression and navigation sound playback remain incomplete.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "settings-about",
+      "name": "About versions, device and links",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Reference exposes Windows component versions and device/Insider/link groups; Linux shows its own actual component versions.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36014",
+          "35989"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/OriginalSettings.tsx",
+          "src/renderer/App.tsx",
+          "src/main/desktop-settings.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/original-settings.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "About displays actual xboks/backend/runtime versions and actual Linux desktop/session facts; Windows Insider enrollment and Xbox device identity are not invented.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Original group/row pixel matching and live Xbox device identity remain open.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "fullscreen-experience",
+      "name": "Fullscreen Experience app mode and controller navigation",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Hermes indexed functions distinguish fullscreen bridge from Fullscreen Experience; screenshots include gaming-shell adjacent surfaces. Native metadata exposes focus containers/groups, last-focused ownership, press events and regional scroll policies; numeric/runtime choices remain unknown.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/native-contracts.md",
+          "docs/analysis/reference/settings-behavior-traces.md",
+          "docs/analysis/reference/menu-behavior-traces.md"
+        ],
+        "additional_findings_2026_10_21": "F48358 startup gates use OS Fullscreen Experience state separately from compact mode; F22447/22448 provide bounded native Back-dispatch behavior."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36017",
+          "36006",
+          "36007"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/App.tsx",
+          "src/renderer/GamepadNavigation.tsx",
+          "src/renderer/gamepad-navigation.ts",
+          "src/main/desktop-settings.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/gamepad-navigation.test.ts",
+          "src/renderer/gamepad-selection.test.tsx",
+          "src/renderer/reference-menu.test.tsx",
+          "src/main/desktop-settings.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Window-local DOM-scoped consumable Back, context-menu input, visible-tab LB/RB ownership and primary-action routing are implemented. OS FSE is an explicit XBOKS_FULLSCREEN_EXPERIENCE=1 session fact, distinct from app/window fullscreen.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Physical controller behavior, compositor focus and a real distribution FSE session adapter remain distinct unverified gates.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "desktop-gamebar",
+      "name": "Independent Game Bar desktop window and Win+G",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Game Bar manifest declares overlay; current Linux source creates parentless always-on-top window and GNOME shortcut handoff.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36005",
+          "36004",
+          "35999",
+          "35998"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/main/desktop-guide.ts",
+          "src/renderer/DesktopGuideApp.tsx",
+          "scripts/desktop/install-gnome-gamebar.py"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/main/desktop-guide.test.ts",
+          "src/renderer/guide-overlay.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "The native top-level guide forwards Escape to renderer-owned scoped Back; Ctrl+G remains immediate hide. Native lifecycle is covered by Electron mocks.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        }
+      },
+      "remaining_acceptance": "Physical Win+G over another app/game, fullscreen stacking, desktop/compositor/display/input behavior remain unverified; Chromium fixtures do not cover these.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "guide-widgets",
+      "name": "Guide browser, social, audio and capture widgets",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Screenshots show distinct widget panels; current implementation covers only partial launcher/audio/external-browser actions.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36000",
+          "36001",
+          "36002",
+          "36003"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/renderer/GuideOverlay.tsx",
+          "src/main/index.ts",
+          "src/main/desktop-guide.ts",
+          "src/renderer/XboxSocialPanel.tsx",
+          "src/renderer/GuideSystemControls.tsx",
+          "src/main/xbox-social.ts",
+          "src/main/guide-system.ts",
+          "src/main/guide-power.ts",
+          "src/main/social-backend.ts",
+          "assets/xodus-social.patch"
+        ]
+      },
+      "linux_verification": {
+        "status": "dated_scoped_implementation_evidence_recorded_acceptance_open",
+        "test_paths": [
+          "src/renderer/guide-overlay.test.tsx",
+          "src/main/desktop-guide.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures.",
+        "prior_documentation_audit_status": "test_sources_present_not_rerun_in_documentation_pass",
+        "dated_implementation": {
+          "run_id": "xboks-implementation-2026-10-21",
+          "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+          "scope": "Guide renderer uses scoped Escape/B and active nested-menu ownership. Actual desktop host routes to app settings; inline fullscreen is explicitly app-window only. Missing audio/capture/social/system adapters remain guarded; capture is documented as xboks-window PNG only.",
+          "test_execution": "See the dated run record for executed scopes; source paths alone are not a passing runtime result."
+        },
+        "social_system_implementation": {
+          "run_id": "xboks-social-system-2026-10-21",
+          "chapter": "docs/analysis/social-system-integration.md",
+          "report": "outputs/social-system-2026-10-21/verification.json",
+          "scope": "Shared Friends/chat/search and observed presence adapters in app/Guide; NetworkManager/BlueZ/logind/GNOME controls with confirmation and capability checks. Authenticated read-only friends and supported inbox succeeded; no real send, mark-read or OS mutations were executed.",
+          "original_windows_runtime_verified": false,
+          "party_voice_implemented": false,
+          "physical_overlay_verified": false
+        },
+        "local_voice_implementation": {
+          "run_id": "xboks-voice-2026-10-21",
+          "source_version": "0.3.11",
+          "chapter": "docs/analysis/voice-audio-integration.md",
+          "renderer_fixture_checks": 12,
+          "electron_fake_permission_checks": 8,
+          "real_microphone_used": false,
+          "party_voice_implemented": false,
+          "scope": "Explicit local audio-only capture/test with device selection, meter, mute, local PTT, negotiated noise and optional monitor; original native PlayFab party boundary separately documented."
+        }
+      },
+      "remaining_acceptance": "Standalone Xbox party voice is not implemented. Live message delivery, radio/device/power mutations, full per-app mixer, microphone, embedded browser and game/video capture acceptance remain open, as do original Windows runtime, physical compositor/controller and pixel parity checks. Authenticated friends/inbox reads and Linux capability probing have separate successful records.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "remote-play",
+      "name": "Remote Play console connection and streaming",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Reference observes connection dialog; current Linux integration opens official web console streaming in isolated window. Native metadata declares console enumeration, session-request states and connect/pause/resume/disconnect/reconnect events; implementation, authorization and transport remain unknown.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md",
+          "docs/analysis/reference/native-contracts.md",
+          "docs/analysis/reference/winmd-signatures.md"
+        ],
+        "additional_findings_2026_10_21": "Typed WinMD decoding recovers enumeration parameter/async return types, uint64 renderTarget ConnectAsync parameter and request/power enum constants; native implementation and wire formats remain open."
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "36009"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/main/remote-play.ts",
+          "src/renderer/XboxShell.tsx"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/main/remote-play.test.ts"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Original picker/protocol flow unverified; real Xbox One X discovery, wake, audio/video, controller, reconnect not tested.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "runtime-launch",
+      "name": "Package, license, runtime and launch lifecycle",
+      "original_index": {
+        "status": "package_index_available_not_feature_semantics",
+        "evidence": [
+          "docs/analysis/xbox-reverse-engineering.md",
+          "docs/analysis/xbox-package-inventory.json"
+        ]
+      },
+      "original_static": {
+        "status": "partial",
+        "finding": "Supporting Windows metadata separates install state, launch readiness and cloud sync; current Linux launch preparation follows actual operation state.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "observed_named_surfaces_not_click_outcomes",
+        "reference_ids": [
+          "35996",
+          "35994"
+        ]
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "src/main/index.ts",
+          "src/shared/installation-state.ts",
+          "src/renderer/LaunchExperience.tsx",
+          "src/shared/types.ts"
+        ]
+      },
+      "linux_verification": {
+        "status": "test_sources_present_not_rerun_in_documentation_pass",
+        "test_paths": [
+          "src/shared/installation-state.test.ts",
+          "src/renderer/launch-experience.test.tsx"
+        ],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Spawned process not playable window; custom launch dialog not pixel parity; real cloud save/runtime/game proof still required.",
+      "overall_gate": "open"
+    },
+    {
+      "id": "release",
+      "name": "Packaged Linux installation and reproducible distribution",
+      "original_index": {
+        "status": "not_applicable",
+        "evidence": []
+      },
+      "original_static": {
+        "status": "not_applicable_to_linux_release",
+        "finding": "Nexus source integration report records source/build recipes and separate installed backend/runtime state.",
+        "evidence": [
+          "docs/analysis/windows-ui-spec.md",
+          "docs/analysis/xbox-supporting-packages.md"
+        ]
+      },
+      "screenshot_observation": {
+        "status": "no_complete_supplied_surface",
+        "reference_ids": []
+      },
+      "original_windows_dynamic": {
+        "status": "not_verified",
+        "run_record": null
+      },
+      "linux_implementation": {
+        "status": "partial_source_present",
+        "paths": [
+          "package.json",
+          "assets/backend-source.lock.json",
+          "scripts/SHARED_RUNTIME.md"
+        ]
+      },
+      "linux_verification": {
+        "status": "not_executed_in_documentation_pass",
+        "test_paths": [],
+        "prior_scoped_report": "docs/analysis/nexus-0.3.9-integration.md",
+        "scope_note": "A prior scoped test/report is not proof of complete functionality or visual parity; inspect its exact scope and failures."
+      },
+      "remaining_acceptance": "Final application test/build status is recorded separately in the dated implementation run. Asset redistribution review, packaged clean-machine installation and real account/game smoke acceptance remain open.",
+      "overall_gate": "open"
+    }
+  ],
+  "last_evidence_update": "2026-10-21",
+  "implementation_verifications": {
+    "xboks-implementation-2026-10-21": {
+      "id": "xboks-implementation-2026-10-21",
+      "date": "2026-10-21",
+      "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+      "scope": "Application implementation following bounded static traces; separate from the previous static analysis/documentation audit.",
+      "app_runtime_changes": true,
+      "source_state": "Local working-tree build with isolated demo startup verification; no published release or clean-machine installation certified.",
+      "original_windows_runtime_verified": false,
+      "real_xbox_services_verified": false,
+      "operating_system_overlay_verified": false,
+      "linux_pixel_parity_certified": false,
+      "scoped_main_tests": {
+        "status": "passed",
+        "test_files": [
+          "src/main/desktop-guide.test.ts",
+          "src/main/desktop-settings.test.ts",
+          "src/main/store.test.ts",
+          "src/main/install-integration.test.ts",
+          "src/main/game-shortcuts.test.ts",
+          "src/main/launcher-startup.test.ts"
+        ],
+        "passed": 80,
+        "command": "npx vitest run src/main/desktop-guide.test.ts src/main/desktop-settings.test.ts src/main/store.test.ts src/main/install-integration.test.ts src/main/game-shortcuts.test.ts src/main/launcher-startup.test.ts"
+      },
+      "main_typecheck": {
+        "status": "passed",
+        "command": "npx tsc -p tsconfig.electron.json --noEmit"
+      },
+      "full_application_suite": {
+        "status": "passed",
+        "passed": 972,
+        "failed": 0,
+        "command": "npm test -- --reporter=json --outputFile=work/reference/library/app-implementation-tests-final.json",
+        "report": "work/reference/library/app-implementation-tests-final.json"
+      },
+      "renderer_smoke": {
+        "status": "passed",
+        "report": "outputs/reference-ui-2026-10-21/renderer-smoke-report.json",
+        "fixture_only": true,
+        "passed": 25,
+        "failed": 0,
+        "finished_at": "2026-10-21T06:50:50.054Z",
+        "screenshots": 12,
+        "browser_errors": 0,
+        "blocked_requests": 0,
+        "forbidden_mutations": 0,
+        "unstubbed_apis": 0,
+        "scope": "Actual xboks React renderer in Chromium with explicit sample launcher APIs and generated artwork; not Electron/native services or original Windows execution."
+      },
+      "packaging_bootstrap_tests": {
+        "status": "passed",
+        "passed": 49,
+        "test_files": [
+          "src/main/launcher-packaging.test.ts",
+          "src/main/launcher-bootstrap.test.ts",
+          "src/main/launcher-fonts.test.ts"
+        ],
+        "command": "npx vitest run src/main/launcher-packaging.test.ts src/main/launcher-bootstrap.test.ts src/main/launcher-fonts.test.ts",
+        "scope": "Disposable afterPack outputs and harmless native helper fixtures; no production desktop or account."
+      },
+      "combined_scoped_test_run": {
+        "status": "passed",
+        "test_files": [
+          "src/main/desktop-guide.test.ts",
+          "src/main/desktop-settings.test.ts",
+          "src/main/store.test.ts",
+          "src/main/install-integration.test.ts",
+          "src/main/game-shortcuts.test.ts",
+          "src/main/launcher-startup.test.ts",
+          "src/main/launcher-packaging.test.ts",
+          "src/main/launcher-bootstrap.test.ts",
+          "src/main/launcher-fonts.test.ts"
+        ],
+        "passed": 129,
+        "failed": 0,
+        "command": "npx vitest run src/main/desktop-guide.test.ts src/main/desktop-settings.test.ts src/main/store.test.ts src/main/install-integration.test.ts src/main/game-shortcuts.test.ts src/main/launcher-startup.test.ts src/main/launcher-packaging.test.ts src/main/launcher-bootstrap.test.ts src/main/launcher-fonts.test.ts"
+      },
+      "contract_validator": {
+        "status": "passed",
+        "action_records": 233,
+        "feature_records": 25,
+        "menu_rules": 55,
+        "fresh_menu_functions": 73,
+        "instruction_locators": 548,
+        "issues": 0,
+        "regression_tests_passed": 13,
+        "scope": "Reference provenance/locator and synthetic validator checks, not original-runtime semantic proof."
+      },
+      "renderer_and_main_typecheck": {
+        "status": "passed",
+        "command": "npm run typecheck"
+      },
+      "production_build": {
+        "status": "passed",
+        "command": "npx vite build && npx tsc -p tsconfig.electron.json"
+      },
+      "local_appimage": {
+        "status": "built_and_demo_boot_verified",
+        "path": "release/xboks-0.3.9-x86_64.AppImage",
+        "bytes": 131307572,
+        "sha256": "066317b5eb9d84bc3514f7318a9503c220c0483440fbcabd5d550e8b6dd42fbb",
+        "published": false,
+        "boot": {
+          "status": "passed",
+          "mode": "isolated_demo_profile",
+          "default_appimage_launch_exit_code": 0,
+          "extract_and_run_exit_code": 0,
+          "screenshot": "outputs/reference-ui-2026-10-21/packaged-boot.png",
+          "scope": "Actual packaged Electron startup and rendered Home on this Linux host. Sample account/library, no real backend/wallet/game operations; clean-machine and desktop overlay acceptance remain open."
+        }
+      },
+      "gamepad_range_integration": {
+        "status": "passed",
+        "assertions": 11,
+        "report": "work/reference/library/qa/gamepad-range/result.json",
+        "scope": "Actual React GuideOverlay/AudioSettings in hidden Electron with fake standard gamepad and service APIs; not physical controller or compositor acceptance."
+      },
+      "guide_loading_back_integration": {
+        "status": "passed",
+        "assertions": 6,
+        "report": "work/reference/library/qa/desktop-guide-back/result.json",
+        "scope": "Rejected/deferred snapshot, actual React DesktopGuideApp and synthetic Escape; native bridge/services fake."
+      }
+    },
+    "xboks-social-system-2026-10-21": {
+      "id": "xboks-social-system-2026-10-21",
+      "date": "2026-10-21",
+      "source_version": "0.3.10",
+      "chapter": "docs/analysis/social-system-integration.md",
+      "report": "outputs/social-system-2026-10-21/verification.json",
+      "app_runtime_changes": true,
+      "source_state": "Local working tree and host-compatible AppImage; no GitHub publication or older-distribution acceptance.",
+      "original_windows_runtime_verified": false,
+      "operating_system_overlay_verified": false,
+      "linux_pixel_parity_certified": false,
+      "authenticated_service_scope": [
+        "friends read",
+        "one-to-one inbox read and main DTO validation"
+      ],
+      "real_messages_sent": false,
+      "real_conversations_marked_read": false,
+      "real_os_mutations_executed": false,
+      "party_voice_implemented": false,
+      "verification_summary": {
+        "launcher_unit_tests": 1100,
+        "renderer_fixture_checks": 46,
+        "previous_app_fixture_checks": 25,
+        "rust_cli_tests": 84,
+        "rust_social_tests_included_in_cli": 20
+      },
+      "portability": {
+        "host_verified": true,
+        "strong_glibc_requirement": "2.38",
+        "openssl_abi": "4.0.0",
+        "older_distributions_verified": false
+      }
+    },
+    "xboks-voice-2026-10-21": {
+      "id": "xboks-voice-2026-10-21",
+      "date": "2026-10-21",
+      "source_version": "0.3.11",
+      "chapter": "docs/analysis/voice-audio-integration.md",
+      "report": "outputs/voice-2026-10-21/verification.json",
+      "original_windows_runtime_verified": false,
+      "party_voice_implemented": false,
+      "real_microphone_used": false,
+      "cross_device_audio_verified": false,
+      "local_audio_scope": "23 injected-engine tests,3 markup tests,8 permission tests,12 Chromium fake-device checks,8 Electron fake-device permission checks; production AppImage isolated demo startup."
+    }
+  }
+}

@@ -5,5 +5,6 @@ export default defineConfig({
   base: './',
   plugins: [react()],
   build: { outDir: 'dist', emptyOutDir: true },
-  server: { host: '127.0.0.1', port: 5173, strictPort: true },
+  server: { host: '127.0.0.1', port: 5173, strictPort: true,
+    watch: { ignored: ['**/work/**', '**/outputs/**', '**/release/**', '**/assets/social-backend/**', '**/dist-electron/**'] } },
 });

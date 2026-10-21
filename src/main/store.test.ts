@@ -1,11 +1,48 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { promises as fileSystem } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { inspectGameDirectory, StateStore } from './store.js';
 import type { DownloadTask } from '../shared/types.js';
 
 const created: string[] = [];
+
+describe('install root migration', () => {
+  it('changes only the exact legacy default for future installs while preserving existing game and download paths', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'xboks-install-root-migrate-')); created.push(directory);
+    const legacyRoot = path.join(homedir(), 'Games', 'Xodus Nexus');
+    const gamePaths = [path.join(legacyRoot, 'Existing game'), '/mnt/custom-games/Another game'];
+    const downloadPaths = [path.join(legacyRoot, 'Partial download'), '/mnt/downloads/Custom destination'];
+    const persisted = JSON.stringify({
+      settings: { installRoot: legacyRoot, market: 'GR' },
+      games: gamePaths.map((gamePath, index) => ({ id: `game-${index}`, path: gamePath, title: 'Existing game', installState: 'ready', addedAt: '2026-01-01T00:00:00Z' })),
+      downloads: downloadPaths.map((destination, index) => ({ id: `download-${index}`, destination, status: 'paused' })),
+    });
+    const file = path.join(directory, 'launcher-state.json'); await writeFile(file, persisted);
+    const store = new StateStore(directory); await store.load();
+    expect(store.settings.installRoot).toBe(path.join(homedir(), 'Games', 'Xboks'));
+    expect(store.settings.market).toBe('GR');
+    expect(store.games.map(game => game.path)).toEqual(gamePaths);
+    expect(store.downloads.map(task => task.destination)).toEqual(downloadPaths);
+    expect(await readFile(file, 'utf8')).toBe(persisted); // Loading does not rewrite or move any files.
+    await store.save();
+    const reopened = new StateStore(directory); await reopened.load();
+    expect(reopened.settings.installRoot).toBe(path.join(homedir(), 'Games', 'Xboks'));
+    expect(reopened.games.map(game => game.path)).toEqual(gamePaths);
+    expect(reopened.downloads.map(task => task.destination)).toEqual(downloadPaths);
+  });
+
+  it('preserves every custom install root, including paths merely resembling the old default', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'xboks-custom-install-root-')); created.push(directory);
+    const legacyRoot = path.join(homedir(), 'Games', 'Xodus Nexus');
+    for (const installRoot of [path.join(legacyRoot, 'Custom'), legacyRoot + '/', path.join(homedir(), 'Games', 'My Games'), '/mnt/games/Xodus Nexus']) {
+      await writeFile(path.join(directory, 'launcher-state.json'), JSON.stringify({ settings: { installRoot } }));
+      const store = new StateStore(directory); await store.load();
+      expect(store.settings.installRoot).toBe(installRoot);
+    }
+  });
+});
 
 describe('download bandwidth settings', () => {
   it('defaults to unlimited and persists fractional MiB/s without changing parallelism', async () => {
@@ -29,6 +66,53 @@ describe('download bandwidth settings', () => {
       const store = new StateStore(directory); await store.load();
       expect(store.settings.downloadLimitMiB).toBe(0);
     }
+  });
+});
+
+describe('desktop preferences', () => {
+  it('defaults background launch off independently of autostart and normalizes old profiles', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'xboks-desktop-state-')); created.push(directory);
+    await writeFile(path.join(directory, 'launcher-state.json'), JSON.stringify({ settings: {
+      launchOnLogin: true, launchInBackground: 'true', minimizeToTray: 1,
+      createDesktopShortcut: 'true', downloadSpeedUnit: 'megabytes',
+    } }));
+    const store = new StateStore(directory); await store.load();
+    expect(store.settings).toMatchObject({ launchOnLogin: true, launchInBackground: false, minimizeToTray: false, createDesktopShortcut: false, downloadSpeedUnit: 'bytes' });
+    await store.setSettings({ launchInBackground: true, minimizeToTray: true, createDesktopShortcut: true, downloadSpeedUnit: 'bits' });
+    const reopened = new StateStore(directory); await reopened.load();
+    expect(reopened.settings).toMatchObject({ launchOnLogin: true, launchInBackground: true, minimizeToTray: true, createDesktopShortcut: true, downloadSpeedUnit: 'bits', downloadLimitMiB: 0 });
+    await expect(reopened.setSettings({ downloadSpeedUnit: 'MiB' as 'bytes' })).rejects.toThrow('display unit');
+    await expect(reopened.setSettings({ launchInBackground: 'false' as unknown as boolean })).rejects.toThrow('launchInBackground');
+  });
+
+  it('restores the live preference after a save failure and permits a later successful update', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'xboks-desktop-failure-')); created.push(directory);
+    const store = new StateStore(directory); await store.load();
+    await store.setSettings({ launchOnLogin: true });
+    // A synthetic conflicting temporary path fails the atomic write without touching the desktop.
+    await mkdir(path.join(directory, 'launcher-state.json.tmp'));
+    await expect(store.setSettings({ launchInBackground: true })).rejects.toThrow();
+    expect(store.settings.launchInBackground).toBe(false);
+    expect(JSON.parse(await readFile(path.join(directory, 'launcher-state.json'), 'utf8')).settings.launchInBackground).toBe(false);
+    await rm(path.join(directory, 'launcher-state.json.tmp'), { recursive: true });
+    await store.setSettings({ launchInBackground: true });
+    expect(store.settings.launchInBackground).toBe(true);
+  });
+
+  it('does not leak a failed preference into a concurrently queued unrelated state save', async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'xboks-desktop-queued-save-')); created.push(directory);
+    const store = new StateStore(directory); await store.load(); await store.save();
+    const rename = vi.spyOn(fileSystem, 'rename').mockRejectedValueOnce(new Error('synthetic rename failure'));
+    try {
+      const update = store.setSettings({ launchOnLogin: true, launchInBackground: true });
+      await Promise.resolve(); // The settings transaction has started while a second state save is queued.
+      const unrelatedSave = store.save();
+      await expect(update).rejects.toThrow('synthetic rename failure');
+      await unrelatedSave;
+      expect(store.settings.launchOnLogin).toBe(false);
+      const reopened = new StateStore(directory); await reopened.load();
+      expect(reopened.settings).toMatchObject({ launchOnLogin: false, launchInBackground: false });
+    } finally { rename.mockRestore(); }
   });
 });
 
@@ -196,7 +280,7 @@ describe('new profile defaults', () => {
     created.push(directory);
     const store = new StateStore(directory);
     await store.load();
-    expect(store.settings.installRoot).toContain(path.join('Games', 'Xodus Nexus'));
+    expect(store.settings.installRoot).toContain(path.join('Games', 'Xboks'));
     expect(store.settings.installRoot).not.toContain('/mnt/data2');
     expect(store.settings.externalXodusRoot).toBe('');
     expect(store.settings.verboseLogs).toBe(false);

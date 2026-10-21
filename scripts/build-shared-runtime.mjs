@@ -10,10 +10,13 @@ import { buildCompatibility } from './runtime-compat/build.mjs';
 import { buildPlayFabSessionProbe } from './runtime-tests/build-playfab-session.mjs';
 import { buildStoreProbes } from './runtime-tests/build-store-probes.mjs';
 import { buildUserPrivilegeProbe } from './runtime-tests/build-user-privilege-probe.mjs';
+import { buildRuntimeDxvk } from './build-runtime-dxvk.mjs';
 
 const project = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const lockBytes = await fs.readFile(path.join(project, 'scripts/runtime-patches.lock.json'));
 const lock = JSON.parse(lockBytes);
+const dxvkLockBytes = await fs.readFile(path.join(project, 'scripts/runtime-dxvk.lock.json'));
+if (createHash('sha256').update(dxvkLockBytes).digest('hex') !== lock.dxvkSourceLockSha256) throw new Error('DXVK source lock checksum mismatch');
 const options = {};
 for (let i = 2; i < process.argv.length; i++) {
   const key = process.argv[i];
@@ -161,6 +164,10 @@ for (const [name, file] of Object.entries(outputs)) {
 const tests = path.join(work, 'tests');
 provenance.runtimeCompatibility = await buildCompatibility(components);
 await fs.mkdir(tests);
+run('x86_64-w64-mingw32-gcc', ['-D__WINESRC__', '-municode', '-O2', '-Wall', '-Wextra',
+  '-I', path.join(build, 'dlls/xgameruntime'), '-I', path.join(source, 'dlls/xgameruntime'),
+  '-I', path.join(build, 'include'), '-I', path.join(source, 'include'),
+  path.join(project, 'scripts/runtime-tests/game-relaunch-probe.c'), '-o', path.join(tests, 'game-relaunch-probe.exe')], work);
 for (const constrained of [false, true]) for (const fixture of [false, true]) run('x86_64-w64-mingw32-gcc', ['-O2', '-Wall', '-Wextra', '-Werror',
   ...(constrained ? ['-DAPPCONSTRAINED_PROBE'] : []),
   ...(fixture ? ['-DAPPSTATE_SOURCE_FIXTURE', '-I', path.join(source, 'dlls/twinapi.appcore')] : []),
@@ -215,6 +222,8 @@ await fs.copyFile(path.join(source, 'dlls/xgameruntime/COPYING.LIB'), path.join(
   if (e.code !== 'ENOENT') throw e;
   await fs.copyFile(path.join(source, 'COPYING.LIB'), path.join(components, 'xgameruntime-LICENSE'));
 });
+provenance.dxvk = await buildRuntimeDxvk(work, components, jobs);
+Object.assign(provenance.components, provenance.dxvk.components);
 await fs.writeFile(path.join(components, 'source-manifest.json'), JSON.stringify(provenance, null, 2) + '\n', { flag: 'wx' });
 if (options['base-runtime']) {
   const media = path.join(work, 'media');

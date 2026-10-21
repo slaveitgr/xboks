@@ -1,12 +1,8 @@
-# Nexus runtime: game startup and compatibility
+# Nexus runtime: startup and shader fixes
 
-- Fix Indiana Jones and the Great Circle crashing after the opening logos.
-- Fix PowerWash Simulator 2 getting stuck on its initial loading screen.
-- Fix Kingdom Come: Deliverance II crashing during startup. Thanks @TinyRoar-Basti for reporting the issue.
-- Fix LIMBO failing to start with a pixel shader compiler error.
-- Fix Balatro startup and a crash when quitting. Protect pending work from repeated task-queue closes.
-- Improve Xbox multiplayer permission checks. Tony Hawk's Pro Skater 3 + 4 can open a Private Match; public matchmaking remains unverified.
-- Support legacy installed-package metadata queries and installed chunk, language, tag and feature enumeration.
-- Support gzip responses and server certificate-chain queries in WinHTTP.
+- Add app-constrained notification registration needed by Jurassic World Evolution 3. Thanks @Gustav0ar.
+- Fix repeated task-queue termination notifications that could prevent clean shutdown. Thanks @Gustav0ar.
+- Implement game-process replacement through XLaunchNewGame, addressing the missing relaunch operation reported by Like a Dragon: Infinite Wealth.
+- Backport the upstream DXBC-SPIRV constant-comparison fix for the shader-compiler assertion reported by Aniimo, without upgrading the base DXVK version.
 
-Update the launcher to **0.3.6**, the backend to **0.2.5** and the runtime in **Settings**. Compatibility remains game-dependent.
+Update the launcher to **0.3.9** and the backend to **0.2.9** in Settings. These fixes address specific failure paths; compatibility remains game-dependent.

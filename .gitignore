@@ -5,6 +5,8 @@ release/
 work/
 outputs/
 coverage/
+__pycache__/
+*.pyc
 *.log
 .DS_Store
 .env
@@ -28,3 +30,9 @@ bundled/
 docs/internal/
 *.backup-*
 *.tmp*
+
+# Original Microsoft UI assets extracted locally for visual comparison.
+/public/original-xbox/
+
+# Generated optional companion binary, license and corresponding source archive.
+/assets/social-backend/

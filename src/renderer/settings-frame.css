@@ -45,3 +45,148 @@ html[data-reduce-motion] *, html[data-reduce-motion] *::before, html[data-reduce
 .xbox-settings-dialog .account-card .account-avatar.large svg { width: 44px; height: 44px; }
 .xbox-settings-dialog .account-card .status-label { display: none; }
 .xbox-settings-dialog .settings-heading .overline { font-size: 11px; }
+/* Original client modal: (560,65) / 800×950 on the 1920×1080 reference. */
+.xbox-settings-dialog { background: #1b1c1e; border-radius: 18px; }
+.xbox-settings-nav { background: #25282b; padding-top: 18px; }
+.xbox-settings-nav h1 { margin-bottom: 18px; }
+.xbox-settings-nav [role=tablist] { gap: 8px; }
+.xbox-settings-nav button { min-height: 36px; height: 36px; padding: 8px 12px; }
+.xbox-settings-content { padding-top: 60px; }
+.original-setting-group { margin: 0 0 48px; }
+.original-setting-group h2 { font-size: 15px; line-height: 20px; margin: 0 0 16px; padding: 0 0 16px; }
+.original-setting-group p { font-size: 15px; line-height: 24px; color: #aaa; margin: 10px 0 16px; }
+.original-setting-group small { display: block; color: #a8a8ab; font-size: 12px; line-height: 17px; margin-top: 6px; }
+.original-setting-control { margin: 0 0 12px; }
+.original-setting-check, .original-setting-switch { display: flex; align-items: center; justify-content: space-between; gap: 24px; line-height: 20px; font-size: 16px; min-height: 24px; cursor: pointer; }
+.original-setting-check span, .original-setting-switch span { flex: 1; }
+.original-setting-check input { flex: 0 0 16px; width: 16px; height: 16px; margin: 0; accent-color: white; }
+.original-setting-switch { border-radius: 8px; background: #3d424a; padding: 9px 16px; min-height: 38px; }
+.original-setting-switch input { appearance: none; width: 32px; height: 16px; border: 1px solid #fff; border-radius: 12px; position: relative; flex: 0 0 32px; margin: 0; background: transparent; }
+.original-setting-switch input::after { content: ''; position: absolute; width: 8px; height: 8px; border-radius: 50%; top: 3px; left: 3px; background: white; }
+.original-setting-switch input:checked { background: white; }
+.original-setting-switch input:checked::after { left: 19px; background: #111; }
+.original-setting-control:has(input:disabled) label { cursor: default; color: #aaa; }
+.original-setting-control input:disabled { opacity: .55; }
+.original-setting-info { border: 1px solid #24b6e8; background: #073655; border-radius: 8px; padding: 12px 16px; }
+.original-setting-text-button { border: 0; padding: 0; background: transparent; color: #71b990; text-decoration: underline; font-size: 15px; cursor: pointer; }
+.original-setting-link { display: block; font-size: 15px; line-height: 22px; margin: 0 0 16px; text-decoration: underline; }
+.original-setting-link > .xbox-icon { width: 12px; height: 12px; margin-left: 6px; vertical-align: middle; }
+.original-setting-group select { width: 100%; }
+.original-audio-settings .original-setting-group { margin-bottom: 34px; }
+.original-audio-settings input[type=range] { width: 100%; accent-color: #40c6f7; }
+.original-account-profile { display: flex; gap: 26px; align-items: center; margin: 30px 6px 10px; }
+.original-account-profile > img, .original-account-profile > .xbox-icon { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.original-account-profile strong { font-size: 14px; }
+.original-account-profile .original-setting-link { margin: 0 0 0 auto; text-align: right; }
+.original-account-links { padding-left: 132px; }
+.original-account-links .original-setting-link { font-size: 14px; margin-bottom: 4px; }
+.original-redeem { display: flex; align-items: center; justify-content: center; margin: 24px auto 0; width: min(340px,100%); min-height: 34px; border-radius: 8px; background: #008536; color: white !important; text-decoration: none; }
+.original-subscription { background: linear-gradient(120deg,#13241f,#142127); border-radius: 16px; padding: 24px; }
+.original-subscription h3 { margin: 0 0 24px; border: 0; }
+.original-subscription dl { display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 20px; margin-bottom: 48px; }
+.original-subscription dt { color: #aaa; font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+.original-subscription dd { margin: 0; font-size: 14px; }
+.original-subscription dd .original-setting-link { font-size: 14px; }
+@media(min-width: 900px) {
+  html:not([data-compact-mode]) .xbox-mode.app-shell { grid-template-columns: 264px minmax(0,1fr); }
+  html:not([data-compact-mode]) .xbox-mode .sidebar .nav-item { width: 100%; justify-content: flex-start; gap: 14px; padding: 0 14px; }
+  html:not([data-compact-mode]) .xbox-mode .sidebar .nav-item > span:not(.xbox-icon) { display: inline; }
+  html:not([data-compact-mode]) .xbox-mode .account-summary { width: 100%; justify-content: flex-start; gap: 12px; padding: 0 10px; }
+  html:not([data-compact-mode]) .xbox-mode .account-summary > span { display: grid; text-align: left; }
+  html:not([data-compact-mode]) .xbox-mode .recents { display: grid; }
+  html:not([data-compact-mode]) .xbox-mode .sidebar-divider { width: calc(100% - 24px); }
+  html:not([data-compact-mode]) .xbox-mode .queue-summary { width: 100%; justify-content: flex-start; }
+  html:not([data-compact-mode]) .xbox-mode .queue-summary-copy { display: grid; }
+}
+@media(max-width:700px) { .original-account-profile { flex-wrap: wrap; gap: 12px; }.original-account-profile > img { width:80px; height:80px; }.original-account-links { padding-left:0; }.original-subscription dl { grid-template-columns:1fr; }.original-setting-switch { font-size:14px; } }
+.original-settings-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+html:not([data-developer-options]) .xbox-settings-content .settings-diagnostics { display: none; }
+.original-account-session .settings-heading, .original-account-session .account-note { display: none; }
+.original-settings label > .input-action { margin: 12px 0; }
+.settings-connected-account { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 8px; background: #282c30; }
+.settings-connected-account > img, .settings-connected-account > .xbox-icon { width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%; object-fit: cover; }
+.settings-connected-account > div { min-width: 0; flex: 1; display: grid; gap: 4px; }
+.settings-connected-account strong, .settings-connected-account span { overflow-wrap: anywhere; }
+.settings-connected-account span { font-size: 13px; color: #aaa; }
+.xbox-settings-content .settings-account-source-note { font-size: 12px; line-height: 18px; }
+.settings-provider-list { margin: 16px 0; border-top: 1px solid #444; }
+.settings-provider-row { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid #444; }
+.settings-provider-row > div { min-width: 0; flex: 1; }
+.settings-provider-row .original-setting-link { margin: 0; font-size: 13px; }
+.settings-provider-row small { font-size: 12px; }
+.settings-provider-logo { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; background: #353a40; border-radius: 8px; font-size: 12px; font-weight: 700; }
+.settings-provider-logo img { width: 30px; height: 30px; filter: brightness(0) invert(1); }
+@media(max-width:700px) { .settings-connected-account { flex-wrap: wrap; }.settings-connected-account > button { width:100%; }.settings-provider-row { flex-wrap:wrap; } }
+.settings-provider-logo { position: relative; }
+.settings-provider-logo img { position: absolute; inset: 0; width: 42px; height: 42px; padding: 6px; background: #353a40; object-fit: contain; }
+.settings-provider-logo img { inset: 6px; width: 30px; height: 30px; padding: 0; background: transparent; }
+.settings-identity-list { display: grid; gap: 12px; }
+.settings-connected-account .original-setting-link { font-size: 12px; max-width: 130px; margin: 0; }
+/* Reference settings controls keep unavailable-state explanations accessible
+   without inserting extra paragraphs between the original rows. */
+.original-setting-group h2 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.original-setting-group .settings-control-reason, .settings-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.original-setting-text-button > .xbox-icon { width: 12px; height: 12px; margin-left: 3px; vertical-align: middle; }
+.original-setting-text-button:disabled { cursor: default; color: #999; }
+.original-application-settings .original-setting-control + .original-setting-control { margin-top: 18px; }
+.original-application-settings > .original-setting-group:first-child { margin-bottom: 52px; }
+.settings-startup-notice { display: flex; gap: 12px; margin: 36px 0 28px; padding: 8px; min-height: 80px; align-items: center; }
+.settings-startup-notice > .xbox-icon { width: 26px; height: 26px; flex: 0 0 26px; color: #25b9ed; }
+.settings-startup-notice strong { font-size: 14px; line-height: 20px; }
+.settings-startup-notice p { font-size: 14px; line-height: 20px; margin: 2px 0; color: #b6ccdd; }
+.settings-startup-notice button { font-size: 14px; }
+.settings-heading-action { background: transparent; border: 0; padding: 0; font-size: 15px; font-weight: 400; cursor: pointer; }
+.settings-heading-action:disabled { color: #aaa; cursor: default; }
+.original-setting-group h2 > .original-setting-link { margin: 0; color: white; text-decoration: none; font-weight: 400; }
+.settings-nexus-extension { border-top: 1px solid #5b5d60; margin: 30px 0 16px; }
+.settings-nexus-extension > summary { cursor: pointer; font-size: 14px; color: #b6b9bc; padding: 14px 0; }
+.settings-nexus-extension > div { padding: 12px 0 4px; }
+.settings-nexus-extension .secondary + .secondary { margin-left: 8px; }
+.settings-language-field { display: grid; gap: 12px; font-size: 14px; }
+.settings-provider-detection { padding-left: 20px; font-size: 13px; line-height: 24px; color: #aaa; }
+.settings-reference-provider-list { display: grid; gap: 10px; margin: 7px 5px 0; }
+.settings-reference-provider-card { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 80px; padding: 10px 16px; text-align: left; border: 0; border-radius: 4px; background: #272b2f; cursor: pointer; color: white; }
+.settings-reference-provider-card:hover { background: #363b40; }
+.settings-reference-provider-card > span:not(.settings-provider-logo) { flex: 1; min-width: 0; }
+.settings-reference-provider-card strong { display: block; font-size: 14px; line-height: 20px; font-weight: 400; }
+.settings-reference-provider-card small { font-size: 13px; line-height: 18px; color: #b7b9bc; margin: 0; }
+.settings-reference-provider-card > .xbox-icon { width: 20px; height: 20px; flex: 0 0 20px; }
+.original-library-settings .settings-provider-logo { display: grid; place-items: center; position: relative; width: 60px; height: 60px; flex: 0 0 60px; border-radius: 3px; background: transparent; }
+.original-library-settings .settings-provider-logo img { position: static; width: 60px; height: 60px; padding: 0; background: transparent; object-fit: contain; filter: none; }
+.aggregated-library-group { margin-bottom: 54px; }
+.aggregated-library-group > p { margin-top: 16px; margin-bottom: 8px; }
+.aggregated-library-group > .original-setting-link { margin-bottom: 0; }
+.settings-my-apps .original-setting-control { margin-bottom: 28px; }
+.settings-my-apps > p { margin-top: 12px; }
+.settings-subpage-back { display: inline-flex; align-items: center; gap: 8px; margin: -20px 0 28px; padding: 4px 0; border: 0; background: transparent; cursor: pointer; font-size: 14px; }
+.settings-subpage-back > .xbox-icon { width: 18px; height: 18px; }
+.settings-provider-detail-identity { display: flex; align-items: center; gap: 16px; margin: 18px 0 24px; }
+.original-subscription > h3 { display: flex; align-items: center; gap: 5px; font-weight: 400; font-size: 20px; }
+.original-subscription > h3 > .xbox-icon { width: 26px; height: 26px; }
+.original-subscription > h3:not(:first-child) { border-top: 1px solid #657073; padding-top: 24px; font-weight: 700; font-size: 16px; }
+.original-subscription dl { grid-template-columns: 1fr 1fr 1.5fr; }
+.original-subscription dl:last-of-type { margin-bottom: 24px; }
+.settings-subscription-manage { display: flex; justify-content: flex-end; }
+.settings-subscription-manage .original-setting-link { margin: 0; padding: 5px 14px; color: white; background: #3d424a; border: 1px solid #737e8c; border-radius: 8px; text-decoration: none; font-size: 14px; }
+.original-about-settings .original-setting-group { margin-bottom: 18px; }
+.original-about-settings p { color: white; line-height: 24px; }
+.original-about-settings .original-setting-link { margin-bottom: 18px; }
+@media(max-width:700px) {
+  .settings-reference-provider-card { padding: 10px; gap: 10px; }
+  .original-library-settings .settings-provider-logo, .original-library-settings .settings-provider-logo img { width: 42px; height: 42px; flex-basis: 42px; }
+  .settings-reference-provider-card small { font-size: 11px; }
+  .original-subscription dl { grid-template-columns: 1fr; }
+  .settings-startup-notice { align-items: flex-start; }
+}
+.settings-gamepass-brand { display: none; width: 196px; height: 34px; object-fit: contain; filter: brightness(0) invert(1); }
+html[data-original-xbox-ui] .settings-gamepass-brand { display: inline-block; }
+html[data-original-xbox-ui] .settings-gamepass-fallback { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.original-subscriptions-settings > .original-setting-group:first-child > h2 { border: 0; padding-bottom: 0; margin-bottom: 8px; }
+.original-install-settings .original-install-description { color:#fff; margin:0 0 8px; }
+.original-install-settings .original-setting-control { margin:8px 0 12px; }
+.original-install-divider { border-top:1px solid #5b5d60; margin:24px 0 16px; }
+.original-install-settings .original-install-update-note { margin:0 8px 16px; }
+.original-install-unit { display:grid; gap:8px; color:#fff; font-size:16px; }
+.nexus-settings-extra { border-top:1px solid #5b5d60; margin-top:40px; }
+.nexus-settings-extra > summary,.original-account-session > summary { padding:14px 0; color:#b6b9bc; cursor:pointer; font-size:14px; }
+.original-account-session[hidden],.nexus-settings-extra[hidden] { display:none; }

@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { dxvkComponents } from './build-runtime-dxvk.mjs';
 const options = {};
 for (let i = 2; i < process.argv.length; i += 2) {
   if (!['--base', '--components', '--media', '--output'].includes(process.argv[i]) || !process.argv[i + 1]) throw new Error('Usage: assemble-shared-runtime.mjs --base PROTON --components BUILT_COMPONENTS [--media BUILT_MEDIA] --output NEW_DIRECTORY');
@@ -13,11 +14,15 @@ for (let i = 2; i < process.argv.length; i += 2) {
 if (!options.base || !options.components || !options.output) throw new Error('base, components and output are required');
 const shaFile = async file => createHash('sha256').update(await fs.readFile(file)).digest('hex');
 const manifest = JSON.parse(await fs.readFile(path.join(options.components, 'source-manifest.json'), 'utf8'));
-const componentNames = ['xgameruntime.dll', 'winhttp.dll', 'mscoree.dll', 'libnghttp2.dll', 'windows.web.dll', 'libvkd3d-shader-1.dll', 'twinapi.appcore.dll'];
+const componentNames = ['xgameruntime.dll', 'winhttp.dll', 'mscoree.dll', 'libnghttp2.dll', 'windows.web.dll', 'libvkd3d-shader-1.dll', 'twinapi.appcore.dll', ...dxvkComponents];
 if (!manifest.components || Object.keys(manifest.components).some(name => !componentNames.includes(name))) throw new Error('Unrecognized runtime component');
 for (const name of componentNames) {
   if (!/^[a-f0-9]{64}$/.test(manifest.components[name] ?? '') || await shaFile(path.join(options.components, name)) !== manifest.components[name]) throw new Error(`Component checksum mismatch: ${name}`);
 }
+const dxvkLockSha256 = await shaFile(new URL('./runtime-dxvk.lock.json', import.meta.url));
+if (manifest.dxvk?.sourceLockSha256 !== dxvkLockSha256 ||
+    Object.keys(manifest.dxvk?.components ?? {}).sort().join() !== [...dxvkComponents].sort().join() ||
+    dxvkComponents.some(name => manifest.dxvk.components[name] !== manifest.components[name])) throw new Error('DXVK source or component manifest mismatch');
 const compatibilityNames = ['PlayFabGameSave.dll', 'wine-launcher', 'gaming-services-version.exe'];
 if (!manifest.runtimeCompatibility || Object.keys(manifest.runtimeCompatibility).sort().join() !== compatibilityNames.sort().join())
   throw new Error('Missing or unknown runtime compatibility component');
@@ -44,8 +49,9 @@ async function safeParent(relative) {
   }
 }
 for (const name of componentNames) {
-  const library = name === 'libvkd3d-shader-1.dll' ? 'vkd3d' : 'wine';
-  for (const relative of [`files/lib/${library}/x86_64-windows/${name}`, `files/share/default_pfx/drive_c/windows/system32/${name}`]) {
+  const library = name === 'libvkd3d-shader-1.dll' ? 'vkd3d' : dxvkComponents.includes(name) ? 'wine/dxvk' : 'wine';
+  for (const relative of [`files/lib/${library}/x86_64-windows/${name}`, `files/share/default_pfx/drive_c/windows/system32/${name}`,
+    ...(dxvkComponents.includes(name) ? [`files/lib/wine/x86_64-windows/${name}`] : [])]) {
     const target = path.join(options.output, relative);
     const temporary = `${target}.nexus-${process.pid}`;
     await safeParent(relative);
@@ -56,7 +62,8 @@ for (const name of componentNames) {
 }
 const licenseDirectory = path.join(options.output, 'files/share/doc/xodus-nexus-runtime');
 await safeParent('files/share/doc/xodus-nexus-runtime/license');
-for (const name of ['nghttp2-LICENSE', 'Wine-LICENSE', 'xgameruntime-LICENSE', 'vkd3d-LICENSE', 'Vulkan-Headers-LICENSE', 'Vulkan-Headers-Apache-2.0', 'Vulkan-Headers-MIT', 'SPIRV-Headers-LICENSE']) await fs.copyFile(path.join(options.components, name), path.join(licenseDirectory, name));
+for (const name of ['nghttp2-LICENSE', 'Wine-LICENSE', 'xgameruntime-LICENSE', 'vkd3d-LICENSE', 'Vulkan-Headers-LICENSE', 'Vulkan-Headers-Apache-2.0', 'Vulkan-Headers-MIT', 'SPIRV-Headers-LICENSE',
+  'DXVK-LICENSE', 'DXBC-SPIRV-LICENSE', 'DXVK-display-LICENSE', 'DXVK-directx-LICENSE', 'DXVK-Vulkan-LICENSE', 'DXVK-SPIRV-LICENSE']) await fs.copyFile(path.join(options.components, name), path.join(licenseDirectory, name));
 await fs.copyFile(path.join(options.components, 'runtime-compat-LICENSE'), path.join(licenseDirectory, 'runtime-compat-LICENSE'));
 let mediaMetadata;
 if (options.media) {
@@ -120,7 +127,7 @@ const metadata = {
   ...(mediaMetadata ? { media: mediaMetadata } : {}),
 };
 const metadataTemporary = path.join(options.output, `.nexus-metadata-${process.pid}`);
-metadata.features = [...new Set([...metadata.features, 'hlsl-state-keywords-v1', 'appstate-registration-v1', 'appconstrained-registration-v1', 'xtaskqueue-repeat-termination-v1'])];
+metadata.features = [...new Set([...metadata.features, 'hlsl-state-keywords-v1', 'appstate-registration-v1', 'appconstrained-registration-v1', 'xtaskqueue-repeat-termination-v1', 'xgame-relaunch-current-user-v1', 'dxvk-constant-compare-v1'])];
 await fs.writeFile(metadataTemporary, JSON.stringify(metadata, null, 2) + '\n', { flag: 'wx' });
 await fs.rename(metadataTemporary, path.join(options.output, 'XODUS_NEXUS_PATCH.json'));
 console.log(`Assembled isolated runtime: ${options.output}. Active runtime unchanged.`);

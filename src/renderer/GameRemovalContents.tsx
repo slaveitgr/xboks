@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { Trash2 } from './XboxIcons';
 import type { Game } from '../shared/types';
 
 export function GameRemovalContents({ game, busy, close, remove }: {

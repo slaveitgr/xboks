@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Download, Gamepad2 } from 'lucide-react';
+import { Download, Gamepad2 } from './XboxIcons';
 import type { DownloadTask, Game } from '../shared/types';
 
 export function previewTasks(downloads: readonly DownloadTask[]): DownloadTask[] {

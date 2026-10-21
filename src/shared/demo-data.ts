@@ -16,18 +16,18 @@ export interface DemoVersions {
 // Product IDs are real Microsoft Store products so display-catalog lookups
 // return the genuine published artwork.
 export const demoGames: Game[] = [
-  { id: 'demo-1', title: 'Forza Horizon 6', path: '/home/demo/Games/Xodus Nexus/ForzaHorizon6', storeId: '9N431PX143P8', publisher: 'Xbox Game Studios', executable: 'ForzaHorizon6.exe', installState: 'ready', addedAt: '2026-10-08T18:12:00.000Z' },
-  { id: 'demo-2', title: 'Gears of War: E-Day', path: '/home/demo/Games/Xodus Nexus/GearsEDay', storeId: '9N4PT8HGCDHQ', publisher: 'The Coalition', executable: 'start_protected_game.exe', installState: 'ready', antiCheat: { provider: 'Easy Anti-Cheat', encryptedTarget: true }, addedAt: '2026-10-08T21:40:00.000Z' },
-  { id: 'demo-3', title: 'Minecraft Dungeons II', path: '/home/demo/Games/Xodus Nexus/Minecraft-Dungeons-II', storeId: '9PM3J18QM4Q3', publisher: 'Mojang', executable: 'Binaries/WinGDK/Dungeons.exe', installState: 'ready', addedAt: '2026-10-09T09:05:00.000Z' },
-  { id: 'demo-4', title: 'Sea of Thieves', path: '/home/demo/Games/Xodus Nexus/SeaOfThieves', storeId: '9P2N57MC619K', publisher: 'Rare', executable: 'SoTGame.exe', installState: 'incomplete', installMessage: 'Package verification pending', addedAt: '2026-10-10T14:22:00.000Z' },
-  { id: 'demo-5', title: 'Grounded', path: '/home/demo/Games/Xodus Nexus/Grounded', storeId: '9PJTHRNVH62H', publisher: 'Obsidian', executable: 'Indiana/Binaries/WinGDK/Indiana.exe', installState: 'imported', addedAt: '2026-10-10T16:48:00.000Z' },
-  { id: 'demo-6', title: 'A Game About Digging A Hole', path: '/home/demo/Games/Xodus Nexus/DiggingHole', storeId: '9NGLST31DG26', publisher: 'Local import', executable: 'Dig.exe', installState: 'ready', addedAt: '2026-10-11T10:02:00.000Z' },
+  { id: 'demo-1', title: 'Forza Horizon 6', path: '/home/demo/Games/Xboks/ForzaHorizon6', storeId: '9N431PX143P8', publisher: 'Xbox Game Studios', executable: 'ForzaHorizon6.exe', installState: 'ready', addedAt: '2026-10-08T18:12:00.000Z' },
+  { id: 'demo-2', title: 'Gears of War: E-Day', path: '/home/demo/Games/Xboks/GearsEDay', storeId: '9N4PT8HGCDHQ', publisher: 'The Coalition', executable: 'start_protected_game.exe', installState: 'ready', antiCheat: { provider: 'Easy Anti-Cheat', encryptedTarget: true }, addedAt: '2026-10-08T21:40:00.000Z' },
+  { id: 'demo-3', title: 'Minecraft Dungeons II', path: '/home/demo/Games/Xboks/Minecraft-Dungeons-II', storeId: '9PM3J18QM4Q3', publisher: 'Mojang', executable: 'Binaries/WinGDK/Dungeons.exe', installState: 'ready', addedAt: '2026-10-09T09:05:00.000Z' },
+  { id: 'demo-4', title: 'Sea of Thieves', path: '/home/demo/Games/Xboks/SeaOfThieves', storeId: '9P2N57MC619K', publisher: 'Rare', executable: 'SoTGame.exe', installState: 'incomplete', installMessage: 'Package verification pending', addedAt: '2026-10-10T14:22:00.000Z' },
+  { id: 'demo-5', title: 'Grounded', path: '/home/demo/Games/Xboks/Grounded', storeId: '9PJTHRNVH62H', publisher: 'Obsidian', executable: 'Indiana/Binaries/WinGDK/Indiana.exe', installState: 'imported', addedAt: '2026-10-10T16:48:00.000Z' },
+  { id: 'demo-6', title: 'A Game About Digging A Hole', path: '/home/demo/Games/Xboks/DiggingHole', storeId: '9NGLST31DG26', publisher: 'Local import', executable: 'Dig.exe', installState: 'ready', addedAt: '2026-10-11T10:02:00.000Z' },
 ];
 
 export const demoDownloads: AppSnapshot['downloads'] = [
-  { id: 'demo-download-1', kind: 'install', title: 'Age of Mythology: Retold', productId: '9NPKGVXPFRSX', destination: '/home/demo/Games/Xodus Nexus', status: 'running', progress: 42, downloadedBytes: 18_612_245_504, totalBytes: 44_258_432_000, transferRate: '86.4 MiB/s', phase: 'Streaming package', log: [], startedAt: new Date().toISOString() },
-  { id: 'demo-download-2', kind: 'install', title: 'Sea of Thieves', productId: '9P2N57MC619K', destination: '/home/demo/Games/Xodus Nexus', status: 'queued', progress: null, phase: 'Queued', log: [], startedAt: new Date().toISOString() },
-  { id: 'demo-download-3', kind: 'install', title: 'Grounded', productId: '9PJTHRNVH62H', destination: '/home/demo/Games/Xodus Nexus', status: 'complete', progress: 100, phase: 'Complete', log: [], startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() },
+  { id: 'demo-download-1', kind: 'install', title: 'Age of Mythology: Retold', productId: '9NPKGVXPFRSX', destination: '/home/demo/Games/Xboks', status: 'running', progress: 42, downloadedBytes: 18_612_245_504, totalBytes: 44_258_432_000, transferRate: '86.4 MiB/s', phase: 'Streaming package', log: [], startedAt: new Date().toISOString() },
+  { id: 'demo-download-2', kind: 'install', title: 'Sea of Thieves', productId: '9P2N57MC619K', destination: '/home/demo/Games/Xboks', status: 'queued', progress: null, phase: 'Queued', log: [], startedAt: new Date().toISOString() },
+  { id: 'demo-download-3', kind: 'install', title: 'Grounded', productId: '9PJTHRNVH62H', destination: '/home/demo/Games/Xboks', status: 'complete', progress: 100, phase: 'Complete', log: [], startedAt: new Date().toISOString(), finishedAt: new Date().toISOString() },
 ];
 
 // Explicit sample entitlements, never inferred from or fetched for a real user.
@@ -65,7 +65,7 @@ export function demoSnapshot(versions: DemoVersions = { launcher: '0.0.0', backe
     },
     games: structuredClone([...demoGames.slice(1, 2), ...demoGames.slice(0, 1), ...demoGames.slice(2)]).map((game) => ({ ...game, ...(game.storeId ? artwork.get(game.storeId) : undefined) })),
     downloads: structuredClone(demoDownloads).map((task) => ({ ...task, coverUrl: task.productId ? artwork.get(task.productId)?.coverUrl : undefined })),
-    settings: { installRoot: '/home/demo/Games/Xodus Nexus', market: 'US', parallelDownloads: 4, winePath: '', externalXodusRoot: '', runtimeRoot: '', verboseLogs: false, firstRunCompleted: true },
+    settings: { installRoot: '/home/demo/Games/Xboks', market: 'US', parallelDownloads: 4, winePath: '', externalXodusRoot: '', runtimeRoot: '', verboseLogs: false, firstRunCompleted: true },
     auth: { running: false, stored: true, username: 'sample@example.test', gamertag: 'NexusPlayer',
       subscription: { status: 'active', productIds: ['CFQ7TTC0KGQ8'], checkedAt: new Date().toISOString() },
       lastResult: 'success', note: 'Demo mode: sample data only. Store pages show the live Microsoft Store catalog.' },

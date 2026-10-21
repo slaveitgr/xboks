@@ -38,7 +38,7 @@ if [ -n "${LD_PRELOAD-}" ]; then
   unset nexus_filtered_preload
 fi
 app_root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
-binary="$app_root/xodus-nexus.bin"
+binary="$app_root/${0##*/}.bin"
 # Native helper modes must retain their normal behavior, including Crashpad.
 if [ "${ELECTRON_RUN_AS_NODE-}" = 1 ]; then exec "$binary" "$@"; fi
 # Steam's GTK input module can deliver the same text twice to Electron. Scope

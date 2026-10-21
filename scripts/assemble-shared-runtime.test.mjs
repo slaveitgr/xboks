@@ -6,6 +6,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { dxvkComponents } from './build-runtime-dxvk.mjs';
 const script = fileURLToPath(new URL('./assemble-shared-runtime.mjs', import.meta.url));
 async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-assembly-test-'));
@@ -22,12 +23,15 @@ async function fixture() {
     await fs.writeFile(path.join(components, name), bytes);
     manifest.runtimeCompatibility[name] = createHash('sha256').update(bytes).digest('hex');
   }
-  for (const name of ['xgameruntime.dll', 'winhttp.dll', 'mscoree.dll', 'libnghttp2.dll', 'windows.web.dll', 'libvkd3d-shader-1.dll', 'twinapi.appcore.dll']) {
+  for (const name of ['xgameruntime.dll', 'winhttp.dll', 'mscoree.dll', 'libnghttp2.dll', 'windows.web.dll', 'libvkd3d-shader-1.dll', 'twinapi.appcore.dll', ...dxvkComponents]) {
     const bytes = Buffer.from(`new-${name}`);
     await fs.writeFile(path.join(components, name), bytes);
     manifest.components[name] = createHash('sha256').update(bytes).digest('hex');
   }
-  for (const name of ['nghttp2-LICENSE', 'Wine-LICENSE', 'xgameruntime-LICENSE', 'runtime-compat-LICENSE', 'vkd3d-LICENSE', 'Vulkan-Headers-LICENSE', 'Vulkan-Headers-Apache-2.0', 'Vulkan-Headers-MIT', 'SPIRV-Headers-LICENSE']) await fs.writeFile(path.join(components, name), 'test license');
+  manifest.dxvk = { sourceLockSha256: createHash('sha256').update(await fs.readFile(new URL('./runtime-dxvk.lock.json', import.meta.url))).digest('hex'),
+    components: Object.fromEntries(dxvkComponents.map(name => [name, manifest.components[name]])) };
+  for (const name of ['nghttp2-LICENSE', 'Wine-LICENSE', 'xgameruntime-LICENSE', 'runtime-compat-LICENSE', 'vkd3d-LICENSE', 'Vulkan-Headers-LICENSE', 'Vulkan-Headers-Apache-2.0', 'Vulkan-Headers-MIT', 'SPIRV-Headers-LICENSE',
+    'DXVK-LICENSE', 'DXBC-SPIRV-LICENSE', 'DXVK-display-LICENSE', 'DXVK-directx-LICENSE', 'DXVK-Vulkan-LICENSE', 'DXVK-SPIRV-LICENSE']) await fs.writeFile(path.join(components, name), 'test license');
   await fs.writeFile(path.join(components, 'source-manifest.json'), JSON.stringify(manifest));
   const run = () => execFileSync(process.execPath, [script, '--base', base, '--components', components, '--output', output], { stdio: 'pipe' });
   return { root, base, components, output, manifest, run };
@@ -60,7 +64,23 @@ test('assembly replaces symlink entries without altering base/old runtime', asyn
     assert.equal(await fs.readFile(path.join(f.output, 'files/share/default_pfx/drive_c/windows/system32/libvkd3d-shader-1.dll'), 'utf8'), 'new-libvkd3d-shader-1.dll');
     assert.ok(metadata.features.includes('hlsl-state-keywords-v1'));
     assert.ok(metadata.features.includes('xtaskqueue-repeat-termination-v1'));
+    assert.ok(metadata.features.includes('xgame-relaunch-current-user-v1'));
+    assert.ok(metadata.features.includes('dxvk-constant-compare-v1'));
+    for (const name of dxvkComponents) for (const relative of [`files/lib/wine/dxvk/x86_64-windows/${name}`, `files/lib/wine/x86_64-windows/${name}`, `files/share/default_pfx/drive_c/windows/system32/${name}`])
+      assert.equal(await fs.readFile(path.join(f.output, relative), 'utf8'), `new-${name}`);
     assert.throws(f.run, /Command failed/);
+  } finally { await fs.rm(f.root, { recursive: true, force: true }); }
+});
+test('incomplete, mismatched or unrelated DXVK source manifest is rejected before assembly', async () => {
+  const f = await fixture();
+  try {
+    for (const mutate of [m => { delete m.dxvk; }, m => { m.dxvk.sourceLockSha256 = 'a'.repeat(64); },
+      m => { delete m.dxvk.components['dxgi.dll']; }, m => { m.dxvk.components['d3d11.dll'] = 'b'.repeat(64); }]) {
+      const copy = structuredClone(f.manifest); mutate(copy);
+      await fs.writeFile(path.join(f.components, 'source-manifest.json'), JSON.stringify(copy));
+      assert.throws(f.run, /Command failed/);
+      await assert.rejects(fs.lstat(f.output), { code: 'ENOENT' });
+    }
   } finally { await fs.rm(f.root, { recursive: true, force: true }); }
 });
 test('missing JSON dependency is rejected before creating output', async () => {

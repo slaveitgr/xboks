@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { demoSnapshot } from './demo-data';
-import { runtimeDisplay } from './runtime-display';
+import { nexusRuntimeUpdateAvailable, runtimeDisplay } from './runtime-display';
 
 describe('runtimeDisplay', () => {
+  it('uses the same available archive comparison for the top notice and Settings', () => {
+    const runtime = { ...demoSnapshot().runtime, nexusAvailable: true,
+      nexusName: 'xodus-nexus-runtime-new-x86_64.tar.xz', name: 'xodus-nexus-runtime-old' };
+    expect(nexusRuntimeUpdateAvailable(runtime)).toBe(true);
+    expect(nexusRuntimeUpdateAvailable({ ...runtime, name: 'xodus-nexus-runtime-new' })).toBe(false);
+    expect(nexusRuntimeUpdateAvailable({ ...runtime, nexusAvailable: false })).toBe(false);
+    expect(nexusRuntimeUpdateAvailable({ ...runtime, nexusName: undefined })).toBe(false);
+  });
   it('uses the installed Nexus version, not an available update', () => {
     const runtime = demoSnapshot().runtime;
     runtime.name = 'xodus-nexus-runtime-11.0-20261011-g3fd4ae10';

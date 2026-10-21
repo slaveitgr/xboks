@@ -4,7 +4,13 @@ const path = require('node:path');
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'linux') return;
   const root = context.appOutDir;
-  const executable = path.join(root, 'xodus-nexus');
+  // LinuxPackager resolves configured/sanitized names before running this hook.
+  // Keep the wrapper aligned with that actual executable, including older builds.
+  const executableName = context.packager.executableName;
+  if (typeof executableName !== 'string' || !executableName || executableName === '.' || executableName === '..' || path.basename(executableName) !== executableName || /[\0\r\n]/.test(executableName)) {
+    throw new Error('Invalid packaged Linux executable name.');
+  }
+  const executable = path.join(root, executableName);
   const bootstrap = path.join(root, 'resources', 'font-bootstrap');
   await fs.rename(executable, executable + '.bin');
   await fs.mkdir(bootstrap, { recursive: true });

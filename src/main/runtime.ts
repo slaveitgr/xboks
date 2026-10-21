@@ -225,7 +225,9 @@ export class RuntimeManager {
     const extracted = path.join(staging, 'extracted');
     const archivePath = path.join(downloads, archiveName);
     try {
-      const listing = await run('tar', ['-tJf', archivePath], { maxOutput: 20_000_000 });
+      // Only tar's stdout contains paths. Loader/overlay warnings on stderr
+      // must not become archive members, even when tar itself exits successfully.
+      const listing = await run('tar', ['-tJf', archivePath], { maxOutput: 20_000_000, stdoutOnly: true });
       if (listing.code !== 0) throw new Error('The runtime is not a valid tar.xz archive.');
       const entries = listing.output.split('\n').filter(Boolean);
       if (entries.length === 0 || entries.some((entry) => path.isAbsolute(entry) || entry.split('/').includes('..'))) {

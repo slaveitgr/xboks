@@ -2,54 +2,52 @@
 
 ![xboks — The familiar gaming experience. On Linux.](docs/branding/xboks-banner.svg)
 
-**An independent Linux gaming client pursuing a faithful recreation of the Windows Xbox app.**
+**A Linux gaming client built toward the familiar Windows Xbox experience.**
 
 [![CI](https://github.com/slaveitgr/xboks/actions/workflows/ci.yml/badge.svg)](https://github.com/slaveitgr/xboks/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/launcher-MIT-9bf00b?labelColor=202426)](LICENSE)
-[![Stage](https://img.shields.io/badge/stage-early_development-e6b450?labelColor=202426)](#project-status)
-[![Platform](https://img.shields.io/badge/platform-Linux-63b3ed?labelColor=202426)](#getting-started)
+[![Launcher license: MIT](https://img.shields.io/badge/launcher-MIT-9bf00b?labelColor=202426)](LICENSE)
+[![Platform: Linux](https://img.shields.io/badge/platform-Linux-63b3ed?labelColor=202426)](#get-started)
+[![Stage: development](https://img.shields.io/badge/stage-development-e6b450?labelColor=202426)](#what-works-today)
 
-[The vision](#the-vision) · [Preview](#preview) · [Get started](#getting-started) · [Roadmap](#roadmap) · [Credits](#built-on-open-source)
+**English · [Ελληνικά](README.el.md)**
+
+[Features](#what-works-today) · [Get started](#get-started) · [Fullscreen Experience](#fullscreen-experience--game-bar) · [Roadmap](#roadmap) · [Credits](#built-on-xodus-and-xodus-nexus)
 
 </div>
 
-> **Development preview.** xboks is not yet a complete recreation of the Windows client. The interface is being rebuilt while the existing Nexus backend integration remains in place. Real account sign-in, installation and game launch have not yet been validated end to end in xboks.
+xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass browsing, a combined library, Store, game pages, installation queue, settings and a desktop guide. It builds on **[Xodus](https://github.com/xodus-gaming/xodus)** and **[Xodus Nexus](https://github.com/domsvoboda/xodus-nexus)**, with Proton/runtime integration for supported games.
 
-## The vision
+> **Independent development project.** The target is faithful visual and interaction parity with the Windows Xbox client. That work is ongoing. xboks is unofficial, and neither complete Windows feature parity nor universal game compatibility is claimed.
 
-Bring the familiar Windows Xbox experience to Linux: the compact navigation rail, artwork-led Home, library filters, game pages, installation queue and settings — with controller, keyboard and mouse navigation.
+## What works today
 
-Our visual reference is **Xbox app 2610.1001.20.0 in Xbox mode**, using screenshots of the running Windows client. The goal is 1:1 visual and interaction fidelity. This is a development target, not a claim that the current build has reached parity.
+| Area | Implemented | Current boundary |
+| --- | --- | --- |
+| Home, Library, Game Pass and Store | Compact navigation, catalog browsing, filters, product-specific game pages, menus and installation queue | Exact visual parity and complete service coverage remain in progress |
+| Settings | Nine reference categories, provider pages, Greek/English controls and integrated Nexus/Proton settings | Windows-specific services follow actual Linux capabilities |
+| Accounts and games | Microsoft/Nexus account integration, entitlement-aware access, installation and runtime tooling | Download-to-launch acceptance remains game-specific; owning a license is required |
+| Friends and presence | Shared app/guide service, player search and presence reported by Xbox | Authenticated friends and inbox reads have been exercised; unavailable presence stays unknown |
+| Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
+| Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | Wayland/global shortcuts, external-game stacking and video capture have separate limits |
+| Linux controls | NetworkManager Wi-Fi, BlueZ paired-device controls and capability-gated session/power actions | New pairing/network setup uses desktop settings; disruptive actions require confirmation |
+| Audio tools | Explicit local microphone test, device selection, level meter, optional monitoring, mute, push to talk and supported noise suppression | These tools test audio on this PC; **Xbox party voice is not connected** |
+| Console Remote Play | Dedicated window for Microsoft's official console web client | Discovery, sign-in and streaming are owned by that site; the native Windows flow and Xbox One X acceptance remain open |
 
-**xboks owns the interface. Xodus and Xodus Nexus provide the foundation.** Backend health and runtime diagnostics belong in Settings, rather than the main top bar.
+The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
 
-## Preview
+![xboks Home — development preview with sample library data](docs/screenshots/xboks-home.png)
 
-![xboks Home — current development build with sample library data](docs/screenshots/xboks-home.png)
+*Captured development preview with sample library data and public catalog artwork. It illustrates the interface, not game compatibility or completed feature parity.*
 
-*Actual xboks development build. The library shown uses upstream sample data; Store highlights are fetched from the live catalog. This preview demonstrates the interface, not successful account authentication or game compatibility.*
+### Voice: current work and next step
 
-The current Home has a compact left rail, centered search, a clock, recent game tiles, large feature cards and a Store discovery section. Recent game cards open the selected library game. Backend and runtime controls are contained in Settings. Remaining Nexus page layouts will be replaced as the reference-driven redesign progresses.
+The local microphone test is available in Sound settings and the guide's Audio panel. Capture starts only after **Start test**. Monitoring starts off; closing or hiding the test releases the microphone. Device/output selection and noise suppression depend on what the desktop and Chromium expose. Test audio is neither recorded nor sent to Xbox, and the test's push-to-talk control is local to its window.
 
-## Project status
+Independent Xbox party voice still needs the consumer-party signaling/authentication adapter, a Linux media worker and cross-device acceptance. The original package's `xCommsUwp` → `PartyWin` dependency and PlayFab identity/network fields are documented in the [party voice analysis](docs/analysis/reference/party-voice.md). Microphone access, a party roster or a successful library build alone is not evidence of working Xbox voice.
 
-| Area | Current state |
-| --- | --- |
-| Home and navigation | First reference-driven redesign implemented; further visual matching remains |
-| Library, Store, queue and game details | Existing Nexus functionality retained; Windows-style redesign pending |
-| Microsoft sign-in and entitlement checks | Nexus integration retained; xboks account validation pending |
-| Installation and game launch | Existing Nexus backend/runtime paths retained; game-by-game verification required |
-| Controller navigation | Existing experimental navigation retained; full-screen focus testing continues |
-| Settings | Xbox-style modal with categories; Nexus backend/runtime, storage, download controls and diagnostics integrated; remaining Windows features pending |
-| Friends, chat and party | Not implemented in xboks |
-| Game Bar-style guide | First in-app overlay implemented: tabs, navigation, PipeWire volume/mute and xboks window screenshots; external-game overlay and video capture pending |
-| Cloud gaming and console Remote Play | Not implemented in xboks |
+## Get started
 
-The last local UI validation passed TypeScript, renderer/Electron compilation and **163 renderer/runtime tests**. This is not a passing claim for the full backend suite or CI; the badge above shows the current GitHub workflow result.
-
-## Getting started
-
-Run from source while the first xboks distribution is being prepared. Use the Node/npm toolchain declared in [CI](.github/workflows/ci.yml) (Node 22) and a Linux desktop capable of running Electron.
+Use **Node 22**, npm and a Linux desktop that can run Electron. The current backend build targets Linux x86_64.
 
 ```sh
 git clone https://github.com/slaveitgr/xboks.git
@@ -58,82 +56,99 @@ npm ci
 npm run dev
 ```
 
-For a visual preview with the inherited sample account/library:
+For a UI preview with sample account/library data:
 
 ```sh
 XODUS_DEMO=1 npm run dev
 ```
 
-Demo mode does not sign in to a real account or install/launch real games. It may contact the public Store to fetch catalog data and artwork.
+Demo mode does not sign in, install or launch real games. It can fetch public Store catalog data and artwork.
 
-For real use, configure the Nexus backend and shared runtime in Settings, then sign in with your Microsoft account. Owned titles and subscription titles require the appropriate license. Available features and compatibility depend on the backend, runtime, account and game.
+For real use, configure the Nexus backend and shared runtime in Settings, then sign in through the Account flow. Supported games use the configured Proton/runtime; account privileges, licenses, runtime compatibility and the game itself determine availability. The upstream Nexus installer installs Nexus; xboks is built from this repository.
 
-### Build and check
+### Check and package
 
 ```sh
 npm run typecheck
 npm test
 npm run build
-```
-
-`npm run build` runs the full test suite before compiling the app. Failures in that suite must be resolved before treating a package as release-ready.
-
-To build a local AppImage after validation:
-
-```sh
 npm run dist
 ```
 
-The packaging configuration writes output to `release/`. Upstream Nexus downloads and installation scripts install **Nexus**, not xboks.
+`npm run build` includes type checking and the full launcher test suite. `npm run dist` repeats the build and creates an AppImage under `release/`; it does not publish a GitHub release. Packaging on one host does not establish compatibility with every Linux distribution.
 
-### Fullscreen Experience
+### Optional social companion — backend 0.3.0
 
-The **Fullscreen Experience** button enters fullscreen and activates controller-focused navigation. D-pad/left stick moves focus, A selects, B goes back and LB/RB changes pages or sections in the active Guide/Settings dialog. Mouse and keyboard remain available. A future Linux-distribution adapter can connect this app feature to a gaming session; no system-wide shell replacement is claimed.
+Friends/chat use the selected backend when it advertises social support. A packaged build can instead include the **0.3.0 social companion**, without replacing the selected game backend. It reads existing Nexus credentials through a read-only path; expired credentials need the normal Account refresh/sign-in flow.
 
-### Game Bar-style overlay
+To build the companion from the pinned source recipe, use the Rust toolchain in [`assets/backend-source.lock.json`](assets/backend-source.lock.json) and the native prerequisites in [`scripts/BACKEND.md`](scripts/BACKEND.md), including `protoc`:
 
-Open the guide with **Ctrl+G**, the top-bar guide button, or the controller Guide button when the operating system exposes it. LB/RB switch sections and B/Escape closes the panel. System volume/mute requires PipeWire/WirePlumber (`wpctl`). Captures save the xboks window as PNG in `Pictures/xboks`. This first version does not overlay external games, record video or provide Xbox party/chat.
+```sh
+mkdir -p work outputs
+node scripts/build-backend.mjs --work work/social-build --output outputs/social-backend
+node scripts/bundle-social-backend.mjs \
+  --binary work/social-build/target/release/xodus-cli \
+  --license work/social-build/source/LICENSE \
+  --source-archive outputs/social-backend/xodus-nexus-backend-0.3.0-linux-x86_64-source.tar.xz
+npm run dist
+```
 
-See the [Game Bar package analysis](docs/analysis/gamebar-7.326.md).
+Work/output directories must be new; the bundler also refuses to overwrite `assets/social-backend/`. Generated binaries and their corresponding-source archive stay out of Git. The companion is checked by hash and a bounded help probe, never used for login or game execution, and does not enable party voice. The local companion's OpenSSL 4/glibc dependencies and verification scope are recorded in the [social/system integration report](docs/analysis/social-system-integration.md).
+
+## Fullscreen Experience & Game Bar
+
+The **Fullscreen Experience** button enters app fullscreen with controller-focused navigation. D-pad/left stick moves focus, A selects, B goes back and LB/RB switches the active page, tab or guide section. Mouse and keyboard remain available. A distribution gaming session is a separate integration: `XBOKS_FULLSCREEN_EXPERIENCE=1` describes an existing OS session; it does not create or replace the desktop shell.
+
+Open the guide through its app control, **Ctrl+G** in the app, the controller Guide button when exposed by the OS, or the launch argument **`--game-bar`**. For a GNOME **Win+G** binding to an existing AppImage:
+
+```sh
+python3 scripts/desktop/install-gnome-gamebar.py \
+  --command '/absolute/path/to/xboks.AppImage --game-bar'
+```
+
+The helper preserves other bindings and refuses an existing Win+G conflict. The guide runs in its own desktop window; compositor policy, especially on Wayland, determines global-shortcut delivery and placement above other applications/games. Those physical desktop paths still need acceptance testing. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
+
+## Reconstruction and verification
+
+The visual reference is **Windows Xbox app 2610.1001.20.0 in Xbox mode** and the supplied screenshots. The [reference library](docs/analysis/reference/README.md) connects screenshot observations, decoded resources, control/navigation contracts, native metadata and implementation instructions. The [verification matrix](docs/analysis/reference/verification-matrix.json) keeps static evidence, Windows observations and tested Linux behavior distinct.
+
+Start with:
+
+- [Implementation guide](docs/analysis/reference/implementation-guide.md) — components, data contracts and acceptance gates.
+- [Application implementation report](docs/analysis/reference/app-implementation-2026-10-21.md) — UI/navigation checks and remaining gaps.
+- [Social/system integration](docs/analysis/social-system-integration.md) — real adapters, authenticated read checks, packaging and limits.
+- [Xbox party voice](docs/analysis/reference/party-voice.md) — recovered native/signaling evidence and the Linux voice plan.
+
+Synthetic tests, authenticated service checks, physical-controller checks and audible cross-device voice acceptance establish different things. Reverse-engineering counts are not a completion percentage.
 
 ## Roadmap
 
-- [x] Establish the Linux client from the Nexus codebase and preserve its attribution.
-- [x] Inspect the original Xbox package and establish a screenshot reference baseline.
-- [x] Implement the first Home layout and compact navigation rail.
-- [x] Keep backend status out of the main top bar.
-- [ ] Match Home spacing, feature cards and navigation against the 1920×1080 references.
-- [ ] Rebuild Library, Game Pass browsing, Store, queue and product details.
-- [x] Recreate the settings modal and integrate backend/Proton controls.
-- [ ] Recreate the profile menu and notification panel.
-- [ ] Validate controller focus, back behavior and handheld layouts.
-- [ ] Investigate supported Xbox social interfaces and Linux system overlays.
-- [ ] Validate authentication, downloads and supported game launch with real accounts.
-- [ ] Publish a tested xboks Linux package.
+- [x] Establish the Xodus Nexus foundation and preserve upstream attribution.
+- [x] Build the original-package/screenshot reference library.
+- [x] Implement reference-driven browsing, product pages, menus, queue and nine Settings categories.
+- [x] Add scoped controller navigation and the separate desktop guide.
+- [x] Integrate Xbox friends/text-chat adapters and Linux system controls.
+- [x] Add explicit local audio/device testing with cleanup and local push to talk.
+- [ ] Complete screenshot-by-screenshot visual and interaction parity.
+- [ ] Verify live text-message delivery and broader account/service cases.
+- [ ] Complete independent Xbox party signaling and native Linux voice, including two-way audible acceptance.
+- [ ] Validate more games through installation, update, launch and recovery.
+- [ ] Validate physical controllers, Wayland/global overlay behavior and clean-machine packages.
+- [ ] Integrate distribution-level gaming sessions and publish reproducibly tested releases.
 
-See the [reverse-engineering dossier](docs/analysis/xbox-reverse-engineering.md), [package analysis](docs/analysis/xbox-2610-initial.md) and [UI reconstruction specification](docs/analysis/windows-ui-spec.md) for evidence, measurements and implementation gaps.
+## Built on Xodus and Xodus Nexus
 
-## Built on open source
-
-xboks would not exist without the work of these projects and their contributors:
-
-| Project | Contribution |
+| Project | Foundation |
 | --- | --- |
-| [Xodus](https://github.com/xodus-gaming/xodus) | The underlying effort to bring Xbox PC game support to Linux, including account, licensing and game-package infrastructure |
-| [Xodus Nexus](https://github.com/domsvoboda/xodus-nexus) | The launcher codebase xboks is derived from, its Electron/React foundation, backend integration, library, installation queue and runtime tooling |
-| [Xodus Proton](https://github.com/xodus-gaming/Proton) | Part of the compatibility foundation used by the Nexus runtime |
-| [Xodus XGameRuntime](https://github.com/xodus-gaming/xgameruntime) | Part of the game runtime foundation used by Nexus |
+| [Xodus](https://github.com/xodus-gaming/xodus) | Xbox PC account, licensing, package and Linux compatibility infrastructure |
+| [Xodus Nexus](https://github.com/domsvoboda/xodus-nexus) | The Electron/React launcher xboks is derived from, backend integration, library, queue and runtime tooling |
+| [Xodus Proton](https://github.com/xodus-gaming/Proton) · [Xodus XGameRuntime](https://github.com/xodus-gaming/xgameruntime) | Parts of the configured game compatibility/runtime foundation |
+| [OpenXbox](https://github.com/OpenXbox/xbox-webapi-python) | Primary open-source references for the implemented social service contracts |
 
-The original **Xodus Nexus contributors** copyright notice and MIT license are preserved in [LICENSE](LICENSE). Separate backend and runtime components retain their own licenses; the launcher license does not replace them.
+The original **Xodus Nexus contributors** copyright notice and MIT launcher license remain in [LICENSE](LICENSE). Backend/runtime components retain their own licenses; corresponding source accompanies the optional social companion. Microsoft package binaries and private extracted reference datasets are not committed to this repository.
 
-xboks is independently maintained. Please report xboks problems in [this repository](https://github.com/slaveitgr/xboks/issues), rather than assuming they are bugs in Xodus or Xodus Nexus.
-
-## Contributing
-
-Useful contributions include screenshot-based UI comparisons, controller navigation fixes, Linux integration and reproducible compatibility reports. Include the xboks revision, Linux distribution, backend/runtime versions and steps to reproduce. Remove credentials and personal identifiers from logs and images before sharing them.
-
-Microsoft package files, extracted proprietary fonts/assets and private reference screenshots are kept outside tracked product files. The UI is implemented independently; the original Windows application is not bundled with xboks.
+Contributions are welcome: reproducible UI comparisons, accessibility/controller fixes, Linux integration and game compatibility reports. Include the revision, distribution, backend/runtime versions and reproduction steps. Remove credentials and personal data from shared logs/screenshots. Report xboks issues [here](https://github.com/slaveitgr/xboks/issues).
 
 ---
 
-**Independent and unofficial.** xboks is not affiliated with or endorsed by Microsoft, Xbox, Xodus or Xodus Nexus. Xbox and related names belong to their respective owners. A familiar interface does not imply feature parity or universal game compatibility.
+**Unofficial and independently maintained.** xboks is not affiliated with or endorsed by Microsoft, Xbox, Xodus or Xodus Nexus. Xbox and related names belong to their respective owners.

@@ -314,6 +314,7 @@ export async function prepareProtonRunner(
   let jsonRuntime = false;
   let shaderRuntime = false;
   let appStateRuntime = false;
+  let dxvkRuntime = false;
   try {
     const metadata = JSON.parse(await fs.readFile(path.join(protonRoot, 'XODUS_NEXUS_PATCH.json'), 'utf8')) as { features?: unknown; components?: Record<string, string> };
     hostLibraries = Array.isArray(metadata.features) && metadata.features.includes('wine-host-libraries-v1');
@@ -321,13 +322,15 @@ export async function prepareProtonRunner(
     jsonRuntime = Array.isArray(metadata.features) && metadata.features.includes('winrt-json-v1');
     shaderRuntime = Array.isArray(metadata.features) && metadata.features.includes('hlsl-state-keywords-v1');
     appStateRuntime = Array.isArray(metadata.features) && metadata.features.includes('appstate-registration-v1');
-    const components = [ ...(http2Runtime ? ['libnghttp2.dll'] : []), ...(jsonRuntime ? ['windows.web.dll'] : []), ...(shaderRuntime ? ['libvkd3d-shader-1.dll'] : []), ...(appStateRuntime ? ['twinapi.appcore.dll'] : []) ];
+    dxvkRuntime = Array.isArray(metadata.features) && metadata.features.includes('dxvk-constant-compare-v1');
+    const dxvkComponents = ['d3d8.dll', 'd3d9.dll', 'd3d10core.dll', 'd3d11.dll', 'dxgi.dll'];
+    const components = [ ...(http2Runtime ? ['libnghttp2.dll'] : []), ...(jsonRuntime ? ['windows.web.dll'] : []), ...(shaderRuntime ? ['libvkd3d-shader-1.dll'] : []), ...(appStateRuntime ? ['twinapi.appcore.dll'] : []), ...(dxvkRuntime ? dxvkComponents : []) ];
     // Validate every component before changing any prefix entry.
     const verified = await Promise.all(components.map(async (name) => {
       // WinHTTP loads nghttp2 with LOAD_LIBRARY_SEARCH_SYSTEM32. WINEDLLPATH
       // alone is insufficient in existing prefixes. Validate before replacing
       // a directory entry so symlinks cannot overwrite another runtime.
-      const library = name === 'libvkd3d-shader-1.dll' ? 'vkd3d' : 'wine';
+      const library = name === 'libvkd3d-shader-1.dll' ? 'vkd3d' : dxvkComponents.includes(name) ? 'wine/dxvk' : 'wine';
       const source = path.join(files, 'lib', library, 'x86_64-windows', name);
       const expected = metadata.components?.[name];
       const bytes = await fs.readFile(source);
@@ -347,7 +350,7 @@ export async function prepareProtonRunner(
       }
     }
   } catch (error) {
-    if (http2Runtime || jsonRuntime || shaderRuntime || appStateRuntime) throw error;
+    if (http2Runtime || jsonRuntime || shaderRuntime || appStateRuntime || dxvkRuntime) throw error;
     // Stock Proton keeps its bundled library environment.
   }
   const libraryDirectories = [
@@ -380,7 +383,7 @@ export async function prepareProtonRunner(
     `export MEDIACONV_BLANK_VIDEO_FILE=${shellQuote(path.join(files, 'share', 'media', 'blank.mkv'))}`,
     `export MEDIACONV_BLANK_AUDIO_FILE=${shellQuote(path.join(files, 'share', 'media', 'blank.ptna'))}`,
     `export PATH=${shellQuote(executablePath)}`,
-    `export WINEDLLOVERRIDES='dxgi=n;d3d11=n;d3d10core=n;d3d9=n;d3d12=n;d3d12core=n${http2Runtime ? ';winhttp=b;libnghttp2=n' : ''}'`,
+    `export WINEDLLOVERRIDES='dxgi=n;d3d11=n;d3d10core=n;d3d9=n;d3d12=n;d3d12core=n${http2Runtime ? ';winhttp=b;libnghttp2=n' : ''}${dxvkRuntime ? ';d3d8=n' : ''}'`,
     "export WINE_LARGE_ADDRESS_AWARE='1'",
     // Use Steam's genuine compatibility bridge when installed. Never force a
     // particular game to load it or replace an explicit user configuration.

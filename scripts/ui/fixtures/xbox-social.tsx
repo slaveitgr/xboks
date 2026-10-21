@@ -1,0 +1,64 @@
+import React,{useState} from 'react';
+import{createRoot}from'react-dom/client';
+import{ShellFlyout}from'/src/renderer/XboxShell.tsx';
+import{GuideOverlay}from'/src/renderer/GuideOverlay.tsx';
+import{GamepadNavigation}from'/src/renderer/GamepadNavigation.tsx';
+import{demoSnapshot}from'/src/shared/demo-data.ts';
+import'/src/renderer/styles.css';import'/src/renderer/xbox-shell.css';import'/src/renderer/xbox-icons.css';
+import { loadOriginalXboxUi } from '/src/renderer/XboxIcons.tsx';
+loadOriginalXboxUi();
+localStorage.setItem('xboks.interface-language.v1','en');
+const capture = async (name:string) => { if(typeof (window as any).__captureFixture==='function') await (window as any).__captureFixture(name); };
+const watermark=document.createElement('div');watermark.textContent='FIXTURE PREVIEW · Sample accounts/devices · No Xbox or OS actions';Object.assign(watermark.style,{position:'fixed',bottom:'14px',right:'20px',zIndex:'9999',background:'#132331',padding:'10px 14px',borderRadius:'8px',font:'14px sans-serif',color:'#cce4f2',pointerEvents:'none'});document.body.append(watermark);
+const capabilities={friends:true,presence:true,inbox:true,conversation:true,send:true,search:true,partyVoice:false};
+const calls:any[]=[],checks:string[]=[];let account='Alice',closes=0,deferFriends=false,pendingFriends:any[]=[],deferSend=false,sendResolve:any,sendSuccess=false,echo=false;
+const base=(extra:any={})=>({status:'ready',checkedAt:new Date().toISOString(),selfXuid:'999',capabilities:{...capabilities},...extra});
+const friends=(name=account)=>base({friends:[{xuid:'101',gamertag:name+'Only',presence:'online',activity:'Service game'},{xuid:'202',gamertag:'UnknownPlayer',presence:'unknown'}]});
+const conversation=(peer:string)=>base({peerXuid:peer,messages:peer==='303'?[]:[{id:'m1',senderXuid:'101',text:'Real returned message',deleted:false},{id:'deleted',senderXuid:'101',text:'SECRET-DELETED',deleted:true},{id:'filtered',senderXuid:'999',deleted:false},...(echo?[{id:'echo',senderXuid:'999',text:'Server confirmed echo',deleted:false}]:[])]});
+(window as any).launcher={
+ getGuideAudio:async()=>({available:false,reason:'Fixture only'}),
+ getXboxFriends:async(refresh:boolean)=>{calls.push({method:'friends',account,refresh});if(deferFriends)return await new Promise(resolve=>pendingFriends.push({account,resolve}));return friends();},
+ getXboxChats:async(refresh:boolean)=>{calls.push({method:'chats',refresh});return base({conversations:[{id:'inbox-101',peerXuid:'101',participants:['101','999'],unread:true,lastMessage:{id:'last',senderXuid:'101',deleted:false,text:'Inbox preview'}}],omittedConversations:2});},
+ getXboxConversation:async(peer:string,refresh:boolean)=>{calls.push({method:'conversation',peer,refresh});return conversation(peer);},
+ searchXboxPeople:async(query:string)=>{calls.push({method:'search',query});return base({friends:[{xuid:'303',gamertag:'SearchPlayer',presence:'unknown'}]});},
+ sendXboxMessage:async(peer:string,text:string)=>{calls.push({method:'send',peer,text});if(deferSend)return await new Promise(resolve=>sendResolve=resolve);if(sendSuccess){echo=true;return base({peerXuid:peer,sent:{messageId:'echo'}});}return{status:'error',reason:'Message delivery could not be confirmed. Check the conversation before sending again.',checkedAt:new Date().toISOString(),capabilities:{...capabilities}};},
+};
+const pad={index:0,id:'social-fixture',connected:true,mapping:'standard',axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});
+function Harness(){const[data,setData]=useState(()=>{const data=demoSnapshot();data.auth={...data.auth,stored:true,running:false,username:'Alice',gamertag:'Self Alice'};return data;}),[guide,setGuide]=useState(false);(window as any).setFixtureAccount=(name:string,stored=true)=>{account=name;setData(current=>({...current,auth:{...current.auth,username:name,gamertag:'Self '+name,stored}}));};(window as any).showFixtureGuide=()=>setGuide(true);(window as any).setFixtureGamertag=(gamertag:string)=>setData(current=>({...current,auth:{...current.auth,gamertag}}));return <>{guide?<GuideOverlay data={data} tab="social" setTab={()=>{}} close={()=>closes++} go={()=>{}} openGame={()=>{}}/>:<ShellFlyout data={data} panel="friends" close={()=>closes++} go={()=>{}}/>}<GamepadNavigation back={()=>closes++} page={()=>{}}/></>;}
+createRoot(document.getElementById('root')!).render(<Harness/>);
+const wait=()=>new Promise(resolve=>setTimeout(resolve,100));const check=(value:unknown,label:string)=>{if(!value)throw Error(label);checks.push(label);};
+const click=(selector:string)=>{const node=document.querySelector<HTMLButtonElement>(selector);if(!node||node.disabled||node.closest('[hidden]'))throw Error('Unavailable '+selector);node.focus();node.click();};
+const tab=(label:string)=>{const node=[...document.querySelectorAll<HTMLButtonElement>('.xbox-social-tabs button')].find(node=>node.textContent===label)!;node.focus();node.click();};
+const type=(selector:string,value:string)=>{const node=document.querySelector<HTMLInputElement|HTMLTextAreaElement>(selector)!;node.focus();const proto=node instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(node,value);node.dispatchEvent(new Event('input',{bubbles:true}));};
+const press=async(index:number)=>{await wait();pad.buttons[index]={pressed:true,value:1};await wait();pad.buttons[index]={pressed:false,value:0};await wait();};
+const messages=()=>document.querySelectorAll('.xbox-social-messages li').length;const sends=()=>calls.filter(call=>call.method==='send');const modal=()=>document.querySelector('.xbox-social-subpage');
+(window as any).runSocialChecks=async()=>{
+ await wait();await wait();check(document.querySelector('[aria-label="Online"]')?.textContent.includes('AliceOnly')&&document.querySelector('[aria-label="Presence unavailable"]')?.textContent.includes('UnknownPlayer'),'friends are grouped by server online and unknown presence');
+ await capture('app-friends');check(calls.length===1&&sends().length===0,'mount performs one friends read and no implicit sends');
+ click('[data-social-peer="101"]');await wait();await wait();check(calls.at(-1).method==='conversation'&&calls.at(-1).peer==='101'&&Boolean(modal()),'friend opens exact-peer conversation in nested modal');
+ check(document.activeElement?.hasAttribute('data-gamepad-cancel'),'conversation initially focuses Back');
+ check(document.querySelector('.xbox-social-messages')?.textContent.includes('Real returned message')&&!document.body.textContent?.includes('SECRET-DELETED')&&document.querySelector('.xbox-social-messages')?.textContent.includes('unavailable or filtered'),'message viewer shows actual text and protects deleted or filtered content');
+ await capture('app-chat');type('.xbox-social-composer textarea','🎮'.repeat(256));await wait();check(!document.querySelector<HTMLButtonElement>('.xbox-social-composer button')?.disabled&&document.querySelector('.xbox-social-composer span')?.textContent==='256 / 256','256 astral Unicode points are accepted without UTF-16 truncation');
+ type('.xbox-social-composer textarea','🎮'.repeat(257));await wait();check(document.querySelector<HTMLButtonElement>('.xbox-social-composer button')?.disabled,'257 Unicode points disable Send');
+ type('.xbox-social-composer textarea','Explicit fixture draft');await wait();(window as any).setFixtureGamertag('Refreshed Alice display name');await wait();check(document.querySelector<HTMLTextAreaElement>('.xbox-social-composer textarea')?.value==='Explicit fixture draft'&&Boolean(modal()),'gamertag metadata refresh preserves same-account conversation and draft');const previousMessages=messages();deferSend=true;click('.xbox-social-composer button');await wait();document.querySelector<HTMLButtonElement>('.xbox-social-composer button')!.click();await wait();check(sends().length===1&&document.querySelector<HTMLTextAreaElement>('.xbox-social-composer textarea')?.disabled&&messages()===previousMessages,'explicit send is single-flight and does not append optimistic messages');
+ await press(1);check(Boolean(modal())&&closes===0,'pending send consumes Back without leaving or duplicating delivery');
+ sendResolve({status:'error',reason:'Fixture delivery unconfirmed',checkedAt:new Date().toISOString(),capabilities:{...capabilities}});deferSend=false;await wait();check(document.querySelector<HTMLTextAreaElement>('.xbox-social-composer textarea')?.value==='Explicit fixture draft'&&document.querySelector('[role="alert"]')?.textContent==='Fixture delivery unconfirmed','unconfirmed delivery preserves draft and renders the actual error');
+ window.dispatchEvent(new Event('focus'));await wait();check(sends().length===1,'focus refresh never retries a message');
+ sendSuccess=true;click('.xbox-social-composer button');await wait();await wait();check(sends().length===2&&document.querySelector<HTMLTextAreaElement>('.xbox-social-composer textarea')?.value===''&&document.querySelector('.xbox-social-messages')?.textContent.includes('Server confirmed echo')&&calls.at(-1).method==='conversation'&&calls.at(-1).refresh===true,'only confirmed explicit send clears draft then refreshes actual conversation');
+ await press(1);check(!modal()&&document.activeElement?.getAttribute('data-social-peer')==='101'&&closes===0,'conversation B restores the same friend without closing outer flyout');
+ tab('Chats');await wait();await wait();check(document.body.textContent?.includes('Inbox preview')&&document.body.textContent?.includes('Group and system conversations are not displayed'),'inbox renders returned preview and discloses omitted conversations');
+ click('[data-social-peer="101"]');await wait();await press(1);check(document.querySelector('.xbox-social-tabs [aria-selected="true"]')?.textContent==='Chats'&&document.activeElement?.getAttribute('data-social-peer')==='101','inbox conversation Back preserves Chats origin');
+ tab('Friends');await wait();type('.xbox-social-search input','Captain');await wait();click('.xbox-social-search button[type="submit"]');await wait();check(calls.at(-1).method==='search'&&calls.at(-1).query==='Captain'&&Boolean(modal()),'people search is explicit and uses the entered query');
+ click('[data-social-peer="303"]');await wait();await wait();check(calls.at(-1).peer==='303'&&document.body.textContent?.includes('No messages were returned'),'search result opens exact new conversation without fabricating messages');
+ await press(1);check(document.activeElement?.getAttribute('data-social-peer')==='303'&&Boolean(modal()),'conversation Back returns to search results before outer overlay');
+ await press(1);check(!modal()&&document.activeElement?.matches('.xbox-social-search input')&&closes===0,'search Back restores original input');
+ deferFriends=true;document.querySelector<HTMLButtonElement>('.xbox-social-refresh-row button')!.click();await wait();check(pendingFriends.some(request=>request.account==='Alice'),'fixture holds an old-account friends response');
+ (window as any).setFixtureAccount('Bob');await wait();check(!document.body.textContent?.includes('AliceOnly')&&!document.querySelector('.xbox-social-composer'),'account switch immediately clears old private lists and composer');
+ pendingFriends.find(request=>request.account==='Bob').resolve(friends('Bob'));await wait();pendingFriends.find(request=>request.account==='Alice').resolve(friends('Alice'));await wait();check(document.body.textContent?.includes('BobOnly')&&!document.body.textContent?.includes('AliceOnly'),'late old-account response cannot replace the new account list');deferFriends=false;
+ (window as any).showFixtureGuide();await wait();await wait();check(Boolean(document.querySelector('.xbox-social-guide'))&&document.querySelector('.xbox-social-profile')?.textContent.includes('Self Bob'),'desktop Game Bar reuses the same account-backed social panel');
+ await capture('guide-friends');click('[data-social-peer="101"]');await wait();await press(1);check(!modal()&&closes===0,'Game Bar conversation Back consumes before outer guide');
+ (window as any).launcher.getXboxFriends=undefined;(window as any).setFixtureAccount('NoAdapter');await wait();await wait();check(document.body.textContent?.includes('Xbox social is unavailable in this app session')&&!document.body.textContent?.includes('BobOnly'),'missing backend remains unsupported without fake friends');
+ (window as any).setFixtureAccount('SignedOut',false);await wait();check(document.body.textContent?.includes('Not signed in')&&!document.body.textContent?.includes('BobOnly'),'sign-out clears private state and avoids stale profile presence');
+ check(sends().length===2,'all other navigation/search/refresh operations caused no messages');
+ return{passed:checks.length,checks,calls,realXboxRequests:false,realMessagesSent:false};
+};

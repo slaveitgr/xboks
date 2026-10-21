@@ -1,0 +1,53 @@
+.xbox-social-panel { position:relative; min-width:0; color:inherit; }
+.xbox-social-panel [hidden] { display:none !important; }
+.xbox-social-profile { display:flex; align-items:center; gap:12px; padding:16px 8px; }
+.xbox-social-profile > .xbox-icon { width:48px; height:48px; }
+.xbox-social-profile > span { display:grid; gap:3px; }
+.xbox-social-profile small { color:#b5b5b5; font-size:15px; }
+.xbox-social-search { display:flex; align-items:center; gap:6px; }
+.xbox-social-search > .xbox-icon { width:18px; height:18px; }
+.xbox-social-search input { width:100%; min-width:0; flex:1; border:1px solid #737e8c; border-radius:24px; padding:10px 12px; background:#25282b; color:inherit; }
+.xbox-social-search button { display:flex; align-items:center; justify-content:center; min-height:32px; width:32px; flex-shrink:0; border:1px solid #737e8c; border-radius:7px; background:#3c424b; padding:6px; }
+.xbox-social-search button > svg,.xbox-social-search button > .xbox-icon { width:18px; height:18px; }
+.xbox-social-party-reason { color:#aaa; font-size:11px; line-height:1.4; margin:10px 0; }
+.xbox-social-tabs { display:grid; grid-template-columns:1fr 1fr; border-bottom:1px solid #686868; margin:14px -8px 0; }
+.xbox-social-tabs button { position:relative; min-height:44px; background:transparent; border:0; font:inherit; }
+.xbox-social-tabs button[aria-selected=true]:after { content:''; position:absolute; left:8px; right:8px; bottom:0; height:4px; border-radius:4px; background:#fff; }
+.xbox-social-friends h3 { font-size:14px; margin:16px 3px 8px; }
+.xbox-social-panel .xbox-social-person { display:flex; align-items:center; gap:12px; min-height:60px; width:100%; background:transparent; border:0; border-radius:6px; padding:8px 3px; text-align:left; }
+.xbox-social-person > span:not(.xbox-social-avatar) { flex:1; min-width:0; display:grid; gap:4px; }
+.xbox-social-person strong { font-size:14px; font-weight:650; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.xbox-social-person small { font-size:13px; color:#b5b5b5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.xbox-social-avatar { position:relative; display:inline-flex; width:40px; height:40px; flex-shrink:0; }
+.xbox-social-avatar img,.xbox-social-avatar > .xbox-icon { width:40px; height:40px; object-fit:cover; border-radius:50%; }
+.xbox-social-avatar.presence-online:after,.xbox-social-avatar.presence-away:after { content:''; position:absolute; width:9px; height:9px; border-radius:50%; border:2px solid #25282c; background:#31b963; right:0; bottom:0; }
+.xbox-social-avatar.presence-away:after { background:#e8b149; }
+.xbox-social-unread { display:inline-block; width:8px; height:8px; margin-left:8px; border-radius:50%; background:#1dc365; }
+.xbox-social-status,.xbox-social-empty { color:#b5b5b5; font-size:14px; line-height:1.5; margin:16px 0; overflow-wrap:anywhere; }
+.xbox-social-panel .xbox-social-retry { display:inline-flex; align-items:center; gap:6px; border:0; background:transparent; min-height:32px; padding:5px; font-size:12px; }
+.xbox-social-retry > .xbox-icon { width:16px; height:16px; }
+.xbox-social-refresh-row { display:flex; justify-content:flex-end; }
+.xbox-social-subpage { min-height:380px; }
+.xbox-social-subpage-heading { display:flex; gap:8px; align-items:center; margin:4px 0 16px; }
+.xbox-social-subpage-heading h3 { flex:1; font-size:16px; margin:0; min-width:0; overflow-wrap:anywhere; }
+.xbox-social-subpage-heading > button { display:inline-flex; gap:6px; align-items:center; background:transparent; border:0; min-height:36px; padding:5px; font-size:13px; }
+.xbox-social-messages { display:grid; gap:12px; list-style:none; padding:0; margin:16px 0; max-height:360px; overflow-y:auto; scrollbar-width:thin; }
+.xbox-social-messages li { border-radius:8px; background:#32363b; padding:10px; margin-right:16px; overflow-wrap:anywhere; }
+.xbox-social-messages li.self-message { margin-right:0; margin-left:16px; background:#294936; }
+.xbox-social-messages li > small { display:flex; justify-content:space-between; gap:8px; color:#bbb; font-size:11px; }
+.xbox-social-messages time { text-align:right; }
+.xbox-social-messages p { margin:6px 0 0; font-size:14px; line-height:1.45; white-space:pre-wrap; }
+.xbox-social-composer { display:grid; gap:8px; font-size:14px; }
+.xbox-social-composer textarea { width:100%; resize:vertical; min-height:80px; max-height:220px; border:1px solid #737e8c; border-radius:8px; background:#202327; padding:10px; color:inherit; font:inherit; }
+.xbox-social-composer > div { display:flex; align-items:center; justify-content:space-between; color:#aaa; font-size:12px; }
+.xbox-social-composer button { display:inline-flex; align-items:center; gap:8px; min-height:36px; border:1px solid #737e8c; border-radius:7px; padding:8px 14px; background:#3c424b; }
+.xbox-social-error { border-radius:7px; padding:12px; background:#542b2f; color:#ffe0de; font-size:13px; line-height:1.5; }
+.xbox-social-notice { color:#bbddb8; font-size:13px; line-height:1.5; }
+.xbox-social-panel button:disabled,.xbox-social-panel input:disabled,.xbox-social-panel textarea:disabled { opacity:.45; cursor:default; }
+.guide-overlay .xbox-social-search button { min-height:44px; width:44px; padding:8px; }
+.guide-overlay .xbox-social-tabs button { background:transparent; border:0; border-radius:0; }
+.guide-overlay .xbox-social-person strong { font-size:18px; }
+.guide-overlay .xbox-social-person small { font-size:16px; }
+.guide-overlay .xbox-social-friends h3 { font-size:18px; }
+.guide-overlay .xbox-social-avatar,.guide-overlay .xbox-social-avatar img,.guide-overlay .xbox-social-avatar > .xbox-icon { width:48px; height:48px; }
+.guide-overlay .xbox-social-person { min-height:72px; }

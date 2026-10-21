@@ -1,0 +1,5 @@
+# Optional local static-analysis/visual-comparison dependencies, not app runtime.
+dnfile==0.18.0
+dncil==1.0.2
+pefile==2024.8.26
+Pillow>=10,<14

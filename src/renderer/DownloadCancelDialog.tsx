@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2 } from './XboxIcons';
 import type { DownloadCancelOptions, DownloadTask } from '../shared/types';
 
 export function DownloadCancelDialog({ task, options, loading, busy, error, close, choose }: {

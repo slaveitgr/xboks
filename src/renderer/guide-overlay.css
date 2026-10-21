@@ -37,7 +37,10 @@
 .guide-profile small { font-size: 14px; color: #b5b8bd; }
 .guide-web-search { display: flex; gap: 8px; align-items: center; margin: 20px 0; }
 .guide-web-search input { min-width: 0; width: 100%; border: 1px solid #737e8c; background: #202327; padding: 12px; border-radius: 20px; font-size: 14px; }
-.guide-hints { position: absolute; bottom: 14px; left: 44px; font-size: 13px; color: #ddd; }
+.guide-hints { position: absolute; bottom: 14px; left: 44px; right: 20px; font-size: 13px; line-height: 1.5; color: #ddd; }
 .guide-message { font-size: 14px; line-height: 1.5; color: #b6e1ac; }
 html[data-guide-capture] .guide-overlay, html[data-guide-capture] .gamepad-hints { visibility: hidden; }
 @media (max-width: 900px) { .guide-system time { font-size: 22px; } .guide-system { top: 8px; right: 10px; } .guide-tabs { top: 60px; left: 20px; gap: 8px; } .guide-tabs button { width: 48px; height: 48px; } .guide-panel { left: 20px; top: 124px; max-width: calc(100vw - 40px); max-height: calc(100vh - 165px); } .guide-hints { left: 20px; font-size: 11px; } }
+
+/* Top-level desktop window: the compositor supplies the desktop underneath. */
+html.desktop-guide-surface, .desktop-guide-surface body, .desktop-guide-surface #root { background: transparent !important; }

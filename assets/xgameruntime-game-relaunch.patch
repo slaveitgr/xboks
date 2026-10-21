@@ -1,0 +1,111 @@
+diff --git a/dlls/xgameruntime/xgame.c b/dlls/xgameruntime/xgame.c
+index 42c38bf..fbf66dc 100644
+--- a/dlls/xgameruntime/xgame.c
++++ b/dlls/xgameruntime/xgame.c
+@@ -19,6 +19,9 @@
+  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+  */
+ 
++#include <stdlib.h>
++#include <string.h>
++#include <wchar.h>
+ #include "private.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(gdkc);
+@@ -80,7 +83,63 @@ static HRESULT WINAPI x_game_XGameGetXboxTitleId( IXGameImpl3 *iface, UINT32 *ou
+ 
+ static void WINAPI x_game_XLaunchNewGame( IXGameImpl3 *iface, const char *exePath, const char *args, XUserHandle defaultUser )
+ {
+-    FIXME( "iface %p exePath %s, args %s, defaultUser %p stub!\n", iface, debugstr_a( exePath ), debugstr_a( args ), defaultUser );
++    STARTUPINFOW startup = { sizeof(startup) };
++    PROCESS_INFORMATION process;
++    WCHAR *executable = NULL, *arguments = NULL, *command = NULL;
++    SIZE_T length;
++    int exe_count, args_count = 1;
++    DWORD error = ERROR_INVALID_PARAMETER;
++
++    /* The backend supplies one real signed-in account to the process tree.
++     * A selected user must be that retained account, never a guessed handle
++     * or a request to switch identities in the child. NULL keeps that account. */
++    if (defaultUser && !xuser_is_current_user( defaultUser ))
++    {
++        error = ERROR_NOT_SUPPORTED;
++        goto done;
++    }
++    if (!exePath || !*exePath ||
++        !(exe_count = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, exePath, -1, NULL, 0 ))) goto done;
++    if (args && !(args_count = MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, args, -1, NULL, 0 ))) goto done;
++    /* CreateProcessW's limit includes the quoted executable and terminator. */
++    length = (SIZE_T)exe_count + args_count + 2;
++    if (length > 32767) goto done;
++    if (!(executable = malloc( exe_count * sizeof(WCHAR) )) ||
++        !(arguments = calloc( args_count, sizeof(WCHAR) )) ||
++        !(command = malloc( length * sizeof(WCHAR) )))
++    {
++        error = ERROR_NOT_ENOUGH_MEMORY;
++        goto done;
++    }
++    if (!MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, exePath, -1, executable, exe_count ) ||
++        (args && !MultiByteToWideChar( CP_UTF8, MB_ERR_INVALID_CHARS, args, -1, arguments, args_count ))) goto done;
++    /* Quotes are not valid filename characters and would corrupt argv[0]. */
++    if (wcschr( executable, '"' )) goto done;
++    command[0] = '"';
++    memcpy( command + 1, executable, (exe_count - 1) * sizeof(WCHAR) );
++    command[exe_count] = '"';
++    command[exe_count + 1] = ' ';
++    memcpy( command + exe_count + 2, arguments, args_count * sizeof(WCHAR) );
++
++    /* No shell or new authentication flow. Keep the current directory and
++     * environment (package view, account bridge and runtime) in the new tree,
++     * but do not leak the caller's unrelated inheritable Windows handles. */
++    if (!CreateProcessW( executable, command, NULL, NULL, FALSE, 0, NULL, NULL, &startup, &process ))
++    {
++        error = GetLastError();
++        goto done;
++    }
++    CloseHandle( process.hThread );
++    CloseHandle( process.hProcess );
++    error = ERROR_SUCCESS;
++done:
++    free( command );
++    free( arguments );
++    free( executable );
++    if (error) ERR( "Game relaunch failed, error %lu.\n", error );
++    /* The public contract never returns, including invalid-input/launch errors.
++     * Normal process teardown retains the runtime's existing save cleanup. */
++    ExitProcess( error ? 1 : 0 );
+ }
+ 
+ static HRESULT WINAPI x_game_XLaunchRestartOnCrash( IXGameImpl3 *iface, const char *args, UINT32 reserved )
+diff --git a/dlls/xgameruntime/xuser.c b/dlls/xgameruntime/xuser.c
+index 2b375a7..fbdd67e 100644
+--- a/dlls/xgameruntime/xuser.c
++++ b/dlls/xgameruntime/xuser.c
+@@ -1170,6 +1170,15 @@ static void set_signed_in_user( struct XUser *user )
+     LeaveCriticalSection( &signed_in_section );
+ }
+ 
++BOOL xuser_is_current_user( XUserHandle user )
++{
++    BOOL current;
++    EnterCriticalSection( &signed_in_section );
++    current = user && user == signed_in_user;
++    LeaveCriticalSection( &signed_in_section );
++    return current;
++}
++
+ static HRESULT find_signed_in_user( UINT64 xuid, UINT64 localId, XUserHandle *handle )
+ {
+     HRESULT hr = E_GAMEUSER_USER_NOT_FOUND;
+diff --git a/dlls/xgameruntime/private.h b/dlls/xgameruntime/private.h
+index 03f1332..b31f8e1 100644
+--- a/dlls/xgameruntime/private.h
++++ b/dlls/xgameruntime/private.h
+@@ -74,6 +74,7 @@ HRESULT xpackage_query_identifier( const char *store, SIZE_T size, char *identif
+ HRESULT xpackage_query_content_store( const char *identifier, SIZE_T size, char *store );
+ extern char *packageFamilyName;
+ UINT64 xuser_get_xuid( XUserHandle user );
++BOOL xuser_is_current_user( XUserHandle user );
+ HRESULT xuser_device_authorization( XUserHandle user, const char *relyingParty, char **auth );
+ HRESULT xuser_signed_request( XUserHandle user, const char *method, const char *url, const char *auth, const char *extraHeaders,
+                               const void *body, DWORD bodySize, DWORD *status, BYTE **buffer, SIZE_T *bufferSize );

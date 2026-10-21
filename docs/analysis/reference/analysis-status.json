@@ -1,0 +1,428 @@
+{
+  "schema_version": 1,
+  "baseline_date": "2026-10-20",
+  "complete_reverse_engineering": false,
+  "baseline": {
+    "gaming_app": "Microsoft.GamingApp 2610.1001.20.0 x64",
+    "gamebar": "Microsoft.XboxGamingOverlay 7.326.10141.0 x64",
+    "locale": "Greek",
+    "viewport": [
+      1920,
+      1080
+    ]
+  },
+  "archive_inventory": {
+    "selected_child_archives": 3,
+    "members": 1056,
+    "all_selected_members_crc_checked": true,
+    "microsoft_signature_verified": false,
+    "packages": [
+      {
+        "id": "xbox-x64",
+        "identity": {
+          "Name": "Microsoft.GamingApp",
+          "ProcessorArchitecture": "x64",
+          "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "Version": "2610.1001.20.0"
+        },
+        "sha256": "7f45342a19b7c2c55d240e4950fd8c4f2370ac4e8ea3c393879f8b00aabb8cfc",
+        "entries": 967,
+        "kinds": {
+          ".appxbundle": 1,
+          ".bin": 1,
+          ".cat": 1,
+          ".dat": 1,
+          ".ico": 1,
+          ".jpg": 15,
+          ".json": 1,
+          ".mp3": 12,
+          ".mp4": 1,
+          ".p7x": 1,
+          ".sccd": 1,
+          ".wav": 6,
+          "bitmap": 518,
+          "compiled-xaml": 11,
+          "font": 17,
+          "hermes-or-bundle": 1,
+          "pe": 55,
+          "resource-index": 3,
+          "runtime-metadata": 39,
+          "vector": 278,
+          "xml": 3
+        },
+        "crc_ok": true,
+        "signature_verified": false
+      },
+      {
+        "id": "xbox-el",
+        "identity": {
+          "Name": "Microsoft.GamingApp",
+          "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "Version": "2610.1001.20.0",
+          "ResourceId": "split.language-el"
+        },
+        "sha256": "0a6c4ca63155aea5b8beb78488afce1532a9ec658ec4b60d96cb59253b6f7c5e",
+        "entries": 5,
+        "kinds": {
+          ".p7x": 1,
+          "resource-index": 1,
+          "xml": 3
+        },
+        "crc_ok": true,
+        "signature_verified": false
+      },
+      {
+        "id": "gamebar-x64",
+        "identity": {
+          "Name": "Microsoft.XboxGamingOverlay",
+          "Publisher": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+          "Version": "7.326.10141.0",
+          "ProcessorArchitecture": "x64"
+        },
+        "sha256": "0e5a3db9e6ba78a20ad804f2a16ba67de50585be6a3744dae3c4eefe395e4093",
+        "entries": 84,
+        "kinds": {
+          ".bin": 3,
+          ".cat": 1,
+          ".gif": 2,
+          ".jpg": 2,
+          ".p7x": 1,
+          "bitmap": 44,
+          "font": 6,
+          "pe": 9,
+          "resource-index": 1,
+          "runtime-metadata": 10,
+          "xml": 5
+        },
+        "crc_ok": true,
+        "signature_verified": false
+      }
+    ]
+  },
+  "hermes": {
+    "bundle_sha256": "4f9f633da95002aeab380f01813bb7da63bc7f938f7f1f26b401c0bb2b180b55",
+    "bytecode_version": 96,
+    "strings": 103136,
+    "string_sites_operand": 781319,
+    "relations_closure": 66865,
+    "relations_local_closure_call": 4660,
+    "functions": 68878,
+    "instructions": 2541891,
+    "jump_edges": 170039,
+    "jump_errors": 0,
+    "calls": 272164,
+    "calls_with_local_provenance": 249268,
+    "closure_bindings": 23313,
+    "object_literals": 18291,
+    "string_sites_object-key": 95735,
+    "string_sites_array": 11386,
+    "string_sites_object-value": 54426,
+    "relations_generator_body": 2012,
+    "module_registrations": 7725,
+    "declared_module_dependencies": 52239,
+    "factory_dependency_call_patterns": 50937,
+    "decode_errors": 0,
+    "function_evidence_jsonl_sha256": "8d87263ddcbad0265c209cb0f382d43418675e977cfe7475890698a7690d9d2e",
+    "semantically_reconstructed_all_functions": false,
+    "complete_runtime_call_graph": false
+  },
+  "native_metadata": {
+    "sources": {
+      "xbox-components.json": {
+        "files": 39,
+        "errors": 0,
+        "types": 4058
+      },
+      "gamebar-components.json": {
+        "files": 10,
+        "errors": 0,
+        "types": 2145
+      },
+      "incoming/tcui-legacy-components.json": {
+        "files": 2,
+        "errors": 0,
+        "types": 107
+      },
+      "incoming/gaming-services-components.json": {
+        "files": 21,
+        "errors": 0,
+        "types": 680
+      },
+      "incoming/identity-provider-components.json": {
+        "files": 3,
+        "errors": 0,
+        "types": 14
+      },
+      "incoming/store-modern-components.json": {
+        "files": 5,
+        "errors": 0,
+        "types": 288
+      },
+      "incoming/store-old-components.json": {
+        "files": 2,
+        "errors": 0,
+        "types": 63
+      },
+      "incoming/store-modern-app.json": {
+        "files": 1,
+        "errors": 0
+      }
+    },
+    "indexed_files": 83,
+    "type_declarations": 7355,
+    "errors": 0,
+    "full_native_machine_code_semantics_recovered": false
+  },
+  "ui": {
+    "screenshots": 34,
+    "actions": 233,
+    "original_runtime_verified_actions": 0,
+    "settings_categories_with_screenshots": 9,
+    "linux_pixel_parity_certified": false,
+    "all_actions_semantically_reconstructed": false
+  },
+  "verified_this_change": {
+    "synthetic_analysis_and_comparison_tests": 111,
+    "database_integrity": "ok",
+    "foreign_key_check": "ok",
+    "public_document_links": "checked",
+    "windows_capture_helper_executed": false,
+    "app_runtime_changes": false,
+    "all_34_screenshot_fingerprints": "matched supplied files",
+    "menu_locator_validation": {
+      "rules": 55,
+      "freshly_decoded_functions": 73,
+      "instruction_locators": 548,
+      "issues": 0,
+      "bundle_and_opcode_hashes_pinned": true,
+      "semantic_conclusions_certified": false
+    },
+    "scope": "Earlier static analysis/documentation audit; subsequent application implementation is recorded separately under implementation_verifications."
+  },
+  "remaining_static_analysis": [
+    "Complete dataflow and asynchronous/native bridge semantics across all functions",
+    "Full native PE implementations, marshalling and external assembly type resolution",
+    "Windows MRT qualifier/fallback selection and native XBF template/binding/event execution",
+    "Feature-flag/account/market-dependent control reachability",
+    "Loaded detail/Reviews/More content contracts beyond supplied screenshots"
+  ],
+  "runtime_evidence_still_required": [
+    "Original Windows action/result traces for menus, navigation, all settings and error states",
+    "Authenticated account, Store identity, subscription and social responses",
+    "Xbox One X discovery, wake/connect/stream/cancel/reconnect",
+    "Physical controller and desktop/compositor overlay behavior",
+    "Same-state xboks visual comparisons and Linux end-to-end acceptance"
+  ],
+  "completion_rule": "No indexed count or passing reader test promotes an unobserved Windows action or untested Linux service into verified behavior.",
+  "original_windows_runtime_availability": "User confirmed no Windows PC is available at present; runtime acceptance remains open.",
+  "control_flow": {
+    "counts": {
+      "functions": 68878,
+      "instructions": 2541891,
+      "large_headers": 13,
+      "regular_addr_edges": 170039,
+      "switch_instructions": 23,
+      "switch_case_edges": 586,
+      "switch_default_edges": 23,
+      "exception_functions": 2758,
+      "exception_entries": 4126,
+      "debug_info_functions": 0
+    },
+    "errors": 0,
+    "limitations": [
+      "Encoded branch/switch/handler boundaries are checked, not full semantic control flow.",
+      "Exception range order is preserved; possible thrown values and exact throw sites are not inferred.",
+      "Generator suspension, dynamic calls, native returns and asynchronous scheduling are not modeled.",
+      "Debug offsets, regex semantics and preserved function-source tables are outside this audit."
+    ],
+    "report_sha256": "429600ba0fa891ffb72ae66cf3b27e8d4e7123ac8730f5da3b6e8a8f5cd222d1"
+  },
+  "targeted_semantic_trace": {
+    "product_navigation": "product-navigation-trace.md",
+    "annotated_functions": 18,
+    "scope": "Bounded static routing/menu/input/Settings dataflow. All menu rules retain original_runtime_verified=false; the seven Settings regression requirements are not passing app tests.",
+    "menu_rules": 55,
+    "menu_contracts": "menu-behavior-contracts.json",
+    "menu_chapter": "menu-behavior-traces.md",
+    "settings_chapter": "settings-behavior-traces.md",
+    "settings_regression_requirements": 7
+  },
+  "last_analysis_date": "2026-10-21",
+  "pri_resources": {
+    "counts": {
+      "pri_files": 5,
+      "sections": 74,
+      "schema_items": 7652,
+      "resource_entries": 12811,
+      "errors": 0,
+      "unsupported_sections": 0,
+      "candidates": 52336,
+      "decoded_path": 866,
+      "decoded_embedded": 155,
+      "decoded_string": 51315
+    },
+    "greek_string_candidates": 5219,
+    "resources_jsonl_sha256": "8efe2e779211de0303c6bfd71287fda5a31ae8fbd0c5e6b0c6ba1d20b0a8662a",
+    "format_source_commit": "0cf06784786e1e18d25099ca1d2e3dbeefce677e",
+    "runtime_qualifier_selection_verified": false,
+    "chapter": "pri-resources.md"
+  },
+  "xbf_resources": {
+    "files": 11,
+    "substreams": 46,
+    "decoded_nodes": 2602,
+    "errors": 0,
+    "format_commit": "a5d85af03fa5c3597856fc5d17efb167d68a076b",
+    "decoded_report_sha256_bindings_checked": true,
+    "scope": "Native tray/recap persisted nodes; not the main React Native screen geometry or an executed render tree.",
+    "chapter": "xbf-resources.md"
+  },
+  "native_signatures": {
+    "sources": {
+      "native-signatures-xbox.json": {
+        "files": 39,
+        "types": 4058,
+        "members": 27018,
+        "errors": 0,
+        "report_sha256": "90cf1405ea2f182c79dd32b4a6ea6513c2561b7180902b6b1b98cdbee2553a70"
+      },
+      "native-signatures-gamebar.json": {
+        "files": 10,
+        "types": 2145,
+        "members": 16553,
+        "errors": 0,
+        "report_sha256": "2f9756722c34cb14232f9824ba196397fad3f62a5a9ac4d68517ec19bbc4b6ee"
+      }
+    },
+    "native_implementation_recovered": false,
+    "portable_native_abi_recovered": false,
+    "chapter": "winmd-signatures.md",
+    "decoded_members": 43571
+  },
+  "implementation_verifications": {
+    "xboks-implementation-2026-10-21": {
+      "id": "xboks-implementation-2026-10-21",
+      "date": "2026-10-21",
+      "chapter": "docs/analysis/reference/app-implementation-2026-10-21.md",
+      "scope": "Application implementation following bounded static traces; separate from the previous static analysis/documentation audit.",
+      "app_runtime_changes": true,
+      "source_state": "Local working-tree build with isolated demo startup verification; no published release or clean-machine installation certified.",
+      "original_windows_runtime_verified": false,
+      "real_xbox_services_verified": false,
+      "operating_system_overlay_verified": false,
+      "linux_pixel_parity_certified": false,
+      "scoped_main_tests": {
+        "status": "passed",
+        "test_files": [
+          "src/main/desktop-guide.test.ts",
+          "src/main/desktop-settings.test.ts",
+          "src/main/store.test.ts",
+          "src/main/install-integration.test.ts",
+          "src/main/game-shortcuts.test.ts",
+          "src/main/launcher-startup.test.ts"
+        ],
+        "passed": 80,
+        "command": "npx vitest run src/main/desktop-guide.test.ts src/main/desktop-settings.test.ts src/main/store.test.ts src/main/install-integration.test.ts src/main/game-shortcuts.test.ts src/main/launcher-startup.test.ts"
+      },
+      "main_typecheck": {
+        "status": "passed",
+        "command": "npx tsc -p tsconfig.electron.json --noEmit"
+      },
+      "full_application_suite": {
+        "status": "passed",
+        "passed": 972,
+        "failed": 0,
+        "command": "npm test -- --reporter=json --outputFile=work/reference/library/app-implementation-tests-final.json",
+        "report": "work/reference/library/app-implementation-tests-final.json"
+      },
+      "renderer_smoke": {
+        "status": "passed",
+        "report": "outputs/reference-ui-2026-10-21/renderer-smoke-report.json",
+        "fixture_only": true,
+        "passed": 25,
+        "failed": 0,
+        "finished_at": "2026-10-21T06:50:50.054Z",
+        "screenshots": 12,
+        "browser_errors": 0,
+        "blocked_requests": 0,
+        "forbidden_mutations": 0,
+        "unstubbed_apis": 0,
+        "scope": "Actual xboks React renderer in Chromium with explicit sample launcher APIs and generated artwork; not Electron/native services or original Windows execution."
+      },
+      "packaging_bootstrap_tests": {
+        "status": "passed",
+        "passed": 49,
+        "test_files": [
+          "src/main/launcher-packaging.test.ts",
+          "src/main/launcher-bootstrap.test.ts",
+          "src/main/launcher-fonts.test.ts"
+        ],
+        "command": "npx vitest run src/main/launcher-packaging.test.ts src/main/launcher-bootstrap.test.ts src/main/launcher-fonts.test.ts",
+        "scope": "Disposable afterPack outputs and harmless native helper fixtures; no production desktop or account."
+      },
+      "combined_scoped_test_run": {
+        "status": "passed",
+        "test_files": [
+          "src/main/desktop-guide.test.ts",
+          "src/main/desktop-settings.test.ts",
+          "src/main/store.test.ts",
+          "src/main/install-integration.test.ts",
+          "src/main/game-shortcuts.test.ts",
+          "src/main/launcher-startup.test.ts",
+          "src/main/launcher-packaging.test.ts",
+          "src/main/launcher-bootstrap.test.ts",
+          "src/main/launcher-fonts.test.ts"
+        ],
+        "passed": 129,
+        "failed": 0,
+        "command": "npx vitest run src/main/desktop-guide.test.ts src/main/desktop-settings.test.ts src/main/store.test.ts src/main/install-integration.test.ts src/main/game-shortcuts.test.ts src/main/launcher-startup.test.ts src/main/launcher-packaging.test.ts src/main/launcher-bootstrap.test.ts src/main/launcher-fonts.test.ts"
+      },
+      "contract_validator": {
+        "status": "passed",
+        "action_records": 233,
+        "feature_records": 25,
+        "menu_rules": 55,
+        "fresh_menu_functions": 73,
+        "instruction_locators": 548,
+        "issues": 0,
+        "regression_tests_passed": 13,
+        "scope": "Reference provenance/locator and synthetic validator checks, not original-runtime semantic proof."
+      },
+      "renderer_and_main_typecheck": {
+        "status": "passed",
+        "command": "npm run typecheck"
+      },
+      "production_build": {
+        "status": "passed",
+        "command": "npx vite build && npx tsc -p tsconfig.electron.json"
+      },
+      "local_appimage": {
+        "status": "built_and_demo_boot_verified",
+        "path": "release/xboks-0.3.9-x86_64.AppImage",
+        "bytes": 131307572,
+        "sha256": "066317b5eb9d84bc3514f7318a9503c220c0483440fbcabd5d550e8b6dd42fbb",
+        "published": false,
+        "boot": {
+          "status": "passed",
+          "mode": "isolated_demo_profile",
+          "default_appimage_launch_exit_code": 0,
+          "extract_and_run_exit_code": 0,
+          "screenshot": "outputs/reference-ui-2026-10-21/packaged-boot.png",
+          "scope": "Actual packaged Electron startup and rendered Home on this Linux host. Sample account/library, no real backend/wallet/game operations; clean-machine and desktop overlay acceptance remain open."
+        }
+      },
+      "gamepad_range_integration": {
+        "status": "passed",
+        "assertions": 11,
+        "report": "work/reference/library/qa/gamepad-range/result.json",
+        "scope": "Actual React GuideOverlay/AudioSettings in hidden Electron with fake standard gamepad and service APIs; not physical controller or compositor acceptance."
+      },
+      "guide_loading_back_integration": {
+        "status": "passed",
+        "assertions": 6,
+        "report": "work/reference/library/qa/desktop-guide-back/result.json",
+        "scope": "Rejected/deferred snapshot, actual React DesktopGuideApp and synthetic Escape; native bridge/services fake."
+      }
+    }
+  }
+}

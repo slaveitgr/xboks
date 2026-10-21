@@ -1,10 +1,113 @@
-import { describe, expect, it } from 'vitest';
-import { navigationTarget, PadInput, padDirection, revealDelta } from './gamepad-navigation';
+import { describe, expect, it, vi } from 'vitest';
+import { BackHandlerStack, dispatchBackHandlers, navigationTarget, PadInput, padDirection, registerBackHandler, revealDelta, stepGamepadRange } from './gamepad-navigation';
 
 function pad(buttons: number[] = [], axes = [0, 0, 0, 0]) {
   return { buttons: Array.from({ length: 17 }, (_, index) => ({ pressed: buttons.includes(index), touched: false, value: buttons.includes(index) ? 1 : 0 })), axes };
 }
 const rect = (x: number, y: number, width = 80, height = 40) => ({ left: x, top: y, right: x + width, bottom: y + height });
+
+describe('native range edits for controlled React inputs', () => {
+  function fixture(next = '51') {
+    // This fixture does not emulate numeric stepping. The browser check uses
+    // real range controls; this verifies the React tracker/event boundary.
+    class NativeRange {
+      nativeValue = '50'; type = 'range'; disabled = false; readOnly = false;
+      get value() { return this.nativeValue; }
+      set value(value: string) { this.nativeValue = value; }
+      ownerDocument = { defaultView: { HTMLInputElement: NativeRange, Event } };
+      stepUp = vi.fn((_steps: number) => { this.nativeValue = next; });
+      cloneNode = vi.fn((_deep: boolean) => probe);
+      dispatchEvent = vi.fn((_event: Event) => true);
+    }
+    const input = new NativeRange(), probe = new NativeRange(), tracker = vi.fn();
+    Object.defineProperty(input, 'value', { get: () => input.nativeValue, set: tracker });
+    return { input: input as unknown as HTMLInputElement, native: input, probe, tracker };
+  }
+  it.each([['right',1],['left',-1]] as const)('uses native stepping for %s and bypasses the instance value tracker', (direction, steps) => {
+    const { input, native, probe, tracker } = fixture(direction === 'right' ? '51' : '49');
+    expect(stepGamepadRange(input,direction)).toBe(true);
+    expect(probe.stepUp).toHaveBeenCalledWith(steps); expect(tracker).not.toHaveBeenCalled();
+    expect(input.value).toBe(direction === 'right' ? '51' : '49');
+    expect(native.dispatchEvent.mock.calls.map(([event])=>[event.type,event.bubbles])).toEqual([['input',true],['change',true]]);
+  });
+  it('does not emit a backend-commit-triggering change at a native min/max boundary', () => {
+    const { input, native }=fixture('50');
+    expect(stepGamepadRange(input,'right')).toBe(false); expect(native.dispatchEvent).not.toHaveBeenCalled();
+  });
+  it.each(['disabled','readOnly'] as const)('never edits a %s range', property => {
+    const { input, native, probe }=fixture(); input[property]=true;
+    expect(stepGamepadRange(input,'right')).toBeUndefined(); expect(probe.stepUp).not.toHaveBeenCalled(); expect(native.dispatchEvent).not.toHaveBeenCalled();
+  });
+  it('leaves non-range inputs and a native non-steppable range untouched', () => {
+    const { input, native, probe }=fixture(); input.type='text';
+    expect(stepGamepadRange(input,'right')).toBeUndefined();
+    input.type='range'; probe.stepUp.mockImplementation(()=>{throw new Error('InvalidStateError');});
+    expect(stepGamepadRange(input,'right')).toBe(false); expect(input.value).toBe('50'); expect(native.dispatchEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('ordered consumable Back registration', () => {
+  it('lets the most recently registered surface consume Back before its parent', () => {
+    const stack = new BackHandlerStack(), parent = vi.fn(() => true), menu = vi.fn(() => true);
+    stack.register(parent); stack.register(menu);
+    expect(stack.dispatch()).toBe(true); expect(menu).toHaveBeenCalledOnce(); expect(parent).not.toHaveBeenCalled();
+  });
+  it('continues backward only for handlers that explicitly decline', () => {
+    const stack = new BackHandlerStack(), calls: string[] = [];
+    stack.register(() => { calls.push('page'); return true; });
+    stack.register(() => { calls.push('menu'); return false; });
+    stack.register(() => { calls.push('tooltip'); return false; });
+    expect(stack.dispatch()).toBe(true); expect(calls).toEqual(['tooltip', 'menu', 'page']);
+  });
+  it('returns false when no surface consumes, allowing the existing page fallback', () => {
+    const stack = new BackHandlerStack();
+    expect(stack.dispatch()).toBe(false); stack.register(() => false); expect(stack.dispatch()).toBe(false);
+  });
+  it('cleans up one registration idempotently without removing another registration', () => {
+    const stack = new BackHandlerStack(), handler = vi.fn(() => true);
+    const remove = stack.register(handler); stack.register(handler);
+    remove(); remove(); expect(stack.dispatch()).toBe(true); expect(handler).toHaveBeenCalledOnce();
+  });
+  it('does not invoke an older handler removed by the current handler', () => {
+    const stack = new BackHandlerStack(), old = vi.fn(() => true), removeOld = stack.register(old);
+    stack.register(() => { removeOld(); return false; });
+    expect(stack.dispatch()).toBe(false); expect(old).not.toHaveBeenCalled();
+  });
+  it('does not activate a newly opened popup with the same Back press', () => {
+    const stack = new BackHandlerStack(), next = vi.fn(() => true);
+    const remove = stack.register(() => { remove(); stack.register(next); return true; });
+    expect(stack.dispatch()).toBe(true); expect(next).not.toHaveBeenCalled();
+    expect(stack.dispatch()).toBe(true); expect(next).toHaveBeenCalledOnce();
+  });
+  it('does not fall through to a background action if a surface handler throws', () => {
+    const stack = new BackHandlerStack(), page = vi.fn(() => true);
+    stack.register(page); stack.register(() => { throw new Error('Popup failure'); });
+    expect(() => stack.dispatch()).toThrow('Popup failure'); expect(page).not.toHaveBeenCalled();
+  });
+  it('isolates handlers to their renderer window', () => {
+    const first = {} as Window, second = {} as Window, handler = vi.fn(() => true), remove = registerBackHandler(first, handler);
+    expect(dispatchBackHandlers(second)).toBe(false); expect(handler).not.toHaveBeenCalled();
+    expect(dispatchBackHandlers(first)).toBe(true); remove(); expect(dispatchBackHandlers(first)).toBe(false);
+  });
+  it('does not close a registered outer surface behind an unregistered modal', () => {
+    const doc = {} as Document, owner = { document: doc } as Window;
+    const outer = { isConnected: true } as HTMLElement;
+    const modal = { isConnected: true, contains: (element: HTMLElement) => element === modal } as HTMLElement;
+    const page = vi.fn(() => true), outerClose = vi.fn(() => true);
+    registerBackHandler(owner, page); registerBackHandler(owner, outerClose, () => outer);
+    expect(dispatchBackHandlers(owner, modal)).toBe(false);
+    expect(page).not.toHaveBeenCalled(); expect(outerClose).not.toHaveBeenCalled();
+    expect(dispatchBackHandlers(owner, doc)).toBe(true); expect(page).toHaveBeenCalledOnce(); expect(outerClose).not.toHaveBeenCalled();
+  });
+  it('consumes only matching inner menu scope and ignores detached registrations', () => {
+    const doc = {} as Document, owner = { document: doc } as Window;
+    const menu = { isConnected: true, contains: (element: HTMLElement) => element === menu } as HTMLElement;
+    const gone = { isConnected: false } as HTMLElement;
+    const onMenu = vi.fn(() => true), stale = vi.fn(() => true);
+    registerBackHandler(owner, onMenu, () => menu); registerBackHandler(owner, stale, () => gone);
+    expect(dispatchBackHandlers(owner, menu)).toBe(true); expect(onMenu).toHaveBeenCalledOnce(); expect(stale).not.toHaveBeenCalled();
+  });
+});
 
 describe('revealing focused controls inside the scroll viewport', () => {
   it.each([[120, 400, 0], [480, 800, 50], [20, 300, -50], [800, 1100, 350], [-400, -100, -470], [100, 1000, 30]])('reveals %s..%s with safe viewport bounds', (top, bottom, expected) => {

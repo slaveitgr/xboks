@@ -6,6 +6,26 @@ import type { Game, InstallRequest, LauncherApi, Settings } from '../shared/type
 // preload stays a thin passthrough. Store pages always use the live
 // Microsoft Store catalog. No real credentials, tokens or account data.
 const api: LauncherApi = {
+  requestVoiceCapture: () => ipcRenderer.invoke('voice-capture-request'),
+  releaseVoiceCapture: () => ipcRenderer.invoke('voice-capture-release'),
+  onVoiceCaptureStop: callback => {
+    const listener = () => callback();
+    ipcRenderer.on('voice-capture-stop', listener);
+    return () => ipcRenderer.removeListener('voice-capture-stop', listener);
+  },
+  getGuideSystem: () => ipcRenderer.invoke('guide-system-get'),
+  prepareGuidePower: action => ipcRenderer.invoke('guide-power-prepare', action),
+  executeGuideSystem: (action, token) => ipcRenderer.invoke('guide-system-execute', action, token),
+  openGuideSystemSettings: section => ipcRenderer.invoke('guide-system-settings', section),
+  getXboxFriends: refresh => ipcRenderer.invoke('xbox-social-friends', refresh),
+  getXboxChats: refresh => ipcRenderer.invoke('xbox-social-inbox', refresh),
+  getXboxConversation: (peer, refresh) => ipcRenderer.invoke('xbox-social-conversation', peer, refresh),
+  searchXboxPeople: query => ipcRenderer.invoke('xbox-social-search', query),
+  sendXboxMessage: (peer, text) => ipcRenderer.invoke('xbox-social-send', peer, text),
+  quitLauncher: () => ipcRenderer.invoke('quit-launcher'),
+  getLibraryProviders: () => ipcRenderer.invoke('library-providers'),
+  getBatteryPercentage: () => ipcRenderer.invoke('battery-percentage'),
+  openRemotePlay: () => ipcRenderer.invoke('remote-play-open'),
   getGuideAudio: () => ipcRenderer.invoke('guide-audio-get'),
   setGuideAudio: patch => ipcRenderer.invoke('guide-audio-set', patch),
   captureLauncher: () => ipcRenderer.invoke('guide-capture'),
@@ -21,17 +41,22 @@ const api: LauncherApi = {
   installNexusRuntime: () => ipcRenderer.invoke('runtime-install-nexus'),
   rollbackRuntimePreview: () => ipcRenderer.invoke('runtime-rollback-preview'),
   refreshAccount: () => ipcRenderer.invoke('account-refresh'),
+  checkKeyring: () => ipcRenderer.invoke('keyring-check'),
+  startKeyring: () => ipcRenderer.invoke('keyring-start'),
   checkLauncherUpdate: () => ipcRenderer.invoke('check-launcher-update'),
   installLauncherUpdate: () => ipcRenderer.invoke('install-launcher-update'),
   restartLauncher: () => ipcRenderer.invoke('restart-launcher'),
   rollbackLauncherUpdate: () => ipcRenderer.invoke('rollback-launcher-update'),
   checkGameUpdates: (id?: string) => ipcRenderer.invoke('check-game-updates', id),
   readDiagnosticLog: (id: string) => ipcRenderer.invoke('read-diagnostic-log', id),
+  copyDiagnosticLog: (id: string) => ipcRenderer.invoke('copy-diagnostic-log', id),
+  revealDiagnosticLog: (id: string) => ipcRenderer.invoke('reveal-diagnostic-log', id),
   readBackendDiagnosticLog: () => ipcRenderer.invoke('read-backend-diagnostic-log'),
   login: () => ipcRenderer.invoke('login'),
   logout: () => ipcRenderer.invoke('logout'),
   searchCatalog: (query: string, cursor?: string) => ipcRenderer.invoke('catalog-search', query, cursor),
   getFeaturedCatalog: () => ipcRenderer.invoke('catalog-featured'),
+  getCatalogDetails: (productId: string) => ipcRenderer.invoke('catalog-details', productId),
   getAccountLibrary: (kind, cursor, refresh) => ipcRenderer.invoke('account-library', kind, cursor, refresh),
   startInstall: (request: InstallRequest) => ipcRenderer.invoke('start-install', request),
   getInstallPlan: (productId: string) => ipcRenderer.invoke('install-plan', productId),
@@ -75,3 +100,14 @@ const api: LauncherApi = {
 };
 
 contextBridge.exposeInMainWorld('launcher', api);
+
+contextBridge.exposeInMainWorld('desktopGuide', {
+  toggle: () => ipcRenderer.invoke('desktop-guide-toggle'),
+  close: () => ipcRenderer.invoke('desktop-guide-close'),
+  navigate: (page: string, gameId?: string) => ipcRenderer.invoke('desktop-guide-navigate', page, gameId),
+  onNavigate: (callback: (value: { page: string; gameId?: string }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, value: { page: string; gameId?: string }) => callback(value);
+    ipcRenderer.on('desktop-guide-navigate', listener);
+    return () => ipcRenderer.removeListener('desktop-guide-navigate', listener);
+  },
+});

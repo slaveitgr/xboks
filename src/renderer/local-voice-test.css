@@ -1,0 +1,13 @@
+.local-voice-test { display:grid; gap:12px; min-width:0; margin:24px 0; padding-top:16px; border-top:1px solid #555; }
+.local-voice-test h3 { display:flex; align-items:center; gap:10px; margin:0; font-size:16px; }
+.local-voice-test p,.local-voice-test small { margin:0; color:#b7bbc0; line-height:1.5; font-size:13px; }
+.local-voice-test label:not(.local-voice-check) { display:grid; gap:7px; font-size:14px; }
+.local-voice-test select { width:100%; min-width:0; border:1px solid #737e8c; border-radius:7px; background:#25282b; padding:9px; color:inherit; }
+.local-voice-test meter,.local-voice-test input[type=range] { width:100%; accent-color:#42c4f7; }
+.local-voice-check { display:flex; align-items:center; gap:10px; font-size:14px; }
+.local-voice-check input { accent-color:#fff; }
+.local-voice-buttons { display:flex; flex-wrap:wrap; gap:8px; }
+.local-voice-buttons button { font-size:13px; }
+.local-voice-hold.talking { outline:2px solid #80d899; }
+.local-voice-test .local-voice-error { color:#ffd3cf; background:#542b2f; padding:10px; border-radius:6px; }
+.guide-overlay .local-voice-buttons button { min-height:40px; padding:7px; }

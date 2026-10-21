@@ -1,0 +1,17 @@
+From: Philip Rebohle <philip.rebohle@tu-dortmund.de>
+Subject: ir: Properly check that getConstantAsSint is actually constant.
+Upstream: https://github.com/doitsujin/dxbc-spirv/commit/8dae2d8573af08378c6059aca3d5987da99d20b5
+Context-adjusted backport to the compiler pinned by DXVK 6227b633.
+
+diff --git a/subprojects/dxbc-spirv/ir/passes/ir_pass_arithmetic.cpp b/subprojects/dxbc-spirv/ir/passes/ir_pass_arithmetic.cpp
+--- a/subprojects/dxbc-spirv/ir/passes/ir_pass_arithmetic.cpp
++++ b/subprojects/dxbc-spirv/ir/passes/ir_pass_arithmetic.cpp
+@@ -3131,7 +3131,7 @@ std::pair<bool, Builder::iterator> ArithmeticPass::resolveIdentityCompareOp(Builder:
+       dxbc_spv_assert(a.getType().isScalarType());
+       int64_t bitCount = 8u * a.getType().getBaseType(0u).byteSize();
+ 
+-      if (getConstantAsSint(b, 0u) >= bitCount) {
++      if (b.isConstant() && getConstantAsSint(b, 0u) >= bitCount) {
+         m_builder.rewriteDef(op->getDef(), m_builder.makeConstant(op->getOpCode() == OpCode::eINe));
+         return std::make_pair(true, op);
+       }

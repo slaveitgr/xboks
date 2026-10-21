@@ -57,9 +57,16 @@ const cli = path.join(target, 'release/xodus-cli');
 const help = command(cli, ['--help'], true);
 if (authUi === 'electron' && !help.includes('--external-webview-stdio')) throw Error('External sign-in capability missing');
 if (authUi === 'electron' && /lib(?:gtk|webkit|soup|javascriptcore)/i.test(command('readelf', ['-d', cli], true))) throw Error('Headless CLI links a native webview library');
-for (const name of ['account', 'login', 'logout', 'download', 'streaming', 'run', 'resolve-package', 'game-activity', 'achievements']) {
+for (const name of ['account', 'login', 'logout', 'download', 'streaming', 'run', 'resolve-package', 'game-activity', 'achievements', 'social']) {
   if (!new RegExp(`^\\s{2}${name}\\s{2,}`, 'm').test(help)) throw Error(`Backend lacks ${name}`);
 }
+// Help parsing exits before keyring initialization or any network request.
+const socialHelp = command(cli, ['social', '--help'], true);
+for (const verb of ['friends', 'inbox', 'conversation', 'search', 'send']) {
+  if (!new RegExp(`^\\s{2}${verb}\\s{2,}`, 'm').test(socialHelp)) throw Error(`Xbox social capability missing: ${verb}`);
+}
+const sendHelp = command(cli, ['social', 'send', '--help'], true);
+if (!sendHelp.includes('--json') || !sendHelp.includes('stdin') || /--text/.test(sendHelp)) throw Error('Xbox social private-stdin send protocol missing');
 if (!command(cli, ['run', '--help'], true).includes('--materialize-chain')) throw Error('Launch-chain support missing');
 const streamingHelp = command(cli, ['streaming', '--help'], true);
 for (const flag of ['--progress-json', '--control-stdin', '--selected-content-id', '--download-limit-kib']) {

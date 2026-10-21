@@ -1,0 +1,21 @@
+.launch-experience-backdrop { position:fixed; inset:0; z-index:170; background:#000c; display:grid; place-items:center; padding:24px; }
+.launch-experience { position:relative; width:min(560px,100%); max-height:calc(100vh - 48px); overflow:auto; border-radius:16px; background:#1b1c1e; color:white; }
+.launch-experience-close { position:absolute; z-index:1; right:10px; top:10px; width:30px; height:30px; background:#25282bd9; border:0; border-radius:5px; padding:4px; cursor:pointer; }
+.launch-experience-art { height:220px; display:grid; place-items:center; background:linear-gradient(130deg,#203c30,#1b252c); }
+.launch-experience-art img { width:100%; height:100%; object-fit:cover; }
+.launch-experience-art > .xbox-icon { width:64px; height:64px; }
+.launch-experience-content { padding:24px; }
+.launch-experience-content h2 { margin:0 0 24px; font-size:24px; }
+.launch-experience-content p { font-size:14px; line-height:22px; color:#bbb; overflow-wrap:anywhere; }
+.launch-experience-status { display:flex; align-items:center; gap:12px; color:white !important; font-size:16px !important; }
+.launch-experience-status > svg,.launch-experience-status > .xbox-icon { width:24px; height:24px; flex-shrink:0; }
+.launch-experience-progress { height:4px; margin:20px 0; background:#444a50; overflow:hidden; border-radius:4px; }
+.launch-experience-progress i { display:block; width:30%; height:100%; background:#71b990; animation:launch-pulse 1.8s ease-in-out infinite alternate; }
+.launch-experience details { margin:24px 0; font-size:13px; }
+.launch-experience pre { max-height:240px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; }
+.launch-experience button:focus-visible,.launch-experience summary:focus-visible { outline:2px solid white; outline-offset:3px; }
+@keyframes launch-pulse { from { transform:translateX(-100%); } to { transform:translateX(333%); } }
+.queue-readiness { font-size:12px; color:#aeb3b8; }
+.queue-readiness.ready { color:#71b990; }
+.xbox-mode .download-main > .queue-readiness { order:3; line-height:16px; margin-top:3px; }
+.xbox-mode .download-main > .task-log { order:4; }

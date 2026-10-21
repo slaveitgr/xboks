@@ -56,7 +56,10 @@ it('creates Steam launch descriptions without unwanted desktop/menu entries and 
 async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-shortcuts-'));
   const launcher = path.join(root, 'Launcher $`%\' name.AppImage');
-  await fs.copyFile('/bin/echo', launcher); await fs.chmod(launcher, 0o700);
+  // A copied multicall coreutils binary may reject the deliberately hostile
+  // filename via argv[0]. This disposable script uses only the shell's printf
+  // builtin and therefore exercises our launcher quoting on either host setup.
+  await fs.writeFile(launcher, '#!/bin/sh\nprintf \'%s\\n\' "$*"\n', { mode: 0o700 });
   const icon = path.join(root, 'icon.png'); await fs.writeFile(icon, 'fixture icon');
   const locations = { userData: path.join(root, 'profile'), desktop: path.join(root, 'Desktop'),
     applications: path.join(root, 'applications'), launcher, icon };

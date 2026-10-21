@@ -28,6 +28,7 @@ export function parseBackendHelp(help: string): BackendCapabilities {
     gameActivity: commands.includes('game-activity'),
     achievements: commands.includes('achievements'),
     library: commands.includes('library'),
+    social: commands.includes('social'),
     login: commands.includes('login'),
     externalAuth: /(?:^|\s)--external-webview-stdio(?:\s|$)/m.test(help),
     logout: commands.includes('logout'),

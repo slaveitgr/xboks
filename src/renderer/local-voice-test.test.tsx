@@ -1,0 +1,8 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { LocalVoiceTest } from './LocalVoiceTest';
+import { AudioSettings } from './AudioSettings';
+afterEach(()=>vi.unstubAllGlobals());
+it('renders explicit local-only controls without requesting microphone permission',()=>{const request=vi.fn();vi.stubGlobal('window',{launcher:{requestVoiceCapture:request}});const html=renderToStaticMarkup(<LocalVoiceTest/>);expect(html).toContain('No audio is recorded or sent to Xbox');expect(html).toContain('Microphone stopped');expect(html).toContain('Start test');expect(html).toContain('Stop test');expect(html).toContain('Listen to my voice on this PC');expect(request).not.toHaveBeenCalled();expect(html).not.toContain('Connected to Xbox');});
+it('retains original Xbox audio categories alongside the clearly separated local test',()=>{const html=renderToStaticMarkup(<AudioSettings/>);for(const title of ['Input device','Output device','Voice volume','Push to talk','Noise suppression','Navigation sounds','Local microphone test','System volume'])expect(html).toContain(title);expect(html).toContain('Xbox party voice chat is not implemented yet');});
+it('localizes the test, device controls, lifecycle and local-only explanation in Greek',()=>{vi.stubGlobal('localStorage',{getItem:()=> 'el'});const html=renderToStaticMarkup(<LocalVoiceTest/>);for(const text of ['Τοπική δοκιμή μικροφώνου','Έναρξη δοκιμής','Διακοπή δοκιμής','Ο ήχος δεν καταγράφεται ούτε αποστέλλεται στο Xbox','Συσκευή εξόδου για αυτήν τη δοκιμή'])expect(html).toContain(text);});

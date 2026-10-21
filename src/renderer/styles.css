@@ -308,7 +308,7 @@ button.primary svg, button.secondary svg { width: 17px; height: 17px; }
 .library-card-menu-button { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.2); border-radius: 4px; background: rgba(23,25,28,.85); cursor: pointer; }
 .library-card-menu-button:hover { background: #464b52; }
 .library-card-menu-button svg { width: 17px; }
-.game-context-menu { position: fixed; z-index: 30; width: 215px; padding: 5px; background: #30343a; border: 1px solid #575d65; border-radius: 5px; box-shadow: 0 15px 40px rgba(0,0,0,.5); }
+.game-context-menu { position: fixed; z-index: 30; width: 215px; max-height: calc(100vh - 16px); overflow-y: auto; padding: 5px; background: #30343a; border: 1px solid #575d65; border-radius: 5px; box-shadow: 0 15px 40px rgba(0,0,0,.5); }
 .game-context-menu button { width: 100%; padding: 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 3px; background: transparent; text-align: left; cursor: pointer; font-size: 12px; }
 .game-context-menu button:hover { background: #464b52; }
 .game-context-menu button.danger { color: #ffaaaa; }
@@ -617,3 +617,20 @@ button.primary, button.secondary { border-radius: 5px; min-height: 40px; font-si
 .content-list strong, .content-list small { display: block; overflow-wrap: anywhere; }
 .content-list small { margin-top: 5px; color: #b6bec8; }
 .content-list button { flex-shrink: 0; }
+.keyring-setup { margin: 16px 0; padding: 14px; border: 1px solid var(--border, #3a4046); border-radius: 6px; }
+.keyring-status { display: flex; align-items: flex-start; gap: 10px; }
+.keyring-status > svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.keyring-status p { margin: 6px 0 12px; }
+.keyring-setup .fine-print { margin: 10px 0 0; }
+.keyring-setup .button-row { margin-top: 12px; flex-wrap: wrap; }
+.keyring-compact { padding: 10px 12px; margin: 12px 0; }
+.keyring-compact-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.keyring-compact .keyring-status { align-items: center; gap: 8px; }
+.keyring-compact .keyring-status > svg { flex-basis: 16px; width: 16px; height: 16px; }
+.keyring-compact .keyring-status strong { font-size: 12px; }
+.keyring-compact .keyring-status small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
+.keyring-compact .button-row { flex: 0 0 auto; margin: 0; gap: 6px; }
+.keyring-compact button { min-height: 32px; padding: 6px 9px; font-size: 11px; }
+.keyring-compact .keyring-problem { margin: 10px 0 0; font-size: 12px; line-height: 1.5; }
+.keyring-help { margin-top: 8px; font-size: 11px; color: var(--muted); }
+.keyring-help > summary { cursor: pointer; width: fit-content; }

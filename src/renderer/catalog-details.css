@@ -1,0 +1,44 @@
+/* Main React Native product page measured from reference 35996; native tray XBF sizes do not apply. */
+.catalog-details-page { position:relative; isolation:isolate; padding:0 120px 64px; min-height:100%; }
+.catalog-details-page::before { content:''; position:absolute; inset:-88px 0 auto; height:495px; z-index:-1; pointer-events:none; background-image:linear-gradient(0deg,#1b1d1f,#1b1d1f55),var(--catalog-art,none); background-size:cover; filter:blur(50px); opacity:.4; }
+.catalog-detail-hero { display:grid; grid-template-columns:minmax(0,821px) minmax(0,584px); gap:100px; min-height:406px; }
+.catalog-detail-summary { display:flex; flex-direction:column; align-items:flex-start; min-width:0; }
+.catalog-detail-summary > .game-pass-icon { width:124px; height:20px; margin:0 0 14px; }
+.catalog-detail-hero h1 { font-size:40px; line-height:48px; margin:20px 0 24px; font-weight:600; }
+.catalog-detail-summary > .game-pass-icon + h1 { margin-top:0; }
+.catalog-detail-description { color:#b9bbbd; line-height:24px; font-size:16px; margin:0; max-width:750px; }
+.catalog-detail-purchase { margin-top:auto; width:100%; padding-bottom:16px; }
+.catalog-detail-purchase > span { display:block; font-size:14px; margin-bottom:8px; }
+.catalog-detail-actions { display:flex; gap:16px; align-items:stretch; flex-wrap:wrap; }
+.catalog-detail-actions button,.catalog-detail-actions a { min-height:56px; border-radius:8px; }
+.catalog-detail-actions .primary { min-width:180px; font-size:14px; justify-content:center; }
+.catalog-detail-actions small { display:block; font-size:14px; }
+.catalog-detail-actions > .secondary:not(.catalog-buy-link) { width:56px; padding:12px; justify-content:center; }
+.catalog-detail-actions .catalog-install-error { border-left:8px solid #f5a400; background:#8e9196; color:white; }
+.catalog-buy-link { display:flex; align-items:center; gap:16px; padding:12px 18px; text-decoration:none; }
+.catalog-detail-art,.catalog-art-skeleton { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:8px; display:block; }
+.catalog-art-skeleton,.catalog-thumbnail-skeleton { background:#303133; }
+.catalog-detail-thumbnails { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:16px; margin-top:16px; }
+.catalog-detail-thumbnails button,.catalog-thumbnail-skeleton { height:56px; padding:0; overflow:hidden; border:0; border-radius:4px; }
+.catalog-detail-thumbnails img { width:100%; height:100%; object-fit:cover; }
+.catalog-detail-publisher { margin:0 -120px; padding:16px 124px; min-height:144px; background:#25282b; display:grid; grid-template-columns:1fr 1fr; gap:40px; font-size:14px; }
+.catalog-detail-publisher > div { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+.catalog-detail-publisher > div + div { border-left:1px solid #4c4c4c; padding-left:40px; font-size:13px; color:#b5b5b5; }
+.catalog-detail-publisher p { margin:0; line-height:20px; }
+.catalog-details-page a { color:#71b990; }
+.catalog-details-page a .xbox-icon { width:12px; height:12px; margin-left:6px; }
+.catalog-detail-tabs { display:flex; justify-content:center; gap:20px; margin:48px 0 96px; }
+.catalog-detail-tabs button { background:none; border:0; color:inherit; padding:14px 10px; position:relative; cursor:pointer; font-size:14px; font-weight:600; }
+.catalog-detail-tabs button[aria-selected=true]::after { content:''; position:absolute; bottom:0; left:0; right:0; height:4px; border-radius:3px; background:white; }
+.catalog-detail-body { display:grid; grid-template-columns:1fr 1fr; gap:32px; white-space:pre-line; line-height:1.6; }
+.catalog-detail-body > article { min-width:0; }
+.catalog-detail-body h2 { font-size:24px; margin:0 0 16px; }
+.catalog-detail-body dl { display:grid; grid-template-columns:160px 1fr; gap:12px; }
+.catalog-detail-body dd { margin:0; }
+.catalog-detail-body > [role=alert],.catalog-body-skeleton { grid-column:1/-1; }
+.catalog-body-skeleton { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+.catalog-body-skeleton > div { height:280px; border-radius:4px; background:#2d2e30; }
+.catalog-details-page button:focus-visible,.catalog-details-page a:focus-visible { outline:2px solid white; outline-offset:4px; }
+@media(max-width:1400px) { .catalog-detail-hero {gap:40px;grid-template-columns:1fr 1fr;} }
+@media(max-width:1100px) { .catalog-details-page {padding:16px 40px 64px;} .catalog-detail-publisher {margin:0 -40px;padding:20px 40px;} .catalog-detail-hero h1 {font-size:32px;line-height:40px;} .catalog-detail-hero {min-height:380px;} }
+@media(max-width:700px) { .catalog-details-page {padding:16px 20px;} .catalog-detail-hero {grid-template-columns:1fr;gap:24px;} .catalog-detail-summary {min-height:280px;} .catalog-detail-media {grid-row:1;} .catalog-detail-publisher {margin:24px -20px 0;padding:20px;grid-template-columns:1fr;} .catalog-detail-publisher > div + div {border-left:0;padding-left:0;} .catalog-detail-body {grid-template-columns:1fr;} .catalog-detail-tabs {margin-bottom:40px;} }

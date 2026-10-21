@@ -1,0 +1,86 @@
+.sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+.xbox-library-tabs { display: flex; gap: 18px; height: 32px; align-items: stretch; margin: 0 0 36px; }
+.xbox-library-tabs button { position: relative; min-width: 132px; border: 0; padding: 0 10px 12px; background: transparent; font-size: 14px; font-weight: 650; cursor: pointer; white-space: nowrap; }
+.xbox-library-tabs [aria-selected="true"]::after { content: ''; position: absolute; bottom: 0; left: 6px; right: 6px; height: 4px; border-radius: 4px; background: #fff; }
+.xbox-mode .library-layout { display: block; }
+.xbox-mode .library-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0; margin: 0; min-height: 32px; background: transparent; border: 0; }
+.xbox-mode .library-filters label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.xbox-mode .library-filters select { height: 32px; min-height: 32px; padding: 0 28px 0 14px; width: auto; max-width: 220px; margin: 0; border: 1px solid #6d7784; border-radius: 20px; background: #3c424b; color: #fff; font-size: 14px; }
+.xbox-mode .library-filters .library-sort { border: 1px solid #6d7784; border-radius: 20px; background: #3c424b; padding-left: 12px; }
+.xbox-mode .library-sort > svg { width: 17px; height: 17px; }
+.xbox-mode .library-filters .library-sort select { border: 0; background: transparent; padding-left: 0; }
+.xbox-mode .library-filter-count, .xbox-mode .library-import { height: 32px; min-width: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; background: #3c424b; border: 1px solid #6d7784; border-radius: 8px; padding: 4px 8px; font-size: 14px; cursor: pointer; }
+.xbox-mode .library-filter-count svg { width: 18px; height: 18px; }
+.xbox-mode .library-import { border: 0; background: #25282b; }
+.xbox-mode .library-import svg { width: 24px; height: 24px; }
+.xbox-mode .library-game-count { margin-left: auto; color: #b5b5b5; font-size: 14px; }
+.xbox-mode .library-refresh { min-height: 32px; height: 32px; width: 32px; padding: 6px; border-radius: 8px; }
+.library-filter-chips { display: flex; gap: 10px; min-height: 32px; margin: 18px 0 27px; }
+.library-filter-chips > button { display: inline-flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 12px; min-height: 32px; border: 0; border-radius: 20px; background: #e9e9e9; color: #111; font-size: 14px; cursor: pointer; }
+.library-filter-chips svg { width: 16px; height: 16px; }
+.library-filter-drawer { padding: 0 0 20px; }
+.library-filter-drawer label { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.library-filter-drawer input { max-width: 350px; border-radius: 7px; padding: 8px 12px; }
+.xbox-mode .library-page .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, 182px); gap: 20px 22px; }
+.xbox-mode .library-page .catalog-card { border: 0; border-radius: 8px; background: #25282b; overflow: hidden; }
+.xbox-mode .account-games-results .catalog-card-main > div:last-child { min-height: 42px; padding: 8px; }
+.xbox-mode .account-games-results .library-card strong { font-size: 14px; line-height: 19px; font-weight: 650; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.xbox-mode .catalog-card-status { height: 30px; min-height: 30px; margin: 0 8px; font-size: 14px; padding-bottom: 6px; }
+.xbox-mode .library-card-menu-button { background: #25282bcc; opacity: 0; }
+.xbox-mode .library-card-wrap:hover .library-card-menu-button, .xbox-mode .library-card-wrap:focus-within .library-card-menu-button { opacity: 1; }
+.xbox-mode .account-games-results > p, .library-collection-empty { font-size: 14px; color: #b5b5b5; }
+.xbox-mode .account-library-note { font-size: 12px; margin-top: 28px; }
+.downloads-page .xbox-library-tabs { margin-bottom: 30px; }
+.queue-toolbar { display: flex; align-items: center; gap: 24px; height: 32px; margin-bottom: 44px; }
+.xbox-mode .queue-toolbar .secondary { height: 32px; min-height: 32px; padding: 0 16px; font-size: 14px; font-weight: 400; border: 1px solid #727e8d; background: #3c424b; border-radius: 8px; }
+.queue-update-check { border: 0; background: transparent; font-size: 16px; padding: 4px 0; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.queue-update-check svg { width: 16px; height: 16px; }
+.queue-update-check:disabled { color: #888; cursor: default; }
+.queue-group-heading { display: flex; justify-content: space-between; align-items: center; gap: 20px; margin-bottom: 23px; }
+.queue-group-heading > div { display: flex; gap: 8px; }
+.queue-group-heading button { border: 1px solid #727e8d; border-radius: 8px; background: #3c424b; display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 32px; min-height: 32px; padding: 0 16px; font-size: 14px; cursor: pointer; font-weight: 400; }
+.queue-group-heading button:disabled { opacity: .4; cursor: default; }
+.queue-group-heading svg { width: 16px; height: 16px; }
+.xbox-mode .download-list { gap: 18px; }
+.xbox-mode .download-list[hidden] { display: none; }
+.xbox-mode .download-item { position: relative; grid-template-columns: 102px minmax(0, 1fr) 44px; gap: 16px; padding: 0; min-height: 102px; background: #25282b; border: 0; border-radius: 9px; }
+.xbox-mode .download-status { width: 102px; height: 102px; border-radius: 9px 0 0 9px; background: #202326; }
+.xbox-mode .download-status .download-badge { display: none; }
+.xbox-mode .download-main { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; padding: 12px 0; }
+.xbox-mode .download-heading { order: 0; gap: 12px; }
+.xbox-mode .download-heading h3 { margin: 0; font-size: 14px; line-height: 20px; }
+.xbox-mode .download-heading > div > span { display: none; }
+.xbox-mode .download-heading > strong { align-self: flex-end; color: #fff; font-size: 14px; font-weight: 400; }
+.xbox-mode .download-main > p { order: 1; margin: 0; line-height: 18px; font-size: 14px; color: #b5b5b5; }
+.xbox-mode .download-main > .progress-track { order: 2; height: 5px; margin-top: 4px; border-radius: 4px; background: #646b75; }
+.xbox-mode .download-main > .progress-track > i { background: #00a05c; }
+.xbox-mode .download-item.failed .progress-track > i { background: #e89700; }
+.xbox-mode .download-item.failed .download-main > p { color: #b5b5b5; }
+.xbox-mode .download-main > .task-log { order: 3; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; }
+.queue-row-options { align-self: center; width: 40px; height: 40px; border: 0; background: transparent; padding: 8px; cursor: pointer; border-radius: 6px; }
+.queue-row-options svg { width: 22px; height: 22px; transform: rotate(90deg); }
+.queue-row-options:hover { background: #3c424b; }
+.xbox-mode .download-actions { position: absolute; top: 76px; right: 0; z-index: 10; display: grid; width: 288px; padding: 8px; background: #25282b; border: 1px solid #34373b; border-radius: 8px; box-shadow: 0 12px 24px #0005; }
+.xbox-mode .download-actions button { width: 100%; height: 44px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border: 0; border-radius: 7px; text-align: left; background: transparent; font-size: 14px; }
+.xbox-mode .download-actions button::after { content: attr(title); }
+.xbox-mode .download-actions button:hover { background: #505258; }
+.xbox-mode .download-actions button:disabled { opacity: .4; cursor: default; }
+.queue-clear { margin-top: 32px; }
+@media (max-width: 850px) { .xbox-library-tabs { gap: 2px; } .xbox-library-tabs button { min-width: 0; padding: 0 8px 12px; } .xbox-mode .library-game-count { margin-left: 0; } .queue-toolbar { gap: 12px; } .queue-group-heading { flex-wrap: wrap; } .xbox-mode .download-item { grid-template-columns: 74px minmax(0,1fr) 36px; gap: 10px; } .xbox-mode .download-status { width: 74px; height: 102px; } }
+.library-filter-drawer { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.library-filter-drawer[hidden], .xbox-mode .download-actions[hidden] { display: none; }
+.xbox-mode .page-scroll { scrollbar-gutter: stable; }
+.xbox-library-tabs { gap: 6px; }
+.xbox-library-tabs button:nth-child(1) { width: 144px; min-width: 144px; }
+.xbox-library-tabs button:nth-child(2) { width: 197px; min-width: 197px; }
+.xbox-library-tabs button:nth-child(3), .xbox-library-tabs button:nth-child(4) { width: 163px; min-width: 163px; }
+.xbox-mode .library-filters .library-sort select { height: 30px; min-height: 30px; }
+.xbox-mode .library-page .catalog-card { padding-bottom: 0; }
+.xbox-mode .library-card-wrap.selected:not(:focus-within):not([data-gamepad-focus]) { outline: none; box-shadow: none; }
+.xbox-mode .download-item { background: transparent; isolation: isolate; }
+.xbox-mode .download-item::before { content: ''; position: absolute; inset: 0 44px 0 0; background: #25282b; border-radius: 9px; z-index: -1; }
+@media (max-width: 850px) { .xbox-library-tabs { gap: 2px; } .xbox-library-tabs button:nth-child(n) { width: auto; min-width: 0; } .xbox-mode .download-item::before { right: 36px; } }
+.xbox-mode .download-actions { top: 106px; }
+.xbox-mode .catalog-card-status { height: 28px; min-height: 28px; }
+/* Fit readiness beneath progress while retaining the reference 102px row. */
+.xbox-mode .download-main { padding-top: 8px; padding-bottom: 8px; }

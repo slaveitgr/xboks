@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "status": "development",
+  "dxvkSourceLockSha256": "7913820bf93ee49df4d8c917928392b296159f7a93df9dad40b03b934bb5dc30",
   "sources": {
     "wine": {
       "url": "https://github.com/xodus-gaming/wine.git",
@@ -178,6 +179,10 @@
     {
       "file": "assets/xgameruntime-taskqueue-repeat-termination.patch",
       "sha256": "0dd3bc5e8e32f546de2b060eaa6bc8c90197d9dd522d3ae150451a93900880d0"
+    },
+    {
+      "file": "assets/xgameruntime-game-relaunch.patch",
+      "sha256": "e6bf837a8d120c4e880cb43a6743772db7a4b61ff16a68a4bdce0627fe13962d"
     }
   ],
   "expectedWineSources": {
@@ -190,9 +195,9 @@
   "expectedXgameruntimeSources": {
     "dlls/xgameruntime/Makefile.in": "703a51c5f2a25deb15543b43cf4136260c06118f20e921db617f183c76a2ea6f",
     "dlls/xgameruntime/main.c": "aa854f8dab809f887d204acd16042ad571dbdb5c99720401aada12a003033699",
-    "dlls/xgameruntime/private.h": "1355dc60dc8a7925cd737e06700e90c195a83b2f29aeebba3462f091f533aa6a",
+    "dlls/xgameruntime/private.h": "5b5491ddd0be05807c8cac13bff38d8b0f2e6f87c82521202f34bcd7a684da31",
     "dlls/xgameruntime/xerror.c": "f0dc4b456af5c4cfdcc1036f1dd422848a1ce97abd6cd1722bf654c51927b694",
-    "dlls/xgameruntime/xgame.c": "7d7edff91a839cac522f910c54d4625d8efa61121c7a32f4bd3665cca184abae",
+    "dlls/xgameruntime/xgame.c": "47ae0b3a0453a86dd2a315c5963437280dff1296e58521793e8e2cc8dcc32cba",
     "dlls/xgameruntime/xgameactivation.c": "48a729040d7be7aac3e28b27aa06f8285bcef3f27767fa79ddfbe33c7b629dbc",
     "dlls/xgameruntime/xgameinvite.c": "43c3459101f7da3a4bc6569d361f2d5f63f6a0e70006a0472c4ccb6f9bece41f",
     "dlls/xgameruntime/xgameprotocol.c": "6936d5e24532832ee2e6928ea3a9a5217f8df830588b2e6e92920dd2cf1532d3",
@@ -211,7 +216,7 @@
     "dlls/xgameruntime/xsystem.c": "a3c151c5d05875b68f49c534aae9d40e3f15ec800af0f85e159ede7c95401880",
     "dlls/xgameruntime/xsystemanalytics.c": "189e99c83273b429325ecefa2b9246c45863c22f0c4006a791ec57b8f7b9d384",
     "dlls/xgameruntime/xthreading.c": "2cf262d75eb6da156f14f2702ccd3d59953da5bc8f4b898709c25d5489383361",
-    "dlls/xgameruntime/xuser.c": "74667ccfbde1cf063b477f53b335b4b9d07057998187a49384e7e39ba51d3ed1",
+    "dlls/xgameruntime/xuser.c": "2eaf3b1d73d9f1c791ab3553844c0c05b482331b77a23ac0bc7f2bc7a47f8c44",
     "dlls/xgameruntime/xuser_device_events.h": "ed3b6ac25510b7bff288e36859781811e7de3985d418159ce25a2b00bc6d35cb",
     "dlls/xgameruntime/xuser_privilege.h": "4aa9a2736b59feb4d86cb86d95d99119ab1ccb6ab07b6b9a53c7da61acd0a77b",
     "dlls/xgameruntime/util.c": "aebf1a7ebef0dff89d3a1683bc40e16c821eaeb5cc1160ce474b905d14d7cb5c",
@@ -233,6 +238,7 @@
   },
   "requiresBackendVersion": "0.2.1",
   "limitations": [
+    "XLaunchNewGame supports ordinary desktop process replacement with inherited package/account environment. A non-null default user must be the current retained signed-in user; switching accounts, mounted DLC transfer and XLaunchRestartOnCrash are not implemented.",
     "App-state and app-constrained notifications support registration and unregistration for desktop processes. Wine has no app-container lifecycle event source, so no suspend/resume or constrained-state notifications are synthesized.",
     "Device-association subscriptions retain registration state and task queues. Device-to-Xbox-user association discovery and event delivery are unavailable; no controller association changes are synthesized.",
     "Privilege resolution refreshes authenticated XSTS claims for the requested user. Missing or denied privileges fail; account restriction and subscription remediation UI is not implemented.",

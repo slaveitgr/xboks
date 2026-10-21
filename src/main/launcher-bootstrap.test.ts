@@ -7,15 +7,15 @@ import path from 'node:path';
 let root: string | undefined;
 afterEach(() => { if (root) rmSync(root, { recursive: true, force: true }); root = undefined; });
 
-function launch(environment: NodeJS.ProcessEnv = {}, args = ['argument with spaces', "it's quoted", '', '$literal;value']) {
+function launch(environment: NodeJS.ProcessEnv = {}, args = ['argument with spaces', "it's quoted", '', '$literal;value'], executableName = 'xodus-nexus') {
   root = mkdtempSync(path.join(os.tmpdir(), 'nexus-bootstrap-'));
   const app = path.join(root, "launcher with spaces and 'quote");
   mkdirSync(app);
-  const wrapper = path.join(app, 'xodus-nexus');
+  const wrapper = path.join(app, executableName);
   copyFileSync('scripts/launcher-font-wrapper.sh', wrapper);
   const capture = path.join(root, 'capture.jsonl');
   // This executable records both the Node font-bootstrap and final exec boundary.
-  writeFileSync(path.join(app, 'xodus-nexus.bin'), `#!${process.execPath}
+  writeFileSync(path.join(app, executableName + '.bin'), `#!${process.execPath}
 const fs = require('node:fs');
 const bootstrap = process.argv[2]?.endsWith('/font-bootstrap/bootstrap.mjs');
 const selected = ['LD_PRELOAD', 'LD_LIBRARY_PATH', 'SteamAppId', 'SteamGameId',
@@ -30,7 +30,7 @@ fs.appendFileSync(process.env.NEXUS_TEST_CAPTURE, JSON.stringify({
 if (bootstrap) process.stdout.write(process.env.NEXUS_TEST_FONT_CONFIG || '');
 else process.exitCode = Number(process.env.NEXUS_TEST_EXIT || 0);
 `);
-  chmodSync(path.join(app, 'xodus-nexus.bin'), 0o755);
+  chmodSync(path.join(app, executableName + '.bin'), 0o755);
   // A matching file must never cause wildcard tokens to expand.
   writeFileSync(path.join(root, 'custom1.so'), 'not a library');
   const env: NodeJS.ProcessEnv = { ...process.env, NEXUS_TEST_CAPTURE: capture };
@@ -47,6 +47,18 @@ else process.exitCode = Number(process.env.NEXUS_TEST_EXIT || 0);
 }
 
 describe('packaged Linux launcher bootstrap', () => {
+  it.each(['xboks', 'xodus-nexus'])('uses the matching sibling executable for %s, preserving font and native launch boundaries', executableName => {
+    const { records, main, args, result } = launch({ FONTCONFIG_FILE: '/original/fonts.conf', NEXUS_TEST_FONT_CONFIG: '/private/fonts.conf' }, undefined, executableName);
+    expect(result.status).toBe(0);
+    expect(records).toHaveLength(2);
+    expect(records[0].bootstrap).toBe(true);
+    expect(records[0].env.ELECTRON_RUN_AS_NODE).toBe('1');
+    expect(main.bootstrap).toBe(false);
+    expect(main.args).toEqual(args);
+    expect(main.env.FONTCONFIG_FILE).toBe('/private/fonts.conf');
+    expect(main.env.XODUS_NEXUS_FONTCONFIG_ORIGINAL).toBe('/original/fonts.conf');
+    expect(main.pid).toBe(result.pid);
+  });
   it.each(['gamescope', 'Gamescope', 'steam:GaMeScOpE'])
   ('selects simple IME before Electron starts only in Game Mode: %s', desktop => {
     const { records, main, args, result } = launch({ XDG_CURRENT_DESKTOP: desktop,
