@@ -5,6 +5,16 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.19 — 2026-10-21
+
+- Keep Guide system-volume and device/application-mixer sliders focused while asynchronous audio writes are pending. Block extra edits during the write, allow vertical navigation away and avoid restoring focus over the next control. Controller left/right edits controlled volume and Settings-opacity ranges; min/max consumes the direction without duplicate writes or toolbar jumps.
+- Add the screenshot-110-style Greek/English Xbox mode entry dialog with three explicit choices: Restart, Start now (no performance changes), and Remain on desktop. Opening reads status only, without writing startup settings, entering fullscreen or scheduling a restart. The dialog uses scoped controller/keyboard controls and safe initial focus on Remain.
+- Implement a guarded real logind reboot only after explicit Restart confirmation. Require an installed persistent Linux launcher, available GNOME integration, an idle focused app and current reboot capability. Bind the fresh expiring token to the originating window, then record a profile-specific, boot-bound startup intent for one Xbox mode attempt after login. Roll back this intent if the reboot request is rejected; preserve unrelated startup files and the selected desktop session.
+- Keep B/Escape cancellation available during read-only token preparation. Once entry or the power request is dispatched, disable Remain and consume cancellation until the result arrives. Failures stay in the dialog and unlock its controls. GNOME restart does not apply additional performance optimizations.
+- Upgrade the native GNOME Shell 51 switcher to v3: Alt+Tab moves forward, Alt+Shift+Tab moves backward, and releasing Alt activates the selected native window. Bare Super remains persistent until explicit selection/dismissal. These handlers apply only during the app-owned Xbox mode lease. Preserve real window aspect ratios, screenshot-measured card placement and native 32-pixel app icons.
+- Temporarily place ordinary application windows in fullscreen and prevent minimization while the owned Xbox mode lease is active. Restore saved window states and Shell chrome on Desktop, lock, owner loss or extension disable. Loading v3 requires a fresh GNOME session; re-enabling an already imported extension does not reload its JavaScript.
+- Pass 68 Guide and 49 entry-dialog checks in real Chromium with synthetic input/native bridges, including delayed writes, token expiry and the dispatch/cancellation boundary. No fixture reboots the machine. The user physically confirmed basic Guide navigation on 0.3.18; the 0.3.19 slider changes, physical Alt+Tab, live v3 window policy/restoration and actual reboot/login flow remain unverified.
+
 ## 0.3.18 — 2026-10-21
 
 - Add scoped native Guide navigation for D-pad/left stick, A/B and LB/RB without depending on Chromium exposing a standard gamepad. Admit navigation only to the visible, focused Guide or owned Shell switcher, pause on lock/suspend and suppress duplicate browser input. Background operation remains Guide-button-only.

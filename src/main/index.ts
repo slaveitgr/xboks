@@ -81,6 +81,8 @@ import { KeyringSupport } from './keyring.js';
 import { launcherExecutablePath, showBeforeAccountCheck } from './launcher-startup.js';
 import { GnomeExperienceClient } from './experience-client.js';
 import { FullscreenExperience } from './fullscreen-experience.js';
+import { XboxModeStartup } from './xbox-mode-startup.js';
+import { XboxModeRestart, resumeXboxModeStartup } from './xbox-mode-restart.js';
 import { batteryPowerStatus } from './battery-status.js';
 import { managedPaths, migrateManagedPaths, type ManagedPathMigration } from './managed-paths.js';
 import { guideInputActions, type DesktopForegroundApp, type GuideInputAction, type ShellSwitcherAction } from '../shared/desktop-shell.js';
@@ -181,7 +183,10 @@ const voiceCapture = new VoiceCapturePermissions(contents => {
   const window = BrowserWindow.fromWebContents(contents as Electron.WebContents);
   return Boolean(window?.isVisible() && window.isFocused());
 }, url => voiceDocumentAllowed(url, pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'index.html')).href, process.env.VITE_DEV_SERVER_URL));
+let xboxModeRestartOwner: number | undefined;
 const guideSystem = new GuideSystemAdapter({ beforePower: action => {
+  if (action === 'reboot' && xboxModeRestartOwner !== undefined && !authorizedXboxModeRestart(xboxModeRestartOwner))
+    throw Error('Open Xbox mode from the focused launcher window.');
   const reason = action === 'lock' ? undefined : guidePowerActivity();
   if (reason) throw Error(reason);
 } });
@@ -265,6 +270,28 @@ const fullscreenExperience = new FullscreenExperience({
   setWindowFullscreen: setNativeFullscreen,
   changed: () => { updateExperienceSession(); if (launchReady) emitSnapshot(); },
 });
+let modeStartup: XboxModeStartup | undefined;
+function xboxModeStartup(): XboxModeStartup {
+  return modeStartup ??= new XboxModeStartup({ profile: app.getPath('userData'), configRoot: autostartConfigRoot,
+    executable: process.env.APPIMAGE || launcherExecutablePath(process.execPath, app.isPackaged),
+    enabled: app.isPackaged && !demoMode });
+}
+const xboxModeRestart = new XboxModeRestart({
+  startup: { status: () => xboxModeStartup().status(), prepare: () => xboxModeStartup().prepare() },
+  activity: guidePowerActivity,
+  authorized: authorizedXboxModeRestart,
+  integration: async () => (await fullscreenExperience.refresh()).available,
+  rebootCapability: async () => (await guideSystem.readState()).power.actions.reboot,
+  reboot: async owner => {
+    xboxModeRestartOwner = owner;
+    try { return await guideSystem.execute({ type: 'power', action: 'reboot' }); }
+    finally { xboxModeRestartOwner = undefined; }
+  },
+});
+function authorizedXboxModeRestart(owner: number): boolean {
+  return !demoMode && !quitting && !shutdownStarted && !fullscreenExperience.current.active &&
+    Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents.id === owner && mainWindow.isVisible() && mainWindow.isFocused());
+}
 function updateExperienceSession(): void {
   const status = fullscreenExperience.current;
   desktopSettingsStatus.fullscreenExperience = status.active;
@@ -1427,6 +1454,15 @@ function registerIpc(): void {
     if (!enabled) desktopGuide.hide();
     return fullscreenExperience.current;
   });
+  const restartSender = (event: Electron.IpcMainInvokeEvent) => {
+    systemSender(event);
+    if (demoMode) throw Error(demoSystemReason);
+    if (event.sender !== mainWindow?.webContents || !mainWindow?.isFocused()) throw Error('Open Xbox mode from the focused launcher window.');
+    return event.sender.id;
+  };
+  ipcMain.handle('xbox-mode-restart-status', event => xboxModeRestart.status(restartSender(event)));
+  ipcMain.handle('xbox-mode-restart-prepare', event => xboxModeRestart.prepare(restartSender(event)));
+  ipcMain.handle('xbox-mode-restart', (event, token: unknown) => xboxModeRestart.restart(restartSender(event), token));
   ipcMain.handle('voice-capture-request', event => {
     systemSender(event);
     if (demoMode) throw Error('Microphone capture is disabled in demo mode.');
@@ -2017,7 +2053,14 @@ async function createWindow(background = false): Promise<void> {
     mainWindow.webContents.send('window-fullscreen-changed', mainWindow.isFullScreen());
     desktopGuide.webContents?.send('window-fullscreen-changed', mainWindow.isFullScreen());
     if (!mainWindow.isFullScreen() && !fullscreenExperience.transitioning && fullscreenExperience.current.active && fullscreenExperience.current.source === 'gnome-extension') {
-      void fullscreenExperience.setWindow(false).catch(console.error);
+      const owner = mainWindow;
+      // v3 keeps ordinary app windows fullscreen itself. An application's
+      // temporary native state must not release that owned console-mode lease
+      // before the compositor can reapply its window policy.
+      void experienceBridge.capabilities().catch(() => 1).then(version => {
+        if (version >= 3 || owner !== mainWindow || owner.isDestroyed() || owner.isFullScreen() || fullscreenExperience.transitioning || !fullscreenExperience.current.active) return;
+        return fullscreenExperience.setWindow(false);
+      }).catch(console.error);
     }
   };
   mainWindow.on('enter-full-screen', windowModeChanged);
@@ -2232,9 +2275,25 @@ app.whenReady().then(async () => {
   registerIpc();
   launchReady = true;
   gameBarController.start();
+  // The resident Game Bar service can win the instance lock at login. The
+  // reboot intent belongs to the profile, not whichever startup entry won.
+  const startupXboxMode = await xboxModeStartup().consume().catch(() => {
+    console.warn('Xbox mode startup could not be safely consumed; keeping desktop mode.'); return false;
+  });
   if (startupRequest.gameId) {
     await refreshAccount(false);
     receiveLaunchRequest(startupRequest.gameId);
+  } else if (startupXboxMode) {
+    let startupWindow: BrowserWindow | null | undefined;
+    await resumeXboxModeStartup({
+      show: async () => { await showBeforeAccountCheck(showLauncher, refreshInitialAccount, () => {}); startupWindow = mainWindow; },
+      valid: () => Boolean(startupWindow && !startupWindow.isDestroyed() && startupWindow === mainWindow && !quitting && !shutdownStarted),
+      focused: () => startupWindow?.isFocused() ?? false,
+      integration: async () => (await fullscreenExperience.refresh()).available,
+      enter: async () => { await fullscreenExperience.setWindow(true, true); },
+    }).catch(() => {
+      console.warn('Xbox mode was unavailable after sign-in; the launcher remains in desktop mode.'); return false;
+    });
   } else if (!process.argv.includes('--gamebar-service')) await showBeforeAccountCheck(() => startDesktopLauncher(process.argv, desktopSettingsStatus, {
     ensureTray: ensureSettingsTray, show: showLauncher,
     background: async () => {

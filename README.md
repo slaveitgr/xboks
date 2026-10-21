@@ -29,8 +29,8 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Friends and presence | Shared app/guide service, player search and presence reported by Xbox | Authenticated friends and inbox reads have been exercised; unavailable presence stays unknown |
 | Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
 | Fullscreen Experience | Optional GNOME Shell 51 extension, acknowledged app/desktop transitions and emergency restoration | Warm desktop transition; live dock/lock/controller acceptance remains open, and a separate gaming session is future work |
-| Native task switcher | GNOME extension v2: light fullscreen switcher, real running windows/icons/previews, controller selection and Xbox/Desktop controls | Requires v2 loaded by a fresh GNOME session and an owned Xbox mode lease; physical-controller and compositor acceptance remain pending |
-| Desktop header | Xbox mode entry in desktop windows; clock and real system power status in fullscreen | Unknown battery/charging data is not invented; window fullscreen and OS integration are reported separately |
+| Native task switcher | GNOME extension v3: Alt+Tab/Alt+Shift+Tab, persistent Super switcher, real windows/icons/previews and Xbox/Desktop controls | Requires v3 loaded by a fresh GNOME session and an owned Xbox mode lease; physical shortcuts and live window-policy acceptance remain pending |
+| Desktop header | Three-choice Xbox mode entry; clock and real system power status in fullscreen | Restart requires an installed Linux launcher, available GNOME integration and logind permission; the actual reboot/login flow remains unverified |
 | Installation dialog | Content confirmation, required base package, real install location, scoped Back and an explicit final Install action | Optional language/chunk selection and disk sizes need additional engine metadata; alternative package IDs are single-choice |
 | Handheld information | Dedicated reference-style page with the explicit Xbox public-catalog classification and Greek/English labels | Ratings describe Windows handhelds, not Linux/Proton compatibility or performance on this PC; absent data stays unknown |
 | Game Bar widgets | Separate desktop guide, widget directory, favorites, panels kept open beside the selected widget, reference settings and scoped Back | Kept-open panels hide when Game Bar closes; independent desktop pinning and native Wayland overlay acceptance remain pending |
@@ -44,6 +44,8 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Console Remote Play | Isolated Microsoft console web client inside the app, with trusted Back/retry/close controls | Web sign-in is separate from launcher authentication; native Windows console/service parity and Xbox One X acceptance remain open |
 
 The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
+
+**0.3.19 development update:** Guide volume/mixer sliders retain controller focus during asynchronous writes, and left/right edits real volume and opacity controls without leaving at their limits. The screenshot-110-style Xbox mode dialog offers **Restart**, **Start now (no performance changes)** and **Remain on desktop**. Restart is an explicit, guarded real reboot with one startup attempt after login; opening the dialog never schedules it. GNOME extension **v3** adds Alt+Tab/Alt+Shift+Tab, measured native-window cards and temporary fullscreen/minimization policy. It requires a fresh GNOME login. Basic Guide controller navigation was physically confirmed on 0.3.18; the latest slider changes, live v3 window policy/shortcuts and reboot flow still require acceptance.
 
 **0.3.18 development update:** Game Bar receives scoped native controller navigation, reliable initial/reopen focus and a visible white focus ring. Home distinguishes the actual foreground application from account-scoped recent play. GNOME extension **v2** adds the native light task switcher with real windows and Xbox/Desktop controls. Foreground detection and compositor focus require v2 loaded in a **fresh GNOME session**. Navigation is verified with isolated renderer/native-interface fixtures; physical navigation and the new live Shell flow still require acceptance.
 
@@ -121,7 +123,17 @@ The private Cargo build output remains named `xodus-cli`; the bundler publishes 
 
 ## Fullscreen Experience & Game Bar
 
-**0.3.18 extends the optional GNOME Shell 51 Fullscreen Experience prototype with extension v2.** In a desktop window, the top-right header has one **Xbox mode** button. In fullscreen, that button is replaced by the clock and available system battery/power status. Battery level, charging and external power come from Linux; unknown values stay unknown. No desktop clock or fabricated charging indicator is shown beside the entry button.
+**0.3.19 extends the optional GNOME Shell 51 Fullscreen Experience prototype with extension v3 and an explicit entry dialog.** In a desktop window, the top-right header has one **Xbox mode** button. In fullscreen, that button is replaced by the clock and available system battery/power status. Battery level, charging and external power come from Linux; unknown values stay unknown. No desktop clock or fabricated charging indicator is shown beside the entry button.
+
+### Choose how to enter Xbox mode
+
+The Greek/English dialog follows screenshot 110's centered white card and three stacked choices. Opening it reads capability status only; it does not write startup settings, enter fullscreen or reboot.
+
+- **Restart** prepares a fresh, expiring confirmation and requests a real Linux reboot through logind. It requires an installed persistent launcher, available GNOME integration, an idle focused app and current reboot capability. A guarded, profile-specific startup intent attempts Xbox mode once after you sign in following the reboot. Rejected requests roll back that intent; this does not change the selected desktop session.
+- **Start now (no performance changes)** enters through the existing window/fullscreen integration immediately, without rebooting.
+- **Remain on desktop** closes the dialog without entering Xbox mode.
+
+Controller navigation stays inside the dialog. **B/Escape** can cancel while the read-only confirmation token is being prepared. Once the entry or restart request is dispatched, Remain and cancellation stay disabled until the request returns; a failure appears locally and unlocks the choices. Restarting GNOME does **not** apply additional performance optimizations. The reboot and subsequent login/startup path still need physical acceptance testing.
 
 With the extension installed, discovered and enabled, an explicit request from the focused launcher can temporarily hide supported GNOME shell chrome. The app's persistent local bridge owns that mode and releases it on exit or connection loss. **Ctrl+Super+Escape** is the emergency restore shortcut; entering the mode requires that shortcut to be available. Locking or disabling the extension also releases its changes, and unlocking does not automatically re-enter.
 
@@ -129,9 +141,13 @@ This keeps the existing desktop applications, GNOME compositor and desktop servi
 
 ### Native task switcher in Xbox mode
 
-With **GNOME extension v2** loaded, bare **Super** opens a light fullscreen task switcher only while xboks owns the Xbox mode lease. Ordinary desktop Super behavior remains unchanged outside that mode. It shows actual running application windows, icons and available live previews. **LB/RB** or left/right selects a window, **A/Enter** activates it, **B/Escape** dismisses the switcher and **X** asks the selected application to close normally. Up/down reaches the bottom **Xbox mode / Desktop** controls: Xbox focuses the existing xboks window; Desktop releases Xbox mode and returns to GNOME. Closing a window does not forcibly terminate its process.
+With **GNOME extension v3** loaded, **Alt+Tab** moves forward from the foreground window, **Alt+Shift+Tab** moves backward, and releasing Alt activates the selected window. Bare **Super** opens the persistent light fullscreen switcher until an explicit selection or dismissal. These handlers apply only while xboks owns the Xbox mode lease; ordinary desktop shortcuts retain their normal behavior outside it.
 
-This is a **warm transition inside the current GNOME session**. It does not reboot, replace the session, stop background applications or reproduce a Windows reboot-specific resource optimization. No restart is scheduled or promised. A separately supervised gaming session remains a different roadmap item.
+The switcher shows actual running application windows, native 32-pixel app icons and available live previews. Card size preserves each native window's aspect ratio and follows the measured screenshot proportions. **LB/RB** or left/right selects a window, **A/Enter** activates it, **B/Escape** dismisses the switcher and **X** asks the selected application to close normally. Up/down reaches the bottom **Xbox mode / Desktop** controls: Xbox focuses the existing xboks window; Desktop releases Xbox mode and returns to GNOME. Closing a window does not forcibly terminate its process.
+
+While that lease is active, ordinary application windows temporarily enter fullscreen and cannot remain minimized. Desktop, lock, owner loss or extension disable restores their saved window states alongside Shell chrome. This window policy and the physical Alt+Tab path remain unverified in a live v3 Shell session.
+
+**Start now** and native task switching operate inside the current GNOME session. They keep background applications running and do not create a dedicated gaming session. A real reboot occurs only through the separate explicit **Restart** choice above; neither entry path claims additional GNOME performance optimization. A separately supervised gaming session remains a different roadmap item.
 
 ### Install the optional GNOME extension
 
@@ -154,7 +170,7 @@ python3 resources/desktop/stage-gnome-experience.py \
 
 The output directory must be new; neither command overwrites an existing extension.
 
-A **new local extension needs a fresh GNOME session to be discovered**. Updating an already loaded extension from v1 to **v2** also needs a fresh Shell session: disabling and re-enabling the UUID in the same session does not load its new JavaScript. The staging command refuses an existing destination; review the staged update before replacing an installed copy. Save your work, then log out and back in when you choose; the installer and app never do this automatically. Foreground detection and the new native switcher remain unavailable until v2 is loaded. After the fresh login:
+A **new local extension needs a fresh GNOME session to be discovered**. Updating an already loaded v1/v2 extension to **v3** also needs a fresh Shell session: disabling and re-enabling the UUID in the same session does not load its new JavaScript. The staging command refuses an existing destination; review the staged update before replacing an installed copy. Save your work, then log out and back in when you choose; no automatic logout or reboot occurs on installation or dialog opening. The v3 shortcut/window policy is unavailable until v3 is loaded. After the fresh login:
 
 ```sh
 gnome-extensions enable xboks-experience@slaveitgr.github.io
@@ -169,7 +185,7 @@ gnome-extensions disable xboks-experience@slaveitgr.github.io
 
 See the [extension setup and protocol](desktop/gnome/xboks-experience@slaveitgr.github.io/README.md) and [Linux session architecture](docs/analysis/fullscreen-experience-linux.md). A separate Gamescope/Kiosk gaming session for the distribution remains future work. `XBOKS_FULLSCREEN_EXPERIENCE=1` describes an already established distribution session; setting it does not create one.
 
-Automated tests cover ownership/restoration logic, mocked Shell behavior, the real GJS helper communicating with a fake service on an isolated D-Bus, app fullscreen transitions and battery/header states. These are **fixture/protocol tests**. Live GNOME panel/dock restoration, lock/unlock, multi-monitor operation, physical shortcuts/controllers and behavior over real games still need acceptance testing.
+Automated tests cover ownership/restoration logic, mocked Shell behavior, the real GJS helper communicating with a fake service on an isolated D-Bus, app fullscreen transitions, startup/reboot guards and battery/header states. The entry dialog passes **49 checks in real Chromium with a synthetic bridge**, including scoped D-pad/A/B, expiry, cancellation during preparation and cancellation lockout after dispatch. These are **fixture/protocol tests**; none reboots the PC. Live v3 panel/dock/window restoration, lock/unlock, multi-monitor operation, physical Alt+Tab and the real reboot/login path still need acceptance testing.
 
 ### Controller navigation and Game Bar
 
@@ -182,11 +198,11 @@ python3 scripts/desktop/install-gnome-gamebar.py \
 
 The resident process listens for Linux `BTN_MODE` from capability-verified, already-readable gamepads. Ordinary navigation buttons and sticks are admitted only for the visible, focused Game Bar or the owned native switcher; the default background surface handles only the Guide button. Input is paused on lock/suspend, and no device grab, udev permission change or keyboard/mouse capture is added. Every admitted action checks the active unlocked local graphical session. Browser polling remains a focused-window fallback and yields while native input owns that surface, preventing duplicate actions.
 
-Game Bar Home shows the actual previously focused application when **GNOME extension v2** supplies it; its return control closes the Guide rather than launching a substitute game. Recently played games come only from valid timestamps in the current account’s local play history, never from the first installed titles. Missing foreground or history data is not fabricated.
+Game Bar Home shows the actual previously focused application when **GNOME extension v3** supplies it; its return control closes the Guide rather than launching a substitute game. Recently played games come only from valid timestamps in the current account’s local play history, never from the first installed titles. Missing foreground or history data is not fabricated.
 
-The dedicated Guide renderer has passed **41 isolated browser checks**, including D-pad/stick, A/B, LB/RB, toolbar pagination, nested Back, focus after reopening and native input with Chromium gamepad exposure absent. See the [reproducible input fixture](scripts/ui/fixtures/guide-controller.tsx). These checks use synthetic input and do **not** establish physical controller navigation or behavior over real games.
+Left/right adjusts the actual system-volume, device/application-mixer and Settings-opacity sliders. Pending audio writes keep the current focus and block further edits; up/down can leave, and completion does not steal focus back. Limits retain horizontal focus without duplicate writes. The dedicated Guide renderer passes **68 checks in real Chromium with synthetic input**, including delayed backend writes and native input with Chromium gamepad exposure absent. See the [reproducible input fixture](scripts/ui/fixtures/guide-controller.tsx). The user physically confirmed basic Guide navigation on **0.3.18**; the **0.3.19 slider fix** and behavior over real games still require physical acceptance.
 
-That shortcut helper preserves other bindings and refuses an existing Win+G conflict. Game Bar remains a separate Electron desktop window; extension v2 supplies bounded compositor activation for that trusted Guide. The light task switcher itself is GNOME-native. This does not establish universal Game Bar stacking/input over external games on Wayland, which still needs acceptance. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
+That shortcut helper preserves other bindings and refuses an existing Win+G conflict. Game Bar remains a separate Electron desktop window; extension v3 supplies bounded compositor activation for that trusted Guide. The light task switcher itself is GNOME-native. This does not establish universal Game Bar stacking/input over external games on Wayland, which still needs acceptance. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
 
 The widget menu controls favorites and which panels remain open while Game Bar is visible. Settings cover general behavior, theme/opacity, input, widget visibility and separate account/privacy/notification/accessibility pages. Controls without a Linux or Xbox service adapter explain their unavailable state. Windows Game Bar extensions cannot be installed as Linux widgets.
 
@@ -230,7 +246,8 @@ Synthetic tests, authenticated service checks, physical-controller checks and au
 - [x] Integrate Xbox friends/text-chat adapters and Linux system controls.
 - [x] Add explicit local audio/device testing with cleanup and local push to talk.
 - [x] Implement the optional GNOME 51 Fullscreen Experience prototype and fullscreen-only clock/system-power header.
-- [x] Add extension v2 native task switching, foreground context and scoped native Guide input; verify their isolated fixture paths.
+- [x] Add extension v3 native task switching/window policy, foreground context and scoped native Guide input; verify their isolated fixture paths.
+- [x] Add the three-choice Xbox mode dialog and guarded, explicit one-shot restart/startup path.
 - [x] Decode all 74 embedded native Game Bar XBFs and bind the Greek resource pack.
 - [x] Add the widget directory/settings, Linux Spotify transport, measured performance and xboks PNG gallery.
 - [x] Add opt-in resident Game Bar service tooling and an isolated in-app Remote Play web host.

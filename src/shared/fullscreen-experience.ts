@@ -5,6 +5,8 @@ export interface FullscreenExperienceStatus {
   reason?: string;
 }
 
+export interface XboxModeRestartStatus { available: boolean; reason?: string }
+
 export interface BatteryPowerStatus {
   percentage: number | null;
   charging: boolean | null;

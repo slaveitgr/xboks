@@ -162,6 +162,10 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     return style.visibility !== 'hidden' && style.visibility !== 'collapse' && style.display !== 'none';
   };
   const enabled = (element: HTMLElement) => visible(element) && !element.matches(':disabled,[aria-disabled="true"]');
+  // A range awaiting IPC remains focusable. Keep its existing controller focus
+  // while blocking edits and new selection until the write finishes. Vertical
+  // navigation can leave it; completion must never restore it after leaving.
+  const pendingRange = (element: HTMLElement) => visible(element) && element.matches('input[type="range"][data-gamepad-pending]:not(:disabled)');
   const candidates = (root: HTMLElement | Document) => [...root.querySelectorAll<HTMLElement>(controls)]
     .filter(element => enabled(element) && element.tabIndex >= 0 && !element.hasAttribute('data-gamepad-skip'));
   const currentScope = () => [...doc.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"],[data-game-menu]')]
@@ -232,7 +236,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       } else if (!pending.origin.isConnected || Date.now() >= pending.deadline) pendingDetail = undefined;
     }
     const element = focused();
-    if (!element || !scope.contains(element) || !enabled(element) || !element.matches(controls)) focus(initial(scope));
+    if (!element || !scope.contains(element) || (!enabled(element) && !pendingRange(element)) || !element.matches(controls)) focus(initial(scope));
     mark();
   };
   const setMode = (value: boolean) => {
@@ -357,6 +361,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       const element = focused();
       if (element) {
         const direction = value as Direction;
+        if ((direction === 'left' || direction === 'right') && pendingRange(element)) return;
         if ((direction === 'left' || direction === 'right') && element instanceof HTMLInputElement && scope.contains(element) && enabled(element)) {
           const changed = stepGamepadRange(element, direction);
           if (changed !== undefined) {

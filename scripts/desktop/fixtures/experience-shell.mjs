@@ -39,7 +39,8 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
     bus_unwatch_name(id) { watches.delete(id); },
   };
   const Meta = { KeyBindingAction: { NONE: 0 }, KeyBindingFlags: { NONE: 0 }, external_binding_name_for_action: id => `external-${id}` };
-  const Shell = { ActionMode: { NONE: 0, ALL: 0xffff }, WindowTracker: { get_default: () => ({ get_window_app: window => ({ get_id: () => window.appId ?? 'xboks.desktop', get_name: () => window.appName ?? 'xboks' }) }) } };
+  const tracker = new Signals(); tracker.get_window_app = window => ({ get_id: () => window.appId ?? 'xboks.desktop', get_name: () => window.appName ?? 'xboks' });
+  const Shell = { ActionMode: { NONE: 0, ALL: 0xffff }, WindowTracker: { get_default: () => tracker } };
   const panel = new Actor(true), dash = new Actor(false), dock = new Actor(true, 'dashtodockContainer'), uiGroup = new Actor();
   uiGroup.children = [dock];
   if (failApply) uiGroup.connect = () => { throw new Error('Synthetic actor connection failure'); };
@@ -49,11 +50,14 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
   const originalShow = () => 'original overview';
   const Main = { activateWindow: window => { display.focus_window = window; }, layoutManager: layout, overview: { show: originalShow, toggle: () => 'original toggle', shouldToggleByCornerOrButton: () => true, visible: false, animationInProgress: false, dash, _swipeTracker: { enabled: true } },
     sessionMode: session, wm: { allowed: [], allowKeybinding(name, mode) { this.allowed.push([name, mode]); } } };
+  class StockPopup { show(backward, binding, mask) { this.stock = {backward, binding, mask}; return 'stock-popup'; } }
+  const AltTab = {AppSwitcherPopup: class extends StockPopup {}, WindowSwitcherPopup: class extends StockPopup {}};
   const display = new Signals(); Object.assign(display, { focus_window: { get_pid: () => 100, get_wm_class: () => 'xboks', get_title: () => 'xboks' },
     grabbed: [], ungrabbed: [], grab_accelerator(accelerator) { this.grabbed.push(accelerator); return emergencyAvailable ? 42 : 0; },
     ungrab_accelerator(action) { this.ungrabbed.push(action); } });
   class XboksSwitcher {
     constructor(options) { this.options = options; this.visible = false; this.actions = []; }
+    keyboardSwitch(backward, mask) { this.actions.push({backward, mask}); this.visible = true; return true; }
     toggle() { this.visible = !this.visible; this.options.changed(this.visible); return this.visible; }
     action(action) { this.actions.push(action); if (action === 'toggle') return this.toggle(); if (action === 'open') this.visible = true;
       if (action === 'desktop') this.options.leave(); if (action === 'cancel') this.hide(); if (action === 'xbox') { this.hide(); this.options.xbox(); } return this.visible; }
@@ -61,13 +65,16 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
     destroy() { this.hide(); }
   }
   const windows = [display.focus_window];
+  const policySource = (await fs.readFile('desktop/gnome/xboks-experience@slaveitgr.github.io/window-policy.js', 'utf8')).replace(/^import .*;\r?\n/gm, '').replace('export class ExperienceWindowPolicy', 'class ExperienceWindowPolicy');
+  const nativeGlobal = {display, window_manager: new Signals(), get_window_actors: () => windows.map(meta_window => ({meta_window})), get_current_time: () => 1000};
+  const ExperienceWindowPolicy = new Function('GLib','Meta','Shell','Main','global',policySource+'\nreturn ExperienceWindowPolicy;')(GLib,Meta,Shell,Main,nativeGlobal);
   const source = (await fs.readFile('desktop/gnome/xboks-experience@slaveitgr.github.io/extension.js', 'utf8'))
     .replace(/^import .*;\r?\n/gm, '').replace('export default class XboksExperience', 'class XboksExperience');
   // Only GI/Shell dependencies are supplied; the actual production extension
   // class and its real pure state module execute unchanged.
-  const Class = new Function('Gio', 'GLib', 'Meta', 'Shell', 'Extension', 'Main', 'ExperienceLease', 'ReversibleChanges', 'authorizedApplication', 'XboksSwitcher', 'SWITCH_ACTIONS', 'boundedLabel', 'global',
-    source + '\nreturn XboksExperience;')(Gio, GLib, Meta, Shell, class {}, Main, ExperienceLease, ReversibleChanges, authorizedApplication, XboksSwitcher, SWITCH_ACTIONS, boundedLabel,
-    { display, get_window_actors: () => windows.map(meta_window => ({meta_window})), get_current_time: () => 1000 });
+  const Class = new Function('Gio', 'GLib', 'Meta', 'Shell', 'Extension', 'Main', 'AltTab', 'ExperienceLease', 'ReversibleChanges', 'authorizedApplication', 'XboksSwitcher', 'ExperienceWindowPolicy', 'SWITCH_ACTIONS', 'boundedLabel', 'global',
+    source + '\nreturn XboksExperience;')(Gio, GLib, Meta, Shell, class {}, Main, AltTab, ExperienceLease, ReversibleChanges, authorizedApplication, XboksSwitcher, ExperienceWindowPolicy, SWITCH_ACTIONS, boundedLabel,
+    nativeGlobal);
   const extension = new Class(); extension.enable();
   const invoke = async (method, sender = ':1.1', parameters = []) => {
     const result = {};
@@ -75,6 +82,6 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
       return_value(value) { result.value = value.deepUnpack(); }, return_dbus_error(name, error) { result.error = error; result.errorName = name; } });
     return result;
   };
-  return { extension, Main, GLib, panel, dash, dock, corner, display, windows, output, watches, invoke, Actor, Corner,
+  return { extension, Main, AltTab, GLib, panel, dash, dock, corner, display, windows, output, watches, invoke, Actor, Corner,
     nameLost: () => nameLost(), ownerLost: sender => { for (const watch of [...watches.values()]) if (watch.sender === sender) watch.vanished(); } };
 }

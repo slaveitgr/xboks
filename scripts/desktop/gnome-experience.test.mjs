@@ -6,8 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { ExperienceLease, ReversibleChanges, authorizedApplication } from '../../desktop/gnome/xboks-experience@slaveitgr.github.io/state.js';
 import { shellFixture } from './fixtures/experience-shell.mjs';
+import { policyFixture } from './fixtures/window-policy-shell.mjs';
 import { switcherFixture } from './fixtures/switcher-shell.mjs';
-import { SwitcherSelection, boundedLabel } from '../../desktop/gnome/xboks-experience@slaveitgr.github.io/switcher-state.js';
+import { SwitcherSelection, boundedLabel, primaryModifier, cardGeometry } from '../../desktop/gnome/xboks-experience@slaveitgr.github.io/switcher-state.js';
 const directory = 'desktop/gnome/xboks-experience@slaveitgr.github.io';
 
 test('lease belongs to one sender; another client cannot enter or leave, and only owner loss restores', () => {
@@ -87,6 +88,7 @@ test('metadata targets only inspected Shell51; extension and helper parse withou
   assert.deepEqual(metadata['shell-version'], ['51']); assert.deepEqual(metadata['session-modes'], ['user']);
   execFileSync(process.execPath, ['--check', `${directory}/extension.js`]);
   execFileSync(process.execPath, ['--check', `${directory}/switcher.js`]);
+  execFileSync(process.execPath, ['--check', `${directory}/window-policy.js`]);
   execFileSync(process.execPath, ['--check', 'assets/desktop/experience-client.js']);
   const extension = await fs.readFile(`${directory}/extension.js`, 'utf8');
   assert.doesNotMatch(extension, /set_boolean|set_strv|set_string|spawn_command|Subprocess|kill\(/);
@@ -99,7 +101,7 @@ test('staging copies verified source outside live directory and refuses replacem
     const args = ['scripts/desktop/stage-gnome-experience.py', '--output', output];
     execFileSync('python3', args, { env: { ...process.env, XDG_DATA_HOME: data } });
     const manifest = JSON.parse(await fs.readFile(path.join(output, 'stage-manifest.json')));
-    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 7);
+    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 8);
     await assert.rejects(fs.access(path.join(data, 'gnome-shell/extensions')));
     assert.throws(() => execFileSync('python3', args, { stdio: 'pipe' }));
     assert.throws(() => execFileSync('python3', ['scripts/desktop/stage-gnome-experience.py', '--output', path.join(data, 'gnome-shell/extensions/forbidden')], { env: { ...process.env, XDG_DATA_HOME: data }, stdio: 'pipe' }));
@@ -176,7 +178,7 @@ test('an asynchronous Enter completing after extension disable cannot change She
 
 test('v2 bare Super switches only inside the owned lease and restores the exact overview method', async () => {
   const f = await shellFixture();
-  assert.deepEqual((await f.invoke('GetCapabilities')).value,[2]);
+  assert.deepEqual((await f.invoke('GetCapabilities')).value,[3]);
   assert.equal(f.Main.overview.toggle(),'original toggle');
   assert.equal((await f.invoke('Switch',':1.1',['open'])).error,'not-authorized');
   await f.invoke('Enter');assert.equal(f.Main.overview.toggle(),true);
@@ -186,6 +188,25 @@ test('v2 bare Super switches only inside the owned lease and restores the exact 
   assert.equal((await f.invoke('Switch',':1.1',['arbitrary-window-command'])).error,'not-authorized');
   await f.invoke('Leave');assert.equal(f.Main.overview.toggle(),'original toggle');
   assert.ok(f.output.some(item=>item.name==='SwitcherChanged'&&item.state[0]===false));f.extension.disable();
+});
+
+test('Alt+Tab dispatch leases existing popup show methods and restores exact inherited/third-party ownership', async () => {
+ const f=await shellFixture(), app=f.AltTab.AppSwitcherPopup.prototype, windows=f.AltTab.WindowSwitcherPopup.prototype;
+ const inherited=app.show, own=()=> 'existing-own-popup'; windows.show=own;
+ assert.equal(Object.hasOwn(app,'show'),false);assert.equal(new f.AltTab.AppSwitcherPopup().show(false,'switch-applications',8),'stock-popup');
+ await f.invoke('Enter');
+ for(const [Popup,binding,backward] of [[f.AltTab.AppSwitcherPopup,'switch-applications',false],[f.AltTab.AppSwitcherPopup,'switch-applications-backward',true],
+  [f.AltTab.WindowSwitcherPopup,'switch-windows',false],[f.AltTab.WindowSwitcherPopup,'switch-windows-backward',true]]){
+  assert.equal(new Popup().show(false,binding,8),false,'existing WM destroys its unused popup');
+  assert.deepEqual(f.extension._switcher.actions.at(-1),{backward,mask:8});
+ }
+ assert.equal(new f.AltTab.AppSwitcherPopup().show(false,'switch-group',8),'stock-popup','other switcher bindings delegate');
+ f.Main.sessionMode.isLocked=true;
+ assert.equal(new f.AltTab.AppSwitcherPopup().show(false,'switch-applications',8),'stock-popup','a non-user session cannot enter our switcher');
+ f.Main.sessionMode.isLocked=false;
+ await f.invoke('Leave');assert.equal(Object.hasOwn(app,'show'),false);assert.equal(app.show,inherited);assert.equal(windows.show,own);
+ await f.invoke('Enter');const later=()=> 'later-extension';app.show=later;await f.invoke('Leave');assert.equal(app.show,later);
+ assert.equal(windows.show,own);f.extension.disable();
 });
 
 test('foreground and Guide focus bind the real bus parent to xboks windows and do not accept another window PID', async () => {
@@ -254,10 +275,100 @@ test('native switcher handles polite window close, monitor changes and Desktop/X
  f.switcher.open();f.switcher.action('xbox');assert.equal(f.xbox,1);assert.equal(f.modal,0);
 });
 
+test('native Alt+Tab repeats, translates Alt+Shift+Tab, commits on modifier release and resets to foreground',async()=>{
+ const f=await switcherFixture(),{MOD1_MASK:alt,SHIFT_MASK:shift}=f.Clutter.ModifierType;
+ f.switcher.keyboardSwitch(false,alt);assert.equal(f.switcher.selection.index,1);assert.equal(f.activated.length,0);
+ assert.equal(f.press(f.Clutter.KEY_Tab,alt),true);assert.equal(f.switcher.selection.index,0);
+ assert.equal(f.press(f.Clutter.KEY_Tab,alt|shift),true);assert.equal(f.switcher.selection.index,1);
+ assert.equal(f.press(f.Clutter.KEY_ISO_Left_Tab,alt|shift),true);assert.equal(f.switcher.selection.index,0);
+ f.modifiers(shift);assert.deepEqual(f.activated,[{id:1,timestamp:42}]);assert.equal(f.modal,0);
+ f.display.focus_window=f.windows[1];f.pointerModifiers=alt;
+ f.switcher.keyboardSwitch(true,alt);assert.equal(f.switcher.selection.index,0);f.modifiers(0);
+ assert.equal(f.activated.at(-1).id,1);assert.equal(f.modal,0);
+});
+
+test('native shortcut release before modal completion commits, while bare Super and lease loss do not',async()=>{
+ const fast=await switcherFixture();fast.pointerModifiers=0;
+ assert.equal(fast.switcher.keyboardSwitch(false,fast.Clutter.ModifierType.MOD1_MASK),false);
+ assert.deepEqual(fast.activated,[{id:2,timestamp:42}]);assert.equal(fast.modal,0);
+ const f=await switcherFixture();f.switcher.open();assert.equal(f.modifiers(0),false);assert.equal(f.switcher.visible,true);
+ assert.equal(f.press(f.Clutter.KEY_Tab,f.Clutter.ModifierType.CONTROL_MASK|f.Clutter.ModifierType.MOD1_MASK),false);
+ f.pointerModifiers=f.Clutter.ModifierType.MOD1_MASK;f.switcher.keyboardSwitch(false,f.Clutter.ModifierType.MOD1_MASK);
+ f.allowed=false;f.modifiers(0);assert.deepEqual(f.activated,[]);assert.equal(f.modal,0);
+});
+
+test('reference geometry follows native window proportions and top icon slots use actual 32px app icons',async()=>{
+ const wide=cardGeometry(1920,1080,16/9),compact=cardGeometry(1920,1080,795/510);
+ assert.equal(wide.height,591);assert.ok(Math.abs(wide.width-926)<1);assert.ok(Math.abs(wide.left-497)<1);assert.ok(Math.abs(wide.top-245)<1);
+ assert.equal(compact.width,815);assert.ok(Math.abs(compact.left-553)<1);assert.equal(compact.height,591);
+ const small=cardGeometry(800,600,32/9);assert.ok(small.width<=800);assert.ok(small.top>0);
+ assert.equal(primaryModifier(8|1),8);assert.equal(primaryModifier(0),0);
+ const f=await switcherFixture();f.switcher.open();const bar=f.switcher._root.children[0],slots=bar.children.slice(1,-1);
+ assert.equal(slots.length,2);assert.ok(slots.every(slot=>slot.width===72&&slot.height===72&&slot.children[0].iconSize===32));
+ assert.equal(f.clones.at(-1).height,510);f.switcher.hide();
+});
+
 test('Shell51 revoked modal releases switcher chrome and timers once',async()=>{
  const f=await switcherFixture();f.switcher.open();f.revoke();
  assert.equal(f.switcher.visible,false);assert.equal(f.modal,0);assert.equal(f.chrome.size,0);assert.equal(f.timers.size,0);
  f.revoke();assert.equal(f.modal,0);assert.deepEqual(f.changes,[true,false]);
+});
+
+test('owned native policy enforces fullscreen and no minimize, restoring each original fullscreen/maximize-axis/minimize state',async()=>{
+ const f=await policyFixture(),normal=f.create(1),full=f.create(2,{fullscreen:true,flags:3}),partial=f.create(3,{flags:1}),minimized=f.create(4,{minimized:true,mapped:false});
+ f.display.focus_window=normal;f.policy.start();
+ assert.ok(f.windows.every(window=>window.fullscreen&&!window.minimized));assert.equal(f.display.focus_window,normal);assert.deepEqual(f.activated,[1]);
+ normal.minimize();assert.equal(normal.minimized,false);normal.unmake_fullscreen();assert.equal(normal.fullscreen,true);
+ full.setFlags(1);partial.setFlags(2);f.policy.stop();f.policy.stop();
+ assert.deepEqual(f.windows.map(window=>[window.fullscreen,window.flags,window.minimized]),[[false,0,false],[true,3,false],[false,1,false],[false,0,true]]);
+ assert.ok(f.windows.every(window=>window.signals.size===0));assert.equal(f.timers.size,0);
+ assert.equal(f.display.signals.size,0);assert.equal(f.wm.signals.size,0);assert.equal(f.tracker.signals.size,0);
+});
+
+test('native policy excludes Guide, taskbar-skipped, attached/transient/modal/dialog/system and untracked windows',async()=>{
+ const f=await policyFixture(),normal=f.create(1);
+ for(const options of [{title:'xboks Game Bar'},{skip_taskbar:true},{attached:true},{transient:normal},{type:f.Meta.WindowType.DIALOG},
+  {type:f.Meta.WindowType.MODAL_DIALOG},{type:f.Meta.WindowType.DESKTOP},{override:true},{app:null}])f.create(f.windows.length+1,options);
+ f.policy.start();assert.equal(normal.fullscreen,true);assert.ok(f.windows.slice(1).every(window=>!window.fullscreen&&window.calls.length===0));
+ normal.change('title','xboks Game Bar');assert.equal(normal.fullscreen,false,'a newly identified auxiliary window immediately restores');
+ f.policy.stop();assert.equal(normal.signals.size,0);
+});
+
+test('new native app windows wait for mapping/app tracking and never activate another app',async()=>{
+ const f=await policyFixture(),original=f.create(1);f.display.focus_window=original;f.policy.start();
+ const later=f.create(2,{mapped:false});f.display.emit('window-created',later);f.idle();assert.equal(later.calls.length,0);
+ later.change('mapped',true);assert.equal(later.fullscreen,false);f.idle();assert.equal(later.fullscreen,true);
+ const untracked=f.create(3,{app:null});f.wm.emit('map',{meta_window:untracked});f.idle();assert.equal(untracked.calls.length,0);
+ untracked.app={};f.tracker.emit('tracked-windows-changed');f.idle();assert.equal(untracked.fullscreen,true);
+ assert.equal(f.display.focus_window,original);assert.deepEqual(f.activated,[1]);assert.ok(f.raised.every(id=>id===1));f.policy.stop();assert.ok(f.windows.every(window=>!window.fullscreen));
+});
+
+test('window policy retains entry focus, uses truthful maximize fallback, and tolerates closed windows and restoration errors',async()=>{
+ const f=await policyFixture(),original=f.create(1),refused=f.create(2,{rejectFullscreen:true,flags:1}),fixed=f.create(3,{rejectFullscreen:true,fixed:true}),thrown=f.create(4,{throwFullscreen:true}),steals=f.create(5,{stealFocus:true});
+ f.display.focus_window=original;f.policy.start();assert.equal(f.display.focus_window,original);assert.deepEqual(f.activated,[1,1]);
+ assert.equal(refused.fullscreen,false);assert.equal(refused.flags,3);refused.setFlags(0);assert.equal(refused.flags,3);
+ assert.equal(fixed.fullscreen,false);assert.equal(fixed.flags,0);assert.equal(thrown.flags,3);assert.ok(f.warnings.length>=3);
+ const closed=f.create(6);f.wm.emit('map',{meta_window:closed});f.idle();closed.close();assert.equal(closed.signals.size,0);
+ steals.unmake_fullscreen=()=>{throw Error('restore-failed');};f.policy.stop();
+ assert.equal(original.fullscreen,false);assert.equal(refused.flags,1);assert.equal(thrown.flags,0);assert.ok(f.warnings.some(w=>w.includes('restore-failed')));
+});
+
+test('restoring an original fullscreen background app retains the surviving focused app stack without activation',async()=>{
+ const f=await policyFixture(),focused=f.create(1),background=f.create(2,{fullscreen:true});
+ f.display.focus_window=focused;f.policy.start();f.activated.length=0;f.raised.length=0;
+ f.allowed=false;background.fullscreen=false;f.policy.stop();
+ assert.equal(background.fullscreen,true);assert.equal(f.raised.at(-1),focused.id);assert.deepEqual(f.activated,[]);
+ const closed=await policyFixture(),closing=closed.create(1);closed.display.focus_window=closing;closed.policy.start();closed.raised.length=0;closing.close();closed.policy.stop();assert.deepEqual(closed.raised,[]);
+ const minimized=await policyFixture(),hidden=minimized.create(1,{minimized:true});minimized.display.focus_window=hidden;minimized.policy.start();minimized.raised.length=0;minimized.policy.stop();assert.deepEqual(minimized.raised,[]);
+});
+
+test('window policy cancels deferred work on lease/lock loss and rolls back partial initial failure',async()=>{
+ const f=await policyFixture(),window=f.create(1);f.policy.start();const later=f.create(2);f.display.emit('window-created',later);
+ f.allowed=false;window.unmake_fullscreen();assert.equal(window.fullscreen,false);f.policy.stop();f.idle();assert.equal(later.calls.length,0);
+ assert.equal(f.timers.size,0);assert.equal(window.signals.size,0);
+ const failed=await policyFixture(),first=failed.create(1),second=failed.create(2,{minimized:true});
+ second.connect=()=>{throw Error('subscription-failed');};assert.throws(()=>failed.policy.start(),/subscription-failed/);
+ assert.equal(first.fullscreen,false);assert.equal(second.minimized,true);assert.equal(first.signals.size,0);assert.equal(failed.display.signals.size,0);
 });
 
 let hasGjs = true;
@@ -268,8 +379,8 @@ test('actual installed Shell51 typelibs provide the exact native controller/clon
   const stdout = execFileSync('gjs', ['scripts/desktop/fixtures/gnome51-api-probe.js'], {encoding: 'utf8', timeout: 5000,
     env: {...process.env, GI_TYPELIB_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell',
       LD_LIBRARY_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell'}});
-  const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false);
-  assert.equal(Object.keys(result.checks).length, 13); assert.ok(Object.values(result.checks).every(Boolean));
+  const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false); assert.equal(result.fullscreenCapabilityQuery, false);
+  assert.equal(Object.keys(result.checks).length, 24); assert.ok(Object.values(result.checks).every(Boolean));
 });
 test('actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service', { skip: !hasGjs }, () => {
   const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs'],

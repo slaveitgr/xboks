@@ -1,5 +1,5 @@
 import fs from 'node:fs/promises';
-import {SwitcherSelection, boundedLabel} from '../../../desktop/gnome/xboks-experience@slaveitgr.github.io/switcher-state.js';
+import {SwitcherSelection, boundedLabel, primaryModifier, cardGeometry} from '../../../desktop/gnome/xboks-experience@slaveitgr.github.io/switcher-state.js';
 class Signals {
  constructor(){this.signals=new Map();this.next=1;}
  connect(name,callback){const id=this.next++;this.signals.set(id,{name,callback});return id;}
@@ -15,9 +15,9 @@ class Actor extends Signals {
  destroy(){this.destroyed=true;this.emit('destroy');for(const child of this.children)child.destroy();this.children=[];}
 }
 export async function switcherFixture({modalAvailable=true}={}){
- const timers=new Map(),clones=[],chrome=new Set(),activated=[],deleted=[],changes=[];let nextTimer=1,currentKey=0,currentModifiers=0,allowed=true,leaves=0,xbox=0,modal=0;
+ const timers=new Map(),clones=[],chrome=new Set(),activated=[],deleted=[],changes=[];let nextTimer=1,currentKey=0,currentModifiers=8,allowed=true,leaves=0,xbox=0,modal=0;
  const Clutter={ActorAlign:{CENTER:0},FixedLayout:class{},EVENT_PROPAGATE:false,EVENT_STOP:true,ModifierType:{CONTROL_MASK:4,SUPER_MASK:67108864,MOD1_MASK:8,SHIFT_MASK:1},
-  KEY_Left:65361,KEY_Right:65363,KEY_Up:65362,KEY_Down:65364,KEY_Escape:65307,KEY_Return:65293,KEY_space:32,KEY_Tab:65289,
+  KEY_Left:65361,KEY_Right:65363,KEY_Up:65362,KEY_Down:65364,KEY_Escape:65307,KEY_Return:65293,KEY_space:32,KEY_Tab:65289,KEY_ISO_Left_Tab:65056,
   Clone:class extends Actor{constructor(options){super(options);clones.push(this);}},
   KeyController:class extends Signals{get_key(){return[true,currentKey,0];}get_state(){return[true,currentModifiers,0,0];}},
  };
@@ -39,12 +39,14 @@ export async function switcherFixture({modalAvailable=true}={}){
  const Main={layoutManager:layout,pushModal(){modal++;return grab;},popModal(){modal--;},activateWindow(window,timestamp){activated.push({id:window.id,timestamp});}};
  const Shell={ActionMode:{ALL:0xffff},WindowTracker:{get_default:()=>({get_window_app:window=>window.app})}},Meta={TabList:{NORMAL_ALL:0}};
  const source=(await fs.readFile('desktop/gnome/xboks-experience@slaveitgr.github.io/switcher.js','utf8')).replace(/^import .*;\r?\n/gm,'').replaceAll('export function ','function ').replace('export class XboksSwitcher','class XboksSwitcher');
- const Class=new Function('Clutter','GLib','Meta','Shell','St','Main','SwitcherSelection','boundedLabel','global',source+'\nreturn XboksSwitcher;')(Clutter,GLib,Meta,Shell,St,Main,SwitcherSelection,boundedLabel,{display,window_manager:wm,get_current_time:()=>42});
+ const Class=new Function('Clutter','GLib','Meta','Shell','St','Main','SwitcherSelection','boundedLabel','primaryModifier','cardGeometry','global',source+'\nreturn XboksSwitcher;')(Clutter,GLib,Meta,Shell,St,Main,SwitcherSelection,boundedLabel,primaryModifier,cardGeometry,{display,window_manager:wm,get_current_time:()=>42,get_pointer:()=>[0,0,currentModifiers]});
  const switcher=new Class({leave(){leaves++;},xbox(){xbox++;},changed:value=>changes.push(value),allowed:()=>allowed});
  return{switcher,windows,display,layout,chrome,clones,timers,activated,deleted,changes,Clutter,
   revoke(){grab.revoked=true;grab.emit('notify::revoked');},
   get modal(){return modal;},get leaves(){return leaves;},get xbox(){return xbox;},set allowed(value){allowed=value;},
   press(key,modifiers=0){currentKey=key;currentModifiers=modifiers;return switcher._root.actions[0].emit('key-press');},
+  modifiers(modifiers){currentModifiers=modifiers;return switcher._root.actions[0].emit('modifier-change');},
+  set pointerModifiers(modifiers){currentModifiers=modifiers;},
   runIdle(){for(const[id,callback]of[...timers]){if(callback()===false)timers.delete(id);}},
  };
 }

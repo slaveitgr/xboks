@@ -70,6 +70,17 @@ async function run(){
   check(await blocked(main.webContents,'window.launcher.openRemotePlay()','disabled in demo mode'),'main Remote Play open rejects before any official web view or account access');
   check(await blocked(main.webContents,"window.launcher.controlRemotePlay('retry')",'must be controlled from the launcher'),'main demo Remote Play control rejects without loading web content');
   check(await blocked(main.webContents,"window.launcher.setRemotePlayObscured('true')",'Invalid Remote Play view state'),'main rejects non-boolean Remote Play obscuring payload');
+  for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
+    check(await blocked(main.webContents,call,'disabled in demo mode'),`demo main refuses ${call} before any startup or power operation`);
+  await evaluate(main,"document.querySelector('.xbox-mode-entry').click()");
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.xbox-mode-entry-dialog'))"),'real header entry dialog');
+  check(await evaluate(main,"document.querySelectorAll('.xbox-mode-entry-dialog button').length===3"),'production header opens the three-choice Xbox mode dialog');
+  await wait(()=>evaluate(main,"document.querySelector('.xbox-mode-entry-status')?.textContent.includes('unavailable')"),'disabled demo restart capability');
+  check(await evaluate(main,"document.querySelector('[data-xbox-mode-action=restart]').disabled"),'production demo dialog never enables a host restart');
+  await evaluate(main,"document.querySelector('[data-xbox-mode-action=remain]').click()");
+  await wait(()=>evaluate(main,"!document.querySelector('.xbox-mode-entry-dialog')"),'Remain on desktop');
+  await wait(()=>evaluate(main,"document.activeElement===document.querySelector('.xbox-mode-entry')"),'header focus after dialog inert cleanup');
+  check(await evaluate(main,"document.activeElement===document.querySelector('.xbox-mode-entry')"),'Remain returns to the actual header trigger without entering fullscreen');
   await evaluate(main,'window.launcher.setRemotePlayObscured(true)');await evaluate(main,'window.launcher.setRemotePlayObscured(false)');
   check(NativeWindow.getAllWindows().length===1,'Remote Play demo calls create no extra native windows');
   await evaluate(main,'window.desktopGuide.toggle()');let guide;
@@ -78,10 +89,14 @@ async function run(){
   check(await blocked(guide.webContents,'window.launcher.openRemotePlay()','must be opened from the launcher'),'Guide cannot initiate native Remote Play');
   check(await blocked(guide.webContents,"window.launcher.controlRemotePlay('close')",'must be controlled from the launcher'),'Guide cannot control native Remote Play');
   check(await blocked(guide.webContents,'window.launcher.setRemotePlayObscured(true)','Invalid Remote Play view state'),'Guide cannot obscure the launcher native player');
+  for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
+    check(await blocked(guide.webContents,call,'disabled in demo mode'),`demo Guide refuses ${call} without host actions`);
   const {BrowserWindow:HiddenWindow}=await import(pathToFileURL(facade).href);
   const document=join(profile,'untrusted.html');await fs.writeFile(document,'<!doctype html><title>Untrusted IPC fixture</title>');
   const rogue=new HiddenWindow({webPreferences:{preload:join(root,'dist-electron/preload/index.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});await rogue.loadFile(document);
   for(const call of['window.launcher.getRemotePlayState()','window.launcher.openRemotePlay()',"window.launcher.controlRemotePlay('close')",'window.launcher.setRemotePlayObscured(true)'])check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
+  for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
+    check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
   rogue.destroy();
   const mainId=main.id;main.close();await pause(50);
   check(!main.isDestroyed()&&NativeWindow.fromId(mainId)===main,'normal launcher Close hides instead of destroying the resident service window');

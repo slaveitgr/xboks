@@ -1,0 +1,16 @@
+.xbox-mode-entry-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:20px; background:rgba(0,0,0,.72); color-scheme:light; }
+.xbox-mode-entry-dialog { width:520px; max-width:100%; min-height:305px; max-height:calc(100vh - 40px); display:flex; flex-direction:column; overflow:auto; border:1px solid #d8d8d8; border-radius:7px; background:#fff; color:#1b1b1b; box-shadow:0 8px 30px #0005; font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif; font-size:14px; }
+.xbox-mode-entry-message { flex:1; padding:24px; }
+.xbox-mode-entry-message h2 { margin:0; font-size:20px; line-height:24px; font-weight:600; }
+.xbox-mode-entry-message p { margin:12px 0 0; font-size:14px; line-height:18px; }
+.xbox-mode-entry-message .xbox-mode-entry-status { color:#555; }
+.xbox-mode-entry-message .xbox-mode-entry-error { color:#a4262c; }
+.xbox-mode-entry-actions { display:grid; gap:8px; padding:24px; border-top:1px solid #e4e4e4; background:#f3f3f3; }
+.xbox-mode-entry-actions button { width:100%; height:32px; min-height:32px; padding:0 10px; border:1px solid #d2d2d2; border-radius:4px; background:#fafafa; color:#1b1b1b; font-size:14px; line-height:20px; font-weight:400; cursor:pointer; }
+.xbox-mode-entry-actions button:hover:not(:disabled) { background:#ededed; }
+.xbox-mode-entry-actions .xbox-mode-entry-restart { border-color:#0067c0; background:#0067c0; color:#fff; }
+.xbox-mode-entry-actions .xbox-mode-entry-restart:hover:not(:disabled) { background:#005aab; }
+.xbox-mode-entry-actions button:disabled { opacity:.5; cursor:default; }
+.xbox-mode-entry-actions button:focus-visible { outline:2px solid #1b1b1b; outline-offset:2px; }
+html[data-gamepad-navigation] .xbox-mode-entry-dialog [data-gamepad-focus] { outline:2px solid #1b1b1b !important; outline-offset:2px; box-shadow:0 0 0 1px #fff; }
+@media(max-width:560px) { .xbox-mode-entry-message,.xbox-mode-entry-actions { padding:20px; } .xbox-mode-entry-actions button { height:auto; min-height:32px; padding:5px 10px; } }

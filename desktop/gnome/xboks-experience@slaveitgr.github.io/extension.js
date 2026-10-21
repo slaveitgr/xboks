@@ -5,8 +5,10 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as AltTab from 'resource:///org/gnome/shell/ui/altTab.js';
 import {ExperienceLease, ReversibleChanges, authorizedApplication} from './state.js';
 import {XboksSwitcher} from './switcher.js';
+import {ExperienceWindowPolicy} from './window-policy.js';
 import {SWITCH_ACTIONS, boundedLabel} from './switcher-state.js';
 
 const BUS = 'org.slaveitgr.Xboks.Experience';
@@ -76,6 +78,7 @@ export default class XboksExperience extends Extension {
         this._connections = [];
         this._changes = null;
         this._switcher = null;
+        this._windowPolicy = null;
         this._foregroundWindow = null;
         this._applicationPid = 0;
         this._emergencyAction = Meta.KeyBindingAction.NONE;
@@ -103,7 +106,7 @@ export default class XboksExperience extends Extension {
     }
 
     GetCapabilitiesAsync(_parameters, invocation) {
-        invocation.return_value(new GLib.Variant('(u)', [2]));
+        invocation.return_value(new GLib.Variant('(u)', [3]));
     }
 
     async _callerMain(invocation) {
@@ -221,6 +224,9 @@ export default class XboksExperience extends Extension {
         this._switcher = new XboksSwitcher({leave: () => this._lease.forceLeave(), xbox: () => this._focusXbox(),
             allowed: () => this._lease?.active && this._userSession(),
             changed: visible => this._dbus?.emit_signal('SwitcherChanged', new GLib.Variant('(b)', [visible]))});
+        this._windowPolicy = new ExperienceWindowPolicy({allowed: () => this._lease?.active && this._userSession()});
+        this._windowPolicy.start();
+        this._leaseKeyboardSwitcher();
         this._changes.method(Main.overview, 'show', () => {});
         // Shell51's bare-Super overlay-key handler calls overview.toggle().
         // Lease this method, rather than modifying the user's overlay binding.
@@ -237,6 +243,28 @@ export default class XboksExperience extends Extension {
             if (child.name === 'dashtodockContainer')
                 this._changes.hideActor(child);
         });
+    }
+
+    _leaseKeyboardSwitcher() {
+        // Shell51's existing WM handlers construct one of these popups, call
+        // show(backward, binding, mask), and destroy it when show returns false.
+        // Lease that dispatch point so the user's keybindings and any custom
+        // WM handlers remain intact. Restoring an unreadable native callback
+        // to a guessed default would overwrite other extensions' handlers.
+        const extension = this;
+        const bindings = new Set(['switch-applications', 'switch-applications-backward',
+            'switch-windows', 'switch-windows-backward']);
+        for (const Popup of [AltTab.AppSwitcherPopup, AltTab.WindowSwitcherPopup]) {
+            const original = Popup.prototype.show;
+            this._changes.method(Popup.prototype, 'show', function (backward, binding, mask) {
+                if (!extension._lease?.active || !extension._userSession() || !bindings.has(binding))
+                    return original.call(this, backward, binding, mask);
+                extension._switcher.keyboardSwitch(backward || binding.endsWith('-backward'), mask);
+                // This unused stock popup has never grabbed the seat; its
+                // normal destroy path cannot pop our independently owned grab.
+                return false;
+            });
+        }
     }
 
     _hideDocks() {
@@ -258,6 +286,8 @@ export default class XboksExperience extends Extension {
     _restore() {
         this._switcher?.destroy();
         this._switcher = null;
+        this._windowPolicy?.stop();
+        this._windowPolicy = null;
         if (this._ownerWatch) {
             Gio.bus_unwatch_name(this._ownerWatch);
             this._ownerWatch = 0;

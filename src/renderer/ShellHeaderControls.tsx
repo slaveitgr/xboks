@@ -3,6 +3,7 @@ import { Maximize } from './XboxIcons';
 import { BatteryStatus } from './BatteryStatus';
 import { useReferenceLocale } from './ReferenceLocale';
 import './shell-header-controls.css';
+import { XboxModeEntryDialog } from './XboxModeEntryDialog';
 
 export interface NativeFullscreenBridge {
   getWindowFullscreen?(): Promise<boolean>;
@@ -67,6 +68,9 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
   const { text } = useReferenceLocale();
   const [state, setState] = useState<WindowFullscreenState>(() => ({ documentFullscreen: typeof document !== 'undefined' && Boolean(document.fullscreenElement), nativeFullscreen: false }));
   const [busy, setBusy] = useState(false);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const entryButton = useRef<HTMLButtonElement>(null);
+  const restoreEntryFocus = useRef(false);
   const observer = useRef<ReturnType<typeof observeWindowFullscreen>>();
   const pending = useRef(false), mounted = useRef(false);
   const full = shellIsFullscreen(sessionFullscreen, state);
@@ -79,6 +83,14 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
     document.documentElement.toggleAttribute('data-fullscreen-experience', full);
     window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: full }));
   }, [full]);
+  useEffect(() => {
+    if (entryOpen || !restoreEntryFocus.current) return;
+    restoreEntryFocus.current = false;
+    // The portaled dialog's passive cleanup restores the app's inert state.
+    // Request focus afterwards, so it is not discarded by an inert parent.
+    const frame = requestAnimationFrame(() => entryButton.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [entryOpen]);
   async function enter() {
     if (pending.current) return;
     pending.current = true; setBusy(true);
@@ -97,11 +109,13 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
       if (mounted.current && integrationUnavailable) onNotice?.(text('The fullscreen window is open. System Xbox mode is unavailable in this session.', 'Το παράθυρο πλήρους οθόνης άνοιξε. Η λειτουργία Xbox του συστήματος δεν είναι διαθέσιμη σε αυτήν τη συνεδρία.'));
     } catch (error) {
       if (mounted.current) onError(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error:\s*/, '') : String(error));
+      throw error;
     } finally { pending.current = false; if (mounted.current) setBusy(false); }
   }
-  return <div className="shell-tools shell-header-controls" data-shell-display-mode={full ? 'fullscreen' : 'desktop'}>
-    {full ? <><BatteryStatus /><ShellClock /></> : <button className="xbox-mode-entry" disabled={busy} aria-label={text('Xbox mode', 'Λειτουργία Xbox')} onClick={() => void enter()}>
+  const closeEntry = () => { restoreEntryFocus.current = true; setEntryOpen(false); };
+  return <><div className="shell-tools shell-header-controls" data-shell-display-mode={full ? 'fullscreen' : 'desktop'}>
+    {full ? <><BatteryStatus /><ShellClock /></> : <button ref={entryButton} className="xbox-mode-entry" disabled={busy} aria-label={text('Xbox mode', 'Λειτουργία Xbox')} onClick={() => setEntryOpen(true)}>
       <Maximize /><span>{text('Xbox mode', 'Λειτουργία Xbox')}</span>
     </button>}
-  </div>;
+  </div>{entryOpen ? <XboxModeEntryDialog startNow={enter} close={closeEntry} /> : null}</>;
 }

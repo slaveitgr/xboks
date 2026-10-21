@@ -386,6 +386,9 @@ export interface LauncherApi {
   onWindowFullscreenChanged(callback: (enabled: boolean) => void): () => void;
   getFullscreenExperience(): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
   setFullscreenExperience(enabled: boolean): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
+  getXboxModeRestartStatus(): Promise<import('./fullscreen-experience.js').XboxModeRestartStatus>;
+  prepareXboxModeRestart(): Promise<import('./guide-system.js').GuidePowerConfirmation>;
+  restartIntoXboxMode(token: string): Promise<void>;
   getBatteryStatus(): Promise<import('./fullscreen-experience.js').BatteryPowerStatus>;
   requestVoiceCapture(): Promise<void>;
   releaseVoiceCapture(): Promise<void>;

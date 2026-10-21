@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /** Isolated renderer fixtures. No real Xbox accounts, messages, host devices or
  * power actions. Run: XBOKS_FIXTURE_BROWSER=electron node
- * scripts/ui/social-system-smoke.mjs [output-folder] [install|voice] */
+ * scripts/ui/social-system-smoke.mjs [output-folder] [install|voice|controller|xbox-mode] */
 import { createServer } from 'vite';
 import { createServer as createSocketServer } from 'node:net';
 import { spawn } from 'node:child_process';
@@ -17,7 +17,8 @@ const installOnly=process.argv[3]==='install';
 const widgetsOnly=process.argv[3]==='widgets';
 const remoteOnly=process.argv[3]==='remote';
 const controllerOnly=process.argv[3]==='controller';
-const fixtures=controllerOnly?[['guide-controller','runGuideControllerChecks']]:remoteOnly?[['remote-play','runRemotePlayChecks']]:widgetsOnly?[['guide-widgets','runGuideWidgetChecks']]:voiceOnly?[['voice','runVoiceChecks']]:installOnly?[['package-install','runPackageInstallChecks']]:[['xbox-social','runSocialChecks'],['guide-system','runSystemChecks']];
+const modeEntryOnly=process.argv[3]==='xbox-mode';
+const fixtures=modeEntryOnly?[['xbox-mode-entry','runXboxModeEntryChecks']]:controllerOnly?[['guide-controller','runGuideControllerChecks']]:remoteOnly?[['remote-play','runRemotePlayChecks']]:widgetsOnly?[['guide-widgets','runGuideWidgetChecks']]:voiceOnly?[['voice','runVoiceChecks']]:installOnly?[['package-install','runPackageInstallChecks']]:[['xbox-social','runSocialChecks'],['guide-system','runSystemChecks']];
 const report={startedAt:new Date().toISOString(),fixtureOnly:true,realXboxRequests:false,realMessagesSent:false,realSystemActions:false,realMicrophoneCaptured:false,fakeChromiumMedia:voiceOnly,originalWindowsRuntimeVerified:false,checks:[],screenshots:[],browserErrors:[],blockedRequests:[]};
 await mkdir(output,{recursive:true});
 const profile=await mkdtemp(join(tmpdir(),'xboks-social-system-'));let server,chrome,socket;
