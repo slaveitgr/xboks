@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** Actual renderer integration checks in an isolated Chromium profile. The
  * launcher boundary and artwork are fixtures; no Electron/user backend is used.
- * Run: node scripts/ui/reference-app-smoke.mjs [output-directory] */
+ * Run: XBOKS_FIXTURE_BROWSER=electron node
+ * scripts/ui/reference-app-smoke.mjs [output-directory] */
 import { createServer } from 'vite';
 import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -9,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { createServer as createSocketServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fixtureContentSecurityPolicy, fixtureNetworkBoundary } from './local-network-boundary.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const output = resolve(root, process.argv[2] ?? 'outputs/reference-ui-2026-10-21');
@@ -34,7 +36,7 @@ const products = [
 ].map(([productId,title],index)=>({productId,title,description:'Renderer fixture description for '+title+'. No Xbox service was contacted.\n\nAdditional sample description.',publisher:'Sample publisher',categories:['Action','Adventure'],posterUrl:artwork(title,index),heroUrl:artwork(title,index),installability:'supported',supportNote:'Renderer fixture only.',includedWith:'Game Pass'}));
 const byId = new Map(products.map(product=>[product.productId,product]));
 for(const game of snapshot.games) if(!byId.has(game.storeId)) byId.set(game.storeId,{productId:game.storeId,title:game.title,publisher:game.publisher,description:'Renderer fixture description.',categories:['Action'],heroUrl:game.heroUrl});
-const metadata = productId => { const product=byId.get(productId); return {productId,title:product?.title??productId,description:product?.description??'Renderer fixture description.',publisher:product?.publisher??'Sample publisher',heroUrl:product?.heroUrl,categories:product?.categories??[],screenshots:[0,1,2,3,4,5,6].map(index=>artwork((product?.title??productId)+' · '+(index+1),index))}; };
+const metadata = productId => { const product=byId.get(productId); return {productId,title:product?.title??productId,description:product?.description??'Renderer fixture description.',publisher:product?.publisher??'Sample publisher',heroUrl:product?.heroUrl,categories:product?.categories??[],handheldCompatibility:productId==='9N26X2PMTWBT'?{rating:'optimized',source:'microsoft-catalog',platform:'windows-pc',rawRating:1,criteria:['defaults-work','iconography','text-input','ui-legibility','supported-display'].map(id=>({id,rating:'optimized'}))}:undefined,screenshots:[0,1,2,3,4,5,6].map(index=>artwork((product?.title??productId)+' · '+(index+1),index))}; };
 const catalog = {query:'',market:'US',products,hasMore:false,fetchedAt:new Date().toISOString(),source:'Microsoft Store'};
 const map = new Map(snapshot.games.map(game=>[game.storeId,{coverUrl:game.coverUrl,heroUrl:game.heroUrl}]));
 const handlers = {
@@ -76,12 +78,13 @@ try {
   server = await createServer({ root, logLevel: 'error', server: { host: '127.0.0.1', port: rendererPort, strictPort: true, watch: { ignored: ['**/*'] } }, plugins: [{
     name: 'xboks-reference-app-smoke', resolveId(id) { if (id === fixturePath) return id; }, load(id) { if (id === fixturePath) return fixture; },
     configureServer(vite) { vite.middlewares.use('/__reference-app-smoke.html', async (_req,res) => {
-      res.setHeader('Content-Type','text/html'); res.end(await vite.transformIndexHtml('/__reference-app-smoke.html', `<!doctype html><html><head><meta charset="utf-8"><title>xboks renderer fixture</title></head><body><div id="root"></div><script type="module" src="${fixturePath}"></script></body></html>`));
+      res.setHeader('Content-Type','text/html'); res.setHeader('Content-Security-Policy',fixtureContentSecurityPolicy); res.end(await vite.transformIndexHtml('/__reference-app-smoke.html', `<!doctype html><html><head><meta charset="utf-8"><title>xboks renderer fixture</title></head><body><div id="root"></div><script type="module" src="${fixturePath}"></script></body></html>`));
     }); },
   }] });
   await server.listen();
   const base = `http://127.0.0.1:${server.httpServer.address().port}`;
-  chrome = spawn(process.env.CHROME_BIN ?? '/usr/bin/google-chrome', ['--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], { stdio: 'ignore' });
+  const electronBrowser=process.env.XBOKS_FIXTURE_BROWSER==='electron';
+  chrome = spawn(electronBrowser ? join(root,'node_modules/electron/dist/electron') : process.env.CHROME_BIN ?? '/usr/bin/google-chrome', [...(electronBrowser?[join(root,'scripts/ui/electron-fixture-browser.mjs'),`--xboks-fixture-origin=${base}`]:[]),'--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--disable-background-networking','--no-first-run','--no-default-browser-check','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'], { stdio: 'ignore' });
   let port;
   for (let attempt=0;attempt<100&&!port;attempt++) { try { port=Number((await readFile(join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]); } catch {} if(!port)await new Promise(resolve=>setTimeout(resolve,100)); }
   if(!port)throw Error('Chromium did not start');
@@ -89,9 +92,10 @@ try {
   socket=new WebSocket(tab.webSocketDebuggerUrl); await new Promise(resolve=>socket.addEventListener('open',resolve,{once:true}));
   let id=0; const pending=new Map();
   const send=(method,params={})=>new Promise((resolve,reject)=>{const current=++id;const timeout=setTimeout(()=>{pending.delete(current);reject(Error(`CDP timeout: ${method}`));},20000);pending.set(current,message=>{clearTimeout(timeout);message.error?reject(Error(JSON.stringify(message.error))):resolve(message.result);});socket.send(JSON.stringify({id:current,method,params}));});
-  socket.addEventListener('message',event=>{const message=JSON.parse(event.data);if(message.id){pending.get(message.id)?.(message);pending.delete(message.id);}else if(message.method==='Runtime.exceptionThrown')report.browserErrors.push(message.params.exceptionDetails.exception?.description??message.params.exceptionDetails.text);else if(message.method==='Fetch.requestPaused'){const {requestId,request}=message.params; if(request.url.startsWith(base))void send('Fetch.continueRequest',{requestId});else{report.blockedRequests.push(request.url);void send('Fetch.failRequest',{requestId,errorReason:'BlockedByClient'});}}});
-  await send('Page.enable'); await send('Runtime.enable'); await send('Fetch.enable',{patterns:[{urlPattern:'http*',requestStage:'Request'}]});
-  await send('Emulation.setDeviceMetricsOverride',{width:1920,height:1080,deviceScaleFactor:1,mobile:false});
+  const networkBoundary=fixtureNetworkBoundary(base,report,electronBrowser?async url=>{try{return(await readFile(join(profile,'fixture-network-denials.jsonl'),'utf8')).split('\n').some(line=>line&&JSON.parse(line).url===url);}catch{return false;}}:undefined);
+  socket.addEventListener('message',event=>{const message=JSON.parse(event.data);networkBoundary.handle(message);if(message.id){pending.get(message.id)?.(message);pending.delete(message.id);}else if(message.method==='Runtime.exceptionThrown')report.browserErrors.push(message.params.exceptionDetails.exception?.description??message.params.exceptionDetails.text);});
+  await send('Page.enable'); await send('Runtime.enable'); await networkBoundary.install(send);
+  await send('Emulation.setDeviceMetricsOverride',{width:1920,height:1080,deviceScaleFactor:1,mobile:false});await send('Emulation.setFocusEmulationEnabled',{enabled:true});
   await send('Page.navigate',{url:`${base}/__reference-app-smoke.html`});await send('Page.bringToFront');
   const evaluate=async(expression)=>{const result=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw Error(result.exceptionDetails.exception?.description??result.exceptionDetails.text);return result.result.value;};
   inspectBoundary=()=>evaluate(`({calls:window.__referenceSmoke?.calls??[],forbidden:window.__referenceSmoke?.forbidden??[],unexpected:window.__referenceSmoke?.unexpected??[]})`);
@@ -125,6 +129,12 @@ try {
   const origin='.home-product[data-product-id="9N26X2PMTWBT"]';await click(origin);
   await wait(`Boolean(document.querySelector('.catalog-details-page[data-product-id="9N26X2PMTWBT"]'))`);await capture('product-details');
   await check(`window.__referenceSmoke.calls.some(call=>call.method==='getCatalogDetails'&&call.args[0]==='9N26X2PMTWBT')&&!window.__referenceSmoke.calls.some(call=>call.method==='searchCatalog')`,'Home product click fetches exact Product ID without title search');
+  await wait(`document.querySelector('.handheld-compatibility-entry')?.dataset.handheldRating==='optimized'`);
+  await click('.handheld-compatibility-entry');await wait(`Boolean(document.querySelector('.handheld-compatibility-dialog'))`);
+  await evaluate(`localStorage.setItem('xboks.interface-language.v1','el');window.dispatchEvent(new Event('storage'));`);await delay(120);await capture('handheld-optimized-el');
+  await check(`document.querySelector('.app-shell')?.inert&&document.querySelector('.handheld-compatibility-dialog')?.contains(document.activeElement)&&document.querySelectorAll('[data-criterion-state="optimized"]').length===5`,'Explicit Windows handheld criteria fixture opens the information sheet and owns focus');
+  await pad(1);await check(`!document.querySelector('.handheld-compatibility-dialog')&&!document.querySelector('.app-shell')?.inert&&document.activeElement?.matches('.handheld-compatibility-entry')&&Boolean(document.querySelector('.catalog-details-page'))`,'Handheld B closes the sheet and restores its entry without navigating away');
+  await evaluate(`localStorage.setItem('xboks.interface-language.v1','en');window.dispatchEvent(new Event('storage'));`);await delay(120);
   await click('.shell-back');await wait(`Boolean(document.querySelector(${JSON.stringify(origin)}))`);await delay(250);
   await check(`document.activeElement?.matches(${JSON.stringify(origin)})`,'Header Back restores the same Home product control');
   await click('.sidebar button[aria-label="Store"]');await wait(`Boolean(document.querySelector('.catalog-card[data-product-id="9N431PX143P8"] button'))`);
@@ -133,6 +143,10 @@ try {
   await click('.catalog-detail-actions .primary');await wait(`Boolean(document.querySelector('.game-details-page[data-gamepad-detail="demo-1"]'))`);await capture('installed-details');
   await check(`(()=>{const box=document.querySelector('.gd-hero-art')?.getBoundingClientRect();return box&&Math.abs(box.width-584)<1&&Math.abs(box.left-1109)<1;})()`,'Actual App installed hero retains 584px media at reference x1109');
   await check(`document.querySelector('.game-details-page')?.getAttribute('data-gamepad-detail')==='demo-1'&&window.__referenceSmoke.calls.some(call=>call.method==='getGameDetails'&&call.args[0]==='demo-1')`,'View in library selects exact installed game, not first library item');
+  await click('.handheld-compatibility-entry');await wait(`Boolean(document.querySelector('.handheld-compatibility-dialog[data-handheld-rating="unknown"]'))`);await capture('handheld-unknown');
+  await check(`document.querySelectorAll('[data-criterion-state="not-provided"]').length===5&&!document.querySelector('[data-criterion-state="optimized"]')&&document.querySelector('.handheld-rating-context')?.textContent.includes('Linux / Proton compatibility has not been verified')`,'Missing catalog rating remains unknown and never certifies Linux or individual checks');
+  await click('[data-handheld-dismiss]');await wait(`!document.querySelector('.handheld-compatibility-dialog')`);
+  await check(`document.activeElement?.matches('.handheld-compatibility-entry')&&Boolean(document.querySelector('.game-details-page'))`,'Handheld acknowledgement returns to the installed game and restores focus');
   await click('.gd-manage-trigger');await wait(`Boolean(document.querySelector('[data-reference-menu]'))`);
   await check(`document.activeElement?.getAttribute('data-reference-menu-item')==='details'`,'Installed Manage focuses first enabled action');
   await pad(1);await check(`!document.querySelector('[data-game-menu]')&&document.activeElement?.matches('.gd-manage-trigger')&&Boolean(document.querySelector('.game-details-page'))`,'Manage B dismisses first and restores trigger without leaving details');

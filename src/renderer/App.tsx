@@ -317,7 +317,7 @@ function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct,
   async function install(product: CatalogProduct, target = installDestination(product)) {
     setBusy(product.productId);
     try {
-      if (!await startPackageInstall({ productId: product.installProductId ?? product.productId, title: product.title, destination: target })) return;
+      if (!await startPackageInstall({ productId: product.installProductId ?? product.productId, title: product.title, destination: target }, { productId: product.installProductId ?? product.productId, posterUrl: product.posterUrl })) return;
       toast({ kind: 'success', message: `xboks Engine is checking the license and installing ${product.title}.` });
       go('downloads');
     } catch (error) { toast({ kind: 'error', message: errorMessage(error) }); }
@@ -519,7 +519,7 @@ export function AccountGames({ data, toast, selectedId, select, menu, filters, o
     try {
       const folder = product.title.normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80) || product.productId;
       if (!await startPackageInstall({ productId: product.installProductId ?? product.productId, title: product.title,
-        destination: `${data.settings.installRoot.replace(/\/+$/, '')}/${folder}` })) return;
+        destination: `${data.settings.installRoot.replace(/\/+$/, '')}/${folder}` }, { productId: product.installProductId ?? product.productId, posterUrl: product.posterUrl })) return;
       toast({ kind: 'success', message: `${product.title} added to Install Queue.` });
     } catch (error) { toast({ kind: 'error', message: errorMessage(error) }); }
     finally { setInstalling(undefined); }

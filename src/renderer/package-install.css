@@ -1,0 +1,40 @@
+.package-install-backdrop { z-index: 160; background: #0009; }
+.game-dialog.package-dialog { display: flex; flex-direction: column; width: 448px; height: 576px; max-width: 100%; max-height: calc(100dvh - 40px); overflow: hidden; padding: 20px; background: #25282b; border: 0; border-radius: 12px; color: #fff; }
+.package-dialog-header { display: flex; align-items: flex-start; gap: 12px; flex: 0 0 auto; margin-bottom: 20px; }
+.package-dialog .package-dialog-header h2 { flex: 1; margin: 0; font-size: 20px; font-weight: 650; line-height: 25px; }
+.package-dialog-close { display: grid; place-items: center; width: 24px; height: 24px; flex: 0 0 24px; padding: 2px; margin: -8px -8px 0 0; border: 0; background: transparent; border-radius: 4px; color: inherit; cursor: pointer; }
+.package-dialog-close > .xbox-icon { width: 20px; height: 20px; }
+.package-dialog-close:hover { background: #4c525a; }
+.package-dialog-body { min-height: 0; flex: 1; overflow-y: auto; scrollbar-width: thin; padding: 4px; margin: -4px; }
+.package-dialog .package-choices { display: grid; gap: 10px; }
+.game-dialog.package-dialog .package-choice, .package-content-required { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0 12px 0 0; border: 0; border-radius: 7px; background: #41474f; overflow: hidden; }
+.game-dialog.package-dialog .package-choice { min-height: 80px; color: #fff; }
+.game-dialog.package-dialog .package-choice:has(input:checked) { background: #505862; outline: 1px solid #b8c2cb; outline-offset: -1px; }
+.package-content-required { min-height: 96px; }
+.package-content-art { width: 88px; height: 96px; flex: 0 0 88px; display: grid; place-items: center; background: #363d45; overflow: hidden; }
+.package-content-art img { width: 100%; height: 100%; object-fit: cover; }
+.package-content-art > .xbox-icon { width: 36px; height: 36px; color: #d8dde2; }
+.package-choice .package-content-art { width: 64px; height: 80px; flex-basis: 64px; }
+.game-dialog.package-dialog .package-content-copy { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; flex: 1; }
+.package-content-copy strong { font-size: 14px; font-weight: 650; line-height: 18px; overflow-wrap: anywhere; }
+.package-content-copy small { color: #e0e4e8; font-size: 12px; line-height: 16px; }
+.game-dialog.package-dialog .package-content-required-mark { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: #fff; font-size: 11px; line-height: 16px; }
+.game-dialog.package-dialog input[type="checkbox"], .game-dialog.package-dialog input[type="radio"] { width: 16px; height: 16px; flex: 0 0 16px; padding: 0; margin: 0; accent-color: #fff; }
+.game-dialog.package-dialog input:disabled { opacity: 1; cursor: default; }
+.game-dialog.package-dialog .package-choice.unsupported { opacity: .5; }
+.package-dialog-footer { flex: 0 0 auto; margin-top: 20px; }
+.package-dialog-footer .package-disk-space { margin: 0 0 12px; color: #fff; font-size: 12px; line-height: 16px; }
+.package-dialog .package-dialog-footer > button, .package-location-actions > .primary { width: 100%; min-height: 32px; padding: 6px 12px; border: 1px solid #d0d3d8; border-radius: 5px; background: #d3d6da; color: #202326; font-size: 13px; line-height: 18px; cursor: pointer; }
+.package-dialog-footer button:disabled { opacity: .4; cursor: default; }
+.package-dialog .package-dialog-footer button:not(:disabled):hover { background: #f2f3f5; }
+.package-location-actions { display: flex; gap: 8px; }
+.package-location-actions > .package-step-back { display: grid; place-items: center; width: 36px; flex: 0 0 36px; padding: 6px; }
+.package-step-back > .xbox-icon { width: 18px; height: 18px; }
+.package-install-location { display: grid; gap: 10px; margin-top: 28px; }
+.game-dialog.package-dialog .package-install-location label { font-size: 14px; color: #fff; }
+.package-install-location output { padding: 12px; border: 1px solid #798491; border-radius: 6px; background: #1d2023; color: #fff; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+.package-install-location button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; }
+.package-install-location button > .xbox-icon { width: 18px; height: 18px; }
+.game-dialog.package-dialog .package-install-error { color: #ffb7b7; }
+.package-dialog :focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+@media (max-width: 500px), (max-height: 640px) { .game-dialog.package-dialog { padding: 16px; } .package-dialog .package-dialog-header h2 { font-size: 18px; line-height: 23px; } .package-content-art { flex-basis: 72px; width: 72px; } }

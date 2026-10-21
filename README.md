@@ -30,12 +30,16 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
 | Fullscreen Experience | Optional GNOME Shell 51 extension, acknowledged app/desktop transitions and emergency restoration | Prototype: live GNOME/dock/lock/controller acceptance remains pending; a standalone gaming session comes later |
 | Desktop header | Xbox mode entry in desktop windows; clock and real system power status in fullscreen | Unknown battery/charging data is not invented; window fullscreen and OS integration are reported separately |
+| Installation dialog | Content confirmation, required base package, real install location, scoped Back and an explicit final Install action | Optional language/chunk selection and disk sizes need additional engine metadata; alternative package IDs are single-choice |
+| Handheld information | Dedicated reference-style page with the explicit Xbox public-catalog classification and Greek/English labels | Ratings describe Windows handhelds, not Linux/Proton compatibility or performance on this PC; absent data stays unknown |
 | Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | A native compositor Game Bar over external games remains pending; shortcuts and video capture have separate limits |
 | Linux controls | NetworkManager Wi-Fi, BlueZ paired-device controls and capability-gated session/power actions | New pairing/network setup uses desktop settings; disruptive actions require confirmation |
 | Audio tools | Explicit local microphone test, device selection, level meter, optional monitoring, mute, push to talk and supported noise suppression | These tools test audio on this PC; **Xbox party voice is not connected** |
 | Console Remote Play | Dedicated window for Microsoft's official console web client | Discovery, sign-in and streaming are owned by that site; the native Windows flow and Xbox One X acceptance remain open |
 
 The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
+
+The [handheld compatibility analysis](docs/analysis/reference/handheld-compatibility.md) records the original package's data contract and layout. The app reads the public Xbox product service without account credentials; this descriptive rating does not change license, installability or Play decisions.
 
 ![xboks Home — development preview with sample library data](docs/screenshots/xboks-home.png)
 

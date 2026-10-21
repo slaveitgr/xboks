@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CatalogService, parseCatalogProducts } from './catalog.js';
+import { CatalogService, parseCatalogProducts, parseHandheldCompatibility } from './catalog.js';
 
 const search = {
   productsList: [{
@@ -195,5 +195,177 @@ describe('CatalogService', () => {
       { ImagePurpose: 'Logo', Uri: '//store-images.s-microsoft.com/logo' },
     ] }] }] }))) as typeof fetch;
     expect((await new CatalogService(logo).artwork(['9GAME123'], 'US')).size).toBe(0);
+  });
+});
+
+const handheldId = '9PPT8K6GQHRZ';
+// Minimal public response observed without authentication on 2026-10-21:
+// https://emerald.xboxservices.com/xboxcomfd/products/9PPT8K6GQHRZ?locale=en-US
+// Microsoft's current Xbox web client supplies API version 1.0 and MS-CV.
+const handheldSummary = (deviceEvaluation: unknown) => ({
+  productId: handheldId, productKind: 'Game', hhVerified: { deviceEvaluation },
+});
+const handheldPayload = (deviceEvaluation: unknown) => ({ productSummaries: [handheldSummary(deviceEvaluation)] });
+const descriptionPayload = { Products: [{ ProductId: handheldId, ProductType: 'Game',
+  LocalizedProperties: [{ ProductTitle: 'Clair Obscur: Expedition 33', ProductDescription: 'Catalog description.', Images: [
+    { ImagePurpose: 'Screenshot', Uri: '//store-images.s-microsoft.com/screenshot' },
+  ] }], Properties: { Categories: ['Role playing'] } }] };
+
+describe('Microsoft Windows handheld classification', () => {
+  // F21084 in the original app binds these numeric values; the public Xbox
+  // PDP independently confirms hhVerified.deviceEvaluation=1 for this title.
+  it.each([[0, 'unknown'], [1, 'optimized'], [2, 'unsupported'], [3, 'playable']] as const)(
+    'maps explicit TestResult %s to %s with its Windows origin', (rawRating, rating) => {
+      expect(parseHandheldCompatibility(handheldId, handheldPayload(rawRating))).toEqual({
+        rating, rawRating, source: 'microsoft-catalog', platform: 'windows-pc',
+      });
+    },
+  );
+
+  it.each([undefined, null, true, false, '1', 'Verified', 'HandheldOptimized', 4, -1, 1.5, Infinity, {}, []])(
+    'does not coerce an absent, malformed or future TestResult (%s)', value => {
+      expect(parseHandheldCompatibility(handheldId, handheldPayload(value))).toBeUndefined();
+    },
+  );
+
+  it('does not borrow ratings from another offer, a bundle child, duplicates or non-game records', () => {
+    const other = { ...handheldSummary(1), productId: '9AAAAAAAAAAA' };
+    expect(parseHandheldCompatibility(handheldId, { productSummaries: [other] })).toBeUndefined();
+    expect(parseHandheldCompatibility(handheldId, { productSummaries: [
+      { productId: handheldId, productKind: 'Game', bundledProductIds: [other.productId] }, other,
+    ] })).toBeUndefined();
+    expect(parseHandheldCompatibility(handheldId, { productSummaries: [handheldSummary(1), handheldSummary(2)] })).toBeUndefined();
+    expect(parseHandheldCompatibility(handheldId, { productSummaries: [{ ...handheldSummary(1), productKind: 'Durable' }] })).toBeUndefined();
+    expect(parseHandheldCompatibility('../invalid', handheldPayload(1))).toBeUndefined();
+  });
+
+  it('requires the explicit FD field and never converts controller, package or Game Pass metadata into a rating', () => {
+    const product = { ...search.productsList[0], productId: handheldId, plaintextPassName: 'Xbox Game Pass',
+      fullControllerSupport: true, availableOn: ['PC', 'Handheld'], hhVerified: { deviceEvaluation: 1 } };
+    const metadata = { ...catalog.Products[0], ProductId: handheldId, Properties: {
+      HandheldCompatibility: 'HandheldOptimized', FullControllerSupport: true,
+    } };
+    const parsed = parseCatalogProducts({ productsList: [product] }, { Products: [metadata] });
+    expect(parsed[0].installability).toBe('supported');
+    expect(parsed[0].includedWith).toBe('Xbox Game Pass');
+    expect(parsed[0].handheldCompatibility).toBeUndefined();
+    expect(parseHandheldCompatibility(handheldId, { productSummaries: [{
+      productId: handheldId, productKind: 'Game', availableOn: ['PC', 'Handheld'], capabilities: ['FullControllerSupport'],
+    }] })).toBeUndefined();
+  });
+
+  it('retains only explicitly published criterion results in their original order', () => {
+    const payload = { productSummaries: [{ ...handheldSummary(1), hhVerified: { deviceEvaluation: 1, deviceResults: [
+      { deviceTest: 4, testResult: 1, testTimestamp: '2026-01-01T00:00:00Z' },
+      { deviceTest: 0, testResult: 1 }, { deviceTest: 1, testResult: 3 },
+      { deviceTest: 2, testResult: 2 }, { deviceTest: 3, testResult: 0 },
+    ] } }] };
+    expect(parseHandheldCompatibility(handheldId, payload)).toMatchObject({ rating: 'optimized', criteria: [
+      { id: 'supported-display', rating: 'optimized' }, { id: 'defaults-work', rating: 'optimized' },
+      { id: 'iconography', rating: 'playable' }, { id: 'text-input', rating: 'unsupported' },
+      { id: 'ui-legibility', rating: 'unknown' },
+    ] });
+    expect(parseHandheldCompatibility(handheldId, handheldPayload(1))?.criteria).toBeUndefined();
+  });
+
+  it.each([undefined, null, true, 'Verified', {}, [], Array(101).fill({ deviceTest: 0, testResult: 1 })])(
+    'preserves the overall rating without inventing criteria for an absent, malformed or excessive results array', deviceResults => {
+      const payload = { productSummaries: [{ ...handheldSummary(3), hhVerified: { deviceEvaluation: 3, deviceResults } }] };
+      const result = parseHandheldCompatibility(handheldId, payload);
+      expect(result?.rating).toBe('playable');
+      expect(result?.criteria).toBeUndefined();
+    },
+  );
+
+  it('ignores unknown fields, unknown tests and malformed per-test values without converting them to successful checks', () => {
+    const payload = { productSummaries: [{ ...handheldSummary(1), hhVerified: { deviceEvaluation: 1, deviceResults: [
+      null, true, [], { deviceTest: '0', testResult: 1 }, { deviceTest: false, testResult: 1 },
+      { deviceTest: -1, testResult: 1 }, { deviceTest: 10, testResult: 1 }, { deviceTest: 5, testResult: 1 },
+      { deviceTest: 0, result: 1 }, { deviceTest: 1, testResult: '1' }, { deviceTest: 2, testResult: true },
+      { deviceTest: 3, testResult: 4 }, { deviceTest: 4, testResult: 3 },
+    ] } }] };
+    expect(parseHandheldCompatibility(handheldId, payload)?.criteria).toEqual([{ id: 'supported-display', rating: 'playable' }]);
+  });
+
+  it('marks duplicate criterion IDs unknown, including equal results and malformed duplicates', () => {
+    const payload = { productSummaries: [{ ...handheldSummary(1), hhVerified: { deviceEvaluation: 1, deviceResults: [
+      { deviceTest: 0, testResult: 1 }, { deviceTest: 0, testResult: 1 },
+      { deviceTest: 1, testResult: 1 }, { deviceTest: 1, testResult: '1' },
+      { deviceTest: 2, testResult: null }, { deviceTest: 2, testResult: 1 },
+      { deviceTest: 3, testResult: 0 }, { deviceTest: 4, testResult: 1 },
+    ] } }] };
+    expect(parseHandheldCompatibility(handheldId, payload)?.criteria).toEqual([
+      { id: 'defaults-work', rating: 'unknown' }, { id: 'iconography', rating: 'unknown' },
+      { id: 'text-input', rating: 'unknown' }, { id: 'ui-legibility', rating: 'unknown' },
+      { id: 'supported-display', rating: 'optimized' },
+    ]);
+  });
+
+  it('reads public FD metadata only for opened game details, with anonymous bounded requests and cloned cache entries', async () => {
+    const calls: { url: URL; options?: RequestInit }[] = [];
+    const fetcher = (async (input: URL | RequestInfo, options?: RequestInit) => {
+      const url = new URL(String(input)); calls.push({ url, options });
+      return Response.json(url.hostname === 'emerald.xboxservices.com' ? { productSummaries: [{
+        ...handheldSummary(1), hhVerified: { deviceEvaluation: 1, deviceResults: [{ deviceTest: 0, testResult: 1 }] },
+      }] } : descriptionPayload);
+    }) as typeof fetch;
+    const service = new CatalogService(fetcher);
+    const first = await service.gameDetails(handheldId, 'US');
+    expect(first?.handheldCompatibility?.rating).toBe('optimized');
+    expect(first?.screenshots).toEqual(['https://store-images.s-microsoft.com/screenshot']);
+    first!.handheldCompatibility!.rating = 'unsupported';
+    first!.handheldCompatibility!.criteria![0].rating = 'unsupported';
+    expect((await service.gameDetails(handheldId, 'US'))?.handheldCompatibility?.rating).toBe('optimized');
+    expect((await service.gameDetails(handheldId, 'US'))?.handheldCompatibility?.criteria).toEqual([{ id: 'defaults-work', rating: 'optimized' }]);
+    expect(calls).toHaveLength(2);
+    const request = calls[1];
+    expect(request.url.toString()).toBe(`https://emerald.xboxservices.com/xboxcomfd/products/${handheldId}?locale=en-US`);
+    expect(request.options).toMatchObject({ credentials: 'omit', redirect: 'error' });
+    const headers = new Headers(request.options?.headers);
+    expect(headers.get('X-MS-API-Version')).toBe('1.0');
+    expect(headers.get('MS-CV')).toMatch(/^[A-Za-z0-9+/]{22}\.0$/);
+    expect(headers.has('Authorization')).toBe(false);
+    expect(headers.has('Cookie')).toBe(false);
+    expect(request.options?.body).toBeUndefined();
+    expect(request.options?.signal).toBeInstanceOf(AbortSignal);
+    await service.gameDetails(handheldId, 'GB');
+    expect(calls).toHaveLength(4);
+    expect(calls[3].url.searchParams.get('locale')).toBe('en-GB');
+    expect(new Headers(calls[3].options?.headers).get('MS-CV')).not.toBe(headers.get('MS-CV'));
+  });
+
+  it.each(['offline', 'unauthorized', 'invalid-json', 'unrelated-product', 'redirect'])(
+    'preserves descriptions and screenshots when optional handheld metadata is %s', async mode => {
+      const fetcher = (async (input: URL | RequestInfo) => {
+        if (new URL(String(input)).hostname !== 'emerald.xboxservices.com') return Response.json(descriptionPayload);
+        if (mode === 'offline' || mode === 'redirect') throw Error('Optional public catalog unavailable.');
+        if (mode === 'unauthorized') return new Response('Unavailable', { status: 401 });
+        if (mode === 'invalid-json') return new Response('<html>Not catalog JSON</html>');
+        return Response.json({ productSummaries: [{ ...handheldSummary(1), productId: '9AAAAAAAAAAA' }] });
+      }) as typeof fetch;
+      const details = await new CatalogService(fetcher).gameDetails(handheldId, 'US');
+      expect(details).toMatchObject({ title: 'Clair Obscur: Expedition 33', description: 'Catalog description.',
+        screenshots: ['https://store-images.s-microsoft.com/screenshot'] });
+      expect(details?.handheldCompatibility).toBeUndefined();
+    },
+  );
+
+  it('bounds the actual metadata body even when its declared content length is tiny', async () => {
+    const fetcher = (async (input: URL | RequestInfo) => new URL(String(input)).hostname !== 'emerald.xboxservices.com'
+      ? Response.json(descriptionPayload)
+      : new Response(' '.repeat(2 * 1024 * 1024) + JSON.stringify(handheldPayload(1)), { headers: { 'content-length': '1' } })) as typeof fetch;
+    const details = await new CatalogService(fetcher).gameDetails(handheldId, 'US');
+    expect(details?.title).toBe('Clair Obscur: Expedition 33');
+    expect(details?.handheldCompatibility).toBeUndefined();
+  });
+
+  it('does not fetch optional metadata for non-game or missing descriptive records', async () => {
+    const urls: string[] = [];
+    const fetcher = (async (input: URL | RequestInfo) => {
+      urls.push(String(input)); return Response.json({ Products: [{ ProductId: handheldId, ProductType: 'Durable' }] });
+    }) as typeof fetch;
+    expect(await new CatalogService(fetcher).gameDetails(handheldId, 'US')).toBeUndefined();
+    expect(urls).toHaveLength(1);
+    expect(urls[0]).toContain('displaycatalog.mp.microsoft.com');
   });
 });

@@ -7,6 +7,7 @@ import { useReferenceLocale } from './ReferenceLocale';
 import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu } from './ReferenceMenu';
 import './catalog-details.css';
+import { HandheldCompatibilityEntry, HandheldCompatibilityDialog } from './HandheldCompatibility';
 
 export function CatalogDetails({ product, back, install, busy, installed, queued, canInstall, openInstalled, operation, openQueue }: {
   product: CatalogProduct; back: () => void; install: () => void; busy: boolean;
@@ -21,11 +22,12 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
   const [tab, setTab] = useState<'details' | 'reviews' | 'more'>('details');
   const [gallery, setGallery] = useState<number>();
   const [menu, setMenu] = useState<HTMLElement>();
+  const [handheld, setHandheld] = useState(false);
   const root = useRef<HTMLElement>(null);
-  useBackHandler(() => { back(); return true; }, !menu && gallery === undefined);
+  useBackHandler(() => { back(); return true; }, !menu && gallery === undefined && !handheld);
   useEffect(() => {
     let live = true;
-    setDetails(undefined); setLoading(true); setFailed(false); setGallery(undefined); setTab('details'); setMenu(undefined);
+    setDetails(undefined); setLoading(true); setFailed(false); setGallery(undefined); setTab('details'); setMenu(undefined); setHandheld(false);
     window.launcher.getCatalogDetails(product.productId).then(value => {
       if (live) { setDetails(value); setFailed(!value); }
     }).catch(() => { if (live) setFailed(true); }).finally(() => { if (live) setLoading(false); });
@@ -52,6 +54,7 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
       <div className="catalog-detail-summary">
         {product.includedWith?.toLowerCase().includes('game pass') ? <GamePassIcon wordmark /> : null}
         <h1>{title}</h1>
+        <HandheldCompatibilityEntry value={details?.handheldCompatibility ?? product.handheldCompatibility} open={() => setHandheld(true)} />
         <p className="catalog-detail-description">{description.split(/\r?\n/)[0]}</p>
         <div className="catalog-detail-purchase">
           {product.includedWith ? <span>{product.includedWith}</span> : null}
@@ -91,5 +94,6 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
       { id: 'refresh', label: text('Refresh game information', 'Ανανέωση πληροφοριών παιχνιδιού'), icon: <Info />, disabled: loading, onSelect: () => setAttempt(value => value + 1) },
     ]} /> : null}
     {gallery !== undefined && screenshots.length ? <Gallery title={title} images={screenshots} initial={gallery} close={() => setGallery(undefined)} /> : null}
+    {handheld ? <HandheldCompatibilityDialog title={title} value={details?.handheldCompatibility ?? product.handheldCompatibility} close={() => setHandheld(false)} /> : null}
   </main>;
 }

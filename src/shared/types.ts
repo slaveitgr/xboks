@@ -290,6 +290,7 @@ export interface GameContentPlan {
 }
 
 export interface CatalogProduct {
+  handheldCompatibility?: import('./handheld-compatibility.js').HandheldCompatibility;
   productId: string;
   installProductId?: string;
   title: string;
@@ -310,6 +311,7 @@ export interface CatalogProduct {
 
 /** Public catalog data only, never an ownership/installation decision. */
 export interface GameStoreDetails {
+  handheldCompatibility?: import('./handheld-compatibility.js').HandheldCompatibility;
   productId: string;
   title: string;
   description: string;

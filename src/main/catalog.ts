@@ -1,4 +1,6 @@
 import type { CatalogProduct, CatalogSearchResult, GameStoreDetails } from '../shared/types.js';
+import type { HandheldCompatibility } from '../shared/handheld-compatibility.js';
+import { randomBytes } from 'node:crypto';
 
 type Fetcher = typeof fetch;
 
@@ -56,6 +58,7 @@ interface BundleReference {
 const IMAGE_HOSTS = new Set(['store-images.s-microsoft.com', 'store-images.microsoft.com']);
 const STORE_HOSTS = new Set(['www.xbox.com', 'xbox.com', 'apps.microsoft.com']);
 const CACHE_TTL_MS = 10 * 60 * 1000;
+const HANDHELD_RESPONSE_LIMIT = 2 * 1024 * 1024;
 // Box art is square and carries the game's title branding, matching the
 // square library tiles; promotional square art is the textless fallback.
 const POSTER_PURPOSES = ['BoxArt', 'TitledPoster', 'Poster', 'FeaturePromotionalSquareArt'];
@@ -78,6 +81,81 @@ function object(value: unknown): Record<string, unknown> | undefined {
 
 function string(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+const HANDHELD_RATINGS: HandheldCompatibility['rating'][] = ['unknown', 'optimized', 'unsupported', 'playable'];
+const HANDHELD_CRITERIA = ['defaults-work', 'iconography', 'text-input', 'ui-legibility', 'supported-display'] as const;
+
+function handheldRating(value: unknown): HandheldCompatibility['rating'] | undefined {
+  return typeof value === 'number' && Number.isInteger(value) ? HANDHELD_RATINGS[value] : undefined;
+}
+
+function handheldCriteria(value: unknown): HandheldCompatibility['criteria'] {
+  if (!Array.isArray(value) || value.length > 100) return;
+  type Criterion = NonNullable<HandheldCompatibility['criteria']>[number];
+  const seen = new Set<Criterion['id']>();
+  const results = new Map<Criterion['id'], Criterion['rating']>();
+  for (const entry of value) {
+    const row = object(entry);
+    const test = row?.deviceTest;
+    if (typeof test !== 'number' || !Number.isInteger(test)) continue;
+    const id = HANDHELD_CRITERIA[test];
+    if (!id) continue;
+    // Ambiguous duplicates must never leave a successful criterion behind,
+    // including a duplicate whose result itself is malformed.
+    if (seen.has(id)) { results.set(id, 'unknown'); continue; }
+    seen.add(id);
+    const rating = handheldRating(row?.testResult);
+    if (rating) results.set(id, rating);
+  }
+  return results.size ? [...results].map(([id, rating]) => ({ id, rating })) : undefined;
+}
+
+/**
+ * Public Xbox FD product summaries, not DisplayCatalog package capabilities.
+ * Numeric TestResult values are bound by the original app's F21084 mapper:
+ * 0 Unknown, 1 Verified, 2 Unsupported, 3 Playable. The public Xbox web client
+ * uses the same hhVerified.deviceEvaluation field (observed 2026-10-21).
+ */
+export function parseHandheldCompatibility(productId: string, payload: unknown): HandheldCompatibility | undefined {
+  if (!/^[A-Z0-9]{12}$/.test(productId)) return;
+  const summaries = object(payload)?.productSummaries;
+  if (!Array.isArray(summaries) || summaries.length > 100) return;
+  const matches = summaries.map(object).filter(product => string(product?.productId)?.toUpperCase() === productId);
+  // Do not borrow a bundle child's rating or choose between duplicate records.
+  if (matches.length !== 1 || matches[0]?.productKind !== 'Game') return;
+  const verified = object(matches[0].hhVerified);
+  const rawRating = verified?.deviceEvaluation;
+  const rating = handheldRating(rawRating);
+  if (!rating) return;
+  const criteria = handheldCriteria(verified?.deviceResults);
+  return { rating, rawRating: rawRating as number, source: 'microsoft-catalog', platform: 'windows-pc',
+    ...(criteria ? { criteria } : {}) };
+}
+
+async function boundedCatalogJson(response: Response): Promise<unknown> {
+  const declaredLength = response.headers.get('content-length');
+  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > HANDHELD_RESPONSE_LIMIT) {
+    await response.body?.cancel();
+    throw Error('Catalog metadata exceeds the response limit.');
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw Error('Catalog metadata body is missing.');
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      length += chunk.value.byteLength;
+      if (length > HANDHELD_RESPONSE_LIMIT) throw Error('Catalog metadata exceeds the response limit.');
+      chunks.push(chunk.value);
+    }
+    return JSON.parse(Buffer.concat(chunks, length).toString('utf8')) as unknown;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 function safeUrl(value: unknown, hosts: Set<string>): string | undefined {
@@ -296,7 +374,8 @@ export class CatalogService {
     const marketProperties = Array.isArray(product.MarketProperties) ? object(product.MarketProperties[0]) : undefined;
     const value: GameStoreDetails = { productId, title, description: (string(localized?.ProductDescription) ?? '').slice(0, 64_000),
       publisher: string(localized?.PublisherName)?.slice(0, 512), heroUrl: displayImage(images.filter(image => object(image)), HERO_PURPOSES), categories, screenshots,
-      releaseDate: string(marketProperties?.OriginalReleaseDate) };
+      releaseDate: string(marketProperties?.OriginalReleaseDate),
+      handheldCompatibility: await this.handheldDetails(productId, market) };
     if (this.gameCache.size >= 100) this.gameCache.delete(this.gameCache.keys().next().value!);
     this.gameCache.set(key, { until: Date.now() + CACHE_TTL_MS, value });
     return structuredClone(value);
@@ -323,6 +402,26 @@ export class CatalogService {
     // Entitlement does not imply a PC package or supported format. Only a real
     // unambiguous Windows.Desktop MSIXVC target can be "Ready to install".
     return parseCatalogProducts({ productsList: rows }, catalog).filter(product => product.installability === 'supported');
+  }
+
+  /** Optional public descriptive metadata; no session, ownership or Linux verdict. */
+  private async handheldDetails(productId: string, market: string): Promise<HandheldCompatibility | undefined> {
+    const url = new URL(`https://emerald.xboxservices.com/xboxcomfd/products/${productId}`);
+    url.searchParams.set('locale', `en-${market}`);
+    try {
+      // This public route and version are used by Microsoft's Xbox web client.
+      // MS-CV is a fresh anonymous correlation vector, never an account token.
+      const response = await this.fetcher(url, {
+        headers: { Accept: 'application/json', 'X-MS-API-Version': '1.0', 'MS-CV': `${randomBytes(16).toString('base64').replace(/=+$/, '')}.0` },
+        credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) { await response.body?.cancel(); return; }
+      return parseHandheldCompatibility(productId, await boundedCatalogJson(response));
+    } catch {
+      // Older catalogs, network failures and unrecognized values stay unknown.
+      // The original game description/screenshots remain available.
+      return;
+    }
   }
 
   private async details(ids: string[], market: string, required = false): Promise<DisplayCatalogResponse> {

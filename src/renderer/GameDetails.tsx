@@ -8,6 +8,7 @@ import { Achievements } from './Achievements';
 import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu, referenceMenuPosition, referenceMenuTrigger, type ReferenceMenuAnchor, type ReferenceMenuItem } from './ReferenceMenu';
 import { useReferenceLocale } from './ReferenceLocale';
+import { HandheldCompatibilityEntry, HandheldCompatibilityDialog } from './HandheldCompatibility';
 
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -138,6 +139,7 @@ export function GameDetailsContent({ game, back, play, manage, manageItems, noti
   const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<'details' | 'reviews' | 'more'>('details');
   const [manageAnchor, setManageAnchor] = useState<ReferenceMenuAnchor>();
+  const [handheld, setHandheld] = useState(false);
   const backToLibrary = () => {
     const previousRoot = root.current;
     back();
@@ -147,7 +149,7 @@ export function GameDetailsContent({ game, back, play, manage, manageItems, noti
         .find(card => card.getAttribute('data-gamepad-detail-target') === game.id)?.focus({ preventScroll: true });
     });
   };
-  useBackHandler(() => { backToLibrary(); return true; }, !manageAnchor && gallery === undefined);
+  useBackHandler(() => { backToLibrary(); return true; }, !manageAnchor && gallery === undefined && !handheld);
   const manageTrigger = referenceMenuTrigger({ onOpen: setManageAnchor });
   const images = details?.screenshots ?? [];
   useEffect(() => { if (!images.length) setGallery(undefined); }, [images.length]);
@@ -156,7 +158,7 @@ export function GameDetailsContent({ game, back, play, manage, manageItems, noti
   const artwork = details?.heroUrl ?? game.heroUrl ?? game.coverUrl ?? game.coverDataUrl;
   const release = details?.releaseDate && Number.isFinite(Date.parse(details.releaseDate)) ? new Date(details.releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : undefined;
   const lastPlayed = activity?.lastPlayed && Number.isFinite(Date.parse(activity.lastPlayed)) ? new Date(activity.lastPlayed).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Unavailable';
-  useEffect(() => { setGallery(undefined); setExpanded(false); setTab('details'); setManageAnchor(undefined); }, [game.id]);
+  useEffect(() => { setGallery(undefined); setExpanded(false); setTab('details'); setManageAnchor(undefined); setHandheld(false); }, [game.id]);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.key !== 'Escape' || manageAnchor || gallery !== undefined || document.querySelector('[role="dialog"][aria-modal="true"],[data-game-menu]')) return;
@@ -172,6 +174,7 @@ export function GameDetailsContent({ game, back, play, manage, manageItems, noti
       <div className="gd-hero-copy">
         <span className={`gd-ready ${game.installState}`}><Check />{game.installState === 'ready' ? text('Installed', 'Εγκατεστημένο') : game.installState === 'incomplete' ? text('Incomplete', 'Ελλιπής εγκατάσταση') : text('Imported', 'Έχει εισαχθεί')}</span>
         <h1>{game.title}</h1>
+        <HandheldCompatibilityEntry value={details?.handheldCompatibility} open={() => setHandheld(true)} />
         <p className="gd-hero-description">{metadataLoading ? text('Loading game information…', 'Φόρτωση πληροφοριών παιχνιδιού…') : shortDescription || text('Game information is unavailable.', 'Οι πληροφορίες παιχνιδιού δεν είναι διαθέσιμες.')}</p>
         <section className="gd-play-controls" data-gamepad-action-row aria-label={text('Game actions', 'Ενέργειες παιχνιδιού')}>
           {play}
@@ -216,6 +219,7 @@ export function GameDetailsContent({ game, back, play, manage, manageItems, noti
     </div>
     {manageAnchor ? manageItems ? <ReferenceMenu id={`installed-game-options-${game.id}`} label={text('Game options', 'Επιλογές παιχνιδιού')} anchor={manageAnchor} items={manageItems} onDismiss={() => setManageAnchor(undefined)} /> : manageButton.current ? <LegacyManageMenu anchor={manageButton.current} close={() => setManageAnchor(undefined)}>{manage}</LegacyManageMenu> : null : null}
     {gallery !== undefined && images.length ? <Gallery title={game.title} images={images} initial={gallery} close={() => setGallery(undefined)} /> : null}
+    {handheld ? <HandheldCompatibilityDialog title={game.title} value={details?.handheldCompatibility} close={() => setHandheld(false)} /> : null}
   </section>;
 }
 

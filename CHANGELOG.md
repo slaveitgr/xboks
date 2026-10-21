@@ -5,6 +5,13 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.14 — 2026-10-21
+
+- Show a content-selection step before installation, including a resolved single base game. Next opens the real install location; only the final Install action submits the selected package ID, market and destination. Alternative packages remain single-choice; unsupported optional-language/chunk selection and unknown sizes are not fabricated.
+- Add the original-style handheld compatibility information surface to Store and installed-game pages, with Greek/English labels, scoped Back, focus restoration and optional illustrations extracted from the locally supplied package.
+- Read explicit Windows handheld classifications from Xbox's public product service. Missing ratings remain unknown, descriptive metadata survives service failure, and Windows handheld ratings never become Linux/Proton certification or local performance predictions.
+- Document the recovered original enums, assets, translations, layout and independent performance-rating boundary. Source checkout includes a native illustration fallback; original package assets and user photos remain outside Git.
+
 ## 0.3.13 — 2026-10-21
 
 - Add an optional GNOME Shell 51 Fullscreen Experience extension with a persistent local bridge, focused-app ownership checks and restoration on exit, connection loss, disable or lock. Ctrl+Super+Escape is the required emergency restore shortcut. This keeps the desktop and its applications running; it is not a separate gaming session or a memory-saving feature.

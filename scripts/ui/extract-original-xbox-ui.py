@@ -51,6 +51,18 @@ with zipfile.ZipFile(args.package) as package:
         content = package.read(source)
         (args.output / 'providers' / f'{provider}.png').write_bytes(content)
         manifest['providers'][provider] = {'member': source, 'sha256': hashlib.sha256(content).hexdigest()}
+    (args.output / 'handheld').mkdir(exist_ok=True)
+    manifest['handheld'] = {}
+    for rating, filename in {'optimized': 'hhvCompatible.png', 'playable': 'hhvMostlyCompatible.png',
+                             'unsupported': 'hhvNotCompatible.png', 'unknown': 'hhvCompatibilityUnknown.png'}.items():
+        source = 'Bundle/assets/src/windows/app/assets/' + filename
+        if source not in package.namelist():
+            continue
+        content = package.read(source)
+        if not content.startswith(b'\x89PNG\r\n\x1a\n') or len(content) > 2 * 1024 * 1024:
+            raise SystemExit('Unexpected handheld illustration format or size.')
+        (args.output / 'handheld' / f'{rating}.png').write_bytes(content)
+        manifest['handheld'][rating] = {'member': source, 'sha256': hashlib.sha256(content).hexdigest()}
 (args.output / 'theme.css').write_text('''@font-face { font-family: 'Xbox Segoe Text'; src: url('./fonts/regular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Xbox Segoe Text'; src: url('./fonts/semibold.ttf') format('truetype'); font-weight: 600; font-display: swap; }
 @font-face { font-family: 'Xbox Segoe Text'; src: url('./fonts/bold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
