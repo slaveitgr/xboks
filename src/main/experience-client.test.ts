@@ -58,3 +58,36 @@ it('does not promote an absent extension to available on a repeated state reques
     await failed; expect(client.current.available).toBe(false);
   }
 });
+it('keeps foreground metadata separate from the shell lease and validates its bounds', async () => {
+  const f = fixture(), p = client.foregroundApp();
+  expect(f.messages[0].method).toBe('foreground');
+  f.reply({ id: f.messages[0].id, ok: true, active: false, owned: false,
+    app: { desktopId: 'org.example.Editor.desktop', name: 'Editor', title: 'Document' } });
+  expect(await p).toEqual({ desktopId: 'org.example.Editor.desktop', name: 'Editor', title: 'Document' });
+  expect(client.current).toEqual({ available: true, active: false, owned: false });
+  const empty = client.foregroundApp();
+  f.reply({ id: f.messages.at(-1).id, ok: true, active: false, owned: false, app: null });
+  expect(await empty).toBeUndefined();
+  const invalid = client.foregroundApp(), failed = expect(invalid).rejects.toThrow('disconnected');
+  f.reply({ id: f.messages.at(-1).id, ok: true, active: false, owned: false,
+    app: { desktopId: 'app.desktop', name: 'App', title: 'x'.repeat(513) } });
+  await failed;
+});
+it('matches focus/capability/switcher replies and ignores untrusted switcher commands', async () => {
+  const f = fixture(), focus = client.focusGuide();
+  f.reply({ id: f.messages.at(-1).id, ok: true, active: true, owned: true }); expect(await focus).toBe(true);
+  const caps = client.capabilities();
+  f.reply({ id: f.messages.at(-1).id, ok: true, active: true, owned: true, version: 2 }); expect(await caps).toBe(2);
+  const open = client.switcher('open'); expect(f.messages.at(-1)).toMatchObject({ method: 'switcher', action: 'open' });
+  f.reply({ id: f.messages.at(-1).id, ok: true, active: true, owned: true, visible: true });
+  expect(await open).toBe(true); expect(client.switcherVisible).toBe(true);
+  f.reply({ event: 'switcher', active: true, owned: true, visible: false }); expect(client.switcherVisible).toBe(false);
+  f.reply({ event: 'switcher', active: true, owned: false, visible: true }); expect(client.switcherVisible).toBe(false);
+  await expect(client.switcher('arbitrary-command' as any)).rejects.toThrow('Invalid switcher action');
+});
+it('unsupported new methods do not disconnect an existing mode lease', async () => {
+  const f = fixture(), focus = client.focusGuide(), failed = expect(focus).rejects.toThrow('GNOME could not change');
+  f.reply({ id: f.messages.at(-1).id, ok: false, active: true, owned: true, error: 'unsupported' }); await failed;
+  expect(client.current).toMatchObject({ available: true, active: true, owned: true });
+  expect(f.child.kill).not.toHaveBeenCalled();
+});

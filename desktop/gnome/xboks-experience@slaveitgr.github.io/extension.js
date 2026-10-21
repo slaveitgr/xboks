@@ -6,13 +6,20 @@ import Shell from 'gi://Shell';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {ExperienceLease, ReversibleChanges, authorizedApplication} from './state.js';
+import {XboksSwitcher} from './switcher.js';
+import {SWITCH_ACTIONS, boundedLabel} from './switcher-state.js';
 
 const BUS = 'org.slaveitgr.Xboks.Experience';
 const OBJECT = '/org/slaveitgr/Xboks/Experience';
 const INTERFACE = `<node><interface name="${BUS}">
   <method name="GetState"><arg type="b" direction="out" name="active"/><arg type="b" direction="out" name="owned"/></method>
   <method name="Enter"/><method name="Leave"/>
+  <method name="GetCapabilities"><arg type="u" direction="out" name="version"/></method>
+  <method name="GetForegroundApp"><arg type="s" direction="out" name="json"/></method>
+  <method name="FocusGuide"/>
+  <method name="Switch"><arg type="s" direction="in" name="action"/><arg type="b" direction="out" name="visible"/></method>
   <signal name="StateChanged"><arg type="b" name="active"/></signal>
+  <signal name="SwitcherChanged"><arg type="b" name="visible"/></signal>
 </interface></node>`;
 
 function processId(connection, sender) {
@@ -35,6 +42,31 @@ function parentProcess(pid) {
     }
 }
 
+function processUser(pid) {
+    try {
+        const [ok, bytes] = GLib.file_get_contents(`/proc/${pid}/status`);
+        if (!ok || bytes.length > 65536) return -1;
+        const uid = new TextDecoder().decode(bytes).match(/^Uid:\s+(\d+)\s+(\d+)/m);
+        return uid && uid[1] === uid[2] ? Number(uid[1]) : -1;
+    } catch { return -1; }
+}
+
+function installedMain(pid) {
+    try {
+        if (GLib.file_read_link(`/proc/${pid}/exe`) !== '/opt/xboks/xboks.bin') return false;
+        const info = Gio.File.new_for_path('/opt/xboks/xboks.bin').query_info('standard::type,unix::uid,unix::mode', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
+        return info.get_file_type() === Gio.FileType.REGULAR && info.get_attribute_uint32('unix::uid') === 0 &&
+            (info.get_attribute_uint32('unix::mode') & 0o022) === 0;
+    } catch { return false; }
+}
+
+function xboksWindow(window) {
+    if (!window) return false;
+    const app = Shell.WindowTracker.get_default().get_window_app(window);
+    return authorizedApplication({senderPid: window.get_pid(), focusedPid: window.get_pid(),
+        applicationId: app?.get_id(), wmClass: window.get_wm_class(), userSession: true});
+}
+
 export default class XboksExperience extends Extension {
     enable() {
         this._enabled = true;
@@ -43,6 +75,9 @@ export default class XboksExperience extends Extension {
         this._ownerWatch = 0;
         this._connections = [];
         this._changes = null;
+        this._switcher = null;
+        this._foregroundWindow = null;
+        this._applicationPid = 0;
         this._emergencyAction = Meta.KeyBindingAction.NONE;
         this._lease = new ExperienceLease(() => this._apply(), () => this._restore(), active => {
             this._dbus?.emit_signal('StateChanged', new GLib.Variant('(b)', [active]));
@@ -67,6 +102,64 @@ export default class XboksExperience extends Extension {
         invocation.return_value(new GLib.Variant('(bb)', [state.active, state.owned]));
     }
 
+    GetCapabilitiesAsync(_parameters, invocation) {
+        invocation.return_value(new GLib.Variant('(u)', [2]));
+    }
+
+    async _callerMain(invocation) {
+        const epoch = this._epoch, senderPid = await processId(this._connection, invocation.get_sender());
+        if (!this._enabled || this._epoch !== epoch || !this._userSession()) throw Error('not-authorized');
+        const parent = parentProcess(senderPid), ownUid = processUser('self');
+        if (ownUid < 1 || processUser(senderPid) !== ownUid || processUser(parent) !== ownUid) throw Error('not-authorized');
+        // Installed background service may not have any window yet. Portable
+        // and development clients must already have an identifiable xboks
+        // native window owned by the helper's actual parent process.
+        const observed = global.get_window_actors().some(actor => {
+            try { return actor.meta_window.get_pid() === parent && xboksWindow(actor.meta_window); } catch { return false; }
+        });
+        if (!installedMain(parent) && !observed) throw Error('not-authorized');
+        return parent;
+    }
+
+    async GetForegroundAppAsync(_parameters, invocation) {
+        try {
+            this._applicationPid = await this._callerMain(invocation);
+            const focused = global.display.focus_window;
+            if (focused && focused.get_title() !== 'xboks Game Bar') this._foregroundWindow = focused;
+            const window = this._foregroundWindow;
+            let data = null;
+            try {
+                if (window) {
+                    const app = Shell.WindowTracker.get_default().get_window_app(window);
+                    data = {desktopId: boundedLabel(app?.get_id()), name: boundedLabel(app?.get_name()) || boundedLabel(window.get_wm_class()) || 'Application',
+                        title: boundedLabel(window.get_title())};
+                }
+            } catch { /* The foreground window may have closed. */ }
+            invocation.return_value(new GLib.Variant('(s)', [JSON.stringify(data)]));
+        } catch { invocation.return_dbus_error(`${BUS}.Error`, 'not-authorized'); }
+    }
+
+    async FocusGuideAsync(_parameters, invocation) {
+        try {
+            const pid = await this._callerMain(invocation);
+            const window = global.get_window_actors().map(actor => actor.meta_window).find(candidate => {
+                try { return candidate.get_pid() === pid && candidate.get_title() === 'xboks Game Bar' && xboksWindow(candidate); } catch { return false; }
+            });
+            if (!window) throw Error('guide-unavailable');
+            this._switcher?.hide();
+            Main.activateWindow(window, global.get_current_time());
+            invocation.return_value(new GLib.Variant('()', []));
+        } catch { invocation.return_dbus_error(`${BUS}.Error`, 'guide-unavailable'); }
+    }
+
+    SwitchAsync(parameters, invocation) {
+        try {
+            if (!this._enabled || !this._userSession() || !this._lease.state(invocation.get_sender()).owned || !SWITCH_ACTIONS.includes(parameters[0]))
+                throw Error('not-authorized');
+            invocation.return_value(new GLib.Variant('(b)', [this._switcher.action(parameters[0])]));
+        } catch { invocation.return_dbus_error(`${BUS}.Error`, 'not-authorized'); }
+    }
+
     async EnterAsync(_parameters, invocation) {
         const sender = invocation.get_sender(), epoch = this._epoch;
         try {
@@ -85,6 +178,7 @@ export default class XboksExperience extends Extension {
                     throw new Error('not-authorized');
                 if (Main.overview.visible || Main.overview.animationInProgress)
                     throw new Error('overview-open');
+                this._applicationPid = window.get_pid();
                 this._lease.enter(sender, true);
                 if (!this._ownerWatch) {
                     this._ownerWatch = Gio.bus_watch_name_on_connection(this._connection, sender,
@@ -124,7 +218,13 @@ export default class XboksExperience extends Extension {
                 this._lease.forceLeave();
         });
         this._changes = new ReversibleChanges();
+        this._switcher = new XboksSwitcher({leave: () => this._lease.forceLeave(), xbox: () => this._focusXbox(),
+            allowed: () => this._lease?.active && this._userSession(),
+            changed: visible => this._dbus?.emit_signal('SwitcherChanged', new GLib.Variant('(b)', [visible]))});
         this._changes.method(Main.overview, 'show', () => {});
+        // Shell51's bare-Super overlay-key handler calls overview.toggle().
+        // Lease this method, rather than modifying the user's overlay binding.
+        this._changes.method(Main.overview, 'toggle', () => this._switcher?.toggle());
         // HotCorner._toggleOverview consults this method at activation time.
         // Preserve every existing barrier, including an originally zero size.
         this._changes.method(Main.overview, 'shouldToggleByCornerOrButton', () => false);
@@ -148,7 +248,16 @@ export default class XboksExperience extends Extension {
         }
     }
 
+    _focusXbox() {
+        const window = global.get_window_actors().map(actor => actor.meta_window).find(candidate => {
+            try { return candidate.get_pid() === this._applicationPid && candidate.get_title() !== 'xboks Game Bar' && xboksWindow(candidate); } catch { return false; }
+        });
+        if (window) Main.activateWindow(window, global.get_current_time());
+    }
+
     _restore() {
+        this._switcher?.destroy();
+        this._switcher = null;
         if (this._ownerWatch) {
             Gio.bus_unwatch_name(this._ownerWatch);
             this._ownerWatch = 0;

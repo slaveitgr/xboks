@@ -18,10 +18,10 @@ const output = value => print(JSON.stringify(value));
 let initiallyReady;
 const initialWatch = new Promise(resolve => { initiallyReady = resolve; });
 
-function remote(method, expected = '()') {
+function remote(method, expected = '()', parameters = null) {
     const generation = epoch;
     return new Promise((resolve, reject) => {
-        connection.call(BUS, OBJECT, BUS, method, null, new GLib.VariantType(expected),
+        connection.call(BUS, OBJECT, BUS, method, parameters, new GLib.VariantType(expected),
             Gio.DBusCallFlags.NO_AUTO_START, 3000, null, (bus, result) => {
                 try {
                     const value = bus.call_finish(result).deepUnpack();
@@ -44,6 +44,8 @@ async function refresh(emit = false) {
 
 function errorCode(error) {
     const message = String(error?.message ?? '');
+    if (message.includes('UnknownMethod'))
+        return 'unsupported';
     for (const code of ['not-authorized', 'emergency-unavailable', 'overview-open', 'shell-error', 'busy']) {
         if (message.endsWith(code))
             return code;
@@ -56,7 +58,9 @@ async function command(line) {
     try {
         request = JSON.parse(line);
         if (!request || !Number.isInteger(request.id) || request.id < 1 || request.id > 2147483647 ||
-            !['state', 'enter', 'leave'].includes(request.method) || Object.keys(request).some(key => !['id', 'method'].includes(key)))
+            !['state', 'enter', 'leave', 'foreground', 'focus-guide', 'capabilities', 'switcher'].includes(request.method) ||
+            Object.keys(request).some(key => !['id', 'method', 'action'].includes(key)) ||
+            (request.method === 'switcher' ? !['toggle', 'open', 'next', 'previous', 'accept', 'cancel', 'desktop', 'xbox', 'up', 'down', 'left', 'right', 'close-window'].includes(request.action) : request.action !== undefined))
             throw new Error('invalid-command');
     } catch {
         output({id: Number.isInteger(request?.id) ? request.id : 0, ok: false, active, owned, error: 'invalid-command'});
@@ -64,12 +68,26 @@ async function command(line) {
     }
     try {
         await initialWatch;
+        const extra = {};
         if (request.method === 'enter')
             await remote('Enter');
         else if (request.method === 'leave')
             await remote('Leave');
+        else if (request.method === 'foreground') {
+            const [json] = await remote('GetForegroundApp', '(s)');
+            if (typeof json !== 'string' || json.length > 4096)
+                throw new Error('invalid-response');
+            extra.app = JSON.parse(json);
+        } else if (request.method === 'focus-guide')
+            await remote('FocusGuide');
+        else if (request.method === 'capabilities') {
+            try { [extra.version] = await remote('GetCapabilities', '(u)'); }
+            catch (error) { if (errorCode(error) === 'unsupported') extra.version = 1; else throw error; }
+        } else if (request.method === 'switcher') {
+            [extra.visible] = await remote('Switch', '(b)', new GLib.Variant('(s)', [request.action]));
+        }
         await refresh();
-        output({id: request.id, ok: true, active, owned});
+        output({id: request.id, ok: true, active, owned, ...extra});
     } catch (error) {
         output({id: request.id, ok: false, active, owned, error: errorCode(error)});
     }
@@ -153,6 +171,12 @@ const nameWatch = Gio.bus_watch_name_on_connection(connection, BUS, Gio.BusNameW
     });
 const stateSignal = connection.signal_subscribe(BUS, BUS, 'StateChanged', OBJECT, null, Gio.DBusSignalFlags.NONE,
     () => void refresh(true).catch(() => {}));
+const switcherSignal = connection.signal_subscribe(BUS, BUS, 'SwitcherChanged', OBJECT, null, Gio.DBusSignalFlags.NONE,
+    (_bus, _sender, _path, _iface, _signal, parameters) => {
+        const [visible] = parameters.deepUnpack();
+        if (typeof visible === 'boolean')
+            void refresh().then(() => output({event: 'switcher', active, owned, visible})).catch(() => {});
+    });
 const closed = connection.connect('closed', () => {
     active = false; owned = false; available = false;
     output({event: 'unavailable', active, owned});
@@ -166,6 +190,7 @@ void readInput();
 loop.run();
 Gio.bus_unwatch_name(nameWatch);
 connection.signal_unsubscribe(stateSignal);
+connection.signal_unsubscribe(switcherSignal);
 connection.disconnect(closed);
 for (const signal of signals) {
     if (GLib.MainContext.default().find_source_by_id(signal))

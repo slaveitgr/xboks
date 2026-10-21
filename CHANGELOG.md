@@ -5,6 +5,16 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.18 — 2026-10-21
+
+- Add scoped native Guide navigation for D-pad/left stick, A/B and LB/RB without depending on Chromium exposing a standard gamepad. Admit navigation only to the visible, focused Guide or owned Shell switcher, pause on lock/suspend and suppress duplicate browser input. Background operation remains Guide-button-only.
+- Focus the actual Guide web contents after opening/compositor activation, restore the selected tab on reopen, keep shoulder navigation focused across toolbar pages and give controller focus a clear white ring. Cancel delayed window loads on hide/destroy so they cannot reopen over a locked session.
+- Show the actual previously focused application on Game Bar Home through GNOME extension v2. Returning closes the Guide; recent games use valid timestamps from the current account’s local play history instead of the first installed titles.
+- Add a GNOME Shell 51 native light task switcher with real running-window icons, available live previews, LB/RB selection, A activation, explicit X normal window close and bottom Xbox/Desktop controls. Bare Super opens it only during the app-owned Xbox mode lease; ordinary desktop behavior is preserved.
+- Extend the persistent GNOME bridge with versioned foreground/focus/switcher operations. New features require extension v2 loaded in a fresh GNOME session; disabling/re-enabling an already imported extension does not load updated JavaScript. No automatic logout or reboot is scheduled.
+- Keep Fullscreen Experience a warm transition in the current desktop session. It does not stop other applications, create a dedicated gaming session or claim a Windows reboot-specific resource optimization.
+- Verify the Guide renderer with 41 isolated browser checks and focused unit/integration tests, including absent Chromium gamepad exposure, nested Back, input ownership, focus and actual foreground context. Inputs and native interfaces in these tests are synthetic; physical controller navigation, the live v2 switcher and external-game acceptance remain open.
+
 ## 0.3.17 — 2026-10-21
 
 - Resolve the launcher's real path before locating its native executable, including user-bin symlinks and Debian alternatives. This fixes the reported Win+G command failing to find `xboks.bin`.

@@ -23,7 +23,7 @@ const h = vi.hoisted(() => ({
   notifications: [] as { title: string; body: string }[],
   powerEvents: new Map<string, (...args: any[]) => any>(),
   controllerOptions: undefined as any,
-  controllerStart: vi.fn(), controllerDispose: vi.fn(), controllerBlocked: vi.fn(),
+  controllerStart: vi.fn(), controllerDispose: vi.fn(), controllerBlocked: vi.fn(), controllerSurface: vi.fn(),
   controllerSessionActive: vi.fn(async () => true),
   holdCancellation: false,
   holdAccountReads: false,
@@ -56,6 +56,7 @@ vi.mock('./gamebar-controller.js', () => ({
     start = h.controllerStart;
     dispose = h.controllerDispose;
     setSessionBlocked = h.controllerBlocked;
+    setSurface = h.controllerSurface;
   },
 }));
 vi.mock('./managed-paths.js', async importOriginal => {
@@ -166,11 +167,11 @@ it('starts one native Guide listener after launch readiness and checks the sessi
 
 it('publishes controller ownership and preserves it through a desktop settings refresh', async () => {
   h.controllerOptions.changed({ status: 'listening', devices: 1 });
-  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1 });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1, navigationSurface: 'none' });
   await ipc('update-settings', { launchOnLogin: false });
-  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1 });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'listening', devices: 1, navigationSurface: 'none' });
   h.controllerOptions.changed({ status: 'unavailable', devices: 0, reason: 'permission-denied' });
-  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'unavailable', devices: 0, reason: 'permission-denied' });
+  expect(snapshot().desktopSettings.gameBarController).toEqual({ status: 'unavailable', devices: 0, reason: 'permission-denied', navigationSurface: 'none' });
 });
 
 it('blocks native Guide activation immediately across screen locks and suspend', () => {

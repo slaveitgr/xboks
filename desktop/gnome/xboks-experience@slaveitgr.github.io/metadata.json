@@ -1,9 +1,9 @@
 {
   "uuid": "xboks-experience@slaveitgr.github.io",
   "name": "xboks Fullscreen Experience",
-  "description": "Optional reversible desktop chrome mode controlled by the focused xboks application. Prototype for GNOME Shell 51 only.",
+  "description": "Reversible Xbox mode, native window switcher and xboks Guide focus bridge. GNOME Shell 51 only.",
   "shell-version": ["51"],
   "session-modes": ["user"],
-  "version": 1,
+  "version": 2,
   "url": "https://github.com/slaveitgr/xboks"
 }

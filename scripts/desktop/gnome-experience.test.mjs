@@ -6,6 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { ExperienceLease, ReversibleChanges, authorizedApplication } from '../../desktop/gnome/xboks-experience@slaveitgr.github.io/state.js';
 import { shellFixture } from './fixtures/experience-shell.mjs';
+import { switcherFixture } from './fixtures/switcher-shell.mjs';
+import { SwitcherSelection, boundedLabel } from '../../desktop/gnome/xboks-experience@slaveitgr.github.io/switcher-state.js';
 const directory = 'desktop/gnome/xboks-experience@slaveitgr.github.io';
 
 test('lease belongs to one sender; another client cannot enter or leave, and only owner loss restores', () => {
@@ -84,6 +86,7 @@ test('metadata targets only inspected Shell51; extension and helper parse withou
   const metadata = JSON.parse(await fs.readFile(`${directory}/metadata.json`));
   assert.deepEqual(metadata['shell-version'], ['51']); assert.deepEqual(metadata['session-modes'], ['user']);
   execFileSync(process.execPath, ['--check', `${directory}/extension.js`]);
+  execFileSync(process.execPath, ['--check', `${directory}/switcher.js`]);
   execFileSync(process.execPath, ['--check', 'assets/desktop/experience-client.js']);
   const extension = await fs.readFile(`${directory}/extension.js`, 'utf8');
   assert.doesNotMatch(extension, /set_boolean|set_strv|set_string|spawn_command|Subprocess|kill\(/);
@@ -96,7 +99,7 @@ test('staging copies verified source outside live directory and refuses replacem
     const args = ['scripts/desktop/stage-gnome-experience.py', '--output', output];
     execFileSync('python3', args, { env: { ...process.env, XDG_DATA_HOME: data } });
     const manifest = JSON.parse(await fs.readFile(path.join(output, 'stage-manifest.json')));
-    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 4);
+    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 7);
     await assert.rejects(fs.access(path.join(data, 'gnome-shell/extensions')));
     assert.throws(() => execFileSync('python3', args, { stdio: 'pipe' }));
     assert.throws(() => execFileSync('python3', ['scripts/desktop/stage-gnome-experience.py', '--output', path.join(data, 'gnome-shell/extensions/forbidden')], { env: { ...process.env, XDG_DATA_HOME: data }, stdio: 'pipe' }));
@@ -171,8 +174,103 @@ test('an asynchronous Enter completing after extension disable cannot change She
   assert.equal(f.panel.visible, true); assert.equal(f.dock.visible, true); assert.equal(f.watches.size, 0);
 });
 
+test('v2 bare Super switches only inside the owned lease and restores the exact overview method', async () => {
+  const f = await shellFixture();
+  assert.deepEqual((await f.invoke('GetCapabilities')).value,[2]);
+  assert.equal(f.Main.overview.toggle(),'original toggle');
+  assert.equal((await f.invoke('Switch',':1.1',['open'])).error,'not-authorized');
+  await f.invoke('Enter');assert.equal(f.Main.overview.toggle(),true);
+  assert.equal(f.extension._switcher.visible,true);assert.equal(f.output.at(-1).name,'SwitcherChanged');
+  assert.equal((await f.invoke('Switch',':1.2',['next'])).error,'not-authorized');
+  assert.deepEqual((await f.invoke('Switch',':1.1',['next'])).value,[true]);
+  assert.equal((await f.invoke('Switch',':1.1',['arbitrary-window-command'])).error,'not-authorized');
+  await f.invoke('Leave');assert.equal(f.Main.overview.toggle(),'original toggle');
+  assert.ok(f.output.some(item=>item.name==='SwitcherChanged'&&item.state[0]===false));f.extension.disable();
+});
+
+test('foreground and Guide focus bind the real bus parent to xboks windows and do not accept another window PID', async () => {
+  const f=await shellFixture(),external={get_pid:()=>200,get_wm_class:()=> 'Steam',get_title:()=> 'A game\nwindow',appId:'steam.desktop',appName:'Steam'};
+  const guide={get_pid:()=>100,get_wm_class:()=> 'xboks',get_title:()=> 'xboks Game Bar'};
+  const impostor={...guide,get_pid:()=>999};f.windows.push(impostor,guide,external);f.display.focus_window=external;
+  const foreground=await f.invoke('GetForegroundApp');assert.deepEqual(JSON.parse(foreground.value[0]),{desktopId:'steam.desktop',name:'Steam',title:'A gamewindow'});
+  await f.invoke('FocusGuide');assert.equal(f.display.focus_window,guide);
+  assert.equal(JSON.parse((await f.invoke('GetForegroundApp')).value[0]).desktopId,'steam.desktop');
+  f.Main.sessionMode.isLocked=true;assert.equal((await f.invoke('GetForegroundApp')).error,'not-authorized');
+  assert.equal((await f.invoke('FocusGuide')).error,'guide-unavailable');f.extension.disable();
+});
+
+test('foreground bridge denies unknown background processes and wrong-user proc credentials', async () => {
+  const f=await shellFixture();f.windows.length=0;
+  assert.equal((await f.invoke('GetForegroundApp')).error,'not-authorized');
+  f.windows.push(f.display.focus_window);f.GLib.file_get_contents=()=>[true,new TextEncoder().encode('PPid:\t100\nUid:\t0\t0\t0\t0\n')];
+  assert.equal((await f.invoke('GetForegroundApp')).error,'not-authorized');f.extension.disable();
+});
+
+test('unavailable foreground is null without losing the lease, and native metadata is bounded and sanitized', async()=>{
+ const f=await shellFixture();await f.invoke('Enter');f.display.focus_window=null;
+ assert.equal(JSON.parse((await f.invoke('GetForegroundApp')).value[0]),null);
+ assert.deepEqual((await f.invoke('GetState')).value,[true,true]);
+ f.display.focus_window={get_pid:()=>200,get_wm_class:()=>'',get_title:()=>`\n${'T'.repeat(800)}\u0000`,appId:`id\n${'D'.repeat(800)}`,appName:''};
+ const data=JSON.parse((await f.invoke('GetForegroundApp')).value[0]);
+ assert.equal(data.name,'Application');assert.equal(data.desktopId.length,256);assert.equal(data.title.length,256);
+ assert.doesNotMatch(data.desktopId+data.name+data.title,/[\u0000-\u001f\u007f]/);
+ assert.deepEqual((await f.invoke('GetState')).value,[true,true]);f.extension.disable();
+});
+
+test('window selection preserves surviving IDs, bounds inventory, and separates bottom modes from app cycling',()=>{
+ const model=new SwitcherSelection();model.update([{id:'1'},{id:'2'},{id:'3'}],'2');assert.equal(model.index,1);
+ model.action('next');assert.equal(model.index,2);model.action('next');assert.equal(model.index,0);
+ model.action('previous');assert.equal(model.index,2);model.update([{id:'2'},{id:'3'}]);assert.equal(model.entries[model.index].id,'3');
+ model.action('down');model.action('right');assert.equal(model.action('accept'),'desktop');
+ model.action('left');assert.equal(model.action('accept'),'xbox');model.action('up');assert.equal(model.action('accept'),'activate');
+ model.update([]);assert.equal(model.action('accept'),undefined);assert.equal(model.action('close-window'),undefined);
+ model.update(Array.from({length:50},(_,id)=>({id:String(id)})));assert.equal(model.entries.length,32);
+ model.update([{id:'1'},{id:'1'},{id:2}]);assert.equal(model.entries.length,1);
+ assert.throws(()=>model.action('kill-process'),/invalid/);assert.equal(boundedLabel('a\n\0b'),'ab');assert.equal(boundedLabel('x'.repeat(1000)).length,256);
+});
+
+test('actual native switcher creates live clones, switches existing windows, and releases modal/timer actors',async()=>{
+ const f=await switcherFixture();assert.equal(f.switcher.open(),true);assert.equal(f.modal,1);assert.equal(f.chrome.size,1);assert.ok(f.clones.length>=2);
+ assert.ok(f.clones.every(clone=>clone.source));assert.deepEqual(f.changes,[true]);assert.equal(f.switcher._root.x,1920);
+ f.switcher.action('next');f.switcher.action('accept');assert.deepEqual(f.activated,[{id:2,timestamp:42}]);
+ assert.equal(f.switcher.visible,false);assert.equal(f.modal,0);assert.equal(f.chrome.size,0);assert.equal(f.timers.size,0);
+ f.switcher.destroy();assert.equal(f.modal,0);
+});
+
+test('native switcher modal failure rolls back, keyboard stays scoped, and lock never activates a window',async()=>{
+ const failed=await switcherFixture({modalAvailable:false});assert.throws(()=>failed.switcher.open(),/modal-unavailable/);
+ assert.equal(failed.modal,0);assert.equal(failed.chrome.size,0);
+ const f=await switcherFixture();f.switcher.open();assert.equal(f.press(0x67),false,'unknown keys, including G combinations, propagate');
+ assert.equal(f.press(f.Clutter.KEY_Escape,f.Clutter.ModifierType.CONTROL_MASK|f.Clutter.ModifierType.SUPER_MASK),false,'emergency shortcut is never consumed');
+ assert.equal(f.switcher.visible,true);
+ assert.equal(f.press(f.Clutter.KEY_Right),true);assert.equal(f.switcher.selection.index,1);
+ f.allowed=false;f.switcher.action('accept');assert.deepEqual(f.activated,[]);assert.equal(f.modal,0);
+});
+
+test('native switcher handles polite window close, monitor changes and Desktop/Xbox without terminating apps',async()=>{
+ const f=await switcherFixture();f.switcher.open();f.switcher.action('close-window');assert.deepEqual(f.deleted,[{id:1,timestamp:42}]);
+ f.runIdle();assert.equal(f.switcher.selection.entries.length,1);f.layout.emit('monitors-changed');assert.equal(f.modal,0);
+ f.switcher.open();f.switcher.action('down');f.switcher.action('right');f.switcher.action('accept');assert.equal(f.leaves,1);assert.equal(f.modal,0);
+ f.switcher.open();f.switcher.action('xbox');assert.equal(f.xbox,1);assert.equal(f.modal,0);
+});
+
+test('Shell51 revoked modal releases switcher chrome and timers once',async()=>{
+ const f=await switcherFixture();f.switcher.open();f.revoke();
+ assert.equal(f.switcher.visible,false);assert.equal(f.modal,0);assert.equal(f.chrome.size,0);assert.equal(f.timers.size,0);
+ f.revoke();assert.equal(f.modal,0);assert.deepEqual(f.changes,[true,false]);
+});
+
 let hasGjs = true;
 try { execFileSync('gjs', ['--version'], { stdio: 'pipe' }); execFileSync('dbus-run-session', ['--version'], { stdio: 'pipe' }); } catch { hasGjs = false; }
+let hasShell51 = hasGjs;
+try { await fs.access('/usr/lib/x86_64-linux-gnu/mutter-51/Clutter-51.typelib'); await fs.access('/usr/lib/gnome-shell/Shell-51.typelib'); } catch { hasShell51 = false; }
+test('actual installed Shell51 typelibs provide the exact native controller/clone/revocable-grab APIs', {skip: !hasShell51}, () => {
+  const stdout = execFileSync('gjs', ['scripts/desktop/fixtures/gnome51-api-probe.js'], {encoding: 'utf8', timeout: 5000,
+    env: {...process.env, GI_TYPELIB_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell',
+      LD_LIBRARY_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell'}});
+  const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false);
+  assert.equal(Object.keys(result.checks).length, 13); assert.ok(Object.values(result.checks).every(Boolean));
+});
 test('actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service', { skip: !hasGjs }, () => {
   const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs'],
     { encoding: 'utf8', timeout: 20000, env: { ...process.env, GIO_USE_VFS: 'local' } });

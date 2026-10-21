@@ -1,6 +1,6 @@
 {
   "name": "xboks",
-  "version": "0.3.17",
+  "version": "0.3.18",
   "homepage": "https://github.com/slaveitgr/xboks",
   "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
   "license": "MIT",
@@ -79,7 +79,9 @@
       {
         "from": "desktop/gnome",
         "to": "gnome-extension",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "scripts/desktop/stage-gnome-experience.py",

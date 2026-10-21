@@ -3,12 +3,23 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 const BUS = 'org.slaveitgr.Xboks.Experience', OBJECT = '/org/slaveitgr/Xboks/Experience';
 const loop = new GLib.MainLoop(null, false), connection = Gio.DBus.session;
-let owner = null, watch = 0;
+let owner = null, watch = 0, visible = false;
 const event = (reason, active) => {
     print(JSON.stringify({event: reason, active}));
     exported.emit_signal('StateChanged', new GLib.Variant('(b)', [active]));
 };
 const service = {
+    GetCapabilities() { return 2; },
+    GetForegroundApp() { return JSON.stringify({desktopId: 'fixture.Editor.desktop', name: 'Editor', title: 'Synthetic document'}); },
+    FocusGuide() {},
+    SwitchAsync([action], invocation) {
+        if (!owner || owner !== invocation.get_sender()) {
+            invocation.return_dbus_error(`${BUS}.Error`, 'not-authorized'); return;
+        }
+        visible = action === 'open';
+        exported.emit_signal('SwitcherChanged', new GLib.Variant('(b)', [visible]));
+        invocation.return_value(new GLib.Variant('(b)', [visible]));
+    },
     GetStateAsync(_params, invocation) {
         invocation.return_value(new GLib.Variant('(bb)', [owner !== null, owner === invocation.get_sender()]));
     },
@@ -43,6 +54,10 @@ const service = {
 const exported = Gio.DBusExportedObject.wrapJSObject(`<node><interface name="${BUS}">
 <method name="GetState"><arg type="b" direction="out"/><arg type="b" direction="out"/></method>
 <method name="Enter"/><method name="Leave"/><signal name="StateChanged"><arg type="b"/></signal>
+<method name="GetCapabilities"><arg type="u" direction="out"/></method>
+<method name="GetForegroundApp"><arg type="s" direction="out"/></method><method name="FocusGuide"/>
+<method name="Switch"><arg type="s" direction="in"/><arg type="b" direction="out"/></method>
+<signal name="SwitcherChanged"><arg type="b"/></signal>
 </interface></node>`, service);
 exported.export(connection, OBJECT);
 Gio.bus_own_name_on_connection(connection, BUS, Gio.BusNameOwnerFlags.NONE,

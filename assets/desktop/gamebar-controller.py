@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Private JSON-line BTN_MODE listener for existing readable Linux gamepads.
+"""Guide-only by default; opt-in scoped navigation for readable Linux gamepads.
 
 Only opens capability-verified joystick/gamepad event nodes, read-only. No
 EVIOCGRAB, key injection, device writes, rumble, keyboard/mouse hooks, privilege
@@ -26,6 +26,7 @@ SYN_REPORT, SYN_DROPPED = 0, 3
 BTN_JOYSTICK, BTN_GAMEPAD, BTN_MODE = 0x120, 0x130, 0x13C
 MAX_DEVICES, MAX_ENTRIES, SCAN_SECONDS = 16, 256, 2.0
 EVENT = struct.Struct("@llHHi")
+ABS_INFO = struct.Struct("@iiiiii")
 KEY_BYTES = 96  # Linux KEY_CNT=0x300, not a keyboard event subscription.
 ALLOWED_KEYS = set(range(0x120, 0x140)) | set(range(0x220, 0x224)) | set(range(0x2C0, 0x2E8)) | {167}
 # KEY_RECORD is the Xbox Share button on newer xpad devices. It is discarded,
@@ -87,11 +88,117 @@ def current_mode(fd: int) -> bool:
     return bool(int.from_bytes(read_ioctl(fd, 0x18, KEY_BYTES), "little") & (1 << BTN_MODE))
 
 
+def navigation_snapshot(fd: int, absolute: int):
+    keys = int.from_bytes(read_ioctl(fd, 0x18, KEY_BYTES), "little")
+    axes = {}
+    for code in (0, 1, 16, 17):  # left stick and optional first D-pad hat only
+        if absolute & (1 << code):
+            value, minimum, maximum, _, flat, _ = ABS_INFO.unpack(read_ioctl(fd, 0x40 + code, ABS_INFO.size))
+            if maximum <= minimum or minimum < -2 ** 31 or maximum > 2 ** 31 - 1:
+                raise ValueError("invalid axis calibration")
+            axes[code] = (value, minimum, maximum, flat)
+    return keys, axes
+
+
+class NavigationDecoder:
+    """Normalized commands only while an explicitly owned UI scope is active."""
+    ACTIONS = {0x130: "accept", 0x131: "back", 0x136: "previous", 0x137: "next"}
+    DPAD = {0x220, 0x221, 0x222, 0x223}
+
+    def __init__(self, snapshot, emit=lambda _action: None, clock=time.monotonic):
+        self.snapshot, self.emit, self.clock = snapshot, emit, clock
+        self.surface, self.keys, self.blocked_keys, self.axes = "none", set(), set(), {}
+        self.direction, self.repeat_at, self.dropped = None, float("inf"), False
+
+    def set_surface(self, surface):
+        self.surface, self.direction, self.repeat_at = surface, None, float("inf")
+        self.keys, self.blocked_keys, self.axes, self.dropped = set(), set(), {}, False
+        if surface == "none":
+            return
+        keys, axes = self.snapshot()
+        relevant = set(self.ACTIONS) | self.DPAD | {0x133}
+        self.keys = {code for code in relevant if keys & (1 << code)}
+        self.blocked_keys = set(self.keys)
+        for code, (value, minimum, maximum, flat) in axes.items():
+            if code not in (0, 1, 16, 17) or maximum <= minimum:
+                raise ValueError("invalid scoped axis")
+            normalized = self.normalize(value, minimum, maximum)
+            deadzone = max(0.55, min(0.95, max(0, flat) * 2 / (maximum - minimum)))
+            self.axes[code] = {"value": normalized, "minimum": minimum, "maximum": maximum,
+                               "enter": deadzone, "direction": 0, "armed": abs(normalized) <= 0.30}
+
+    @staticmethod
+    def normalize(value, minimum, maximum):
+        return max(-1.0, min(1.0, 2 * (value - minimum) / (maximum - minimum) - 1))
+
+    def drop(self):
+        self.dropped, self.direction, self.repeat_at = True, None, float("inf")
+
+    def resync(self):
+        self.set_surface(self.surface)
+
+    def feed(self, kind, code, value):
+        if self.surface == "none" or self.dropped:
+            return
+        if kind == EV_KEY and code in (set(self.ACTIONS) | self.DPAD | {0x133}):
+            if value == 0:
+                self.keys.discard(code)
+                self.blocked_keys.discard(code)
+            elif value == 1 and code not in self.keys:
+                self.keys.add(code)
+                if code not in self.blocked_keys:
+                    action = self.ACTIONS.get(code)
+                    if code == 0x133 and self.surface == "switcher":
+                        action = "close-window"
+                    if action:
+                        self.emit(action)
+        elif kind == EV_ABS and code in self.axes:
+            axis = self.axes[code]
+            axis["value"] = self.normalize(value, axis["minimum"], axis["maximum"])
+            if abs(axis["value"]) <= 0.30:
+                axis["armed"], axis["direction"] = True, 0
+            elif axis["armed"] and abs(axis["value"]) >= axis["enter"]:
+                axis["direction"] = 1 if axis["value"] > 0 else -1
+            elif axis["direction"] and axis["value"] * axis["direction"] < 0:
+                # A sampled jump across center must stop the old direction,
+                # even before the opposite side reaches its enter threshold.
+                axis["direction"] = 0
+        elif kind == EV_SYN and code == SYN_REPORT:
+            self.commit_direction()
+
+    def commit_direction(self):
+        if self.surface == "none" or self.dropped:
+            return
+        def axis(code):
+            item = self.axes.get(code)
+            return item["direction"] if item and item["armed"] else 0
+        keys = self.keys - self.blocked_keys
+        dx = int(0x223 in keys) - int(0x222 in keys)
+        dy = int(0x221 in keys) - int(0x220 in keys)
+        x, y = dx or axis(16), dy or axis(17)
+        if not (x or y):
+            x, y = axis(0), axis(1)
+        # One move per sync frame; no doubled stick+hat/D-pad navigation.
+        direction = ("left" if x < 0 else "right") if x else ("up" if y < 0 else "down") if y else None
+        if direction != self.direction:
+            self.direction = direction
+            self.repeat_at = self.clock() + 0.4 if direction else float("inf")
+            if direction:
+                self.emit(direction)
+
+    def tick(self):
+        now = self.clock()
+        if self.surface != "none" and not self.dropped and self.direction and now >= self.repeat_at:
+            self.emit(self.direction)
+            self.repeat_at = now + 0.12  # At most one repeat per tick; no catch-up burst.
+
+
 class ModeDecoder:
     """Discard all non-Guide input; rising edge after known release only."""
-    def __init__(self, held: bool, refresh, emit, clock=time.monotonic):
+    def __init__(self, held: bool, refresh, emit, clock=time.monotonic, navigation=None):
         self.held, self.armed, self.refresh, self.emit, self.clock = held, not held, refresh, emit, clock
         self.partial, self.dropped, self.last_press = b"", False, -float("inf")
+        self.navigation = navigation
 
     def feed(self, data: bytes):
         self.partial += data
@@ -103,12 +210,18 @@ class ModeDecoder:
             offset += EVENT.size
             if kind == EV_SYN and code == SYN_DROPPED:
                 self.dropped = True
+                if self.navigation:
+                    self.navigation.drop()
                 continue
             if self.dropped:
                 if kind == EV_SYN and code == SYN_REPORT:
                     self.held = bool(self.refresh())
                     self.armed, self.dropped = not self.held, False
+                    if self.navigation:
+                        self.navigation.resync()
                 continue
+            if self.navigation:
+                self.navigation.feed(kind, code, value)
             if kind != EV_KEY or code != BTN_MODE:
                 continue
             if value == 0:
@@ -129,6 +242,7 @@ class Device:
     fd: int
     decoder: ModeDecoder
     identity: tuple[int, int]
+    navigation: NavigationDecoder | None = None
 
 
 def open_device(entry: Path, dev_root: Path, emit) -> Device:
@@ -147,7 +261,8 @@ def open_device(entry: Path, dev_root: Path, emit) -> Device:
         events = int.from_bytes(read_ioctl(fd, 0x20, 4), "little")
         if not is_gamepad(keys, absolute, relative, events):
             raise ValueError("not a joystick-only gamepad")
-        return Device(fd, ModeDecoder(current_mode(fd), lambda: current_mode(fd), emit), identity)
+        navigation = NavigationDecoder(lambda: navigation_snapshot(fd, absolute))
+        return Device(fd, ModeDecoder(current_mode(fd), lambda: current_mode(fd), emit, navigation=navigation), identity, navigation)
     except BaseException:
         os.close(fd)
         raise
@@ -159,6 +274,7 @@ class Monitor:
         self.sys_root, self.dev_root, self.opener = sys_root, dev_root, opener
         self.devices: dict[str, Device] = {}
         self.paused, self.previous_status = True, None
+        self.surface, self.surface_epoch = "none", 0
 
     def status(self, reason=None):
         count = len(self.devices)
@@ -180,6 +296,7 @@ class Monitor:
 
     def pause(self):
         self.paused = True
+        self.surface = "none"
         for name in list(self.devices):
             self.close_device(name)
         self.status("session-blocked")
@@ -187,6 +304,23 @@ class Monitor:
     def resume(self):
         self.paused = False
         self.scan()
+
+    def set_surface(self, surface, epoch):
+        if surface not in ("none", "guide", "switcher") or type(epoch) is not int or not 0 <= epoch <= 2 ** 53 - 1:
+            raise ValueError("invalid surface")
+        if self.surface == surface and self.surface_epoch == epoch:
+            return
+        self.surface, self.surface_epoch = surface, epoch
+        # A fresh evdev subscription discards queued gameplay input from the
+        # previous UI scope. State is seeded by read-only ioctls before arming.
+        for name in list(self.devices):
+            self.close_device(name)
+        self.scan()
+
+    def tick(self):
+        for device in self.devices.values():
+            if device.navigation:
+                device.navigation.tick()
 
     def scan(self):
         if self.paused:
@@ -224,6 +358,11 @@ class Monitor:
                     continue
                 device = self.opener(entry, self.dev_root, lambda: self.emit({"schema": 1, "event": "guide"}))
                 try:
+                    if device.navigation:
+                        scope, epoch = self.surface, self.surface_epoch
+                        device.navigation.emit = lambda action, scope=scope, epoch=epoch: self.emit({
+                            "schema": 1, "event": "input", "action": action, "surface": scope, "epoch": epoch})
+                        device.navigation.set_surface(scope)
                     self.selector.register(device.fd, selectors.EVENT_READ, entry.name)
                 except BaseException:
                     os.close(device.fd)
@@ -277,7 +416,8 @@ def main():
             if now >= next_scan:
                 monitor.scan()
                 next_scan = now + SCAN_SECONDS
-            for key, _ in monitor.selector.select(min(0.5, max(0, next_scan - time.monotonic()))):
+            timeout = 0.05 if monitor.surface != "none" and not monitor.paused else 0.5
+            for key, _ in monitor.selector.select(min(timeout, max(0, next_scan - time.monotonic()))):
                 if key.data is not None:
                     monitor.read_device(key.data)
                     continue
@@ -297,8 +437,15 @@ def main():
                         monitor.pause()
                     elif command == {"command": "resume"}:
                         monitor.resume()
+                    elif (isinstance(command, dict) and set(command) == {"command", "surface", "epoch"}
+                          and command["command"] == "surface"):
+                        try:
+                            monitor.set_surface(command["surface"], command["epoch"])
+                        except ValueError:
+                            return 1
                     else:
                         return 1
+            monitor.tick()
         return 0
     except BrokenPipeError:
         return 0

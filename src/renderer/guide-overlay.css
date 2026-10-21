@@ -2,6 +2,7 @@
 .guide-overlay button, .guide-overlay a { min-height: 48px; border: 1px solid #737e8c; border-radius: 8px; background: #3c424b; color: inherit; padding: 10px 14px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; text-decoration: none; }
 .guide-overlay button:hover, .guide-overlay a:hover { background: #505761; }
 .guide-overlay button:focus-visible, .guide-overlay a:focus-visible, .guide-overlay input:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+html[data-gamepad-navigation] .guide-overlay [data-gamepad-focus] { outline:2px solid #fff !important; outline-offset:3px; }
 .guide-overlay button:disabled { opacity: .4; cursor: default; }
 .guide-overlay svg { width: 24px; height: 24px; flex-shrink: 0; }
 .guide-tabs { position: absolute; top: 24px; left: 44px; display: flex; gap: 16px; }
@@ -19,6 +20,13 @@
 .guide-panel hr { height: 1px; background: #464a4f; border: 0; margin: 28px 4px; }
 .guide-action-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 24px; }
 .guide-recent-list { display: grid; gap: 8px; }
+.guide-active-application { margin:8px 0 20px; }
+.guide-active-application h3 { margin-top:12px; color:#b5b8bd; font-size:14px; }
+.guide-active-application > button { width:100%; justify-content:flex-start; text-align:left; padding:12px; }
+.guide-active-application > button > svg:first-child { width:44px; height:44px; }
+.guide-active-application > button > span { display:grid; flex:1; min-width:0; gap:4px; }
+.guide-active-application strong,.guide-active-application small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.guide-active-application small { color:var(--guide-muted); font-size:14px; }
 .guide-recent-list button { background: transparent; border: 0; padding: 8px 0; justify-content: flex-start; width: 100%; text-align: left; }
 .guide-recent-list img { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; }
 .guide-recent-list button > span { display: grid; gap: 5px; min-width: 0; flex: 1; }

@@ -6,7 +6,7 @@ vi.mock('electron', () => ({
   BrowserWindow: class {
     visible = false; destroyed = false;
     events: Record<string, (...args: any[]) => void> = {};
-    private contents = { id: 0, setWindowOpenHandler: vi.fn(), on: vi.fn() };
+    private contents = { id: 0, setWindowOpenHandler: vi.fn(), on: vi.fn(), focus: vi.fn() };
     get webContents() { if (this.destroyed) throw Error('Object has been destroyed'); return this.contents; }
     constructor(public options: any) { this.contents.id = 101 + state.windows.length; state.windows.push(this); }
     setTitle = vi.fn(); setAlwaysOnTop = vi.fn(); setVisibleOnAllWorkspaces = vi.fn(); setBounds = vi.fn(); focus = vi.fn();
@@ -29,9 +29,27 @@ describe('desktop Game Bar surface', () => {
     expect(win.options.webPreferences).toMatchObject({ sandbox: true, nodeIntegration: false, contextIsolation: true });
     expect(win.loadFile).toHaveBeenCalledWith('/app/dist/index.html', { hash: 'desktop-guide' });
     expect(win.visible).toBe(true);
+    expect(win.webContents.focus).toHaveBeenCalledOnce();
     await guide.toggle(); expect(win.visible).toBe(false);
     await guide.toggle(); expect(state.windows).toHaveLength(1); expect(win.visible).toBe(true);
+    expect(win.webContents.focus).toHaveBeenCalledTimes(2);
     guide.destroy(); expect(win.destroyed).toBe(true);
+  });
+  it('only focuses visible live Guide contents after a compositor acknowledgement', async () => {
+    const guide = new DesktopGuide('/app/dist-electron/main');
+    expect(() => guide.focusContents()).not.toThrow(); await guide.toggle();
+    const win = state.windows[0], contents = win.webContents;
+    guide.focusContents(); expect(contents.focus).toHaveBeenCalledTimes(2);
+    guide.hide(); guide.focusContents(); expect(contents.focus).toHaveBeenCalledTimes(2);
+    guide.destroy(); expect(() => guide.focusContents()).not.toThrow(); expect(contents.focus).toHaveBeenCalledTimes(2);
+  });
+  it('notifies input ownership on focus/blur only for the current native surface', async () => {
+    const changed = vi.fn(), guide = new DesktopGuide('/app', () => {}, () => {}, changed);
+    await guide.toggle(); const previous = state.windows[0];
+    previous.events.focus(); previous.events.blur(); expect(changed).toHaveBeenCalledTimes(2);
+    guide.destroy(); await guide.toggle();
+    previous.events.focus(); previous.events.blur(); expect(changed).toHaveBeenCalledTimes(2);
+    state.windows[1].events.focus(); expect(changed).toHaveBeenCalledTimes(3); guide.destroy();
   });
   it('delivers Escape to the renderer for scoped Back while Ctrl+G still hides immediately', async () => {
     const guide = new DesktopGuide('/app/dist-electron/main'); await guide.toggle();

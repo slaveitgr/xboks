@@ -5,6 +5,7 @@ declare global {
     toggle(): Promise<void>; close(): Promise<void>;
     navigate(page: string, gameId?: string): Promise<void>;
     onNavigate(callback: (value: { page: string; gameId?: string }) => void): () => void;
+    onInput(callback: (action: import('../shared/desktop-shell').GuideInputAction) => void): () => void;
   } }
 }
 

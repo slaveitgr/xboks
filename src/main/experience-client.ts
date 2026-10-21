@@ -2,8 +2,11 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { externalLauncherEnvironment } from './launcher-environment.js';
+import { desktopForegroundApp, shellSwitcherActions, type DesktopForegroundApp, type ShellSwitcherAction } from '../shared/desktop-shell.js';
 
 export interface ExperienceLease { available: boolean; active: boolean; owned: boolean; reason?: string }
+interface ExperienceReply extends ExperienceLease { app?: DesktopForegroundApp; visible?: boolean; version?: number }
+type Method = 'state' | 'enter' | 'leave' | 'foreground' | 'focus-guide' | 'capabilities' | 'switcher';
 export interface ExperienceBridge {
   readonly current: ExperienceLease;
   request(method: 'state' | 'enter' | 'leave'): Promise<ExperienceLease>;
@@ -17,17 +20,22 @@ export class GnomeExperienceClient implements ExperienceBridge {
   private nextId = 0;
   private partial = '';
   private value: ExperienceLease = { available: false, active: false, owned: false, reason: 'GNOME integration has not been checked.' };
-  private pending = new Map<number, { resolve(value: ExperienceLease): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+  private visible = false;
+  private pending = new Map<number, { resolve(value: ExperienceReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>; method: Method }>();
   constructor(private options: {
     helper: string;
     environment?: NodeJS.ProcessEnv;
     changed?: (value: ExperienceLease) => void;
+    switcherChanged?: (visible: boolean) => void;
     start?: () => ChildProcessWithoutNullStreams;
     timeoutMs?: number;
   }) {}
   get current(): ExperienceLease { return { ...this.value }; }
+  get switcherVisible(): boolean { return this.visible; }
+  private switcherState(visible: boolean): void { if (visible !== this.visible) { this.visible = visible; this.options.switcherChanged?.(visible); } }
   private publish(value: ExperienceLease): void { this.value = value; this.options.changed?.(this.current); }
   private fail(reason: string): void {
+    this.switcherState(false);
     for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(Error(reason)); }
     this.pending.clear();
     this.publish({ available: false, active: false, owned: false, reason });
@@ -73,19 +81,46 @@ export class GnomeExperienceClient implements ExperienceBridge {
       }
       if (typeof message.active !== 'boolean' || typeof message.owned !== 'boolean' || message.owned && !message.active) throw Error();
       const state: ExperienceLease = { available: true, active: message.active, owned: message.owned };
-      if (message.event === 'state') { this.publish(state); return; }
+      if (message.event === 'switcher') {
+        if (typeof message.visible !== 'boolean') throw Error();
+        this.switcherState(message.visible && state.active && state.owned); return;
+      }
+      if (message.event === 'state') { if (!state.owned) this.switcherState(false); this.publish(state); return; }
       if (!Number.isSafeInteger(message.id) || typeof message.ok !== 'boolean') throw Error();
       const request = this.pending.get(message.id);
       if (!request) return;
+      const reply: ExperienceReply = { ...state };
+      if (message.ok && request.method === 'foreground' && message.app !== null) {
+        reply.app = desktopForegroundApp(message.app);
+        if (!reply.app) throw Error();
+      }
+      if (message.ok && request.method === 'capabilities') {
+        if (!Number.isInteger(message.version) || message.version < 1 || message.version > 10) throw Error();
+        reply.version = message.version;
+      }
+      if (message.ok && request.method === 'switcher') {
+        if (typeof message.visible !== 'boolean') throw Error();
+        reply.visible = message.visible; this.switcherState(message.visible);
+      }
       clearTimeout(request.timer); this.pending.delete(message.id);
       this.publish(message.ok === false && message.error === 'unavailable'
         ? { available: false, active: false, owned: false, reason: 'The xboks GNOME extension is not installed or enabled.' } : state);
-      if (message.ok) request.resolve(this.current);
+      if (message.ok) request.resolve({ ...reply, ...this.current });
       else request.reject(Error('GNOME could not change Xbox mode. Keep xboks focused and check that the extension is enabled.'));
     } catch { this.dispose(); }
   }
   async request(method: 'state' | 'enter' | 'leave'): Promise<ExperienceLease> {
     if (!['state', 'enter', 'leave'].includes(method)) throw Error('Invalid gaming mode operation.');
+    return this.send(method);
+  }
+  async foregroundApp(): Promise<DesktopForegroundApp | undefined> { return (await this.send('foreground')).app; }
+  async focusGuide(): Promise<boolean> { await this.send('focus-guide'); return true; }
+  async capabilities(): Promise<number> { return (await this.send('capabilities')).version ?? 1; }
+  async switcher(action: ShellSwitcherAction): Promise<boolean> {
+    if (!shellSwitcherActions.includes(action)) throw Error('Invalid switcher action.');
+    return (await this.send('switcher', action)).visible ?? false;
+  }
+  private async send(method: Method, action?: ShellSwitcherAction): Promise<ExperienceReply> {
     try { this.start(); }
     catch (error) { this.fail((error as Error).message); throw error; }
     if (this.pending.size >= 8) throw Error('A gaming mode request is already pending.');
@@ -96,8 +131,8 @@ export class GnomeExperienceClient implements ExperienceBridge {
         // Losing an unknown in-flight Enter must also drop its bus lease.
         this.dispose();
       }, this.options.timeoutMs ?? 10_000);
-      this.pending.set(id, { resolve, reject, timer });
-      try { this.child!.stdin.write(JSON.stringify({ id, method }) + '\n'); }
+      this.pending.set(id, { resolve, reject, timer, method });
+      try { this.child!.stdin.write(JSON.stringify({ id, method, ...(action ? { action } : {}) }) + '\n'); }
       catch { this.dispose(); }
     });
   }

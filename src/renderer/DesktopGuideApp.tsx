@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { AppSnapshot, Page } from '../shared/types';
 import { GuideOverlay, cycleGuideTab, type GuideTab } from './GuideOverlay';
 import { GamepadNavigation, useBackHandler } from './GamepadNavigation';
+import type { PadAction } from './gamepad-navigation';
 
 export function DesktopGuideApp() {
   const [data, setData] = useState<AppSnapshot>();
@@ -15,7 +16,13 @@ export function DesktopGuideApp() {
     return window.launcher.onSnapshot(setData);
   }, []);
   const go = (page: Page) => { void window.desktopGuide?.navigate(page); };
+  const controller = data?.desktopSettings?.gameBarController;
+  const nativeControlsActive = controller?.status === 'listening' && controller.devices > 0 && controller.navigationSurface === 'guide';
+  const subscribeInput = typeof window.desktopGuide?.onInput === 'function'
+    ? (dispatch: (action: PadAction) => void) => window.desktopGuide!.onInput!(action => {
+      dispatch(action === 'previous' ? 'previous-page' : action === 'next' ? 'next-page' : action);
+    }) : undefined;
   return <>{data ? <GuideOverlay data={data} tab={tab} setTab={setTab} close={close} go={go}
     openGame={id => { void window.desktopGuide?.navigate('library', id); }} /> : <button onClick={close}>{error || 'Loading Game Bar…'}</button>}
-    <GamepadNavigation back={close} page={delta => setTab(current => cycleGuideTab(current, delta))} /></>;
+    <GamepadNavigation activateOnFocus subscribeInput={subscribeInput} nativeControlsActive={nativeControlsActive} back={close} page={delta => setTab(current => cycleGuideTab(current, delta))} /></>;
 }

@@ -8,6 +8,9 @@ export interface GameBarControllerState {
   devices: number;
   reason?: string;
 }
+export type GameBarControllerSurface = 'none' | 'guide' | 'switcher';
+export type GameBarControllerAction = 'up' | 'down' | 'left' | 'right' | 'accept' | 'back' | 'previous' | 'next' | 'close-window';
+const inputActions: GameBarControllerAction[] = ['up', 'down', 'left', 'right', 'accept', 'back', 'previous', 'next', 'close-window'];
 
 type ReadCommand = (command: string, args: readonly string[]) => Promise<string>;
 const sessionId = (value: unknown): value is string => typeof value === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/.test(value);
@@ -67,8 +70,8 @@ export async function controllerSessionActive(options: { environment?: NodeJS.Pr
   } catch { return false; }
 }
 
-/** BTN_MODE-only helper ownership. No renderer input, keyboard hooks, input
- * grabs, device identity publication or permission/udev changes. */
+/** Global BTN_MODE plus explicitly scoped normalized UI navigation. No raw
+ * renderer input, keyboard hooks, grabs, identities or permission/udev changes. */
 export class GameBarController {
   private child?: ChildProcessWithoutNullStreams;
   private value: GameBarControllerState = { status: 'stopped', devices: 0 };
@@ -76,9 +79,13 @@ export class GameBarController {
   private generation = 0;
   private blocked = false;
   private pending = false;
+  private inputPending = false;
+  private surface: GameBarControllerSurface = 'none';
+  private surfaceEpoch = 0;
   private lastPress = -Infinity;
   private readyTimer?: ReturnType<typeof setTimeout>;
   constructor(private options: { helper: string; onGuide: () => void | Promise<void>; canActivate: () => boolean | Promise<boolean>;
+    onInput?: (action: GameBarControllerAction, surface: Exclude<GameBarControllerSurface, 'none'>) => void | Promise<void>;
     changed?: (state: GameBarControllerState) => void; environment?: NodeJS.ProcessEnv; platform?: NodeJS.Platform;
     start?: () => ChildProcessWithoutNullStreams; now?: () => number; startupTimeoutMs?: number }) {}
   get current(): GameBarControllerState { return { ...this.value }; }
@@ -116,6 +123,7 @@ export class GameBarController {
     child.once('error', () => { if (this.child === child) this.stop('error', 'helper-failed'); });
     child.once('close', () => { if (this.child === child) this.stop('error', 'helper-closed'); });
     this.command(this.blocked ? 'pause' : 'resume');
+    if (this.surface !== 'none') this.writeSurface();
   }
   private receive(line: string): boolean {
     let message: Record<string, unknown> | undefined;
@@ -123,6 +131,15 @@ export class GameBarController {
     if (!message || message.schema !== 1) return false;
     if (message.event === 'guide' && Object.keys(message).every(key => ['schema', 'event'].includes(key))) {
       void this.activate(); return true;
+    }
+    if (message.event === 'input') {
+      if (Object.keys(message).some(key => !['schema', 'event', 'action', 'surface', 'epoch'].includes(key)) ||
+          !inputActions.includes(message.action as GameBarControllerAction) || !['guide', 'switcher'].includes(String(message.surface)) ||
+          !Number.isSafeInteger(message.epoch) || (message.epoch as number) < 0 ||
+          message.action === 'close-window' && message.surface !== 'switcher') return false;
+      if (message.surface === this.surface && message.epoch === this.surfaceEpoch) void this.activateInput(
+        message.action as GameBarControllerAction, message.surface as Exclude<GameBarControllerSurface, 'none'>, message.epoch as number);
+      return true;
     }
     if (message.event !== 'status' || Object.keys(message).some(key => !['schema', 'event', 'status', 'devices', 'reason'].includes(key)) ||
         !['listening', 'unavailable', 'error'].includes(String(message.status)) || !Number.isInteger(message.devices) ||
@@ -146,8 +163,32 @@ export class GameBarController {
     } catch { /* Uncertain session state never opens UI. No raw bus error logs. */ }
     finally { this.pending = false; }
   }
+  private async activateInput(action: GameBarControllerAction, surface: Exclude<GameBarControllerSurface, 'none'>, epoch: number): Promise<void> {
+    if (!this.options.onInput || !this.child || this.blocked || this.inputPending || this.value.status !== 'listening' ||
+        this.value.devices < 1 || this.surface !== surface || this.surfaceEpoch !== epoch) return;
+    this.inputPending = true;
+    const generation = this.generation;
+    try {
+      if (await this.options.canActivate() && this.child && generation === this.generation && !this.blocked &&
+          this.value.status === 'listening' && this.value.devices > 0 && this.surface === surface && this.surfaceEpoch === epoch)
+        await this.options.onInput(action, surface);
+    } catch { /* No input delivery without current session/surface ownership. */ }
+    finally { this.inputPending = false; }
+  }
+  /** Main process only: set from acknowledged owned visibility, never a raw
+   * renderer request. Epoch tags reject queued input from a previous surface. */
+  setSurface(surface: GameBarControllerSurface): void {
+    if (!['none', 'guide', 'switcher'].includes(surface) || this.blocked && surface !== 'none' || surface === this.surface) return;
+    this.surface = surface; this.surfaceEpoch++; this.generation++;
+    this.writeSurface();
+  }
+  private writeSurface(): void {
+    try { this.child?.stdin.write(JSON.stringify({ command: 'surface', surface: this.surface, epoch: this.surfaceEpoch }) + '\n'); }
+    catch { this.stop('error', 'helper-closed'); }
+  }
   setSessionBlocked(blocked: boolean): void {
     this.blocked = blocked; this.generation++;
+    if (blocked) this.setSurface('none');
     if (blocked) this.publish({ status: 'unavailable', devices: 0, reason: 'session-blocked' });
     else if (this.child) this.publish({ status: 'starting', devices: 0 });
     this.command(blocked ? 'pause' : 'resume');
@@ -158,6 +199,7 @@ export class GameBarController {
   }
   private stop(status: 'error' | 'stopped', reason?: string): void {
     const child = this.child; this.child = undefined; this.generation++; this.partial = '';
+    this.surface = 'none'; this.surfaceEpoch++;
     clearTimeout(this.readyTimer); this.readyTimer = undefined;
     this.publish({ status, devices: 0, ...(reason ? { reason } : {}) });
     if (!child) return;

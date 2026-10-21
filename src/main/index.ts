@@ -83,6 +83,7 @@ import { GnomeExperienceClient } from './experience-client.js';
 import { FullscreenExperience } from './fullscreen-experience.js';
 import { batteryPowerStatus } from './battery-status.js';
 import { managedPaths, migrateManagedPaths, type ManagedPathMigration } from './managed-paths.js';
+import { guideInputActions, type DesktopForegroundApp, type GuideInputAction, type ShellSwitcherAction } from '../shared/desktop-shell.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const downloadNotifications = new DownloadCompletionNotifications({
@@ -134,8 +135,39 @@ function ensureSettingsTray(): void {
 }
 const desktopGuide = new DesktopGuide(__dirname, ownerId => voiceCapture.release(ownerId), visible => {
   remotePlayGuideObscured = visible; updateRemotePlayVisibility();
-});
+  const epoch = ++guideFocusEpoch;
+  updateControllerSurface();
+  if (visible && !demoMode) void experienceBridge.focusGuide().then(() => {
+    if (epoch === guideFocusEpoch && guideIsVisible()) { desktopGuide.focusContents(); updateControllerSurface(); }
+  }).catch(() => { /* Older extensions keep the ordinary native focus path. */ });
+}, () => updateControllerSurface());
+let guideForeground: DesktopForegroundApp | undefined;
+let guideFocusEpoch = 0;
+let navigationSurface: 'none' | 'guide' | 'switcher' = 'none';
+function guideIsVisible(): boolean {
+  const contents = desktopGuide.webContents;
+  if (!contents || contents.isDestroyed()) return false;
+  const window = BrowserWindow.fromWebContents(contents);
+  return Boolean(window && !window.isDestroyed() && window.isVisible());
+}
+function guideIsFocused(): boolean {
+  const contents = desktopGuide.webContents;
+  const window = contents && !contents.isDestroyed() ? BrowserWindow.fromWebContents(contents) : undefined;
+  return Boolean(window && !window.isDestroyed() && window.isVisible() && window.isFocused());
+}
+function updateControllerSurface(): void {
+  const next = quitting || shutdownStarted ? 'none' : experienceBridge.switcherVisible && fullscreenExperience.current.active ? 'switcher' : guideIsFocused() ? 'guide' : 'none';
+  navigationSurface = next;
+  gameBarController.setSurface(next);
+  if (desktopSettingsStatus.gameBarController) desktopSettingsStatus.gameBarController.navigationSurface = next;
+  if (launchReady) emitSnapshot();
+}
 async function toggleDesktopGuide(): Promise<void> {
+  if (experienceBridge.switcherVisible) await experienceBridge.switcher('cancel').catch(() => {});
+  if (!guideIsVisible() && !demoMode) {
+    guideForeground = await experienceBridge.foregroundApp().catch(() => undefined);
+    if (launchReady) emitSnapshot();
+  }
   await desktopGuide.toggle();
   refreshDeferredServiceAccount();
 }
@@ -220,7 +252,11 @@ const experienceBridge = new GnomeExperienceClient({
     : fileURLToPath(new URL('../../assets/desktop/experience-client.js', import.meta.url)),
   // Demo/fixture operation never changes or probes the real GNOME shell.
   environment: demoMode ? {} : process.env,
-  changed: () => fullscreenExperience.shellChanged(),
+  changed: () => { fullscreenExperience.shellChanged(); updateControllerSurface(); },
+  switcherChanged: visible => {
+    if (visible) desktopGuide.hide();
+    updateControllerSurface();
+  },
 });
 const fullscreenExperience = new FullscreenExperience({
   bridge: experienceBridge,
@@ -268,13 +304,22 @@ const gameBarController = new GameBarController({
   helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'gamebar-controller.py')
     : fileURLToPath(new URL('../../assets/desktop/gamebar-controller.py', import.meta.url)),
   environment: demoMode ? {} : process.env,
-  changed: state => { desktopSettingsStatus.gameBarController = state; if (launchReady) emitSnapshot(); },
+  changed: state => { desktopSettingsStatus.gameBarController = { ...state, navigationSurface }; if (launchReady) emitSnapshot(); },
   canActivate: async () => {
     if (demoMode || !launchReady || quitting || shutdownStarted) return false;
     const active = await controllerSessionActive();
     return active && launchReady && !quitting && !shutdownStarted;
   },
   onGuide: () => toggleDesktopGuide(),
+  onInput: async (action, surface) => {
+    if (quitting || shutdownStarted || demoMode) return;
+    if (surface === 'switcher' && experienceBridge.switcherVisible) {
+      const mapped = action === 'back' ? 'cancel' : action;
+      await experienceBridge.switcher(mapped as ShellSwitcherAction).catch(() => {});
+    } else if (surface === 'guide' && guideIsFocused() && guideInputActions.includes(action as GuideInputAction)) {
+      desktopGuide.webContents?.send('desktop-guide-input', action);
+    }
+  },
 });
 desktopSettingsStatus.gameBarController = gameBarController.current;
 const blockControllerSession = () => { gameBarController.setSessionBlocked(true); desktopGuide.hide(); };
@@ -390,7 +435,7 @@ function snapshot(): AppSnapshot {
     gameUpdates: structuredClone(gameUpdates),
     downloadProgressSupported: Boolean(backend.current.capabilities.streamingProgressJson),
     gameOperation: gameOperation ? structuredClone(gameOperation) : undefined,
-    desktopSettings: structuredClone(desktopSettingsStatus),
+    desktopSettings: structuredClone(desktopSettingsStatus), guideForeground: guideForeground ? { ...guideForeground } : undefined,
     fullscreenExperience: fullscreenExperience.current,
   };
 }

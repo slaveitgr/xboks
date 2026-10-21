@@ -130,6 +130,12 @@ contextBridge.exposeInMainWorld('launcher', api);
 contextBridge.exposeInMainWorld('desktopGuide', {
   toggle: () => ipcRenderer.invoke('desktop-guide-toggle'),
   close: () => ipcRenderer.invoke('desktop-guide-close'),
+  onInput: (callback: (action: string) => void) => {
+    const actions = ['up', 'down', 'left', 'right', 'accept', 'back', 'previous', 'next'];
+    const listener = (_event: Electron.IpcRendererEvent, action: unknown) => { if (typeof action === 'string' && actions.includes(action)) callback(action); };
+    ipcRenderer.on('desktop-guide-input', listener);
+    return () => ipcRenderer.removeListener('desktop-guide-input', listener);
+  },
   navigate: (page: string, gameId?: string) => ipcRenderer.invoke('desktop-guide-navigate', page, gameId),
   onNavigate: (callback: (value: { page: string; gameId?: string }) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, value: { page: string; gameId?: string }) => callback(value);

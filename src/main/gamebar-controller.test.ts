@@ -164,4 +164,57 @@ describe('Guide-only helper ownership', () => {
     await vi.advanceTimersByTimeAsync(20); expect(f.controller.current.reason).toBe('helper-timeout'); expect(f.child.kill).toHaveBeenCalledWith('SIGTERM');
     await vi.advanceTimersByTimeAsync(1500); expect(f.child.kill).toHaveBeenCalledWith('SIGKILL');
   });
+  it('keeps navigation disabled in background and activates only an explicit owned surface', async () => {
+    const onInput = vi.fn(), f = setup({ onInput }); f.controller.start(); f.child.status();
+    f.child.line({ schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: 0 }); await flush();
+    expect(onInput).not.toHaveBeenCalled();
+    f.controller.setSurface('guide');
+    const command = JSON.parse(f.child.commands.at(-1)!); expect(command).toMatchObject({ command: 'surface', surface: 'guide' });
+    f.child.line({ schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: command.epoch }); await flush();
+    expect(onInput).toHaveBeenCalledWith('accept', 'guide'); expect(f.canActivate).toHaveBeenCalledTimes(1);
+  });
+  it('rejects stale surface epochs even when an earlier guide scope is reopened', async () => {
+    const onInput = vi.fn(), f = setup({ onInput }); f.controller.start(); f.child.status();
+    f.controller.setSurface('guide'); const first = JSON.parse(f.child.commands.at(-1)!);
+    f.controller.setSurface('switcher'); f.controller.setSurface('guide'); const current = JSON.parse(f.child.commands.at(-1)!);
+    f.child.line({ schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: first.epoch }); await flush();
+    expect(onInput).not.toHaveBeenCalled();
+    f.child.line({ schema: 1, event: 'input', action: 'right', surface: 'guide', epoch: current.epoch }); await flush();
+    expect(onInput).toHaveBeenCalledWith('right', 'guide');
+  });
+  it('invalidates pending navigation when scope disappears or session locks', async () => {
+    let resolve!: (value: boolean) => void;
+    const onInput = vi.fn(), f = setup({ onInput, canActivate: () => new Promise<boolean>(done => { resolve = done; }) });
+    f.controller.start(); f.child.status(); f.controller.setSurface('switcher');
+    const command = JSON.parse(f.child.commands.at(-1)!);
+    f.child.line({ schema: 1, event: 'input', action: 'close-window', surface: 'switcher', epoch: command.epoch });
+    f.controller.setSessionBlocked(true); resolve(true); await flush();
+    expect(onInput).not.toHaveBeenCalled();
+    expect(f.child.commands.some(raw => JSON.parse(raw).surface === 'none')).toBe(true);
+    const count = f.child.commands.length; f.controller.setSurface('guide'); expect(f.child.commands).toHaveLength(count);
+  });
+  it('stops nav delivery immediately after hide and disposal', async () => {
+    const onInput = vi.fn(), f = setup({ onInput }); f.controller.start(); f.child.status(); f.controller.setSurface('guide');
+    const command = JSON.parse(f.child.commands.at(-1)!); f.controller.setSurface('none');
+    f.child.line({ schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: command.epoch }); await flush();
+    f.controller.dispose(); f.child.line({ schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: command.epoch }); await flush();
+    expect(onInput).not.toHaveBeenCalled();
+  });
+  it('allows X close only in switcher and bounds pending input delivery', async () => {
+    const onInput = vi.fn(), f = setup({ onInput }); f.controller.start(); f.child.status(); f.controller.setSurface('switcher');
+    const command = JSON.parse(f.child.commands.at(-1)!);
+    f.child.line({ schema: 1, event: 'input', action: 'close-window', surface: 'switcher', epoch: command.epoch });
+    f.child.line({ schema: 1, event: 'input', action: 'close-window', surface: 'switcher', epoch: command.epoch }); await flush();
+    expect(onInput).toHaveBeenCalledTimes(1); expect(onInput).toHaveBeenCalledWith('close-window', 'switcher');
+    f.child.line({ schema: 1, event: 'input', action: 'close-window', surface: 'guide', epoch: command.epoch });
+    expect(f.controller.current.reason).toBe('invalid-helper-message');
+  });
+  it.each([
+    { schema: 1, event: 'input', action: 'keyboard', surface: 'guide', epoch: 1 },
+    { schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: -1 },
+    { schema: 1, event: 'input', action: 'accept', surface: 'guide', epoch: 1, value: 32767 },
+  ])('rejects raw or malformed scoped input %j', value => {
+    const f = setup(); f.controller.start(); f.child.status(); f.controller.setSurface('guide'); f.child.line(value);
+    expect(f.controller.current.reason).toBe('invalid-helper-message');
+  });
 });

@@ -112,7 +112,11 @@ export function navigationTarget<T>(from: Rect, targets: readonly { value: T; re
   return best;
 }
 
-type Options = { mode: (active: boolean) => void; back: () => void; page: (delta: number) => void };
+type Options = {
+  mode: (active: boolean) => void; back: () => void; page: (delta: number) => void; activateOnFocus?: boolean;
+  subscribeInput?: (dispatch: (action: PadAction) => void) => () => void;
+  nativeControlsActive?: () => boolean;
+};
 const controls = 'button,a[href],input:not([type="hidden"]),select,textarea,summary,[tabindex]';
 
 export function revealDelta(top: number, bottom: number, viewTop: number, viewBottom: number): number {
@@ -255,6 +259,12 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     pointer();
   };
   const blur = () => { pointer(); closePicker(false); };
+  const resume = () => {
+    inputs.forEach(input => input.reset());
+    if (!options.activateOnFocus || doc.hidden || !doc.hasFocus()) return;
+    scope = currentScope(); setMode(true); focus(initial(scope));
+  };
+  const visibilityChanged = () => { if (doc.hidden) blur(); else resume(); };
 
   function selectPicker(select: HTMLSelectElement) {
     closePicker(false);
@@ -453,7 +463,17 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
       const target = scope.querySelector<HTMLElement>(value === 'previous-page' ? '[data-gamepad-gallery-previous]' : '[data-gamepad-gallery-next]');
       if (target && enabled(target)) target.click();
     } else if (scope instanceof HTMLElement && scope.hasAttribute('data-gamepad-sections')) {
+      const origin = scope;
       options.page(value === 'previous-page' ? -1 : 1);
+      const selectedTab = (remaining: number) => {
+        if (stopped || !active || doc.hidden || !doc.hasFocus() && !options.nativeControlsActive?.() || currentScope() !== origin) return;
+        const tab = origin.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+        if (tab) focus(tab);
+        // A favorite on another toolbar page needs a second React commit.
+        // Wait boundedly for that real selected tab instead of focusing Close.
+        else if (remaining > 0) win.requestAnimationFrame(() => selectedTab(remaining - 1));
+      };
+      win.requestAnimationFrame(() => selectedTab(3));
     } else if (scope === doc) {
       const sections = [...doc.querySelectorAll<HTMLElement>('[data-gamepad-section-tabs]')].find(visible);
       const tabs = sections ? [...sections.querySelectorAll<HTMLElement>('[role="tab"]')].filter(enabled) : [];
@@ -477,7 +497,13 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     if (stopped) return;
     const elapsed = Math.min(40, Math.max(0, now - previousTime)); previousTime = now;
     try {
-      if (doc.hidden || !doc.hasFocus()) {
+      if (options.nativeControlsActive?.()) {
+        // Main admits these inputs only for its visible focused UI surface.
+        // Never also poll Chromium's copy of the same controller event.
+        inputs.forEach(input => input.reset());
+        if (doc.hidden) { if (active) blur(); }
+        else if (active) ensureFocus();
+      } else if (doc.hidden || !doc.hasFocus()) {
         if (active) blur();
         inputs.forEach(input => input.reset());
       } else {
@@ -512,14 +538,24 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   win.addEventListener('pointermove', pointerMove, true);
   win.addEventListener('keydown', keyboard, true);
   win.addEventListener('blur', blur);
-  doc.addEventListener('visibilitychange', blur);
+  win.addEventListener('focus', resume);
+  doc.addEventListener('visibilitychange', visibilityChanged);
+  const unsubscribeInput = options.subscribeInput?.(value => {
+    if (stopped || doc.hidden || !options.nativeControlsActive?.() ||
+        ![...directions, 'accept', 'back', 'options', 'previous-page', 'next-page'].includes(value)) return;
+    // Unlike untrusted browser polling, this stream has already passed main's
+    // native window-focus and session-lock guards. It does not depend on the
+    // Chromium Gamepad mapping or its device-exposure activation heuristic.
+    setMode(true); action(value);
+  });
+  resume();
   frame = win.requestAnimationFrame(tick);
   return () => {
-    stopped = true; win.cancelAnimationFrame(frame); closePicker(false); setMode(false); inputs.clear();
+    stopped = true; unsubscribeInput?.(); win.cancelAnimationFrame(frame); closePicker(false); setMode(false); inputs.clear();
     win.removeEventListener('pointerdown', pointer, true);
     win.removeEventListener('pointermove', pointerMove, true);
     win.removeEventListener('keydown', keyboard, true);
     win.removeEventListener('xboks-fullscreen-experience', experienceChanged);
-    win.removeEventListener('blur', blur); doc.removeEventListener('visibilitychange', blur);
+    win.removeEventListener('blur', blur); win.removeEventListener('focus', resume); doc.removeEventListener('visibilitychange', visibilityChanged);
   };
 }

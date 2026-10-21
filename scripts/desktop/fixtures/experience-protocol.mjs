@@ -21,7 +21,7 @@ function start(file) {
       listeners.add(listener);
     });
   };
-  return { process, messages, exited, wait, send: (id, method) => process.stdin.write(JSON.stringify({ id, method }) + '\n') };
+  return { process, messages, exited, wait, send: (id, method, action) => process.stdin.write(JSON.stringify({ id, method, ...(action ? {action} : {}) }) + '\n') };
 }
 try {
   const service = start('scripts/desktop/fixtures/experience-service.js');
@@ -30,6 +30,13 @@ try {
   await first.wait(message => message.event === 'state' && message.active === false);
   first.send(1, 'enter');
   assert.deepEqual(await first.wait(message => message.id === 1), { id: 1, ok: true, active: true, owned: true });
+  first.send(10, 'capabilities'); assert.equal((await first.wait(message => message.id === 10)).version, 2);
+  first.send(11, 'foreground'); assert.deepEqual((await first.wait(message => message.id === 11)).app,
+    {desktopId: 'fixture.Editor.desktop', name: 'Editor', title: 'Synthetic document'});
+  first.send(12, 'focus-guide'); assert.equal((await first.wait(message => message.id === 12)).ok, true);
+  first.send(13, 'switcher', 'open'); assert.equal((await first.wait(message => message.id === 13)).visible, true);
+  await first.wait(message => message.event === 'switcher' && message.visible === true);
+  first.send(14, 'switcher', 'cancel'); assert.equal((await first.wait(message => message.id === 14)).visible, false);
   const second = start('assets/desktop/experience-client.js');
   assert.deepEqual(await second.wait(message => message.event === 'state'), { event: 'state', active: true, owned: false });
   second.send(2, 'leave');

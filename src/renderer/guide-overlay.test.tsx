@@ -9,8 +9,22 @@ afterEach(()=>vi.unstubAllGlobals());
 it('exposes modal/controller close semantics and a selected tab', () => {
   const html = render('home');
   expect(html).toContain('aria-modal="true"'); expect(html).toContain('data-gamepad-cancel');
-  expect(html.match(/aria-selected="true"/g)).toHaveLength(1); expect(html).toContain('Gears of War: E-Day');
+  expect(html.match(/aria-selected="true"/g)).toHaveLength(1); expect(html).toContain('No recently played games for this account.');
   expect(html).toContain('B Back'); expect(html).toContain('Win + G when configured');
+});
+it.each(['home','settings','browser','social','audio','capture','widgets'] as const)('marks the selected %s toolbar tab as the initial controller target', tab => {
+  const html = render(tab);
+  const initial = [...html.matchAll(/<button\b[^>]*data-gamepad-initial=""[^>]*>/g)].map(match => match[0]);
+  expect(initial).toHaveLength(1); expect(initial[0]).toContain(`id="guide-tab-${tab}"`); expect(initial[0]).toContain('aria-selected="true"');
+});
+it('shows actual foreground application separately from owned games and does not fabricate recent play', () => {
+  const data = demoSnapshot(); data.guideForeground = { desktopId: 'fixture-browser.desktop', name: 'Fixture browser', title: 'Fixture document' };
+  const html = render('home', data);
+  expect(html).toContain('Active application'); expect(html).toContain('Fixture browser'); expect(html).toContain('Fixture document');
+  expect(html).toContain('aria-label="Return to Fixture browser"'); expect(html).toContain('data-guide-return-to-app');
+  expect(html).toContain('No recently played games for this account.');
+  for (const game of data.games) expect(html).not.toContain(game.title);
+  expect(html.indexOf('guide-active-application')).toBeLessThan(html.indexOf('guide-action-pair'));
 });
 it('shows capability limits rather than fictitious social data or a stale signed-out profile', () => {
   const data=demoSnapshot(); data.auth.stored=false; data.auth.gamertag='StalePlayer';

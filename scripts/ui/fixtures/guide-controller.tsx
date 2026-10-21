@@ -1,0 +1,68 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {DesktopGuideApp} from '/src/renderer/DesktopGuideApp.tsx';
+import {demoSnapshot} from '/src/shared/demo-data.ts';
+import '/src/renderer/styles.css';
+
+// Renderer-only input fixture: all controller values and native IPC events are
+// synthetic. No OS device, session, account, service or keybinding is read.
+localStorage.setItem('xboks.interface-language.v1','en');
+localStorage.removeItem('xboks.gamebar.widgets.v1');
+location.hash='desktop-guide';
+const sample=demoSnapshot();
+const artwork='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect width="200" height="200" fill="#22594e"/><text x="15" y="105" fill="white">Fixture artwork</text></svg>');
+sample.games=sample.games.map(game=>({...game,coverUrl:artwork,coverDataUrl:undefined}));
+sample.desktopSettings={canSetAutostart:false,fullscreenExperience:false,fullscreenExperienceSource:'none',gameBarController:{status:'unavailable',devices:0,reason:'fixture'}};
+let hidden=false,focused=true,closes=0,exposePad=true;const navigations:any[]=[];
+Object.defineProperty(document,'hidden',{configurable:true,get:()=>hidden});
+Object.defineProperty(document,'hasFocus',{configurable:true,value:()=>focused});
+const listeners=new Set<(value:any)=>void>(),nativeListeners=new Set<(value:any)=>void>();
+const no={available:false,reason:'Unavailable in input fixture'};
+(window as any).launcher={getSnapshot:async()=>structuredClone(sample),onSnapshot:(callback:any)=>{listeners.add(callback);return()=>listeners.delete(callback);},getGuideAudio:async()=>({available:false,reason:'Unavailable in input fixture'}),getWindowFullscreen:async()=>false,onWindowFullscreenChanged:()=>()=>{},getGuideSystem:async()=>({platform:'linux',sampledAt:new Date().toISOString(),network:{available:false,devices:[],settings:no},bluetooth:{available:false,devices:[],toggle:no,settings:no},power:{available:false,actions:{lock:no,logout:no,suspend:no,reboot:no,poweroff:no},settings:no}})};
+(window as any).desktopGuide={close:async()=>{closes++;},toggle:async()=>{},navigate:async(...args:any[])=>{navigations.push(args);},onNavigate:()=>()=>{},onInput:(callback:any)=>{nativeListeners.add(callback);return()=>nativeListeners.delete(callback);}};
+const pad={index:0,id:'synthetic-guide-controller',connected:true,mapping:'standard',axes:[0,0,0,0],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};
+Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>exposePad?[pad]:[]});
+Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{enumerateDevices:async()=>[],getUserMedia:async()=>{throw Error('Physical media forbidden');},getSupportedConstraints:()=>({}),addEventListener:()=>{},removeEventListener:()=>{}}});
+const watermark=document.createElement('div');watermark.textContent='INPUT FIXTURE · Synthetic controller / native events · No host input or Xbox requests';Object.assign(watermark.style,{position:'fixed',bottom:'12px',right:'16px',zIndex:'9999',background:'#12262f',color:'#def',font:'14px sans-serif',padding:'10px'});document.body.append(watermark);
+createRoot(document.getElementById('root')!).render(<DesktopGuideApp/>);
+const pause=()=>new Promise(resolve=>setTimeout(resolve,120)),checks:string[]=[];
+const check=(value:any,label:string)=>{if(!value)throw Error(label+'; focus='+document.activeElement?.outerHTML.slice(0,200));checks.push(label);};
+const press=async(index:number)=>{await pause();pad.buttons[index]={pressed:true,value:1};await pause();pad.buttons[index]={pressed:false,value:0};await pause();};
+const stick=async(x:number,y:number)=>{await pause();pad.axes[0]=x;pad.axes[1]=y;await pause();pad.axes[0]=0;pad.axes[1]=0;await pause();};
+const focus=(selector:string)=>{const node=document.querySelector<HTMLElement>(selector);if(!node)throw Error(selector);node.focus();};
+const native=async(action:string)=>{for(const callback of nativeListeners)callback(action);await pause();};
+const publish=async(surface:'none'|'guide')=>{sample.desktopSettings!.gameBarController={status:'listening',devices:1,navigationSurface:surface} as any;for(const callback of listeners)callback(structuredClone(sample));await pause();};
+const selected=()=>document.querySelector('[role="tab"][aria-selected="true"]')?.id;
+(window as any).runGuideControllerChecks=async()=>{
+ await pause();await pause();
+ check(document.activeElement?.id==='guide-tab-home'&&document.activeElement.hasAttribute('data-gamepad-initial'),'dedicated Guide initially focuses selected Home tab with a controller focus target');
+ check(document.documentElement.hasAttribute('data-gamepad-navigation'),'focused Guide starts with visible controller focus styling');
+ check(getComputedStyle(document.activeElement!).outlineWidth==='2px'&&getComputedStyle(document.activeElement!).outlineColor==='rgb(255, 255, 255)','controller focus has a visible white ring distinct from selected-tab fill');
+ await press(15);check(document.activeElement?.id==='guide-tab-settings','D-pad right moves from Home to Settings without pointer input');
+ await press(0);check(selected()==='guide-tab-settings','A opens the focused Settings tab');
+ await press(13);check(Boolean(document.activeElement?.closest('.guide-panel')),'D-pad down enters actual selected widget controls');
+ focus('#guide-tab-settings');await stick(.8,0);check(document.activeElement?.id==='guide-tab-browser','left stick navigates the toolbar');await press(0);check(selected()==='guide-tab-browser','A selects the left-stick-focused widget');
+ await press(5);check(selected()==='guide-tab-audio'&&document.activeElement?.id==='guide-tab-audio','RB changes widget and restores focus to its selected toolbar tab after React commit');
+ await press(4);check(selected()==='guide-tab-browser'&&document.activeElement?.id==='guide-tab-browser','LB returns to previous widget and its own toolbar focus');
+ await press(4);focus('[data-guide-more-settings]');await press(0);check(Boolean(document.querySelector('[data-guide-settings-page="directory"]')),'A opens actual nested Game Bar settings');
+ await press(1);check(!document.querySelector('[data-guide-settings-page]')&&closes===0&&document.activeElement?.hasAttribute('data-guide-more-settings'),'B consumes nested settings Back before closing the Guide and restores trigger focus');
+ focus('#guide-tab-settings');focused=false;window.dispatchEvent(new Event('blur'));await press(15);check(document.activeElement?.id==='guide-tab-settings','browser polling cannot operate Guide while document is unfocused');
+ pad.buttons[0]={pressed:true,value:1};focused=true;window.dispatchEvent(new Event('focus'));await pause();check(selected()==='guide-tab-settings'&&document.activeElement?.id==='guide-tab-settings','focus return resets held browser actions and restores selected tab');pad.buttons[0]={pressed:false,value:0};await pause();
+ hidden=true;document.dispatchEvent(new Event('visibilitychange'));focus('[data-guide-more-settings]');hidden=false;document.dispatchEvent(new Event('visibilitychange'));await pause();check(document.activeElement?.id==='guide-tab-settings','native hide/show visibility resume restores selected toolbar focus on the reused renderer');
+ await publish('guide');exposePad=false;check(nativeListeners.size===1,'dedicated Guide keeps one native input subscription across snapshot updates');
+ await native('right');check(document.activeElement?.id==='guide-tab-browser','admitted native D-pad input navigates with no Chromium Gamepad exposure');await native('accept');check(selected()==='guide-tab-browser','admitted native A opens focused widget');
+ await native('next');check(selected()==='guide-tab-audio'&&document.activeElement?.id==='guide-tab-audio','native RB maps to the shared scoped widget navigation');await native('previous');check(selected()==='guide-tab-browser','native LB maps to previous widget');
+ exposePad=true;focus('#guide-tab-browser');pad.buttons[15]={pressed:true,value:1};await pause();check(document.activeElement?.id==='guide-tab-browser','Chromium copy is suppressed while native input owns Guide navigation');pad.buttons[15]={pressed:false,value:0};
+ await native('previous');focus('[data-guide-more-settings]');await native('accept');focus('[data-guide-settings-open="input"]');await native('accept');check(document.querySelector<HTMLInputElement>('[data-guide-settings-page="input"] input')?.checked&&document.querySelector('[data-guide-settings-page="input"]')?.textContent?.includes('while xboks is running'),'Input settings report actual admitted native controller capability');await native('back');await native('back');check(!document.querySelector('[data-guide-settings-page]')&&closes===0,'native B uses the same nested Back stack without closing its parent');
+ await native('close-window');check(closes===0,'switcher-only X action is ignored by Guide');
+ await publish('none');const before=document.activeElement;await native('right');check(document.activeElement===before,'native input is ignored after main revokes Guide ownership');
+ hidden=true;document.dispatchEvent(new Event('visibilitychange'));await publish('guide');await native('back');check(closes===0,'hidden renderer ignores native input even if an older ownership snapshot survives');hidden=false;document.dispatchEvent(new Event('visibilitychange'));await pause();
+ await native('back');check(closes===1,'B closes the top-level Guide after all nested surfaces are dismissed');
+ sample.guideForeground={desktopId:'fixture-browser.desktop',name:'Fixture browser',title:'Fixture document'};for(const callback of listeners)callback(structuredClone(sample));await pause();await native('previous');
+ check(selected()==='guide-tab-home'&&document.querySelector('[data-guide-return-to-app]')?.textContent?.includes('Fixture browser'),'Home shows actual supplied foreground separately from the owned game library');
+ await native('down');check(document.activeElement?.hasAttribute('data-guide-return-to-app'),'D-pad enters active application return control first');await native('accept');check(closes===2&&navigations.length===0,'A on foreground application closes Guide without launching or navigating to an unrelated game');
+ check(document.querySelector('.guide-panel-home')?.textContent?.includes('No recently played games for this account.'),'Home does not pass the first installed titles off as recent play');
+ for(let index=0;index<10;index++){await native('next');check(document.activeElement?.id===selected(),`native shoulder navigation focuses selected favorite across toolbar pagination (${selected()})`);}
+ if(typeof(window as any).__captureFixture==='function')await(window as any).__captureFixture('guide-controller-focus');
+ return{checks,passed:checks.length,realDeviceEvents:false,realNativeIpc:false,physicalControllerVerified:false};
+};

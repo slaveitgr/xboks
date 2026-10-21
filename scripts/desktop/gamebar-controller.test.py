@@ -141,6 +141,146 @@ class CapabilityTest(unittest.TestCase):
             self.assertEqual(len(buffer), 96)
 
 
+class NavigationTest(unittest.TestCase):
+    def setUp(self):
+        self.actions, self.now, self.keys = [], 1.0, 0
+        self.axes = {0: (0, -32768, 32767, 128), 1: (0, -32768, 32767, 128),
+                     16: (0, -1, 1, 0), 17: (0, -1, 1, 0)}
+        self.snapshots = 0
+        def snapshot():
+            self.snapshots += 1
+            return self.keys, self.axes.copy()
+        self.nav = controller.NavigationDecoder(snapshot, self.actions.append, lambda: self.now)
+
+    def frame(self, *values):
+        for kind, code, value in values:
+            self.nav.feed(kind, code, value)
+        self.nav.feed(controller.EV_SYN, controller.SYN_REPORT, 0)
+
+    def key(self, code, value):
+        self.frame((controller.EV_KEY, code, value))
+
+    def test_default_background_scope_emits_no_navigation_and_reads_no_snapshot(self):
+        self.key(0x130, 1)
+        self.frame((controller.EV_ABS, 0, -32768))
+        self.nav.tick()
+        self.assertEqual(self.actions, [])
+        self.assertEqual(self.snapshots, 0)
+
+    def test_only_fixed_buttons_and_switcher_only_x_are_exposed(self):
+        self.nav.set_surface("guide")
+        for code in [0x130, 0x131, 0x136, 0x137, 0x133, 30, 0x13C]:
+            self.key(code, 1)
+        self.assertEqual(self.actions, ["accept", "back", "previous", "next"])
+        self.nav.set_surface("switcher")
+        self.key(0x133, 1)
+        self.assertEqual(self.actions[-1], "close-window")
+
+    def test_held_buttons_require_release_and_repeats_never_accept(self):
+        self.keys = 1 << 0x130
+        self.nav.set_surface("switcher")
+        self.key(0x130, 1)
+        self.key(0x130, 2)
+        self.assertEqual(self.actions, [])
+        self.key(0x130, 0)
+        self.key(0x130, 1)
+        self.key(0x130, 1)
+        self.assertEqual(self.actions, ["accept"])
+
+    def test_left_stick_deadzone_hysteresis_and_neutral_release(self):
+        self.nav.set_surface("guide")
+        self.frame((controller.EV_ABS, 0, 15000))  # below enter threshold
+        self.assertEqual(self.actions, [])
+        self.frame((controller.EV_ABS, 0, 23000))
+        self.assertEqual(self.actions, ["right"])
+        self.frame((controller.EV_ABS, 0, 14000))  # still held above exit threshold
+        self.assertEqual(self.actions, ["right"])
+        self.frame((controller.EV_ABS, 0, 0))
+        self.assertIsNone(self.nav.direction)
+        self.frame((controller.EV_ABS, 1, -30000))
+        self.assertEqual(self.actions[-1], "up")
+
+    def test_initially_held_axis_requires_neutral_after_new_scope(self):
+        self.axes[0] = (32767, -32768, 32767, 0)
+        self.nav.set_surface("switcher")
+        self.frame((controller.EV_ABS, 0, 32767))
+        self.assertEqual(self.actions, [])
+        self.frame((controller.EV_ABS, 0, 0))
+        self.frame((controller.EV_ABS, 0, 32767))
+        self.assertEqual(self.actions, ["right"])
+
+    def test_stick_jump_across_center_stops_old_direction_before_opposite_threshold(self):
+        self.nav.set_surface("guide")
+        self.frame((controller.EV_ABS, 0, -30000))
+        self.frame((controller.EV_ABS, 0, 14000))
+        self.assertIsNone(self.nav.direction)
+        self.now += 1
+        self.nav.tick()
+        self.assertEqual(self.actions, ["left"])
+        self.frame((controller.EV_ABS, 0, 24000))
+        self.assertEqual(self.actions, ["left", "right"])
+
+    def test_hat_and_dpad_buttons_emit_once_per_sync_and_do_not_double_stick(self):
+        self.nav.set_surface("guide")
+        self.frame((controller.EV_ABS, 16, -1), (controller.EV_ABS, 0, -30000), (controller.EV_KEY, 0x222, 1))
+        self.assertEqual(self.actions, ["left"])
+        self.frame((controller.EV_ABS, 16, 0), (controller.EV_ABS, 0, 0), (controller.EV_KEY, 0x222, 0))
+        self.key(0x221, 1)
+        self.assertEqual(self.actions[-1], "down")
+
+    def test_direction_repeat_has_delay_and_no_catchup_burst(self):
+        self.nav.set_surface("guide")
+        self.key(0x223, 1)
+        self.now += 0.39
+        self.nav.tick()
+        self.assertEqual(self.actions, ["right"])
+        self.now += 0.02
+        self.nav.tick()
+        self.assertEqual(self.actions, ["right", "right"])
+        self.now += 30
+        self.nav.tick()
+        self.nav.tick()
+        self.assertEqual(self.actions, ["right", "right", "right"])
+        self.key(0x223, 0)
+        self.now += 1
+        self.nav.tick()
+        self.assertEqual(len(self.actions), 3)
+
+    def test_scope_none_and_drop_stop_repeat_and_actions(self):
+        self.nav.set_surface("guide")
+        self.key(0x223, 1)
+        self.nav.drop()
+        self.now += 1
+        self.nav.tick()
+        self.key(0x130, 1)
+        self.assertEqual(self.actions, ["right"])
+        self.nav.resync()
+        self.nav.set_surface("none")
+        self.key(0x130, 1)
+        self.assertEqual(self.actions, ["right"])
+
+    def test_syn_dropped_resync_seeds_held_accept_before_rearming(self):
+        self.nav.set_surface("switcher")
+        decoder = controller.ModeDecoder(False, lambda: False, lambda: None, navigation=self.nav)
+        decoder.feed(event(controller.EV_SYN, controller.SYN_DROPPED, 0) + event(controller.EV_KEY, 0x130, 1))
+        self.keys = 1 << 0x130
+        decoder.feed(event(controller.EV_SYN, controller.SYN_REPORT, 0) + event(controller.EV_KEY, 0x130, 1))
+        self.assertEqual(self.actions, [])
+        decoder.feed(event(controller.EV_KEY, 0x130, 0) + event(controller.EV_KEY, 0x130, 1))
+        self.assertEqual(self.actions, ["accept"])
+
+    def test_kernel_axis_snapshot_uses_only_read_ioctl_and_selected_axes(self):
+        calls = []
+        def ioctl(fd, number, size):
+            calls.append((number, size))
+            return (0).to_bytes(size, "little") if number == 0x18 else controller.ABS_INFO.pack(0, -32768, 32767, 0, 128, 0)
+        with patch.object(controller, "read_ioctl", side_effect=ioctl):
+            keys, axes = controller.navigation_snapshot(99, 3)
+        self.assertEqual(keys, 0)
+        self.assertEqual(set(axes), {0, 1})
+        self.assertEqual(calls, [(0x18, 96), (0x40, 24), (0x41, 24)])
+
+
 class Selector:
     def __init__(self):
         self.fds, self.closed = {}, False
@@ -270,6 +410,23 @@ class MonitorTest(unittest.TestCase):
         with patch.object(controller, "supported_architecture", return_value=False):
             self.monitor.scan()
         self.assertEqual(self.messages[-1]["reason"], "unsupported-architecture")
+
+    def test_surface_change_reopens_subscription_to_discard_queued_gameplay(self):
+        self.entry(1)
+        self.monitor.resume()
+        old_fd = self.monitor.devices["event1"].fd
+        old_inode = os.fstat(old_fd).st_ino
+        os.write(self.writers[0], event(controller.EV_KEY, 0x130, 1))
+        self.monitor.set_surface("switcher", 1)
+        self.assertEqual(self.opens, ["event1", "event1"])
+        self.assertEqual(self.monitor.surface_epoch, 1)
+        self.assertNotEqual(os.fstat(self.monitor.devices["event1"].fd).st_ino, old_inode)
+        self.assertFalse(any(item["event"] == "input" for item in self.messages))
+
+    def test_invalid_or_stale_surface_protocol_is_bounded(self):
+        for surface, epoch in [("keyboard", 1), ("guide", -1), ("guide", True), ("guide", 2 ** 53)]:
+            with self.assertRaises(ValueError):
+                self.monitor.set_surface(surface, epoch)
 
     def test_real_open_flags_and_fd_identity_checks_without_any_host_device(self):
         entry = self.entry(1)

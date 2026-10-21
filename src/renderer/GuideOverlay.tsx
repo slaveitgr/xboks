@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Mic, ChevronLeft, Images, GuideWidgetsIcon } from './XboxIcons';
-import { Pin, Keyboard, Plane, MousePointer2, History, Circle, MicOff } from 'lucide-react';
+import { Pin, Keyboard, Plane, MousePointer2, History, Circle, MicOff, AppWindow } from 'lucide-react';
 import { Camera, ChevronRight, Cog, Download, ExternalLink, Gamepad2, Globe, Home, Library, Maximize, Search, Users, Volume2, VolumeX, X } from './XboxIcons';
 import { GuideHomeIcon, GuideSettingsIcon, GuideFriendsIcon, GuideAudioIcon, GuideCaptureIcon } from './XboxIcons';
 import type { AppSnapshot, GuideAudio, Page } from '../shared/types';
@@ -16,6 +16,8 @@ import { GuideWidgetDirectory, guideWidgetDefinitions, guideWidgetDefinition } f
 import { GuideSettingsPanel } from './GuideSettingsPanel';
 import { GuideGalleryWidget, GuidePerformanceWidget, GuideSpotifyWidget } from './GuideWidgets';
 import { guideWidgetIds, readGuideWidgetPreferences, saveGuideWidgetPreferences, toggleGuideWidgetPreference, type GuideWidgetId, type GuideWidgetPreferences } from './guide-widget-preferences';
+import { loadCollections } from './LibraryChrome';
+import { guideHistoryKey, recentGuideGames } from './guide-home';
 import './guide-overlay.css';
 
 export const guideTabs = [...guideWidgetIds, 'widgets'] as const;
@@ -79,7 +81,21 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
   const [audio, setAudio] = useState<GuideAudio>();
   const [volume, setVolume] = useState(0), [busy, setBusy] = useState(false), [message, setMessage] = useState('');
   const [query, setQuery] = useState(''), [capturePath, setCapturePath] = useState('');
-  const [preferences,setPreferences]=useState(readGuideWidgetPreferences),[toolbarStart,setToolbarStart]=useState(0),[settingsOpen,setSettingsOpen]=useState(false),[settingsWide,setSettingsWide]=useState(false);
+  const [, refreshHistory] = useState(0);
+  const historyKey = guideHistoryKey(data.auth);
+  const recentGames = historyKey ? recentGuideGames(data.games, loadCollections(historyKey).history) : [];
+  useEffect(() => {
+    const refresh = () => refreshHistory(value => value + 1);
+    window.addEventListener('storage', refresh); window.addEventListener('xboks-library-collections', refresh);
+    return () => { window.removeEventListener('storage', refresh); window.removeEventListener('xboks-library-collections', refresh); };
+  }, []);
+  const [preferences,setPreferences]=useState(readGuideWidgetPreferences);
+  const [toolbarStart,setToolbarStart]=useState(()=>{
+    const ids:GuideTab[]=tabs.filter(item=>preferences.favorites.includes(item.id)&&!preferences.hidden.includes(item.id)).map(item=>item.id);
+    if(tab!=='widgets'&&!ids.includes(tab))ids.push(tab);
+    return Math.floor(Math.max(0,ids.indexOf(tab))/6)*6;
+  });
+  const [settingsOpen,setSettingsOpen]=useState(false),[settingsWide,setSettingsWide]=useState(false);
   const [systemLight,setSystemLight]=useState(()=>typeof window!=='undefined'&&Boolean(window.matchMedia?.('(prefers-color-scheme: light)').matches));
   const changePreferences=(patch:Partial<GuideWidgetPreferences>)=>setPreferences(old=>{const value={...old,...patch};saveGuideWidgetPreferences(value);return value;});
   const togglePreference=(key:'favorites'|'pinned',id:GuideWidgetId)=>setPreferences(old=>{const value=toggleGuideWidgetPreference(old,key,id);saveGuideWidgetPreferences(value);return value;});
@@ -170,20 +186,22 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
   }}>
     <div className="guide-tabs" role="tablist" aria-label={t('Game Bar sections', 'Καρτέλες Game Bar')}>
       {toolbarStart>0?<button className="guide-toolbar-page" aria-label={t('Previous widgets','Προηγούμενα γραφικά στοιχεία')} onClick={()=>setToolbarStart(Math.max(0,toolbarStart-6))}><ChevronLeft/></button>:null}
-      {displayedWidgets.map(({id,label,greek,icon:Icon})=><button key={id} role="tab" id={`guide-tab-${id}`} aria-label={t(label,greek)} title={t(label,greek)} aria-selected={tab===id} aria-controls="guide-panel" onClick={()=>chooseTab(id)} onKeyDown={event=>{
+      {displayedWidgets.map(({id,label,greek,icon:Icon})=><button key={id} role="tab" id={`guide-tab-${id}`} data-gamepad-initial={tab===id?'':undefined} aria-label={t(label,greek)} title={t(label,greek)} aria-selected={tab===id} aria-controls="guide-panel" onClick={()=>chooseTab(id)} onKeyDown={event=>{
         if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();event.stopPropagation();const ids=activeWidgets.map(item=>item.id),index=ids.indexOf(id);const next=event.key==='Home'?ids[0]:event.key==='End'?ids.at(-1)!:ids[(index+(event.key==='ArrowRight'?1:-1)+ids.length)%ids.length];chooseTab(next);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>(`#guide-tab-${next}`)?.focus());
       }}><Icon/></button>)}
       {toolbarStart+6<activeWidgets.length?<button className="guide-toolbar-page" aria-label={t('More widgets','Περισσότερα γραφικά στοιχεία')} onClick={()=>setToolbarStart(toolbarStart+6)}><ChevronRight/></button>:null}
-      <button role="tab" id="guide-tab-widgets" aria-label={t('Widgets','Γραφικά στοιχεία')} title={t('Widgets','Γραφικά στοιχεία')} aria-selected={tab==='widgets'} onClick={()=>chooseTab('widgets')}><GuideWidgetsIcon/></button>
+      <button role="tab" id="guide-tab-widgets" data-gamepad-initial={tab==='widgets'?'':undefined} aria-label={t('Widgets','Γραφικά στοιχεία')} title={t('Widgets','Γραφικά στοιχεία')} aria-selected={tab==='widgets'} onClick={()=>chooseTab('widgets')}><GuideWidgetsIcon/></button>
     </div>
     <div className="guide-system"><time>{formatShellClock(now,locale.language)}</time><button data-gamepad-cancel aria-label={t('Close Game Bar', 'Κλείσιμο Game Bar')} onClick={close}><X /></button></div>
     <section className={`guide-panel guide-panel-${tab}${settingsWide?' guide-panel-wide-settings':''}`} id="guide-panel" role="tabpanel" aria-label={tab==='widgets'?t('Widgets','Γραφικά στοιχεία'):t(guideWidgetDefinition(tab).label,guideWidgetDefinition(tab).greek)} tabIndex={-1}>
       <div className="guide-panel-heading"><h2>{tab==='widgets'?t('Widgets','Γραφικά στοιχεία'):tabs.filter(item=>item.id===tab).map(item=>t(item.label,item.greek))}</h2>{['performance','spotify','gallery'].includes(tab)?<button className="guide-widget-pin" aria-label={t('Keep open in Game Bar','Διατήρηση ανοικτού στο Game Bar')} aria-pressed={preferences.pinned.includes(tab as GuideWidgetId)} onClick={()=>togglePreference('pinned',tab as GuideWidgetId)}><Pin/></button>:null}</div>
       <div className="guide-panel-scroll">
         {tab === 'home' ? <>
+          {data.guideForeground ? <div className="guide-active-application"><h3>{t('Active application', 'Ενεργή εφαρμογή')}</h3><button data-guide-return-to-app aria-label={`${t('Return to', 'Επιστροφή σε')} ${data.guideForeground.name}`} onClick={close}><AppWindow/><span><strong>{data.guideForeground.name}</strong>{data.guideForeground.title && data.guideForeground.title !== data.guideForeground.name ? <small>{data.guideForeground.title}</small> : null}</span><ChevronRight/></button></div> : null}
           <div className="guide-action-pair"><button onClick={() => navigate('home')}><Home />{t('Home', 'Αρχική οθόνη')}</button><button onClick={() => navigate('library')}><Library />{t('Library', 'Βιβλιοθήκη')}</button></div>
-          <div className="guide-recent-list">{data.games.slice(0, 4).map(game => <button key={game.id} onClick={() => { close(); openGame(game.id); }}>{game.coverUrl || game.coverDataUrl ? <img src={game.coverUrl ?? game.coverDataUrl} alt="" /> : <Gamepad2 />}<span><strong>{game.title}</strong><small>{game.installState === 'ready' ? t('Installed', 'Εγκατεστημένο') : t('View game', 'Προβολή παιχνιδιού')}</small></span><ChevronRight /></button>)}</div>
-          {!data.games.length ? <p className="guide-muted">{t('Your recent games will appear here after you add games to the library.', 'Τα πρόσφατα παιχνίδια σας θα εμφανιστούν εδώ μετά την προσθήκη τους στη βιβλιοθήκη.')}</p> : null}
+          <h3>{t('Recently played games', 'Πρόσφατα παιχνίδια')}</h3>
+          <div className="guide-recent-list">{recentGames.map(game => <button key={game.id} onClick={() => { close(); openGame(game.id); }}>{game.coverUrl || game.coverDataUrl ? <img src={game.coverUrl ?? game.coverDataUrl} alt="" /> : <Gamepad2 />}<span><strong>{game.title}</strong><small>{game.installState === 'ready' ? t('Installed', 'Εγκατεστημένο') : t('View game', 'Προβολή παιχνιδιού')}</small></span><ChevronRight /></button>)}</div>
+          {!recentGames.length ? <p className="guide-muted">{t('No recently played games for this account.', 'Δεν υπάρχουν πρόσφατα παιχνίδια για αυτόν τον λογαριασμό.')}</p> : null}
           <hr /><button className="guide-row" onClick={() => navigate('downloads')}><Download />{t('Install queue', 'Ουρά εγκατάστασης')}<ChevronRight /></button>
         </> : null}
         {tab === 'settings' && settingsOpen ? <GuideSettingsPanel data={data} preferences={preferences} change={changePreferences} wide={setSettingsWide} close={()=>{setSettingsOpen(false);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>('[data-guide-more-settings]')?.focus());}} accountSettings={()=>navigate('settings')} />:null}

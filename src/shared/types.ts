@@ -232,6 +232,8 @@ export interface AppSnapshot {
   gameUpdates?: Record<string, GameUpdate>;
   downloadProgressSupported?: boolean;
   desktopSettings?: DesktopSettingsStatus;
+  /** Captured before Game Bar takes focus; never written to account/library data. */
+  guideForeground?: import('./desktop-shell.js').DesktopForegroundApp;
   fullscreenExperience?: import('./fullscreen-experience.js').FullscreenExperienceStatus;
 }
 
@@ -252,6 +254,7 @@ export interface DesktopSettingsStatus {
     status: 'starting' | 'listening' | 'unavailable' | 'error' | 'stopped';
     devices: number;
     reason?: string;
+    navigationSurface?: 'none' | 'guide' | 'switcher';
   };
 }
 

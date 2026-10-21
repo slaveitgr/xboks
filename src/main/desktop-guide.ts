@@ -7,8 +7,14 @@ export class DesktopGuide {
   private opening: Promise<void> | undefined;
   private generation = 0;
   private loading?: { window: BrowserWindow; promise: Promise<void> };
-  constructor(private readonly root: string, private readonly releaseCapture: (ownerId: number) => void = () => {}, private readonly visibilityChanged: (visible: boolean) => void = () => {}) {}
+  constructor(private readonly root: string, private readonly releaseCapture: (ownerId: number) => void = () => {}, private readonly visibilityChanged: (visible: boolean) => void = () => {}, private readonly focusChanged: () => void = () => {}) {}
   get webContents() { return this.window?.isDestroyed() ? undefined : this.window?.webContents; }
+  /** Call again after an acknowledged compositor activation on Wayland. A
+   * BrowserWindow focus request alone need not focus Chromium's input target. */
+  focusContents(): void {
+    const win = this.window;
+    if (win && !win.isDestroyed() && win.isVisible()) win.webContents.focus();
+  }
   hide() {
     this.generation++; this.opening = undefined;
     if (this.window && !this.window.isDestroyed()) this.window.hide();
@@ -40,6 +46,8 @@ export class DesktopGuide {
       const releaseCapture = () => this.releaseCapture(captureOwnerId);
       win.on('hide', releaseCapture);
       const owner = win;
+      const focused = () => { if (this.window === owner) this.focusChanged(); };
+      win.on('focus', focused); win.on('blur', focused);
       const hidden = () => { if (this.window === owner) this.visibilityChanged(false); };
       win.on('hide', hidden);
       win.on('closed', hidden);
@@ -71,6 +79,7 @@ export class DesktopGuide {
     win.setTitle('xboks Game Bar');
     win.setBounds(display.bounds);
     win.show(); win.focus();
+    this.focusContents();
     this.visibilityChanged(true);
     } catch (error) {
       if (generation !== this.generation || this.window !== win || win?.isDestroyed()) return;
