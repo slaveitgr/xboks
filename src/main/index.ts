@@ -8,9 +8,15 @@ import { readStoreIdentity } from '../shared/account-identities.js';
 import { scanLibraryProviders } from './library-providers.js';
 import { applyDesktopSettings, backgroundStartupRequested, batteryPercentage, desktopConfigRoot, desktopSession, inspectDesktopSettings, startDesktopLauncher } from './desktop-settings.js';
 import { RemotePlay } from './remote-play.js';
-const remotePlay = new RemotePlay();
+import { GameBarResidency, gameBarServiceEnabled } from './gamebar-residency.js';
 import { DesktopGuide } from './desktop-guide.js';
 import { guideAudio } from './guide-audio.js';
+import { GuidePerformanceReader } from './guide-performance.js';
+import { GuideGalleryReader } from './guide-gallery.js';
+import { GuideMixerManager } from './guide-mixer.js';
+import type { GuideMixerCommand } from '../shared/guide-mixer.js';
+import { SpotifyManager } from './spotify.js';
+import type { SpotifyCommand } from '../shared/spotify.js';
 import { GuideSystemAdapter, unavailableGuideSystem } from './guide-system.js';
 import { GuidePowerConfirmations, validGuidePowerAction } from './guide-power.js';
 import { XboxSocialService } from './xbox-social.js';
@@ -87,6 +93,13 @@ const downloadNotifications = new DownloadCompletionNotifications({
   },
 });
 let mainWindow: BrowserWindow | null = null;
+const remotePlay = new RemotePlay({ changed: state => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('remote-play-state', state);
+}, toggleFullscreen: owner => fullscreenExperience.setWindow(!owner.isFullScreen()) });
+let remotePlayGuideObscured = false, remotePlayInlineObscured = false;
+const updateRemotePlayVisibility = () => remotePlay.setObscured(remotePlayGuideObscured || remotePlayInlineObscured);
+const gameBarResidency = new GameBarResidency(process.argv);
+let serviceAccountDeferred = process.argv.includes('--gamebar-service');
 let settingsTray: Tray | undefined;
 let quitting = false;
 const autostartConfigRoot = desktopConfigRoot(process.env, os.homedir());
@@ -96,7 +109,8 @@ let desktopSettingsStatus: DesktopSettingsStatus = {
 let settingsUpdates: Promise<unknown> = Promise.resolve();
 let pendingSettingsUpdates = 0;
 async function refreshDesktopSettingsStatus(): Promise<void> {
-  desktopSettingsStatus = { ...await inspectDesktopSettings(autostartConfigRoot, process.env), trayAvailable: desktopSettingsStatus.trayAvailable };
+  desktopSettingsStatus = { ...await inspectDesktopSettings(autostartConfigRoot, process.env), trayAvailable: desktopSettingsStatus.trayAvailable,
+    gameBarResident: gameBarResidency.active, gameBarServiceEnabled: desktopSettingsStatus.gameBarServiceEnabled };
   updateExperienceSession();
 }
 function ensureSettingsTray(): void {
@@ -116,7 +130,18 @@ function ensureSettingsTray(): void {
     throw error;
   }
 }
-const desktopGuide = new DesktopGuide(__dirname, ownerId => voiceCapture.release(ownerId));
+const desktopGuide = new DesktopGuide(__dirname, ownerId => voiceCapture.release(ownerId), visible => {
+  remotePlayGuideObscured = visible; updateRemotePlayVisibility();
+});
+async function toggleDesktopGuide(): Promise<void> {
+  await desktopGuide.toggle();
+  refreshDeferredServiceAccount();
+}
+function refreshDeferredServiceAccount(): void {
+  if (demoMode || !serviceAccountDeferred || !launchReady) return;
+  serviceAccountDeferred = false;
+  void refreshInitialAccount().catch(() => { /* Account settings retain the explicit retry path. */ });
+}
 const voiceCapture = new VoiceCapturePermissions(contents => {
   if (contents !== mainWindow?.webContents && contents !== desktopGuide.webContents) return false;
   const window = BrowserWindow.fromWebContents(contents as Electron.WebContents);
@@ -173,6 +198,21 @@ function guidePowerActivity(): string | undefined {
 const guidePower = new GuidePowerConfirmations(guidePowerActivity);
 const accountLibrary = new AccountLibrary((ids, market) => catalog.licensedProducts(ids, market));
 const demoMode = process.env.XBOKS_DEMO === '1' || process.env.XODUS_DEMO === '1';
+const guidePerformance = new GuidePerformanceReader();
+const guideMixer = new GuideMixerManager();
+const spotify = new SpotifyManager({
+  helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'spotify-client.js') : fileURLToPath(new URL('../../assets/desktop/spotify-client.js', import.meta.url)),
+});
+let captureGallery: GuideGalleryReader | undefined;
+function guideGallery(): GuideGalleryReader {
+  return captureGallery ??= new GuideGalleryReader(path.join(app.getPath('pictures'), 'xboks'), async bytes => {
+    if (bytes.length < 24 || !bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) return;
+    const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
+    if (!width || !height || width > 32768 || height > 32768 || width * height > 33_554_432) return;
+    const image = nativeImage.createFromBuffer(bytes);
+    return image.isEmpty() ? undefined : image.resize({ width: 240, height: 135, quality: 'good' }).toDataURL();
+  });
+}
 const experienceBridge = new GnomeExperienceClient({
   helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'experience-client.js')
     : fileURLToPath(new URL('../../assets/desktop/experience-client.js', import.meta.url)),
@@ -251,10 +291,21 @@ if (process.platform === 'linux') {
 }
 // Electron's lock is scoped to userData, so independent profiles stay isolated.
 const primaryInstance = demoMode || app.requestSingleInstanceLock(shortcutInstanceData(startupRequest, Boolean(startupError)));
+if (primaryInstance && process.platform === 'linux') {
+  // systemd's mixed kill mode first asks this process to perform the same
+  // bounded cleanup as an explicit Quit, before its stop deadline expires.
+  process.on('SIGTERM', () => app.quit());
+  process.on('SIGINT', () => app.quit());
+}
 if (!primaryInstance) app.quit();
 else if (!demoMode) app.on('second-instance', (_event, _argv, _workingDirectory, additionalData) => {
+  if (_argv.includes('--gamebar-service')) {
+    gameBarResidency.activate(); desktopSettingsStatus.gameBarResident = true;
+    if (launchReady) emitSnapshot();
+    return;
+  }
   if (_argv.includes('--game-bar')) {
-    if (launchReady) void desktopGuide.toggle().catch(console.error);
+    if (launchReady) void toggleDesktopGuide().catch(console.error);
     else pendingGuide = true;
     return;
   }
@@ -283,6 +334,7 @@ async function showLauncher(): Promise<void> {
   }
   if (mainWindow?.isMinimized()) mainWindow.restore();
   mainWindow?.show(); mainWindow?.focus();
+  refreshDeferredServiceAccount();
 }
 async function shortcutError(error: unknown): Promise<void> {
   await showLauncher();
@@ -291,7 +343,7 @@ async function shortcutError(error: unknown): Promise<void> {
 }
 function finishShortcutSession(): void {
   // Account service and game-process cleanup must finish before normal quit.
-  if (shortcutOnly && !shortcutLaunch.preparing && !preparingLaunch && !finalizingGame && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0) app.quit();
+  if (shortcutOnly && !gameBarResidency.active && !shortcutLaunch.preparing && !preparingLaunch && !finalizingGame && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0) app.quit();
 }
 function receiveLaunchRequest(id?: string): void {
   if (!launchReady) { pendingRequests.push(id); return; }
@@ -1356,10 +1408,23 @@ function registerIpc(): void {
   ipcMain.handle('battery-percentage', () => batteryPercentage());
   ipcMain.handle('battery-status', () => batteryPowerStatus());
   ipcMain.handle('remote-play-open', (event) => {
+    systemSender(event);
     if (event.sender !== mainWindow?.webContents) throw new Error('Remote Play must be opened from the launcher.');
-    return remotePlay.open(mainWindow?.isFullScreen() ?? false);
+    if (demoMode) throw Error('Console Remote Play is disabled in demo mode.');
+    const opened = remotePlay.open(mainWindow!); updateRemotePlayVisibility(); return opened;
   });
-  ipcMain.handle('desktop-guide-toggle', () => desktopGuide.toggle());
+  ipcMain.handle('remote-play-state', event => { systemSender(event); return remotePlay.state; });
+  ipcMain.handle('remote-play-control', (event, action: import('../shared/remote-play.js').RemotePlayCommand) => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents || demoMode) throw Error('Remote Play must be controlled from the launcher.');
+    return remotePlay.control(action);
+  });
+  ipcMain.handle('remote-play-obscured', (event, obscured: unknown) => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents || typeof obscured !== 'boolean') throw Error('Invalid Remote Play view state.');
+    remotePlayInlineObscured = obscured; updateRemotePlayVisibility();
+  });
+  ipcMain.handle('desktop-guide-toggle', event => { systemSender(event); return toggleDesktopGuide(); });
   ipcMain.handle('desktop-guide-close', () => desktopGuide.hide());
   ipcMain.handle('desktop-guide-navigate', async (_event, page: string, gameId?: string) => {
     if (!['home', 'library', 'downloads', 'settings'].includes(page)) throw new Error('Invalid destination.');
@@ -1368,19 +1433,51 @@ function registerIpc(): void {
     await showLauncher();
     mainWindow?.webContents.send('desktop-guide-navigate', { page, gameId });
   });
-  ipcMain.handle('guide-audio-get', () => demoMode ? { available: false, reason: 'System audio controls are disabled in demo mode.' } : guideAudio());
-  ipcMain.handle('guide-audio-set', (_event, patch: { volume?: number; muted?: boolean }) => {
+  ipcMain.handle('guide-mixer-get', event => {
+    systemSender(event);
+    return demoMode ? { status: 'unsupported', source: 'pipewire', outputs: [], inputs: [], applications: [], reason: demoSystemReason } : guideMixer.state();
+  });
+  ipcMain.handle('guide-mixer-control', (event, command: GuideMixerCommand) => {
+    systemSender(event); if (demoMode) throw Error(demoSystemReason);
+    return guideMixer.control(command);
+  });
+  ipcMain.handle('guide-performance-get', event => {
+    systemSender(event);
+    return demoMode ? { status: 'unavailable', sampledAt: new Date().toISOString(), reason: demoSystemReason } : guidePerformance.sample();
+  });
+  ipcMain.handle('guide-gallery-get', event => { systemSender(event); return demoMode ? { status: 'unavailable', items: [], reason: demoSystemReason } : guideGallery().list(); });
+  ipcMain.handle('guide-gallery-open', async (event, id: string) => {
+    systemSender(event); if (demoMode) throw Error(demoSystemReason);
+    const failure = await shell.openPath(await guideGallery().file(id));
+    if (failure) throw Error('The capture could not be opened.');
+  });
+  ipcMain.handle('guide-gallery-delete', async (event, id: string) => {
+    systemSender(event); if (demoMode) throw Error(demoSystemReason);
+    await guideGallery().remove(id);
+  });
+  ipcMain.handle('guide-spotify-get', event => {
+    systemSender(event);
+    return demoMode ? { status: 'unsupported', source: 'linux-mpris', playbackStatus: 'unknown', capabilities: { playPause: false, previous: false, next: false, seek: false, open: false }, reason: demoSystemReason } : spotify.state();
+  });
+  ipcMain.handle('guide-spotify-control', (event, command: SpotifyCommand) => {
+    systemSender(event); if (demoMode) throw Error(demoSystemReason);
+    return spotify.control(command);
+  });
+  ipcMain.handle('guide-audio-get', event => { systemSender(event); return demoMode ? { available: false, reason: 'System audio controls are disabled in demo mode.' } : guideAudio(); });
+  ipcMain.handle('guide-audio-set', (event, patch: { volume?: number; muted?: boolean }) => {
+    systemSender(event);
     if (demoMode) return { available: false, reason: 'System audio controls are disabled in demo mode.' };
     if (!patch || typeof patch !== 'object') throw new Error('Invalid audio request.');
     return guideAudio({ volume: patch.volume, muted: patch.muted });
   });
-  ipcMain.handle('guide-capture', async () => {
+  ipcMain.handle('guide-capture', async event => {
+    systemSender(event); if (demoMode) throw Error(demoSystemReason);
     if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The xboks window is unavailable.');
     const folder = path.join(app.getPath('pictures'), 'xboks');
-    await fs.mkdir(folder, { recursive: true });
+    await guideGallery().checkDirectory(true);
     const image = await mainWindow.webContents.capturePage();
     const target = path.join(folder, `xboks-${Date.now()}-${randomUUID().slice(0, 8)}.png`);
-    await fs.writeFile(target, image.toPNG());
+    await fs.writeFile(target, image.toPNG(), { flag: 'wx', mode: 0o600 });
     return target;
   });
   const catalogMarket = currentMarket;
@@ -1879,6 +1976,14 @@ async function createWindow(background = false): Promise<void> {
     }
     mainWindow.on('close', event => {
       if (mainWindow) saveWindowState(mainWindow);
+      if (gameBarResidency.keepsRunning(quitting)) {
+        event.preventDefault(); remotePlay.destroy();
+        const window = mainWindow;
+        if (window?.isFullScreen() && fullscreenExperience.current.source !== 'session') {
+          void fullscreenExperience.setWindow(false).catch(() => fullscreenExperience.dispose()).finally(() => { if (window && !window.isDestroyed()) window.hide(); });
+        } else window?.hide();
+        return;
+      }
       if (!quitting && !desktopSettingsStatus.fullscreenExperience && store.settings.minimizeToTray === true) {
         try { ensureSettingsTray(); event.preventDefault(); mainWindow?.hide(); }
         catch { console.warn('System tray unavailable; closing normally.'); }
@@ -1967,6 +2072,10 @@ app.whenReady().then(async () => {
   shortcutOnly = Boolean(startupRequest.gameId) && !demoMode;
   store = new StateStore(app.getPath('userData'), { pathMoves: pathMigration?.moves, defaultRuntimeRoot: pathMigration?.runtimeRoot });
   await store.load();
+  if (!demoMode) {
+    desktopSettingsStatus.gameBarServiceEnabled = await gameBarServiceEnabled(autostartConfigRoot);
+    if (desktopSettingsStatus.gameBarServiceEnabled) gameBarResidency.activate();
+  }
   await refreshDesktopSettingsStatus();
   downloadCleanup = new DownloadCleanup(app.getPath('userData'));
   accountProfile = new AccountProfile(app.getPath('userData'), scheduleSnapshot, dataUrl => {
@@ -2002,8 +2111,8 @@ app.whenReady().then(async () => {
       if (!snapshot().games[0]?.heroUrl) throw new Error('Wide demo artwork is unavailable; capture cancelled.');
     }
     else void loadDemoCovers().then(() => emitSnapshot(), () => { /* Covers are optional. */ });
-    await createWindow();
-    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) void createWindow(); });
+    if (!process.argv.includes('--gamebar-service')) await createWindow();
+    app.on('activate', () => { void showLauncher(); });
     return;
   }
   for (const game of [...store.games]) {
@@ -2032,7 +2141,7 @@ app.whenReady().then(async () => {
     // configured a validated external backend are left alone; the managed
     // release never touches an external checkout.
     if (!store.settings.firstRunCompleted && !backend.current.available &&
-        backend.current.releaseAvailable && backend.current.updateAvailable) {
+        backend.current.releaseAvailable && backend.current.updateAvailable && !serviceAccountDeferred) {
       try {
         await backend.update(emitSnapshot);
         if (mainWindow?.isVisible()) void refreshInitialAccount().catch(() => { /* The setup UI remains usable. */ });
@@ -2050,7 +2159,7 @@ app.whenReady().then(async () => {
   if (startupRequest.gameId) {
     await refreshAccount(false);
     receiveLaunchRequest(startupRequest.gameId);
-  } else await showBeforeAccountCheck(() => startDesktopLauncher(process.argv, desktopSettingsStatus, {
+  } else if (!process.argv.includes('--gamebar-service')) await showBeforeAccountCheck(() => startDesktopLauncher(process.argv, desktopSettingsStatus, {
     ensureTray: ensureSettingsTray, show: showLauncher,
     background: async () => {
       windowOpening ??= createWindow(true).finally(() => { windowOpening = undefined; });
@@ -2062,7 +2171,7 @@ app.whenReady().then(async () => {
     authState = { ...authState, note: 'Account status is unavailable. Check the system keyring in Settings, then refresh.' };
     emitSnapshot();
   });
-  if (pendingGuide) { pendingGuide = false; await desktopGuide.toggle(); }
+  if (pendingGuide) { pendingGuide = false; await toggleDesktopGuide(); }
   for (const id of pendingRequests.splice(0)) receiveLaunchRequest(id);
   for (const error of pendingShortcutErrors.splice(0)) void shortcutError(error);
   app.on('activate', () => { void showLauncher(); });
@@ -2073,7 +2182,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin' && !shortcutOnly) app.quit();
+  if (gameBarResidency.shouldQuitWithoutWindows(process.platform, shortcutOnly)) app.quit();
 });
 
 app.on('will-quit', () => { settingsTray?.destroy(); settingsTray = undefined; desktopGuide.destroy(); gameDisplay.stop(); });
@@ -2082,6 +2191,7 @@ app.on('before-quit', (event) => {
   quitting = true;
   fullscreenExperience.dispose();
   voiceCapture.release();
+  spotify.dispose();
   remotePlay.destroy();
   desktopGuide.destroy();
   installQueue.stop();

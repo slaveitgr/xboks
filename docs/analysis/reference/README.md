@@ -21,6 +21,7 @@ For the user: Η βιβλιοθήκη είναι η βάση εργασίας γ
 | [Typed WinMD signatures](winmd-signatures.md) | Method/field types, parameters, async return contracts and enum constants, preserving originating files |
 | [PRI resources and Greek labels](pri-resources.md) | Named resource → qualifier set → candidate value, with exact schema binding for the Greek pack |
 | [Native XBF resources](xbf-resources.md) | Persisted native tray controls, styles, templates, glyph/font pairs and visual-state operations |
+| [Game Bar widgets, settings and Spotify](gamebar-widgets.md) | Dedicated x64/Greek library: 74 embedded XBFs, exact native controls/typed contracts, widget ownership and Linux feature boundaries |
 | [Implementation guide](implementation-guide.md) | Build/run xboks and implement the reference through existing Nexus/Linux adapters |
 | [Application implementation — 2026-10-21](app-implementation-2026-10-21.md) | Dated menu/Back/product/queue/Settings changes, scoped test runs and sample Chromium verification; original runtime/service gates remain separate |
 | [Social and system integration — 2026-10-21](../social-system-integration.md) | Shared Friends/chat, authenticated read-only results, Linux system controls, packaging and explicit party voice/acceptance limits |

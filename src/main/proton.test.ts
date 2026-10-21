@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { managedUnrealCultureGameIni, prefixUserLocale, prepareProtonRunner, syncPrefixUserLocale, syncUnrealCultureGameIni } from './proton.js';
+import { managedUnrealCultureGameIni, prefixUserLocale, prepareProtonRunner, secureProtonDirectory, syncPrefixUserLocale, syncUnrealCultureGameIni } from './proton.js';
 import { prepareGameWrapper } from './game-wrapper.js';
 import { defaultLaunchTools } from '../shared/launch-tools.js';
 import { preparedGameWine } from './game-launch.js';
@@ -18,6 +18,24 @@ afterEach(async () => {
 });
 
 describe('prepareProtonRunner', () => {
+  it('repairs group-writable owned prefixes without changing save bytes or ordinary read access', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'xboks-prefix-mode-')); created.push(root);
+    const prefix = path.join(root, 'pfx'); await mkdir(prefix); await chmod(prefix, 0o775);
+    await writeFile(path.join(prefix, 'save.dat'), 'existing save');
+    await secureProtonDirectory(prefix);
+    expect((await stat(prefix)).mode & 0o777).toBe(0o755);
+    expect(await readFile(path.join(prefix, 'save.dat'), 'utf8')).toBe('existing save');
+    const fresh = path.join(root, 'new'); await secureProtonDirectory(fresh);
+    expect((await stat(fresh)).mode & 0o777).toBe(0o700);
+  });
+  it('rejects symlink prefixes and leaves their destination permissions untouched', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'xboks-prefix-link-')); created.push(root);
+    const target = path.join(root, 'target'), link = path.join(root, 'link');
+    await mkdir(target); await chmod(target, 0o775); await symlink(target, link);
+    await expect(secureProtonDirectory(link, false)).rejects.toThrow('real directory');
+    expect((await stat(target)).mode & 0o777).toBe(0o775);
+    await secureProtonDirectory(path.join(root, 'absent'), false);
+  });
   it('provisions every verified shared DXVK module, without modifying prior runtime symlinks', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'nexus-dxvk-prefix-')); created.push(root);
     const runtime = path.join(root, 'runtime'), compat = path.join(root, 'compat');

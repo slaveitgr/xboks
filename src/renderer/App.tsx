@@ -17,7 +17,8 @@ import { InstallQueueShortcut } from './InstallQueueShortcut';
 import { dispatchBackHandlers } from './gamepad-navigation';
 import { GamepadNavigation, useBackHandler } from './GamepadNavigation';
 import { GamePassIcon, GamePassPage, ShellFlyout, type ShellPanel } from './XboxShell';
-import { GuideOverlay, guideTabs, type GuideTab } from './GuideOverlay';
+import { GuideOverlay, cycleGuideTab, type GuideTab } from './GuideOverlay';
+import { RemotePlayHost } from './RemotePlayHost';
 import { SettingsFrame, type SettingsSection } from './SettingsFrame';
 import { LaunchExperience } from './LaunchExperience';
 import { installationReadiness } from '../shared/installation-state';
@@ -1186,6 +1187,7 @@ export default function App() {
   const [history, setHistory] = useState<ShellLocation[]>([]);
   const [returnPoint, setReturnPoint] = useState<ShellLocation>();
   const [guideOpen, setGuideOpen] = useState(false);
+  useEffect(() => { void window.launcher?.setRemotePlayObscured?.(guideOpen).catch(() => {}); }, [guideOpen]);
   const [guideTab, setGuideTab] = useState<GuideTab>('home');
   const previousPage = useRef<Page>('home');
   useEffect(() => { if (page !== 'settings') previousPage.current = page; }, [page]);
@@ -1344,8 +1346,8 @@ export default function App() {
     </section>
     {page === 'settings' ? <SettingsPage key={settingsSection} initialSection={settingsSection} data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}
     {toast ? <div className={`toast ${toast.kind}`}>{toast.kind === 'success' ? <Check /> : toast.kind === 'error' ? <CircleAlert /> : <Terminal />}<span>{toast.message}</span><button onClick={() => setToast(undefined)}><X /></button></div> : null}
-  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
-    if (guideOpen) { setGuideTab(current => guideTabs[(guideTabs.indexOf(current) + delta + guideTabs.length) % guideTabs.length]); return; }
+  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<RemotePlayHost/><GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
+    if (guideOpen) { setGuideTab(current => cycleGuideTab(current, delta)); return; }
     if (page === 'settings') { window.dispatchEvent(new CustomEvent('xboks-settings-section', { detail: delta })); return; }
     setPage(current => {
     const pages: Page[] = ['home', 'gamepass', 'library', 'store'];

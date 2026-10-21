@@ -1,0 +1,21 @@
+.remote-play-host { position:fixed; inset:0; z-index:450; background:#1a1b1e; color:#f6f6f6; }
+.remote-play-toolbar { height:var(--remote-play-toolbar-height,64px); display:flex; align-items:center; gap:12px; padding:0 20px; box-sizing:border-box; border-bottom:1px solid #34373b; }
+.remote-play-toolbar > div { flex:1; min-width:0; }
+.remote-play-toolbar h1 { font-size:17px; font-weight:600; margin:0; }
+.remote-play-toolbar p { margin:4px 0 0; font-size:12px; color:#b6b9bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.remote-play-toolbar button,.remote-play-host-state button { min-height:36px; min-width:36px; border:1px solid #575e67; background:#30353c; color:inherit; padding:8px; border-radius:6px; display:inline-flex; gap:10px; align-items:center; justify-content:center; cursor:pointer; }
+.remote-play-toolbar button > .xbox-icon { width:20px; height:20px; }
+.remote-play-host button:disabled { opacity:.4; cursor:default; }
+.remote-play-host button:hover:not(:disabled) { background:#474d56; }
+.remote-play-host button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.remote-play-host-state { position:absolute; inset:var(--remote-play-toolbar-height,64px) 24px 24px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.remote-play-host-state h2 { font-size:24px; margin:20px 0 6px; }
+.remote-play-host-state p { color:#b9bcc2; max-width:520px; line-height:1.5; }
+.remote-play-host-state > div:not(.remote-play-loading) { display:flex; gap:16px; margin-top:18px; }
+.remote-play-loading { width:40px; height:40px; border:3px solid #50565e; border-top-color:#fff; border-radius:50%; animation:remote-play-spin 1s linear infinite; }
+@keyframes remote-play-spin { to{transform:rotate(360deg);} }
+body:has(.remote-play-host) .gamepad-hints { display:none; }
+@media(prefers-reduced-motion:reduce) { .remote-play-loading { animation:none; } }
+/* The native view is hidden by main too; preserve the inline Guide fallback. */
+body:has(.guide-overlay) .remote-play-host { visibility:hidden; }
+.remote-play-host { font-family:'Xbox Segoe Text','Segoe UI',system-ui,sans-serif; font-size:16px; line-height:1.4; }

@@ -24,6 +24,12 @@ html[data-original-xbox-ui] .xbox-icon > .xbox-original-glyph { display: flex; a
 .guide-recent-list button > .xbox-icon { display: inline-flex; flex: 0 0 24px; }
 .xbox-mode .shell-tools .xbox-full-toggle > .xbox-icon { display: inline-flex; }
 html[data-original-xbox-ui] .xbox-icon > .xbox-original-glyph.xbox-fluent-glyph { font-family: 'Xbox Fluent 2' !important; }
+/* Game Bar glyphs use their own font and remain fallback vectors when only
+   the optional Xbox app visual kit is installed. */
+html:not([data-original-gamebar-ui]) .xbox-icon:has(> .xbox-gamebar-glyph) > .xbox-fallback-icon { display:block; }
+html:not([data-original-gamebar-ui]) .xbox-icon > .xbox-original-glyph.xbox-gamebar-glyph { display:none; }
+html[data-original-gamebar-ui] .xbox-icon > .xbox-original-glyph.xbox-gamebar-glyph { display:flex; align-items:center; justify-content:center; width:100%; height:100%; font-family:'Xbox Fluent Game Bar v2' !important; font-size:inherit; font-weight:400!important; font-style:normal; line-height:1; }
+html[data-original-gamebar-ui] .xbox-icon:has(> .xbox-gamebar-glyph) > .xbox-fallback-icon { display:none; }
 .shell-notification-list > button > .xbox-icon:first-child { width: 28px; height: 28px; color: #17ace0; }
 .guide-panel h3 > .xbox-icon, .shell-friends-search > .xbox-icon { width: 20px; height: 20px; }
 .xbox-settings-close > .xbox-icon { width: 20px; height: 20px; }

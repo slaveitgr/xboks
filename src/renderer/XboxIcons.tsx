@@ -8,18 +8,25 @@ const asset = (filename: string) => new URL(`./original-xbox/${filename}`, docum
 export function loadOriginalXboxUi() {
   const link = document.createElement('link');
   link.rel = 'stylesheet'; link.href = asset('theme.css');
-  link.onload = () => { document.documentElement.setAttribute('data-original-xbox-ui', ''); };
-  link.onerror = () => { document.documentElement.removeAttribute('data-original-xbox-ui'); };
+  link.onload = () => {
+    document.documentElement.setAttribute('data-original-xbox-ui', '');
+    // The Game Bar font is an optional, separately supplied private resource.
+    // A successful Xbox theme load does not prove its glyphs are available.
+    void document.fonts.load('24px "Xbox Fluent Game Bar v2"', '\uE92F').then(faces => {
+      document.documentElement.toggleAttribute('data-original-gamebar-ui', faces.length > 0);
+    }).catch(() => document.documentElement.removeAttribute('data-original-gamebar-ui'));
+  };
+  link.onerror = () => { document.documentElement.removeAttribute('data-original-xbox-ui'); document.documentElement.removeAttribute('data-original-gamebar-ui'); };
   document.head.append(link);
 }
 
-function icon(name: string, fallback: LucideIcon, glyph?: string, font: 'mdl2' | 'xbox' = 'mdl2'): LucideIcon {
+function icon(name: string, fallback: LucideIcon, glyph?: string, font: 'mdl2' | 'xbox' | 'gamebar' = 'mdl2'): LucideIcon {
   const Component = forwardRef<SVGSVGElement, LucideProps>((props, ref) => {
     const { className = '', size, style, ...rest } = props;
     const Fallback = fallback;
     const mask = typeof document === 'undefined' ? '' : `url(${JSON.stringify(asset(`icons/${name}.svg`))})`;
     return <span className={`xbox-icon xbox-icon-${name} ${className}`} aria-hidden="true" style={{ ...(size ? { width: size, height: size } : {}), ...style }}>
-      {glyph ? <span className={`xbox-original-glyph${font === 'xbox' ? ' xbox-fluent-glyph' : ''}`}>{glyph}</span> : <svg {...rest} className="xbox-original-icon" viewBox="0 0 32 32" style={{ maskImage: mask, WebkitMaskImage: mask } as CSSProperties}><rect width="32" height="32" fill="currentColor" /></svg>}
+      {glyph ? <span className={`xbox-original-glyph${font === 'xbox' ? ' xbox-fluent-glyph' : font === 'gamebar' ? ' xbox-gamebar-glyph' : ''}`}>{glyph}</span> : <svg {...rest} className="xbox-original-icon" viewBox="0 0 32 32" style={{ maskImage: mask, WebkitMaskImage: mask } as CSSProperties}><rect width="32" height="32" fill="currentColor" /></svg>}
       <Fallback {...rest} className="xbox-fallback-icon" ref={ref} />
     </span>;
   });
@@ -95,8 +102,12 @@ export const PackageCheck = icon('Completed', Lucide.PackageCheck);
 export const Rocket = icon('GameLaunch', Lucide.Rocket);
 export const InstalledCheck = icon('CheckInCircle', Lucide.Check);
 // Game Bar uses the filled variants, while the launcher's rail uses outlines.
-export const GuideHomeIcon = icon('GuideHome', Lucide.Home, '\uEABF', 'xbox');
-export const GuideSettingsIcon = icon('GuideSettings', Lucide.Cog, '\uEACD', 'xbox');
+export const GuideHomeIcon = icon('GuideHome', Lucide.Home, '\uEABF', 'gamebar');
+export const GuideSettingsIcon = icon('GuideSettings', Lucide.Cog, '\uEACD', 'gamebar');
 export const GuideFriendsIcon = icon('GuideFriends', Lucide.Users, '\uE822', 'xbox');
-export const GuideAudioIcon = icon('GuideAudio', Lucide.Volume2, '\uE80C', 'xbox');
-export const GuideCaptureIcon = icon('GuideCapture', Lucide.Camera, '\uE7D3', 'xbox');
+export const GuideAudioIcon = icon('GuideAudio', Lucide.Volume2, '\uE80C', 'gamebar');
+export const GuideCaptureIcon = icon('GuideCapture', Lucide.Camera, '\uE7D3', 'gamebar');
+
+// Game Bar FontIcons.xbf: Related@9940 and PerformanceMonitoringSolid@9933.
+export const GuideWidgetsIcon = icon('GuideWidgets', Lucide.Grid3X3, '\uE955', 'gamebar');
+export const GuidePerformanceIcon = icon('GuidePerformance', Lucide.MonitorUp, '\uE92F', 'gamebar');

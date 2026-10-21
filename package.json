@@ -1,6 +1,6 @@
 {
   "name": "xboks",
-  "version": "0.3.14",
+  "version": "0.3.16",
   "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
   "license": "MIT",
   "author": "xboks contributors",
@@ -80,6 +80,10 @@
       {
         "from": "scripts/desktop/stage-gnome-experience.py",
         "to": "desktop/stage-gnome-experience.py"
+      },
+      {
+        "from": "scripts/desktop/install-gamebar-service.py",
+        "to": "desktop/install-gamebar-service.py"
       }
     ],
     "afterPack": "scripts/launcher-fonts-after-pack.cjs",

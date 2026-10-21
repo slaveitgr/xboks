@@ -14,6 +14,7 @@ import zipfile
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('package', type=Path)
 parser.add_argument('--output', type=Path, default=Path('public/original-xbox'))
+parser.add_argument('--gamebar', type=Path, help='Optional local x64 Game Bar APPX supplying its distinct icon font')
 args = parser.parse_args()
 ns = 'http://www.w3.org/2000/svg'
 ET.register_namespace('', ns)
@@ -72,5 +73,18 @@ with zipfile.ZipFile(args.package) as package:
 html[data-original-xbox-ui] { font-family: 'Xbox Segoe Text', 'Segoe UI', sans-serif; }
 html[data-original-xbox-ui] .dashboard-home h1, html[data-original-xbox-ui] .dashboard-home h2 { font-family: 'Xbox Segoe Display', 'Xbox Segoe Text', sans-serif; font-weight: 600; }
 ''')
+if args.gamebar:
+    with zipfile.ZipFile(args.gamebar) as gamebar:
+        member = 'Assets/XboxFluentGB2.ttf'
+        if gamebar.getinfo(member).file_size > 4 * 1024 * 1024:
+            raise SystemExit('Unexpected Game Bar icon font size.')
+        content = gamebar.read(member)
+        if not content.startswith(b'\x00\x01\x00\x00'):
+            raise SystemExit('Unexpected Game Bar icon font format.')
+        (args.output / 'fonts' / 'gamebar.ttf').write_bytes(content)
+        manifest['gamebar'] = {'package_sha256': hashlib.sha256(args.gamebar.read_bytes()).hexdigest(),
+                               'member': member, 'font_sha256': hashlib.sha256(content).hexdigest()}
+        with (args.output / 'theme.css').open('a') as theme:
+            theme.write("@font-face { font-family: 'Xbox Fluent Game Bar v2'; src: url('./fonts/gamebar.ttf') format('truetype'); font-weight: 400; font-display: block; }\n")
 (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 print(f'Extracted {len(manifest["icons"])} original icons and {len(fonts)} fonts to {args.output}')

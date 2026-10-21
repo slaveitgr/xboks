@@ -1,0 +1,2 @@
+/** Monochrome Spotify mark, independent of the native Game Bar icon font. */
+export function SpotifyLogo(){return <svg className="guide-spotify-mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><g fill="none" stroke="var(--spotify-cutout, #25282c)" strokeLinecap="round"><path d="M6.7 9.1c3.6-1.1 7.1-.8 10.6 1" strokeWidth="1.8"/><path d="M7.3 12.1c3-.8 6.1-.5 9 .9" strokeWidth="1.6"/><path d="M7.8 15c2.6-.6 5.1-.3 7.7.8" strokeWidth="1.4"/></g></svg>;}

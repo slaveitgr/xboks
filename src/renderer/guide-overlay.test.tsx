@@ -40,7 +40,8 @@ it('uses a truthful app settings destination in the desktop guide, without tryin
   const html=render('settings');
   expect(html).toContain('Open app settings'); expect(html).not.toContain('Fullscreen Experience settings');
   expect(html).not.toContain('Enter window fullscreen'); expect(html).not.toContain('Exit window fullscreen');
-  expect(html).not.toMatch(/class="guide-wide" disabled=""/);
+  const fullscreenControl=html.match(/<button\b[^>]*data-guide-fullscreen[^>]*>/)?.[0];
+  expect(fullscreenControl).toBeDefined(); expect(fullscreenControl).not.toContain('disabled');
 });
 it('does not identify the main app as the desktop guide merely because both expose the same bridge',()=>{
   vi.stubGlobal('window',{location:{hash:''},desktopGuide:{navigate:vi.fn()}});

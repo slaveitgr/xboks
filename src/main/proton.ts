@@ -267,6 +267,25 @@ export async function syncUnrealCultureGameIni(
   }
 }
 
+/** The runtime's version-override helper requires an owned real directory
+ * without group/other write access. A normal desktop umask can create 0775
+ * prefixes; repair that narrow permission issue without touching saves. */
+export async function secureProtonDirectory(directory: string, create = true): Promise<void> {
+  if (create) await fs.mkdir(directory, { recursive: true, mode: 0o700 });
+  let handle;
+  try { handle = await fs.open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW); }
+  catch (error) {
+    if (!create && (error as NodeJS.ErrnoException).code === 'ENOENT') return;
+    throw new Error('The Proton prefix must be a real directory owned by your account.');
+  }
+  try {
+    const current = await handle.stat();
+    if (!current.isDirectory() || current.uid !== process.geteuid?.()) throw Error('The Proton prefix is not owned by your account.');
+    if (current.mode & 0o022) await handle.chmod((current.mode & 0o7777) & ~0o022);
+    if ((await handle.stat()).mode & 0o022) throw Error('The Proton prefix permissions could not be secured.');
+  } finally { await handle.close(); }
+}
+
 export async function prepareProtonRunner(
   winePath: string,
   compatibilityDataPath: string,
@@ -283,8 +302,9 @@ export async function prepareProtonRunner(
     return undefined;
   }
 
-  await fs.mkdir(compatibilityDataPath, { recursive: true });
+  await secureProtonDirectory(compatibilityDataPath);
   await fs.mkdir(steamRoot, { recursive: true });
+  await secureProtonDirectory(path.join(compatibilityDataPath, 'pfx'), false);
   await rebaseRuntimeSymlinks(path.join(compatibilityDataPath, 'pfx'), protonRoot);
   let missing = await missingPrefixFiles(compatibilityDataPath);
   if (missing.length > 0) {
@@ -306,6 +326,7 @@ export async function prepareProtonRunner(
       throw new Error(`The Proton prefix was not prepared correctly; missing ${missing.join(', ')}${detail ? `: ${detail}` : ` (code ${initialized.code})`}`);
     }
   }
+  await secureProtonDirectory(path.join(compatibilityDataPath, 'pfx'), false);
   await rebaseRuntimeSymlinks(path.join(compatibilityDataPath, 'pfx'), protonRoot);
 
   const files = path.join(protonRoot, 'files');

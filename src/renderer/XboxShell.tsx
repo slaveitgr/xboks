@@ -24,11 +24,12 @@ export function ShellFlyout({ panel, data, close, go, settings }: { panel: Shell
   const [accountBusy, setAccountBusy] = useState(false);
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [remoteError, setRemoteError] = useState('');
+  const remotePending=useRef(false);
   const openRemotePlay = async () => {
-    setRemoteBusy(true); setRemoteError('');
+    if(remotePending.current)return;remotePending.current=true;setRemoteBusy(true); setRemoteError('');
     try { await window.launcher.openRemotePlay(); close(); }
-    catch (error) { setRemoteError(error instanceof Error ? error.message : 'Remote Play could not load. Try again.'); }
-    finally { setRemoteBusy(false); }
+    catch { setRemoteError(text('Remote Play could not open. Try again.','Το Remote Play δεν άνοιξε. Δοκιμάστε ξανά.')); }
+    finally {remotePending.current=false; setRemoteBusy(false); }
   };
   const [unread, setUnread] = useState(false);
   const [readIds, setReadIds] = useState<string[]>(() => {
@@ -96,7 +97,7 @@ export function ShellFlyout({ panel, data, close, go, settings }: { panel: Shell
           ]} /> : null}
           <label className="shell-unread-toggle">{text('Show unread only', 'Εμφάνιση μόνο μη αναγνωσμένων')}<input type="checkbox" role="switch" checked={unread} onChange={event => setUnread(event.target.checked)} /></label>
           <div className="shell-notification-list">{visibleNotifications.length ? visibleNotifications.map(task => <button key={task.id} onClick={() => navigate('downloads')} className={readIds.includes(`${task.id}:${task.status}`) ? 'read' : ''}>{task.status === 'failed' ? <CircleAlert /> : <Download />}<span><strong>{task.title}</strong><small>{task.status === 'failed' ? 'Installation needs attention' : 'Installation complete'}</small></span><ChevronRight /></button>) : <p className="shell-panel-empty"><Bell />No new notifications</p>}</div>
-        </> : panel === 'friends' ? <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} /> : <div className="remote-play-content"><p>{text('Turn on your console and sign in with this account', 'Ενεργοποιήστε την κονσόλα σας και εισέλθετε με αυτόν τον λογαριασμό')}</p><button className="remote-play-profile" disabled={remoteBusy} aria-label={text('Open Xbox Remote Play with this account', 'Άνοιγμα του Xbox Remote Play με αυτόν τον λογαριασμό')} onClick={() => void openRemotePlay()}>{data.auth.avatarDataUrl ? <img src={data.auth.avatarDataUrl} alt="Xbox profile" /> : <CircleUserRound />}<span>{name}</span></button>{remoteBusy ? <p role="status">{text('Loading Remote Play…', 'Φόρτωση Remote Play…')}</p> : null}{remoteError ? <p className="remote-play-error" role="alert">{remoteError}</p> : null}</div>}
+        </> : panel === 'friends' ? <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} /> : <div className="remote-play-content"><p>{text('Turn on your console and enable remote features in its settings.', 'Ενεργοποιήστε την κονσόλα σας και τις απομακρυσμένες λειτουργίες στις ρυθμίσεις της.')}</p><button className="remote-play-profile" disabled={remoteBusy} aria-label={text('Open Xbox Remote Play', 'Άνοιγμα του Xbox Remote Play')} onClick={() => void openRemotePlay()}>{data.auth.stored&&data.auth.avatarDataUrl ? <img src={data.auth.avatarDataUrl} alt="Xbox profile" /> : <CircleUserRound />}<span>{data.auth.stored?name:'Xbox Remote Play'}</span></button><p className="remote-play-signin-note">{text('Continue inside xboks. Xbox may ask you to sign in again before showing your consoles.','Συνεχίστε μέσα στο xboks. Το Xbox μπορεί να ζητήσει ξανά σύνδεση πριν εμφανίσει τις κονσόλες σας.')}</p>{remoteBusy ? <p role="status">{text('Loading Remote Play…', 'Φόρτωση Remote Play…')}</p> : null}{remoteError ? <p className="remote-play-error" role="alert">{remoteError}</p> : null}</div>}
 
       </>}
     </div>

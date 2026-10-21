@@ -36,8 +36,24 @@ const api: LauncherApi = {
   getLibraryProviders: () => ipcRenderer.invoke('library-providers'),
   getBatteryPercentage: () => ipcRenderer.invoke('battery-percentage'),
   openRemotePlay: () => ipcRenderer.invoke('remote-play-open'),
+  getRemotePlayState: () => ipcRenderer.invoke('remote-play-state'),
+  controlRemotePlay: command => ipcRenderer.invoke('remote-play-control', command),
+  setRemotePlayObscured: obscured => ipcRenderer.invoke('remote-play-obscured', obscured),
+  onRemotePlayState: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, state: Parameters<typeof callback>[0]) => callback(state);
+    ipcRenderer.on('remote-play-state', listener);
+    return () => ipcRenderer.removeListener('remote-play-state', listener);
+  },
   getGuideAudio: () => ipcRenderer.invoke('guide-audio-get'),
   setGuideAudio: patch => ipcRenderer.invoke('guide-audio-set', patch),
+  getGuideMixer: () => ipcRenderer.invoke('guide-mixer-get'),
+  controlGuideMixer: command => ipcRenderer.invoke('guide-mixer-control', command),
+  getGuidePerformance: () => ipcRenderer.invoke('guide-performance-get'),
+  getGuideGallery: () => ipcRenderer.invoke('guide-gallery-get'),
+  openGuideCapture: id => ipcRenderer.invoke('guide-gallery-open', id),
+  deleteGuideCapture: id => ipcRenderer.invoke('guide-gallery-delete', id),
+  getSpotifyState: () => ipcRenderer.invoke('guide-spotify-get'),
+  controlSpotify: command => ipcRenderer.invoke('guide-spotify-control', command),
   captureLauncher: () => ipcRenderer.invoke('guide-capture'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   refreshBackend: () => ipcRenderer.invoke('backend-refresh'),

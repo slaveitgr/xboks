@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AppSnapshot, Page } from '../shared/types';
-import { GuideOverlay, guideTabs, type GuideTab } from './GuideOverlay';
+import { GuideOverlay, cycleGuideTab, type GuideTab } from './GuideOverlay';
 import { GamepadNavigation, useBackHandler } from './GamepadNavigation';
 
 export function DesktopGuideApp() {
@@ -17,5 +17,5 @@ export function DesktopGuideApp() {
   const go = (page: Page) => { void window.desktopGuide?.navigate(page); };
   return <>{data ? <GuideOverlay data={data} tab={tab} setTab={setTab} close={close} go={go}
     openGame={id => { void window.desktopGuide?.navigate('library', id); }} /> : <button onClick={close}>{error || 'Loading Game Bar…'}</button>}
-    <GamepadNavigation back={close} page={delta => setTab(current => guideTabs[(guideTabs.indexOf(current) + delta + guideTabs.length) % guideTabs.length])} /></>;
+    <GamepadNavigation back={close} page={delta => setTab(current => cycleGuideTab(current, delta))} /></>;
 }

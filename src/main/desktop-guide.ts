@@ -5,9 +5,9 @@ import path from 'node:path';
 export class DesktopGuide {
   private window: BrowserWindow | null = null;
   private opening: Promise<void> | undefined;
-  constructor(private readonly root: string, private readonly releaseCapture: (ownerId: number) => void = () => {}) {}
+  constructor(private readonly root: string, private readonly releaseCapture: (ownerId: number) => void = () => {}, private readonly visibilityChanged: (visible: boolean) => void = () => {}) {}
   get webContents() { return this.window?.isDestroyed() ? undefined : this.window?.webContents; }
-  hide() { this.window?.hide(); }
+  hide() { if (this.window && !this.window.isDestroyed()) this.window.hide(); }
   async toggle(): Promise<void> {
     if (this.opening) return this.opening;
     if (this.window?.isVisible()) { this.hide(); return; }
@@ -25,8 +25,13 @@ export class DesktopGuide {
           contextIsolation: true, nodeIntegration: false, sandbox: true },
       });
       win.setAlwaysOnTop(true, 'screen-saver');
-      const releaseCapture = () => this.releaseCapture(win.webContents.id);
+      // destroyed is emitted after Electron invalidates the native contents.
+      // Capture the numeric ownership token while the window is still alive.
+      const captureOwnerId = win.webContents.id;
+      const releaseCapture = () => this.releaseCapture(captureOwnerId);
       win.on('hide', releaseCapture);
+      win.on('hide', () => this.visibilityChanged(false));
+      win.on('closed', () => this.visibilityChanged(false));
       win.webContents.on('did-start-navigation', releaseCapture);
       win.webContents.on('render-process-gone', releaseCapture);
       win.webContents.on('destroyed', releaseCapture);
@@ -50,6 +55,7 @@ export class DesktopGuide {
     this.window.setTitle('xboks Game Bar');
     this.window.setBounds(display.bounds);
     this.window.show(); this.window.focus();
+    this.visibilityChanged(true);
   }
-  destroy() { this.window?.destroy(); this.window = null; }
+  destroy() { const window = this.window; this.window = null; if (window && !window.isDestroyed()) window.destroy(); }
 }

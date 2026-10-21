@@ -245,6 +245,8 @@ export interface DesktopSettingsStatus {
   desktop?: string;
   /** Unknown until attempted; a successful Tray construction does not prove shell visibility. */
   trayAvailable?: boolean;
+  gameBarResident?: boolean;
+  gameBarServiceEnabled?: boolean;
 }
 
 export interface InstallRequest {
@@ -390,10 +392,22 @@ export interface LauncherApi {
   sendXboxMessage(peerXuid: string, text: string): Promise<import('./xbox-social.js').XboxSocialResult>;
   quitLauncher(): Promise<void>;
   openRemotePlay(): Promise<void>;
+  getRemotePlayState(): Promise<import('./remote-play.js').RemotePlayState>;
+  onRemotePlayState(callback: (state: import('./remote-play.js').RemotePlayState) => void): () => void;
+  controlRemotePlay(command: import('./remote-play.js').RemotePlayCommand): Promise<import('./remote-play.js').RemotePlayState>;
+  setRemotePlayObscured(obscured: boolean): Promise<void>;
   getBatteryPercentage(): Promise<number | null>;
   getLibraryProviders(): Promise<import('./library-providers.js').LibraryProviderStatus[]>;
   getGuideAudio(): Promise<GuideAudio>;
   setGuideAudio(patch: { volume?: number; muted?: boolean }): Promise<GuideAudio>;
+  getGuideMixer(): Promise<import('./guide-mixer.js').GuideMixerState>;
+  controlGuideMixer(command: import('./guide-mixer.js').GuideMixerCommand): Promise<import('./guide-mixer.js').GuideMixerState>;
+  getGuidePerformance(): Promise<import('./guide-widgets.js').GuidePerformance>;
+  getGuideGallery(): Promise<import('./guide-widgets.js').GuideGallery>;
+  openGuideCapture(id: string): Promise<void>;
+  deleteGuideCapture(id: string): Promise<void>;
+  getSpotifyState(): Promise<import('./spotify.js').SpotifyState>;
+  controlSpotify(command: import('./spotify.js').SpotifyCommand): Promise<import('./spotify.js').SpotifyState>;
   captureLauncher(): Promise<string>;
   getSnapshot(): Promise<AppSnapshot>;
   refreshBackend(): Promise<BackendStatus>;

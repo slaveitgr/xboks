@@ -5,6 +5,23 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.16 — 2026-10-21
+
+- Fix a main-process exception when closing Game Bar: retain the microphone ownership ID before Electron destroys its web contents, keep late callbacks bound to the old owner, and make repeated teardown safe.
+- Report denied Spotify desktop permissions explicitly with bounded diagnostic codes. The Snap MPRIS policy can reject an inherited named security label; no sandbox or security-policy workaround is applied.
+- Add an opt-in [resident Game Bar user service](docs/analysis/gamebar-service.md), separately controlled login enablement/immediate startup, a shared profile/process and graceful main-process shutdown. Installing with `--enable` leaves the current app running; existing-instance handoff is distinct from systemd supervision, and live login/recovery acceptance remains open.
+- Host official console Remote Play in an isolated view inside the main app with trusted navigation/retry/close controls and separate Microsoft web sign-in. The [original Windows analysis](docs/analysis/reference/remote-play-ownership.md) proves an internal native console route and `GameStreamView`, not a separate browser window; this web adapter does not claim native service parity or Xbox One X gameplay acceptance.
+- Distinguish Spotify desktop permission denial from player discovery/transport errors, with a safe stage-specific diagnostic and permission guidance. Denied controls remain disabled; no Snap policy, desktop confinement or player permissions are changed automatically.
+
+## 0.3.15 — 2026-10-21
+
+- Repair group/other-writable permissions on owned, real Proton game-prefix directories before and after initialization. Keep runtime ownership checks enabled, preserve saves and custom locations, and reject symlink prefixes. This addresses the reported Asphalt launch guard; successful gameplay still needs confirmation.
+- Add the Game Bar widget directory, paged favorites, panels kept open within the guide, scoped settings categories, appearance/accessibility preferences and controller navigation that respects hidden widgets. Optional locally extracted Game Bar fonts now use their own verified glyph family instead of the Xbox app font.
+- Connect the native Spotify desktop player through MPRIS: artwork and track state, previous/next, play/pause, capability-gated seek and explicit Open Spotify. No background playback or automatic launch; native, Flatpak and Snap desktop IDs are supported. Recommendations, saved-library actions and Spotify Connect are not implemented by MPRIS.
+- Connect the PipeWire application mixer and default input/output devices, with current node-serial validation and volume/mute capabilities. Add live Linux CPU/RAM and available AMD GPU/VRAM counters; unavailable values remain unknown and game FPS is not inferred.
+- Add a gallery restricted to xboks PNG captures, with bounded local thumbnail reads, Open and explicitly confirmed Delete. Capture remains limited to the xboks window; game video and arbitrary desktop capture are not implemented.
+- Recover all 74 embedded native Game Bar XBF resources, Greek PRI labels and typed widget/settings contracts into a reproducible private reference database. Publish the sanitized feature map and analysis tools, keeping original packages, fonts and screenshots outside Git. Complete native call graphs, Xbox party voice and verified compositor overlay behavior remain separate work.
+
 ## 0.3.14 — 2026-10-21
 
 - Show a content-selection step before installation, including a resolved single base game. Next opens the real install location; only the final Install action submits the selected package ID, market and destination. Alternative packages remain single-choice; unsupported optional-language/chunk selection and unknown sizes are not fabricated.

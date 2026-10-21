@@ -32,12 +32,23 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Desktop header | Xbox mode entry in desktop windows; clock and real system power status in fullscreen | Unknown battery/charging data is not invented; window fullscreen and OS integration are reported separately |
 | Installation dialog | Content confirmation, required base package, real install location, scoped Back and an explicit final Install action | Optional language/chunk selection and disk sizes need additional engine metadata; alternative package IDs are single-choice |
 | Handheld information | Dedicated reference-style page with the explicit Xbox public-catalog classification and Greek/English labels | Ratings describe Windows handhelds, not Linux/Proton compatibility or performance on this PC; absent data stays unknown |
-| Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | A native compositor Game Bar over external games remains pending; shortcuts and video capture have separate limits |
+| Game Bar widgets | Separate desktop guide, widget directory, favorites, panels kept open beside the selected widget, reference settings and scoped Back | Kept-open panels hide when Game Bar closes; independent desktop pinning and native Wayland overlay acceptance remain pending |
+| Resident Game Bar | Opt-in user service and one shared app/profile; close the main window while keeping the Guide available | Login enablement and immediate startup are separate; an already running app receives a handoff rather than becoming systemd's supervised PID |
+| Spotify | Local desktop-player metadata, play/pause, previous/next, supported seeking and explicit Open Spotify | Uses Linux MPRIS and the installed player; recommendations, saved-library and Spotify Connect device controls are not provided |
+| Audio mixer | PipeWire default input/output selection, device and application volume/mute, with current stream identity checks | Requires `pw-dump`/`wpctl` and permission; live mutations, communications roles and spatial audio need separate acceptance |
+| Performance | Real CPU/RAM samples and GPU/VRAM counters when the driver exposes them | No invented FPS/NPU or unsupported-driver readings; external-game FPS needs separate instrumentation |
+| Capture gallery | List, open and explicitly delete screenshots created by xboks | Capture remains limited to the xboks window; game video, retrospective recording and external-game capture remain open |
 | Linux controls | NetworkManager Wi-Fi, BlueZ paired-device controls and capability-gated session/power actions | New pairing/network setup uses desktop settings; disruptive actions require confirmation |
 | Audio tools | Explicit local microphone test, device selection, level meter, optional monitoring, mute, push to talk and supported noise suppression | These tools test audio on this PC; **Xbox party voice is not connected** |
-| Console Remote Play | Dedicated window for Microsoft's official console web client | Discovery, sign-in and streaming are owned by that site; the native Windows flow and Xbox One X acceptance remain open |
+| Console Remote Play | Isolated Microsoft console web client inside the app, with trusted Back/retry/close controls | Web sign-in is separate from launcher authentication; native Windows console/service parity and Xbox One X acceptance remain open |
 
 The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
+
+**0.3.16 development update:** an opt-in resident Game Bar service and an isolated Remote Play view inside the launcher are added. Spotify permission denials now have explicit diagnostics and desktop-permission guidance, without changing Snap policy. Login enablement does not start or stop the current app. Native console streaming parity, service login/recovery and Xbox One X gameplay still need acceptance testing.
+
+The **0.3.15 Game Bar foundation** adds the widget directory, Spotify desktop controls, measured performance, an owned PNG gallery and expanded settings. The original package now has a dedicated [Game Bar reference library](docs/analysis/reference/gamebar-widgets.md): all 74 embedded XBF resources and their Greek labels are indexed alongside native interfaces. This is structural evidence, not a claim of complete native implementation or live Windows/Linux parity.
+
+The **0.3.14** installation flow remains: confirm the required base game, choose **Next**, select the real installation location, then submit with **Install**. Optional language/chunk selection and disk sizes remain dependent on engine metadata. The Wine-prefix guard also repairs writable permissions on an owned, real game prefix before launch; it preserves custom paths and does not establish successful gameplay by itself.
 
 The [handheld compatibility analysis](docs/analysis/reference/handheld-compatibility.md) records the original package's data contract and layout. The app reads the public Xbox product service without account credentials; this descriptive rating does not change license, installability or Play decisions.
 
@@ -160,6 +171,23 @@ python3 scripts/desktop/install-gnome-gamebar.py \
 
 That shortcut helper preserves other bindings and refuses an existing Win+G conflict. The guide currently uses a separate Electron desktop window. The Fullscreen Experience extension does **not** turn it into a native compositor overlay: global Game Bar stacking/input over external games on Wayland remains pending. System volume uses PipeWire/WirePlumber (`wpctl`); screenshots capture the xboks window, not arbitrary games or the whole desktop.
 
+The widget menu controls favorites and which panels remain open while Game Bar is visible. Settings cover general behavior, theme/opacity, input, widget visibility and separate account/privacy/notification/accessibility pages. Controls without a Linux or Xbox service adapter explain their unavailable state. Windows Game Bar extensions cannot be installed as Linux widgets.
+
+Spotify controls use the installed desktop player's MPRIS service through a local GJS helper; no Spotify password, OAuth token or Web API access is added. Missing players and unsupported controls remain unavailable. Native isolated-service tests verify the protocol, but live Spotify playback acceptance is still pending. Performance reads actual system counters, and Gallery only manages xboks-created PNGs. Closing Game Bar hides its kept-open panels; it does not leave independent overlays pinned above other applications.
+
+The mixer reads actual PipeWire devices and application streams and checks their current identity before changing volume, mute or default input/output. A read-only host probe succeeded; mutation tests use isolated fixtures. The separate local microphone test still controls its own capture permission and lifetime.
+
+To opt into a resident Game Bar at future graphical logins, install the [user service](docs/analysis/gamebar-service.md):
+
+```sh
+python3 scripts/desktop/install-gamebar-service.py \
+  --launcher "$HOME/.local/opt/xboks/xboks.AppImage" --enable
+```
+
+This enables future login startup without starting or stopping the current app. `--start` is a separate explicit option. The service starts without the main window; closing that window keeps the shared process available. Explicit Quit or stopping the service closes the app and its games. If an older instance already owns the profile, the request hands off to it; a fresh login lets the service own the primary process. Remove the validated owned unit with `python3 scripts/desktop/install-gamebar-service.py --uninstall`. This is user-session persistence, not a compositor overlay.
+
+Remote Play now stays inside the launcher through an isolated view of Microsoft's official web client. Its Microsoft web account remains separate from launcher sign-in. The [original Windows ownership analysis](docs/analysis/reference/remote-play-ownership.md) proves an internal console route and native `GameStreamView`; the browser adapter does not reproduce those native services. Microsoft's browser migration announcement explicitly covers mobile app removal, not removal of the supplied Windows client. Real console discovery, wake, audio/video and controller gameplay remain unverified on the Xbox One X.
+
 ## Reconstruction and verification
 
 The visual reference is **Windows Xbox app 2610.1001.20.0 in Xbox mode** and the supplied screenshots. The [reference library](docs/analysis/reference/README.md) connects screenshot observations, decoded resources, control/navigation contracts, native metadata and implementation instructions. The [verification matrix](docs/analysis/reference/verification-matrix.json) keeps static evidence, Windows observations and tested Linux behavior distinct.
@@ -170,6 +198,9 @@ Start with:
 - [Application implementation report](docs/analysis/reference/app-implementation-2026-10-21.md) — UI/navigation checks and remaining gaps.
 - [Social/system integration](docs/analysis/social-system-integration.md) — real adapters, authenticated read checks, packaging and limits.
 - [Xbox party voice](docs/analysis/reference/party-voice.md) — recovered native/signaling evidence and the Linux voice plan.
+- [Game Bar native widgets and settings](docs/analysis/reference/gamebar-widgets.md) — embedded XBF/Greek resources, exact controls, Spotify ownership and Linux support/missing-feature matrix.
+- [Resident Game Bar service](docs/analysis/gamebar-service.md) — opt-in login setup, handoff, shutdown and reversible removal.
+- [Original Remote Play ownership](docs/analysis/reference/remote-play-ownership.md) — internal native route/player evidence and the separate official-browser boundary.
 
 Synthetic tests, authenticated service checks, physical-controller checks and audible cross-device voice acceptance establish different things. Reverse-engineering counts are not a completion percentage.
 
@@ -182,6 +213,12 @@ Synthetic tests, authenticated service checks, physical-controller checks and au
 - [x] Integrate Xbox friends/text-chat adapters and Linux system controls.
 - [x] Add explicit local audio/device testing with cleanup and local push to talk.
 - [x] Implement the optional GNOME 51 Fullscreen Experience prototype and fullscreen-only clock/system-power header.
+- [x] Decode all 74 embedded native Game Bar XBFs and bind the Greek resource pack.
+- [x] Add the widget directory/settings, Linux Spotify transport, measured performance and xboks PNG gallery.
+- [x] Add opt-in resident Game Bar service tooling and an isolated in-app Remote Play web host.
+- [ ] Verify service login/recovery and real-console Remote Play beyond fixture checks.
+- [ ] Verify live Spotify controls, PipeWire devices/mixer and widget persistence with real desktop services.
+- [ ] Implement external-game video/retrospective capture and real FPS instrumentation.
 - [ ] Complete live GNOME entry/restore, lock/unlock, dock, multi-monitor and physical-controller acceptance.
 - [ ] Add a native compositor Game Bar with verified global input and external-game stacking.
 - [ ] Complete screenshot-by-screenshot visual and interaction parity.
