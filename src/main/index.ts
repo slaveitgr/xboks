@@ -83,6 +83,7 @@ import { GnomeExperienceClient } from './experience-client.js';
 import { FullscreenExperience } from './fullscreen-experience.js';
 import { XboxModeStartup } from './xbox-mode-startup.js';
 import { XboxModeRestart, resumeXboxModeStartup } from './xbox-mode-restart.js';
+import { XboxModeEntryHandoff } from './xbox-mode-entry-handoff.js';
 import { batteryPowerStatus } from './battery-status.js';
 import { managedPaths, migrateManagedPaths, type ManagedPathMigration } from './managed-paths.js';
 import { guideInputActions, type DesktopForegroundApp, type GuideInputAction, type ShellSwitcherAction } from '../shared/desktop-shell.js';
@@ -421,13 +422,22 @@ const shortcutLaunch = new ShortcutLaunch(
   (id) => launchGame(id),
 );
 
-async function showLauncher(): Promise<void> {
+async function showLauncher(authorized?: () => boolean): Promise<void> {
+  let openingTarget = mainWindow;
+  const assertAuthorized = () => {
+    if (authorized && (!authorized() || openingTarget !== mainWindow)) throw Error('The launcher opening request was cancelled.');
+  };
+  assertAuthorized();
   shortcutOnly = false;
   if (windowOpening) await windowOpening;
   else if (!mainWindow || mainWindow.isDestroyed()) {
-    windowOpening ??= createWindow().finally(() => { windowOpening = undefined; });
+    // A cancellable handoff must load hidden: constructor/ready-to-show and
+    // deferred maximize may otherwise reveal it before the next validity check.
+    windowOpening ??= createWindow(Boolean(authorized)).finally(() => { windowOpening = undefined; });
+    openingTarget = mainWindow;
     await windowOpening;
   }
+  assertAuthorized();
   if (mainWindow?.isMinimized()) mainWindow.restore();
   mainWindow?.show(); mainWindow?.focus();
   refreshDeferredServiceAccount();
@@ -1111,7 +1121,7 @@ async function prepareGameLaunch(id: string): Promise<void> {
     const legacyPrefixRoot = path.join(dataRoot, 'prefixes', game.id);
     const compatibilityDataPath = path.join(dataRoot, 'compatdata', game.id);
     const steamRoot = path.join(app.getPath('home'), '.steam', 'root');
-    launchWrapper = await prepareGameWrapper(wine, game.launchTools, path.join(dataRoot, 'launch-wrappers'), process.env, game.path);
+    launchWrapper = await prepareGameWrapper(wine, game.launchTools, path.join(dataRoot, 'launch-wrappers'), process.env, game.path, writeLaunchLog);
     const protonRunner = await prepareProtonRunner(wine, compatibilityDataPath, steamRoot, launchWrapper.command);
     const wineCommand = protonRunner?.command ?? wine;
     args[2] = preparedGameWine(protonRunner, launchWrapper.command);
@@ -1530,6 +1540,25 @@ function registerIpc(): void {
     remotePlayInlineObscured = obscured; updateRemotePlayVisibility();
   });
   ipcMain.handle('desktop-guide-toggle', event => { systemSender(event); return toggleDesktopGuide(); });
+  const xboxModeEntryHandoff = new XboxModeEntryHandoff();
+  ipcMain.handle('desktop-guide-xbox-mode-entry', event => {
+    systemSender(event);
+    if (demoMode) throw Error(demoSystemReason);
+    const source = event.sender;
+    let sourceRevision = desktopGuide.lifecycleRevision;
+    const valid = () => !quitting && !shutdownStarted && !fullscreenExperience.current.active &&
+      source === desktopGuide.webContents && !source.isDestroyed() && sourceRevision === desktopGuide.lifecycleRevision;
+    return xboxModeEntryHandoff.request({
+      authorized: () => source === desktopGuide.webContents && guideIsFocused(),
+      valid,
+      hide: () => { desktopGuide.hide(); sourceRevision = desktopGuide.lifecycleRevision; },
+      show: () => showLauncher(valid),
+      target: () => mainWindow ?? undefined,
+      targetValid: target => !target.isDestroyed() && !target.webContents.isDestroyed() && target.isVisible(),
+      focused: target => target.isFocused(),
+      requested: target => target.webContents.send('xbox-mode-entry-requested'),
+    });
+  });
   ipcMain.handle('desktop-guide-close', () => desktopGuide.hide());
   ipcMain.handle('desktop-guide-navigate', async (_event, page: string, gameId?: string) => {
     if (!['home', 'library', 'downloads', 'settings'].includes(page)) throw new Error('Invalid destination.');

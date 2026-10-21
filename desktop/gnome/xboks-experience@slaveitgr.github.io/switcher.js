@@ -7,6 +7,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {SwitcherSelection, boundedLabel, primaryModifier, cardGeometry} from './switcher-state.js';
+import {SwitcherTheme} from './switcher-theme.js';
 
 export function windowEntries() {
     const tracker = Shell.WindowTracker.get_default(), seen = new Set();
@@ -26,7 +27,7 @@ export function windowEntries() {
 export class XboksSwitcher {
     constructor({leave, xbox, changed, allowed = () => true}) {
         this._leave = leave; this._xbox = xbox; this._changed = changed; this._allowed = allowed;
-        this._root = null; this._grab = null; this._modifierMask = 0; this._signals = []; this._refreshSource = 0; this._clockSource = 0;
+        this._root = null; this._grab = null; this._theme = null; this._modifierMask = 0; this._signals = []; this._refreshSource = 0; this._clockSource = 0;
         this.selection = new SwitcherSelection();
         const locale = GLib.get_language_names?.()[0] ?? 'en';
         this._el = locale.toLowerCase().startsWith('el');
@@ -44,6 +45,7 @@ export class XboksSwitcher {
         const root = this._root = new St.Widget({name: 'xboks-os-switcher', style_class: 'xboks-os-switcher', reactive: true, can_focus: true, clip_to_allocation: true,
             layout_manager: new Clutter.FixedLayout()});
         try {
+            this._theme = new SwitcherTheme(root);
             Main.layoutManager.addTopChrome(root, {affectsStruts: false, trackFullscreen: false});
             this._grab = Main.pushModal(root, {actionMode: Shell.ActionMode.ALL});
             // Shell51 uses revocable Clutter.Grab objects (the older
@@ -252,6 +254,7 @@ export class XboksSwitcher {
     hide() {
         const root = this._root; if (!root) return;
         this._root = null; this._modifierMask = 0;
+        this._theme?.destroy(); this._theme = null;
         if (this._refreshSource) { GLib.Source.remove(this._refreshSource); this._refreshSource = 0; }
         if (this._clockSource) { GLib.Source.remove(this._clockSource); this._clockSource = 0; }
         for (const [object, id] of this._signals.splice(0)) { try { object.disconnect(id); } catch { /* Native window disappeared. */ } }

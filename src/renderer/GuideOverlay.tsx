@@ -51,15 +51,17 @@ export interface GuideFullscreenSurface {
   exitFullscreen?: () => Promise<void>;
   documentElement: { requestFullscreen?: () => Promise<void> };
 }
-export function guideWindowFullscreenAvailable(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false): boolean {
+export function guideWindowFullscreenAvailable(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false, requestXboxModeEntry?: () => Promise<void>): boolean {
+  if (desktopGuide && !nativeFullscreen) return typeof requestXboxModeEntry === 'function';
   if (bridge?.setWindowFullscreen) return !desktopGuide || nativeFullscreen;
   return !desktopGuide && Boolean(surface && (surface.fullscreenElement ? typeof surface.exitFullscreen === 'function'
     : surface.fullscreenEnabled !== false && typeof surface.documentElement.requestFullscreen === 'function'));
 }
-/** Native controls address the main launcher, including from its separate
- * guide. A browser-only fallback never makes the overlay itself fullscreen. */
-export async function toggleGuideWindowFullscreen(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false): Promise<boolean> {
-  if (!guideWindowFullscreenAvailable(surface, desktopGuide, bridge, nativeFullscreen)) return false;
+/** Separate Game Bar entry reveals the launcher's choice dialog. Only an
+ * existing native fullscreen session may exit directly from that overlay. */
+export async function toggleGuideWindowFullscreen(surface: GuideFullscreenSurface | undefined, desktopGuide: boolean, bridge?: NativeFullscreenBridge, nativeFullscreen = false, requestXboxModeEntry?: () => Promise<void>): Promise<boolean> {
+  if (!guideWindowFullscreenAvailable(surface, desktopGuide, bridge, nativeFullscreen, requestXboxModeEntry)) return false;
+  if (desktopGuide && !nativeFullscreen) { await requestXboxModeEntry!(); return true; }
   if (bridge?.setWindowFullscreen) {
     const enabled = !desktopGuide && !nativeFullscreen && !surface?.fullscreenElement;
     if (await bridge.setWindowFullscreen(enabled) !== enabled) throw new Error('The window fullscreen state could not be changed.');
@@ -72,9 +74,9 @@ export async function toggleGuideWindowFullscreen(surface: GuideFullscreenSurfac
   return true;
 }
 
-export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
+export function GuideOverlay({ data, tab, setTab, close, go, openGame, requestXboxModeEntry }: {
   data: AppSnapshot; tab: GuideTab; setTab: (tab: GuideTab) => void; close: () => void;
-  go: (page: Page) => void; openGame: (id: string) => void;
+  go: (page: Page) => void; openGame: (id: string) => void; requestXboxModeEntry?: () => Promise<void>;
 }) {
   const locale = useReferenceLocale(), t = locale.text;
   const root = useRef<HTMLDivElement>(null), pending = useRef(false);
@@ -114,7 +116,7 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
   const nativeFullscreenBridge = typeof window === 'undefined' ? undefined : window.launcher;
   const [fullscreenState, setFullscreenState] = useState<WindowFullscreenState>(() => ({ documentFullscreen: Boolean(surface?.fullscreenElement), nativeFullscreen: false }));
   const windowFullscreen = fullscreenState.documentFullscreen || fullscreenState.nativeFullscreen;
-  const canFullscreen = guideWindowFullscreenAvailable(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen);
+  const canFullscreen = guideWindowFullscreenAvailable(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen, requestXboxModeEntry);
   const canCapture = typeof window !== 'undefined' && typeof window.launcher?.captureLauncher === 'function';
   useBackHandler(() => handleGuideBack(root.current, close), true, () => root.current);
   useGuideLayoutEffect(() => {
@@ -138,10 +140,12 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
     if (pending.current) return;
     pending.current = true; setBusy(true); setMessage('');
     try {
-      const changed = await toggleGuideWindowFullscreen(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen);
+      const changed = await toggleGuideWindowFullscreen(surface, desktopGuide, nativeFullscreenBridge, fullscreenState.nativeFullscreen, requestXboxModeEntry);
       if (!changed) setMessage(t('Window fullscreen is unavailable.', 'Η πλήρης οθόνη παραθύρου δεν είναι διαθέσιμη.'));
       else if (windowFullscreen) close();
-    } catch { setMessage(t('Window fullscreen could not be changed.', 'Δεν ήταν δυνατή η αλλαγή πλήρους οθόνης παραθύρου.')); }
+    } catch { setMessage(desktopGuide && !windowFullscreen
+      ? t('Xbox mode could not be opened. Try again from Game Bar.', 'Δεν ήταν δυνατό το άνοιγμα της λειτουργίας Xbox. Δοκιμάστε ξανά από το Game Bar.')
+      : t('Window fullscreen could not be changed.', 'Δεν ήταν δυνατή η αλλαγή πλήρους οθόνης παραθύρου.')); }
     finally { pending.current = false; setBusy(false); }
   }
   async function updateAudio(patch: { volume?: number; muted?: boolean }) {
@@ -205,7 +209,7 @@ export function GuideOverlay({ data, tab, setTab, close, go, openGame }: {
           <hr /><button className="guide-row" onClick={() => navigate('downloads')}><Download />{t('Install queue', 'Ουρά εγκατάστασης')}<ChevronRight /></button>
         </> : null}
         {tab === 'settings' && settingsOpen ? <GuideSettingsPanel data={data} preferences={preferences} change={changePreferences} wide={setSettingsWide} close={()=>{setSettingsOpen(false);requestAnimationFrame(()=>root.current?.querySelector<HTMLElement>('[data-guide-more-settings]')?.focus());}} accountSettings={()=>navigate('settings')} />:null}
-        {tab === 'settings' && !settingsOpen ? <><button className="guide-wide" onClick={()=>chooseTab('audio')}><Mic/>{t('Local microphone test','Τοπική δοκιμή μικροφώνου')}</button>{audioControls}<button className="guide-wide" disabled title={t('The desktop on-screen keyboard is not connected to this version.','Το πληκτρολόγιο οθόνης της επιφάνειας εργασίας δεν έχει συνδεθεί σε αυτήν την έκδοση.')}><Keyboard/>{t('Show keyboard','Εμφάνιση πληκτρολογίου')}</button><button className="guide-wide" data-guide-fullscreen disabled={busy || (!desktopGuide && !canFullscreen)} onClick={() => { if (desktopGuide && !canFullscreen) { navigate('settings'); return; } void changeFullscreen(); }}>{desktopGuide && !canFullscreen ? <Cog /> : <Maximize />}{windowFullscreen ? t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας') : desktopGuide ? t('Open app settings', 'Άνοιγμα ρυθμίσεων εφαρμογής') : nativeFullscreenBridge?.setWindowFullscreen ? t('Xbox mode', 'Λειτουργία Xbox') : t('Enter window fullscreen', 'Πλήρης οθόνη παραθύρου')}</button>{!desktopGuide && !nativeFullscreenBridge?.setWindowFullscreen ? <p className="guide-muted">{t('Changes the app window only. Fullscreen Experience is managed by the gaming session.', 'Αλλάζει μόνο το παράθυρο της εφαρμογής. Το Fullscreen Experience ελέγχεται από τη συνεδρία παιχνιδιών.')}</p> : null}<div className="guide-setting-option"><label><span>{t('Compact mode','Περιεκτική λειτουργία')}</span><input type="checkbox" role="switch" checked={preferences.compact} onChange={event=>changePreferences({compact:event.target.checked})}/></label></div><hr /><button className="guide-row" data-guide-more-settings onClick={() => setSettingsOpen(true)}><Cog />{t('More settings', 'Περισσότερες ρυθμίσεις')}<ChevronRight /></button><GuideSystemControls /><div className="guide-setting-option"><label><Plane/><span>{t('Airplane mode','Λειτουργία πτήσης')}</span><input type="checkbox" role="switch" disabled checked={false} readOnly/></label><p className="guide-muted">{t('Manage airplane mode in desktop network settings.','Διαχειριστείτε τη λειτουργία πτήσης στις ρυθμίσεις δικτύου της επιφάνειας εργασίας.')}</p></div><div className="guide-setting-option"><label><MousePointer2/><span>{t('Controller mouse cursor','Δρομέας χειριστηρίου παιχνιδιών')}</span><input type="checkbox" role="switch" disabled checked={false} readOnly/></label><p className="guide-muted">{t('Desktop pointer control from the controller is not available.','Ο έλεγχος δείκτη της επιφάνειας εργασίας με χειριστήριο δεν είναι διαθέσιμος.')}</p></div></> : null}
+        {tab === 'settings' && !settingsOpen ? <><button className="guide-wide" onClick={()=>chooseTab('audio')}><Mic/>{t('Local microphone test','Τοπική δοκιμή μικροφώνου')}</button>{audioControls}<button className="guide-wide" disabled title={t('The desktop on-screen keyboard is not connected to this version.','Το πληκτρολόγιο οθόνης της επιφάνειας εργασίας δεν έχει συνδεθεί σε αυτήν την έκδοση.')}><Keyboard/>{t('Show keyboard','Εμφάνιση πληκτρολογίου')}</button><button className="guide-wide" data-guide-fullscreen disabled={busy || !canFullscreen} onClick={() => void changeFullscreen()}><Maximize />{windowFullscreen ? t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας') : desktopGuide ? t('Enter Xbox mode', 'Είσοδος στη λειτουργία Xbox') : nativeFullscreenBridge?.setWindowFullscreen ? t('Xbox mode', 'Λειτουργία Xbox') : t('Enter window fullscreen', 'Πλήρης οθόνη παραθύρου')}</button>{!desktopGuide && !nativeFullscreenBridge?.setWindowFullscreen ? <p className="guide-muted">{t('Changes the app window only. Fullscreen Experience is managed by the gaming session.', 'Αλλάζει μόνο το παράθυρο της εφαρμογής. Το Fullscreen Experience ελέγχεται από τη συνεδρία παιχνιδιών.')}</p> : null}<div className="guide-setting-option"><label><span>{t('Compact mode','Περιεκτική λειτουργία')}</span><input type="checkbox" role="switch" checked={preferences.compact} onChange={event=>changePreferences({compact:event.target.checked})}/></label></div><hr /><button className="guide-row" data-guide-more-settings onClick={() => setSettingsOpen(true)}><Cog />{t('More settings', 'Περισσότερες ρυθμίσεις')}<ChevronRight /></button><GuideSystemControls /><div className="guide-setting-option"><label><Plane/><span>{t('Airplane mode','Λειτουργία πτήσης')}</span><input type="checkbox" role="switch" disabled checked={false} readOnly/></label><p className="guide-muted">{t('Manage airplane mode in desktop network settings.','Διαχειριστείτε τη λειτουργία πτήσης στις ρυθμίσεις δικτύου της επιφάνειας εργασίας.')}</p></div><div className="guide-setting-option"><label><MousePointer2/><span>{t('Controller mouse cursor','Δρομέας χειριστηρίου παιχνιδιών')}</span><input type="checkbox" role="switch" disabled checked={false} readOnly/></label><p className="guide-muted">{t('Desktop pointer control from the controller is not available.','Ο έλεγχος δείκτη της επιφάνειας εργασίας με χειριστήριο δεν είναι διαθέσιμος.')}</p></div></> : null}
         {tab === 'audio' ? <>{audioControls}<hr/><GuideMixerWidget/><hr/><LocalVoiceTest/></> : null}
         {tab === 'capture' ? <><div className="guide-capture-tools"><button className="guide-wide guide-capture" disabled={busy || !canCapture} aria-label={t('Take screenshot','Λήψη στιγμιότυπου')} title={t('Take screenshot','Λήψη στιγμιότυπου')} onClick={()=>void capture()}><Images/><span className="guide-sr-only">{busy?t('Saving…','Αποθήκευση…'):t('Take screenshot','Λήψη στιγμιότυπου')}</span></button><button disabled aria-label={t('Record last 30 seconds','Εγγραφή τελευταίων 30 δευτερολέπτων')} title={t('Background video recording is not available.','Η εγγραφή βίντεο παρασκηνίου δεν είναι διαθέσιμη.')}><History/></button><button disabled aria-label={t('Start recording','Έναρξη εγγραφής')} title={t('Video recording is not available.','Η εγγραφή βίντεο δεν είναι διαθέσιμη.')}><Circle fill="currentColor"/></button><button disabled aria-label={t('Recording microphone','Μικρόφωνο εγγραφής')} title={t('Video microphone recording is not available. Use the local test in Audio.','Το μικρόφωνο εγγραφής βίντεο δεν είναι διαθέσιμο. Χρησιμοποιήστε την τοπική δοκιμή στον Ήχο.')}><MicOff/></button></div><p className="guide-muted">{t('Captures the xboks window without this overlay. Saved as PNG in Pictures/xboks.', 'Καταγράφει το παράθυρο xboks χωρίς αυτήν την επικάλυψη. Αποθηκεύεται ως PNG στον φάκελο Εικόνες/xboks.')}</p>{capturePath?<button className="guide-wide" disabled={typeof window.launcher?.openPath!=='function'} onClick={()=>void window.launcher.openPath(capturePath).catch(()=>setMessage(t('The screenshot could not be opened.','Δεν ήταν δυνατό το άνοιγμα του στιγμιότυπου.')))}>{t('Open screenshot','Άνοιγμα στιγμιότυπου')}<ExternalLink/></button>:null}<hr/><button className="guide-row" onClick={()=>chooseTab('gallery')}><Images/>{t('Show all captures','Εμφάνιση των καταγραφών μου')}<ChevronRight/></button><p className="guide-note">{t('Game video recording and capture outside xboks are not connected yet.', 'Η εγγραφή βίντεο παιχνιδιών και η καταγραφή εκτός xboks δεν έχουν συνδεθεί ακόμη.')}</p></> : null}
         {tab==='widgets'?<GuideWidgetDirectory preferences={preferences} toggle={togglePreference} open={chooseTab}/>:null}

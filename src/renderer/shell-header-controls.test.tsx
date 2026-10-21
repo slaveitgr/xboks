@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { enterWindowFullscreen, formatShellClock, observeWindowFullscreen, shellIsFullscreen, ShellHeaderControls, type FullscreenDocument, type WindowFullscreenState } from './ShellHeaderControls';
+import { enterWindowFullscreen, formatShellClock, observeWindowFullscreen, observeXboxModeEntryRequests, shellIsFullscreen, ShellHeaderControls, type FullscreenDocument, type WindowFullscreenState } from './ShellHeaderControls';
 
 afterEach(() => vi.unstubAllGlobals());
 function fixture() {
@@ -78,5 +78,45 @@ describe('fullscreen observations and entry', () => {
     f.enter.mockClear(); await expect(enterWindowFullscreen(f.document, { setWindowFullscreen: async () => false })).rejects.toThrow('could not be opened');
     expect(f.enter).not.toHaveBeenCalled();
     f.document.fullscreenEnabled = false; await expect(enterWindowFullscreen(f.document)).rejects.toThrow('unavailable');
+  });
+});
+
+describe('Game Bar entry request freshness', () => {
+  function handoff() {
+    let receive!: () => void, focused = true, permitted = true;
+    const surface = { fullscreenElement: null as object | null, hasFocus: () => focused };
+    const reads: Array<{ resolve(value: boolean): void; reject(error: Error): void }> = [];
+    const unsubscribe = vi.fn(), opened = vi.fn();
+    const stop = observeXboxModeEntryRequests(surface, {
+      onXboxModeEntryRequested: callback => { receive = callback; return unsubscribe; },
+      getWindowFullscreen: () => new Promise<boolean>((resolve, reject) => reads.push({ resolve, reject })),
+    }, () => permitted, opened);
+    return { receive: () => receive(), reads, surface, opened, stop, unsubscribe,
+      focus: (value: boolean) => { focused = value; }, permit: (value: boolean) => { permitted = value; } };
+  }
+  it('opens choices only after a fresh native read confirms the focused desktop window', async () => {
+    const f = handoff(); f.receive(); expect(f.opened).not.toHaveBeenCalled();
+    f.reads[0].resolve(false); await Promise.resolve(); expect(f.opened).toHaveBeenCalledOnce(); f.stop();
+  });
+  it('drops requests while unfocused or a mode transition is in progress', () => {
+    const f = handoff(); f.focus(false); f.receive(); f.focus(true); f.permit(false); f.receive();
+    expect(f.reads).toHaveLength(0); expect(f.opened).not.toHaveBeenCalled(); f.stop();
+  });
+  it.each(['focus', 'permission', 'document', 'native', 'dispose', 'error'] as const)
+    ('does not open after %s changes during the native read', async change => {
+      const f = handoff(); f.receive();
+      if (change === 'focus') f.focus(false);
+      if (change === 'permission') f.permit(false);
+      if (change === 'document') f.surface.fullscreenElement = {};
+      if (change === 'dispose') f.stop();
+      if (change === 'error') f.reads[0].reject(Error('native read unavailable'));
+      else f.reads[0].resolve(change === 'native');
+      await Promise.resolve(); await Promise.resolve(); expect(f.opened).not.toHaveBeenCalled(); f.stop();
+    });
+  it('a newer request invalidates an older native read and cleanup removes the listener', async () => {
+    const f = handoff(); f.receive(); f.receive(); f.reads[0].resolve(false); await Promise.resolve();
+    expect(f.opened).not.toHaveBeenCalled(); f.reads[1].resolve(false); await Promise.resolve();
+    expect(f.opened).toHaveBeenCalledOnce(); f.stop(); expect(f.unsubscribe).toHaveBeenCalledOnce();
+    f.receive(); expect(f.reads).toHaveLength(2);
   });
 });

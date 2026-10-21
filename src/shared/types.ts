@@ -87,6 +87,7 @@ export interface RuntimeStatus {
 
 export interface GameLaunchTools {
   dualSenseCompatibility?: boolean;
+  gameMode?: boolean;
   mangoHud: boolean;
   gamescope: boolean;
   gamescopeArgs: string;
@@ -380,10 +381,20 @@ export interface AccountLibraryPage {
 
 export type GuideAudio = { available: true; volume: number; muted: boolean } | { available: false; reason: string };
 
+export interface DesktopGuideApi {
+  toggle(): Promise<void>;
+  close(): Promise<void>;
+  navigate(page: string, gameId?: string): Promise<void>;
+  requestXboxModeEntry(): Promise<void>;
+  onNavigate(callback: (value: { page: string; gameId?: string }) => void): () => void;
+  onInput(callback: (action: import('./desktop-shell.js').GuideInputAction) => void): () => void;
+}
+
 export interface LauncherApi {
   getWindowFullscreen(): Promise<boolean>;
   setWindowFullscreen(enabled: boolean): Promise<boolean>;
   onWindowFullscreenChanged(callback: (enabled: boolean) => void): () => void;
+  onXboxModeEntryRequested(callback: () => void): () => void;
   getFullscreenExperience(): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
   setFullscreenExperience(enabled: boolean): Promise<import('./fullscreen-experience.js').FullscreenExperienceStatus>;
   getXboxModeRestartStatus(): Promise<import('./fullscreen-experience.js').XboxModeRestartStatus>;

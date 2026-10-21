@@ -29,7 +29,7 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Friends and presence | Shared app/guide service, player search and presence reported by Xbox | Authenticated friends and inbox reads have been exercised; unavailable presence stays unknown |
 | Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
 | Fullscreen Experience | Optional GNOME Shell 51 extension, acknowledged app/desktop transitions and emergency restoration | Warm desktop transition; live dock/lock/controller acceptance remains open, and a separate gaming session is future work |
-| Native task switcher | GNOME extension v3: Alt+Tab/Alt+Shift+Tab, persistent Super switcher, real windows/icons/previews and Xbox/Desktop controls | Requires v3 loaded by a fresh GNOME session and an owned Xbox mode lease; physical shortcuts and live window-policy acceptance remain pending |
+| Native task switcher | GNOME extension v4: desktop light/dark theme, Alt+Tab/Alt+Shift+Tab, persistent Super switcher, real windows/icons/previews and Xbox/Desktop controls | Theme requires v4 loaded by a fresh GNOME session and an owned Xbox mode lease; physical shortcuts and live window-policy acceptance remain pending |
 | Desktop header | Three-choice Xbox mode entry; clock and real system power status in fullscreen | Restart requires an installed Linux launcher, available GNOME integration and logind permission; the actual reboot/login flow remains unverified |
 | Installation dialog | Content confirmation, required base package, real install location, scoped Back and an explicit final Install action | Optional language/chunk selection and disk sizes need additional engine metadata; alternative package IDs are single-choice |
 | Handheld information | Dedicated reference-style page with the explicit Xbox public-catalog classification and Greek/English labels | Ratings describe Windows handhelds, not Linux/Proton compatibility or performance on this PC; absent data stays unknown |
@@ -37,13 +37,15 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Resident Game Bar | Opt-in user service and one shared app/profile; close the main window while keeping the Guide available | Login enablement and immediate startup are separate; an already running app receives a handoff rather than becoming systemd's supervised PID |
 | Spotify | Local desktop-player metadata, play/pause, previous/next, supported seeking and explicit Open Spotify | Uses Linux MPRIS and the installed player; recommendations, saved-library and Spotify Connect device controls are not provided |
 | Audio mixer | PipeWire default input/output selection, device and application volume/mute, with current stream identity checks | Requires `pw-dump`/`wpctl` and permission; live mutations, communications roles and spatial audio need separate acceptance |
-| Performance | Real CPU/RAM samples and GPU/VRAM counters when the driver exposes them | No invented FPS/NPU or unsupported-driver readings; external-game FPS needs separate instrumentation |
+| Performance | Opt-in per-game GameMode; real CPU/RAM samples and available GPU/VRAM counters | GameMode depends on the installed provider; no measured gain or fabricated FPS. Startup reduction remains planned |
 | Capture gallery | List, open and explicitly delete screenshots created by xboks | Capture remains limited to the xboks window; game video, retrospective recording and external-game capture remain open |
 | Linux controls | NetworkManager Wi-Fi, BlueZ paired-device controls and capability-gated session/power actions | New pairing/network setup uses desktop settings; disruptive actions require confirmation |
 | Audio tools | Explicit local microphone test, device selection, level meter, optional monitoring, mute, push to talk and supported noise suppression | These tools test audio on this PC; **Xbox party voice is not connected** |
 | Console Remote Play | Isolated Microsoft console web client inside the app, with trusted Back/retry/close controls | Web sign-in is separate from launcher authentication; native Windows console/service parity and Xbox One X acceptance remain open |
 
 The default game installation directory is **`~/Games/Xboks`**. The old default `~/Games/Xodus Nexus` is migrated in settings; custom locations are preserved and existing game files are not moved automatically.
+
+**0.3.20 development update:** the native switcher follows the desktop light/dark preference, including changes while it is open. Game Bar Settings → **Enter Xbox mode** brings up the launcher’s existing three-choice dialog after native focus is confirmed. **Game options → Launch tools → Use GameMode** requests the installed game-only optimizer; it defaults off, avoids duplicate custom wrappers and logs a fallback if the optional executable is missing. Neither the checkbox nor entering Xbox mode proves a performance improvement. The [performance implementation guide](docs/analysis/xbox-mode-performance.md) separates per-game policy, selected startup-app deferral and the future minimal Gaming Session. Extension **v4 requires a fresh GNOME login**; the app never logs you out automatically.
 
 **0.3.19 development update:** Guide volume/mixer sliders retain controller focus during asynchronous writes, and left/right edits real volume and opacity controls without leaving at their limits. The screenshot-110-style Xbox mode dialog offers **Restart**, **Start now (no performance changes)** and **Remain on desktop**. Restart is an explicit, guarded real reboot with one startup attempt after login; opening the dialog never schedules it. GNOME extension **v3** adds Alt+Tab/Alt+Shift+Tab, measured native-window cards and temporary fullscreen/minimization policy. It requires a fresh GNOME login. Basic Guide controller navigation was physically confirmed on 0.3.18, and system-volume slider focus/adjustment was confirmed with the physical controller on 0.3.19. Live v3 window policy/shortcuts and the reboot flow still require acceptance.
 
@@ -123,7 +125,7 @@ The private Cargo build output remains named `xodus-cli`; the bundler publishes 
 
 ## Fullscreen Experience & Game Bar
 
-**0.3.19 extends the optional GNOME Shell 51 Fullscreen Experience prototype with extension v3 and an explicit entry dialog.** In a desktop window, the top-right header has one **Xbox mode** button. In fullscreen, that button is replaced by the clock and available system battery/power status. Battery level, charging and external power come from Linux; unknown values stay unknown. No desktop clock or fabricated charging indicator is shown beside the entry button.
+**0.3.20 extends the optional GNOME Shell 51 Fullscreen Experience prototype with extension v4, desktop theme support and an explicit entry dialog.** In a desktop window, the top-right header has one **Xbox mode** button. In fullscreen, that button is replaced by the clock and available system battery/power status. Battery level, charging and external power come from Linux; unknown values stay unknown. No desktop clock or fabricated charging indicator is shown beside the entry button.
 
 ### Choose how to enter Xbox mode
 
@@ -141,7 +143,7 @@ This keeps the existing desktop applications, GNOME compositor and desktop servi
 
 ### Native task switcher in Xbox mode
 
-With **GNOME extension v3** loaded, **Alt+Tab** moves forward from the foreground window, **Alt+Shift+Tab** moves backward, and releasing Alt activates the selected window. Bare **Super** opens the persistent light fullscreen switcher until an explicit selection or dismissal. These handlers apply only while xboks owns the Xbox mode lease; ordinary desktop shortcuts retain their normal behavior outside it.
+With **GNOME extension v4** loaded, **Alt+Tab** moves forward from the foreground window, **Alt+Shift+Tab** moves backward, and releasing Alt activates the selected window. Bare **Super** opens the persistent fullscreen switcher until an explicit selection or dismissal. These handlers apply only while xboks owns the Xbox mode lease; ordinary desktop shortcuts retain their normal behavior outside it.
 
 The switcher shows actual running application windows, native 32-pixel app icons and available live previews. Card size preserves each native window's aspect ratio and follows the measured screenshot proportions. **LB/RB** or left/right selects a window, **A/Enter** activates it, **B/Escape** dismisses the switcher and **X** asks the selected application to close normally. Up/down reaches the bottom **Xbox mode / Desktop** controls: Xbox focuses the existing xboks window; Desktop releases Xbox mode and returns to GNOME. Closing a window does not forcibly terminate its process.
 
@@ -170,7 +172,7 @@ python3 resources/desktop/stage-gnome-experience.py \
 
 The output directory must be new; neither command overwrites an existing extension.
 
-A **new local extension needs a fresh GNOME session to be discovered**. Updating an already loaded v1/v2 extension to **v3** also needs a fresh Shell session: disabling and re-enabling the UUID in the same session does not load its new JavaScript. The staging command refuses an existing destination; review the staged update before replacing an installed copy. Save your work, then log out and back in when you choose; no automatic logout or reboot occurs on installation or dialog opening. The v3 shortcut/window policy is unavailable until v3 is loaded. After the fresh login:
+A **new local extension needs a fresh GNOME session to be discovered**. Updating an already loaded v1/v2/v3 extension to **v4** also needs a fresh Shell session: disabling and re-enabling the UUID in the same session does not load its new JavaScript. The staging command refuses an existing destination; review the staged update before replacing an installed copy. Save your work, then log out and back in when you choose; no automatic logout or reboot occurs on installation or dialog opening. The desktop light/dark theme requires v4 loaded; the shortcut/window policy requires at least v3. After the fresh login:
 
 ```sh
 gnome-extensions enable xboks-experience@slaveitgr.github.io

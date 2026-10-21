@@ -1,5 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { Game, InstallRequest, LauncherApi, Settings } from '../shared/types.js';
+import type { DesktopGuideApi, Game, InstallRequest, LauncherApi, Settings } from '../shared/types.js';
+
+// The launcher may be created lazily from Game Bar. Retain one trusted main
+// request briefly while the snapshot loads and the dialog host mounts.
+const xboxModeEntryLifetimeMs = 5000;
+let pendingXboxModeEntryAt: number | undefined;
+const xboxModeEntryListeners = new Set<() => void>();
+ipcRenderer.on('xbox-mode-entry-requested', () => {
+  if (!xboxModeEntryListeners.size) { pendingXboxModeEntryAt = performance.now(); return; }
+  for (const callback of xboxModeEntryListeners) callback();
+});
 
 // Demo fixtures live in the main process (src/shared/demo-data.ts) and are
 // served over these same IPC channels when XODUS_DEMO=1, so the sandboxed
@@ -12,6 +22,16 @@ const api: LauncherApi = {
     const listener = (_event: Electron.IpcRendererEvent, enabled: boolean) => callback(enabled);
     ipcRenderer.on('window-fullscreen-changed', listener);
     return () => ipcRenderer.removeListener('window-fullscreen-changed', listener);
+  },
+  onXboxModeEntryRequested: callback => {
+    xboxModeEntryListeners.add(callback);
+    const requestedAt = pendingXboxModeEntryAt;
+    pendingXboxModeEntryAt = undefined;
+    if (requestedAt !== undefined) {
+      const age = performance.now() - requestedAt;
+      if (age >= 0 && age < xboxModeEntryLifetimeMs) callback();
+    }
+    return () => { xboxModeEntryListeners.delete(callback); };
   },
   getFullscreenExperience: () => ipcRenderer.invoke('fullscreen-experience-get'),
   setFullscreenExperience: enabled => ipcRenderer.invoke('fullscreen-experience-set', enabled),
@@ -130,12 +150,15 @@ const api: LauncherApi = {
 
 contextBridge.exposeInMainWorld('launcher', api);
 
-contextBridge.exposeInMainWorld('desktopGuide', {
+const desktopGuide: DesktopGuideApi = {
   toggle: () => ipcRenderer.invoke('desktop-guide-toggle'),
   close: () => ipcRenderer.invoke('desktop-guide-close'),
-  onInput: (callback: (action: string) => void) => {
-    const actions = ['up', 'down', 'left', 'right', 'accept', 'back', 'previous', 'next'];
-    const listener = (_event: Electron.IpcRendererEvent, action: unknown) => { if (typeof action === 'string' && actions.includes(action)) callback(action); };
+  requestXboxModeEntry: () => ipcRenderer.invoke('desktop-guide-xbox-mode-entry'),
+  onInput: callback => {
+    const actions = ['up', 'down', 'left', 'right', 'accept', 'back', 'previous', 'next'] as const;
+    const listener = (_event: Electron.IpcRendererEvent, action: unknown) => {
+      if (typeof action === 'string' && actions.includes(action as typeof actions[number])) callback(action as typeof actions[number]);
+    };
     ipcRenderer.on('desktop-guide-input', listener);
     return () => ipcRenderer.removeListener('desktop-guide-input', listener);
   },
@@ -145,4 +168,5 @@ contextBridge.exposeInMainWorld('desktopGuide', {
     ipcRenderer.on('desktop-guide-navigate', listener);
     return () => ipcRenderer.removeListener('desktop-guide-navigate', listener);
   },
-});
+};
+contextBridge.exposeInMainWorld('desktopGuide', desktopGuide);

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { GuideOverlay, guideWindowFullscreenAvailable, handleGuideBack, toggleGuideWindowFullscreen, type GuideFullscreenSurface, type GuideTab } from './GuideOverlay';
 import { registerBackHandler } from './gamepad-navigation';
 import { demoSnapshot } from '../shared/demo-data';
-const render = (tab: GuideTab, data = demoSnapshot()) => renderToStaticMarkup(<GuideOverlay data={data} tab={tab} setTab={() => {}} close={() => {}} go={() => {}} openGame={() => {}} />);
+const render = (tab: GuideTab, data = demoSnapshot(), requestXboxModeEntry?: () => Promise<void>) => renderToStaticMarkup(<GuideOverlay data={data} tab={tab} setTab={() => {}} close={() => {}} go={() => {}} openGame={() => {}} requestXboxModeEntry={requestXboxModeEntry} />);
 afterEach(()=>vi.unstubAllGlobals());
 
 it('exposes modal/controller close semantics and a selected tab', () => {
@@ -49,13 +49,20 @@ it('renders settings safely without a browser bridge and distinguishes window fu
   expect(html).not.toContain('Fullscreen Experience settings');
   expect(html).toMatch(/<button[^>]*data-guide-fullscreen="[^"]*"[^>]*disabled=""/);
 });
-it('uses a truthful app settings destination in the desktop guide, without trying to toggle the guide window',()=>{
+it('offers the launcher Xbox mode dialog from desktop Game Bar without invoking entry while rendering',()=>{
   vi.stubGlobal('window',{location:{hash:'#desktop-guide'},desktopGuide:{navigate:vi.fn()}});
-  const html=render('settings');
-  expect(html).toContain('Open app settings'); expect(html).not.toContain('Fullscreen Experience settings');
+  const request=vi.fn(async()=>{}),html=render('settings',demoSnapshot(),request);
+  expect(html).toContain('Enter Xbox mode'); expect(html).not.toContain('Open app settings');
   expect(html).not.toContain('Enter window fullscreen'); expect(html).not.toContain('Exit window fullscreen');
   const fullscreenControl=html.match(/<button\b[^>]*data-guide-fullscreen[^>]*>/)?.[0];
   expect(fullscreenControl).toBeDefined(); expect(fullscreenControl).not.toContain('disabled');
+  expect(request).not.toHaveBeenCalled();
+});
+it('disables desktop entry when its trusted launcher route is absent',()=>{
+  vi.stubGlobal('window',{location:{hash:'#desktop-guide'},desktopGuide:{navigate:vi.fn()}});
+  const html=render('settings');
+  expect(html).toContain('Enter Xbox mode');
+  expect(html.match(/<button\b[^>]*data-guide-fullscreen[^>]*>/)?.[0]).toContain('disabled');
 });
 it('does not identify the main app as the desktop guide merely because both expose the same bridge',()=>{
   vi.stubGlobal('window',{location:{hash:''},desktopGuide:{navigate:vi.fn()}});
@@ -102,6 +109,23 @@ describe('Guide window fullscreen boundary',()=>{
     await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},false)).resolves.toBe(false);
     expect(setWindowFullscreen).not.toHaveBeenCalled();
     await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},true)).rejects.toThrow('could not be changed');
+  });
+  it('requests the main launcher choice dialog from desktop Game Bar instead of entering native or document fullscreen',async()=>{
+    const doc=fixture(),setWindowFullscreen=vi.fn(async()=>true),request=vi.fn(async()=>{});
+    expect(guideWindowFullscreenAvailable(doc,true,{setWindowFullscreen},false,request)).toBe(true);
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},false,request)).resolves.toBe(true);
+    expect(request).toHaveBeenCalledOnce();expect(setWindowFullscreen).not.toHaveBeenCalled();
+    expect(doc.documentElement.requestFullscreen).not.toHaveBeenCalled();expect(doc.exitFullscreen).not.toHaveBeenCalled();
+  });
+  it('preserves native leave behavior when an entry route is also present',async()=>{
+    const doc=fixture(),setWindowFullscreen=vi.fn(async()=>false),request=vi.fn(async()=>{});
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},true,request)).resolves.toBe(true);
+    expect(setWindowFullscreen).toHaveBeenCalledWith(false);expect(request).not.toHaveBeenCalled();
+  });
+  it('propagates a rejected trusted entry request and never falls back to direct fullscreen',async()=>{
+    const doc=fixture(),setWindowFullscreen=vi.fn(async()=>true),request=vi.fn(async()=>{throw Error('Guide lost focus');});
+    await expect(toggleGuideWindowFullscreen(doc,true,{setWindowFullscreen},false,request)).rejects.toThrow('Guide lost focus');
+    expect(setWindowFullscreen).not.toHaveBeenCalled();expect(doc.documentElement.requestFullscreen).not.toHaveBeenCalled();
   });
   it('exits an inline document fullscreen as well as its native window when both adapters exist',async()=>{
     const doc=fixture(), setWindowFullscreen=vi.fn(async()=>false); doc.fullscreenElement={};

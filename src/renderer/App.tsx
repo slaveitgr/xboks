@@ -616,10 +616,13 @@ function GameContentDialog({ game, data, close, toast }: { game: Game; data: App
 }
 
 export function GameLaunchToolFields({ value, change }: { value: GameLaunchTools; change: (value: GameLaunchTools) => void }) {
+  const { text } = useReferenceLocale();
   const update = (patch: Partial<GameLaunchTools>) => change({ ...value, ...patch });
   return <fieldset className="game-launch-tools"><legend>Launch tools</legend>
     <label className="tool-checkbox"><input type="checkbox" checked={value.dualSenseCompatibility === true} onChange={event => update({ dualSenseCompatibility: event.target.checked })} /><span>DualSense compatibility mode</span></label>
     <small>Try this if a standard DualSense controller is not detected. Disables its native HIDRAW input for this game only. Advanced haptics and adaptive triggers may be unavailable. Does not change Xbox controller settings.</small>
+    <label className="tool-checkbox"><input type="checkbox" checked={value.gameMode === true} onChange={event => update({ gameMode: event.target.checked })} /><span>{text('Enable GameMode for this game', 'Ενεργοποίηση GameMode για αυτό το παιχνίδι')}</span></label>
+    <small>{text('Requests GameMode while this game runs. Requires gamemoderun; if unavailable, the game starts normally. Off by default.', 'Ζητά το GameMode όσο εκτελείται αυτό το παιχνίδι. Απαιτεί το gamemoderun· αν δεν είναι διαθέσιμο, το παιχνίδι ξεκινά κανονικά. Απενεργοποιημένο από προεπιλογή.')}</small>
     <label className="tool-checkbox"><input type="checkbox" checked={value.mangoHud} onChange={event => update({ mangoHud: event.target.checked })} /><span>Enable MangoHud</span></label>
     <label className="tool-checkbox"><input type="checkbox" checked={value.gamescope} onChange={event => update({ gamescope: event.target.checked })} /><span>Run in gamescope</span></label>
     {value.gamescope ? <label>Gamescope options<input value={value.gamescopeArgs} maxLength={2048} placeholder="-W 1920 -H 1080 -f" onChange={event => update({ gamescopeArgs: event.target.value })} /><small>Only options. xboks Engine adds the game command. MangoHud with gamescope requires mangoapp.</small></label> : null}

@@ -5,6 +5,13 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.20 — 2026-10-21
+
+- Follow the GNOME desktop light/dark preference in the native task switcher. Keep the white reference surface for light/default, and use the black radial background, dark cards, white labels and cyan selection from the dark reference. Apply changes while open without replacing native icons/previews or losing selection. Extension v4 requires a fresh GNOME login; protocol capability remains 3.
+- Connect desktop Game Bar Settings → Enter Xbox mode to the existing launcher entry dialog. Serialize handoffs, preserve source/target window identity and wait for actual compositor focus before delivering the event. Cancel old requests across Guide reopen, lock/suspend or lazy main-window replacement, and expire buffered events. Opening this dialog does not enter the mode or request a restart. Keep Home/Library routes and Return to desktop behavior.
+- Add a default-off per-game Use GameMode option with Greek/English copy. Request the installed `gamemoderun` only around the game Wine payload, compose with existing launch tools and avoid duplicate known custom wrappers. If the optional executable is missing, log the reason and continue the game without it. Explicit custom launch commands retain their existing required-tool behavior. Provider activation and real-game benefit require separate verification.
+- Add a [Linux Xbox mode performance guide](docs/analysis/xbox-mode-performance.md), distinguishing current presentation/game-launch policy from planned selected-app startup deferral and a future minimal Gaming Session. No background apps or host power settings are changed by entering Xbox mode; no performance gain is claimed without measurements.
+
 ## 0.3.19 — 2026-10-21
 
 - Keep Guide system-volume and device/application-mixer sliders focused while asynchronous audio writes are pending. Block extra edits during the write, allow vertical navigation away and avoid restoring focus over the next control. Controller left/right edits controlled volume and Settings-opacity ranges; min/max consumes the direction without duplicate writes or toolbar jumps.

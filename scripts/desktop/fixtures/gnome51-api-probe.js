@@ -21,6 +21,10 @@ const checks = {
     shellModalMode: typeof Shell.ActionMode.ALL === 'number',
     appIcon: typeof Shell.App.prototype.create_icon_texture === 'function',
     nativeWidgets: typeof St.Widget === 'function' && typeof St.Button === 'function',
+    desktopColorScheme: Boolean(St.Settings.find_property('color-scheme')) && typeof St.Settings.get === 'function',
+    desktopColorSchemeValues: St.SystemColorScheme.DEFAULT === 0 && St.SystemColorScheme.PREFER_DARK === 1 && St.SystemColorScheme.PREFER_LIGHT === 2,
+    nativeStyleClasses: ['add_style_class_name', 'remove_style_class_name'].every(name => typeof St.Widget.prototype[name] === 'function'),
+    nativeRadialGradient: typeof St.GradientType.RADIAL === 'number',
     nativeWindowState: ['is_fullscreen', 'make_fullscreen', 'unmake_fullscreen', 'get_maximize_flags',
         'set_maximize_flags', 'set_unmaximize_flags', 'can_maximize', 'maximize', 'minimize', 'unminimize', 'raise']
         .every(name => typeof Meta.Window.prototype[name] === 'function'),

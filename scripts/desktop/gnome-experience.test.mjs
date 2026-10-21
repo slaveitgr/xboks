@@ -88,10 +88,13 @@ test('metadata targets only inspected Shell51; extension and helper parse withou
   assert.deepEqual(metadata['shell-version'], ['51']); assert.deepEqual(metadata['session-modes'], ['user']);
   execFileSync(process.execPath, ['--check', `${directory}/extension.js`]);
   execFileSync(process.execPath, ['--check', `${directory}/switcher.js`]);
+  execFileSync(process.execPath, ['--check', `${directory}/switcher-theme.js`]);
   execFileSync(process.execPath, ['--check', `${directory}/window-policy.js`]);
   execFileSync(process.execPath, ['--check', 'assets/desktop/experience-client.js']);
   const extension = await fs.readFile(`${directory}/extension.js`, 'utf8');
   assert.doesNotMatch(extension, /set_boolean|set_strv|set_string|spawn_command|Subprocess|kill\(/);
+  const theme = await fs.readFile(`${directory}/switcher-theme.js`, 'utf8');
+  assert.doesNotMatch(theme, /set_boolean|set_strv|set_string|set_enum|spawn_command|Subprocess/);
 });
 
 test('staging copies verified source outside live directory and refuses replacement', async () => {
@@ -101,7 +104,8 @@ test('staging copies verified source outside live directory and refuses replacem
     const args = ['scripts/desktop/stage-gnome-experience.py', '--output', output];
     execFileSync('python3', args, { env: { ...process.env, XDG_DATA_HOME: data } });
     const manifest = JSON.parse(await fs.readFile(path.join(output, 'stage-manifest.json')));
-    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 8);
+    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 9);
+    assert.ok(manifest.sha256['switcher-theme.js']);
     await assert.rejects(fs.access(path.join(data, 'gnome-shell/extensions')));
     assert.throws(() => execFileSync('python3', args, { stdio: 'pipe' }));
     assert.throws(() => execFileSync('python3', ['scripts/desktop/stage-gnome-experience.py', '--output', path.join(data, 'gnome-shell/extensions/forbidden')], { env: { ...process.env, XDG_DATA_HOME: data }, stdio: 'pipe' }));
@@ -258,6 +262,30 @@ test('actual native switcher creates live clones, switches existing windows, and
  f.switcher.destroy();assert.equal(f.modal,0);
 });
 
+test('desktop theme updates native switcher colors in place and releases every subscription on hide/reopen',async()=>{
+ const f=await switcherFixture({desktopPreference:'prefer-dark'});f.switcher.open();
+ const root=f.switcher._root;f.switcher.action('next');
+ const selected=f.switcher.selection.entries[f.switcher.selection.index],currentChildren=[...root.children],clones=f.clones.length;
+ assert.match(root.style_class,/xboks-theme-dark/);assert.equal(f.desktop.signals.size,1);assert.equal(f.system.signals.size,1);
+ f.theme('prefer-light',1);assert.match(root.style_class,/xboks-theme-light/);assert.doesNotMatch(root.style_class,/xboks-theme-dark/);
+ assert.equal(f.switcher._root,root);assert.deepEqual(root.children,currentChildren);assert.equal(f.clones.length,clones);
+ assert.equal(f.switcher.selection.entries[f.switcher.selection.index],selected);assert.equal(f.modal,1);assert.equal(f.activated.length,0);
+ f.theme('prefer-dark',1);assert.match(root.style_class,/xboks-theme-dark/);
+ f.theme('default',1);assert.match(root.style_class,/xboks-theme-light/,'the light desktop default overrides Shell chrome defaults');
+ f.switcher.hide();assert.equal(f.desktop.signals.size,0);assert.equal(f.system.signals.size,0);
+ assert.equal(f.display.signals.size,0);assert.equal(f.layout.signals.size,0);assert.equal(f.timers.size,0);
+ const classes=root.style_class;f.theme('prefer-dark',1);assert.equal(root.style_class,classes,'hidden actors receive no notifications');
+ f.switcher.open();assert.match(f.switcher._root.style_class,/xboks-theme-dark/);assert.equal(f.desktop.signals.size,1);assert.equal(f.system.signals.size,1);
+ f.switcher.destroy();assert.equal(f.desktop.signals.size,0);assert.equal(f.system.signals.size,0);
+});
+
+test('St color-scheme is a native fallback and failed modal creation disconnects theme settings',async()=>{
+ const f=await switcherFixture({desktopSettingsAvailable:false,systemPreference:1});f.switcher.open();assert.match(f.switcher._root.style_class,/xboks-theme-dark/);
+ f.theme(undefined,2);assert.match(f.switcher._root.style_class,/xboks-theme-light/);f.switcher.hide();assert.equal(f.system.signals.size,0);
+ const failed=await switcherFixture({modalAvailable:false});assert.throws(()=>failed.switcher.open(),/modal-unavailable/);
+ assert.equal(failed.desktop.signals.size,0);assert.equal(failed.system.signals.size,0);assert.equal(failed.timers.size,0);assert.equal(failed.chrome.size,0);
+});
+
 test('native switcher modal failure rolls back, keyboard stays scoped, and lock never activates a window',async()=>{
  const failed=await switcherFixture({modalAvailable:false});assert.throws(()=>failed.switcher.open(),/modal-unavailable/);
  assert.equal(failed.modal,0);assert.equal(failed.chrome.size,0);
@@ -380,10 +408,25 @@ test('actual installed Shell51 typelibs provide the exact native controller/clon
     env: {...process.env, GI_TYPELIB_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell',
       LD_LIBRARY_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell'}});
   const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false); assert.equal(result.fullscreenCapabilityQuery, false);
-  assert.equal(Object.keys(result.checks).length, 24); assert.ok(Object.values(result.checks).every(Boolean));
+  assert.equal(Object.keys(result.checks).length, 28); assert.ok(Object.values(result.checks).every(Boolean));
 });
 test('actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service', { skip: !hasGjs }, () => {
   const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs'],
     { encoding: 'utf8', timeout: 20000, env: { ...process.env, GIO_USE_VFS: 'local' } });
   const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.hostShellEntered, false);
+});
+
+test('actual Gio/St settings update both switcher palettes, restore private settings and disconnect observers', {skip: !hasShell51}, async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-switcher-theme-'));
+  try {
+    const stdout = execFileSync('dbus-run-session', ['--', 'gjs', '-m', 'scripts/desktop/fixtures/switcher-theme-settings.js'], {
+      encoding: 'utf8', timeout: 10000, env: {...process.env, GSETTINGS_BACKEND: 'memory', GIO_USE_VFS: 'local',
+        DISPLAY: '', WAYLAND_DISPLAY: '', XDG_CONFIG_HOME: path.join(root, 'config'), XDG_CACHE_HOME: path.join(root, 'cache'), XDG_DATA_HOME: path.join(root, 'data'),
+        GI_TYPELIB_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell', LD_LIBRARY_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell'},
+    });
+    const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.backend, 'memory');
+    assert.equal(result.nativeSessionChanged, false); assert.equal(result.restored, true); assert.equal(result.nativeStylesheetParsed, true);
+    assert.deepEqual(result.variants, ['dark', 'light', 'light', 'dark']);
+    assert.deepEqual(result.schemeValues, {'prefer-dark': 1, 'prefer-light': 2, default: 0});
+  } finally { await fs.rm(root, {recursive: true, force: true}); }
 });

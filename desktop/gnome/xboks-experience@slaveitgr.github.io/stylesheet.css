@@ -18,3 +18,18 @@
 .xboks-mode-bar .xboks-switcher-button.active-mode { background-color: rgba(0,0,0,0.035); }
 .xboks-mode-underline { background-color: #0078d4; border-radius: 2px; }
 .xboks-switcher-clock { font-size: 27px; }
+
+/* The desktop preference changes colors only; actor geometry, native icons and
+   live previews stay intact while the switcher is open. */
+.xboks-os-switcher.xboks-theme-dark { background-color: #101112; background-gradient-direction: radial; background-gradient-start: #3a3d3e; background-gradient-end: #090a0b; color: #f7f7f7; }
+.xboks-theme-dark .xboks-switcher-button { color: #f7f7f7; }
+.xboks-theme-dark .xboks-switcher-button:hover, .xboks-theme-dark .xboks-switcher-button:focus, .xboks-theme-dark .xboks-switcher-button.current { background-color: rgba(255,255,255,0.08); }
+.xboks-theme-dark .xboks-bumper { color: #f7f7f7; border-color: #f7f7f7; }
+.xboks-theme-dark .xboks-window-card { background-color: #111213; }
+.xboks-theme-dark .xboks-window-card.selected { border-color: #8de8f5; }
+.xboks-theme-dark .xboks-card-actions { color: #ffffff; background-gradient-start: rgba(0,0,0,0); background-gradient-end: #050606; }
+.xboks-theme-dark .xboks-switcher-button.window-select { background-color: transparent; }
+.xboks-theme-dark .xboks-switcher-button.window-select:hover, .xboks-theme-dark .xboks-switcher-button.window-select:focus { background-color: rgba(141,232,245,0.025); }
+.xboks-theme-dark .xboks-mode-bar { background-color: rgba(38,39,40,0.82); border-color: rgba(255,255,255,0.14); }
+.xboks-theme-dark .xboks-mode-bar .xboks-switcher-button.active-mode { background-color: rgba(255,255,255,0.065); }
+.xboks-theme-dark .xboks-mode-underline { background-color: #8de8f5; }

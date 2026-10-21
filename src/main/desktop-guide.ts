@@ -9,6 +9,9 @@ export class DesktopGuide {
   private loading?: { window: BrowserWindow; promise: Promise<void> };
   constructor(private readonly root: string, private readonly releaseCapture: (ownerId: number) => void = () => {}, private readonly visibilityChanged: (visible: boolean) => void = () => {}, private readonly focusChanged: () => void = () => {}) {}
   get webContents() { return this.window?.isDestroyed() ? undefined : this.window?.webContents; }
+  /** A hide/close, lock/suspend hide or later opening invalidates old handoffs,
+   * including when the native window was already hidden and emitted no event. */
+  get lifecycleRevision() { return this.generation; }
   /** Call again after an acknowledged compositor activation on Wayland. A
    * BrowserWindow focus request alone need not focus Chromium's input target. */
   focusContents(): void {

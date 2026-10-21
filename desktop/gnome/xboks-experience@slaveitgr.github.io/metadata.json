@@ -4,6 +4,6 @@
   "description": "Reversible Xbox mode, native window switcher and xboks Guide focus bridge. GNOME Shell 51 only.",
   "shell-version": ["51"],
   "session-modes": ["user"],
-  "version": 3,
+  "version": 4,
   "url": "https://github.com/slaveitgr/xboks"
 }

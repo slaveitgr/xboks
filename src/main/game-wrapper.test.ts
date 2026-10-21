@@ -20,6 +20,75 @@ it('leaves the default launch command unchanged without creating files',async()=
   expect((await prepareGameWrapper(wine,undefined,dir)).command).toBe(wine);
   await expect(stat(dir)).rejects.toThrow();
 });
+it('keeps GameMode disabled for default, explicit-off and older persisted game settings', async () => {
+  const {root,wine,env,tool}=await setup();
+  await tool('gamemoderun','echo UNEXPECTED_GAMEMODE; exec "$@"');
+  for (const tools of [undefined, {...defaultLaunchTools,gameMode:false}, {mangoHud:false,gamescope:false,gamescopeArgs:'',launchOptions:''}]) {
+    const warnings:string[]=[],dir=path.join(root,'wrappers');
+    const wrapper=await prepareGameWrapper(wine,tools,dir,env,root,message=>warnings.push(message));
+    expect(wrapper.command).toBe(wine);expect(warnings).toEqual([]);
+    expect((await run(wrapper.command,['game.exe'],{env})).output).not.toContain('UNEXPECTED_GAMEMODE');
+    await expect(stat(dir)).rejects.toThrow();
+  }
+});
+it('runs opt-in GameMode inside custom/Gamescope wrappers with the same environment, literal arguments and exit status', async () => {
+  const {root,wine,env,tool}=await setup();
+  await tool('custom-wrap','echo CUSTOM; exec "$@"');
+  await tool('gamescope',`echo GAMESCOPE; while [ "$1" != -- ]; do printf '%s\\n' "$1"; shift; done; shift; exec "$@"`);
+  await tool('mangoapp','exit 99');
+  await tool('gamemoderun','echo GAMEMODE; exec "$@"');
+  const before={...env},warnings:string[]=[];
+  const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true,mangoHud:true,gamescope:true,gamescopeArgs:'-W 1920 -f',
+    launchOptions:'DXVK_HUD=fps custom-wrap %command% --launcher-skip "two words" "literal $HOME"'},path.join(root,'wrappers'),env,root,message=>warnings.push(message));
+  const result=await run(wrapper.command,['original game.exe'],{env});
+  expect(result.output).toMatch(/^CUSTOM\nGAMESCOPE\n-W\n1920\n-f\n--mangoapp\nGAMEMODE\nfps\n/);
+  expect(result.output).toContain('/private-synthetic-socket\n<original game.exe>\n<--launcher-skip>\n<two words>\n<literal $HOME>');
+  expect(result.output.match(/GAMEMODE/g)).toHaveLength(1);expect(result.code).toBe(7);expect(warnings).toEqual([]);expect(env).toEqual(before);
+  const script=await readFile(wrapper.command,'utf8');expect(script).not.toMatch(/gamemoded|xodus-cli|request-end|systemctl/);
+  await wrapper.cleanup();await expect(stat(wrapper.command)).rejects.toThrow();
+});
+it('composes opt-in GameMode directly inside MangoHud when Gamescope is off', async () => {
+  const {root,wine,env,tool}=await setup();
+  await tool('mangohud','echo MANGO; exec "$@"');await tool('gamemoderun','echo GAMEMODE; exec "$@"');
+  const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true,mangoHud:true},path.join(root,'wrappers'),env);
+  const result=await run(wrapper.command,['game.exe'],{env});
+  expect(result.output).toMatch(/^MANGO\nGAMEMODE\n/);expect(result.output).toContain('<game.exe>');expect(result.code).toBe(7);
+});
+it.each(['bare','nested','absolute','env','gamescope'] as const)('preserves a %s custom GameMode prefix without adding another gamemoderun', async kind => {
+  const {root,wine,env,tool}=await setup();
+  const command=await tool('gamemoderun','echo GAMEMODE; exec "$@"');await tool('mangohud','echo MANGO; if [ "$1" = --dlsym ]; then shift; fi; exec "$@"');
+  await tool('gamescope','echo SCOPE; while [ "$1" != -- ]; do shift; done; shift; exec "$@"');
+  const prefix=kind==='absolute'?`"${command}"`:kind==='nested'?'mangohud --dlsym gamemoderun':kind==='env'?'env -u UNUSED -- SOME_SETTING=value mangohud gamemoderun':kind==='gamescope'?'gamescope --title /tmp/gamemoderun -- gamemoderun':'gamemoderun';
+  const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true,launchOptions:`${prefix} %command% "saved argument"`},path.join(root,'wrappers'),env);
+  const result=await run(wrapper.command,['game.exe'],{env});
+  expect(result.output.match(/GAMEMODE/g)).toHaveLength(1);expect(result.output).toContain('<game.exe>\n<saved argument>');expect(result.code).toBe(7);
+  if(kind==='nested'||kind==='env')expect(result.output).toMatch(/^MANGO\nGAMEMODE\n/);
+  if(kind==='gamescope')expect(result.output).toMatch(/^SCOPE\nGAMEMODE\n/);
+});
+it('does not mistake an opaque wrapper argument or filename for a GameMode command', async () => {
+  const {root,wine,env,tool}=await setup();
+  await tool('gamemoderun','echo GAMEMODE; exec "$@"');
+  await tool('custom-wrap','printf "CUSTOM:%s:%s\\n" "$1" "$2"; shift 2; exec "$@"');
+  const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true,launchOptions:'custom-wrap --log /tmp/gamemoderun %command% "saved argument"'},path.join(root,'wrappers'),env);
+  const result=await run(wrapper.command,['game.exe'],{env});
+  expect(result.output).toMatch(/^CUSTOM:--log:\/tmp\/gamemoderun\nGAMEMODE\n/);expect(result.output.match(/GAMEMODE/g)).toHaveLength(1);
+  expect(result.output).toContain('<game.exe>\n<saved argument>');expect(result.code).toBe(7);
+});
+it('warns and starts the unchanged game when optional GameMode is missing or not executable', async () => {
+  const {root,wine,tool}=await setup();
+  for(const nonExecutable of [false,true]) {
+    const bin=path.join(root,nonExecutable?'not-executable':'empty-bin');await mkdir(bin);
+    if(nonExecutable){const file=path.join(bin,'gamemoderun');await writeFile(file,'#!/bin/sh\nexit 99\n');await chmod(file,0o600);}
+    const warnings:string[]=[],dir=path.join(root,nonExecutable?'wrappers-noexec':'wrappers-missing'),env={PATH:bin};
+    const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true},dir,env,root,message=>warnings.push(message));
+    expect(wrapper.command).toBe(wine);expect(warnings).toEqual(['GameMode was requested, but gamemoderun was not found or is not executable. Starting this game without GameMode.']);
+    expect((await run(wrapper.command,['game.exe'],{env})).code).toBe(7);await expect(stat(dir)).rejects.toThrow();
+  }
+  const custom=await tool('custom-wrap','echo CUSTOM; exec "$@"'),warnings:string[]=[];
+  const wrapper=await prepareGameWrapper(wine,{...defaultLaunchTools,gameMode:true,launchOptions:`"${custom}" %command% "saved argument"`},path.join(root,'composed'),{PATH:root},root,message=>warnings.push(message));
+  const result=await run(wrapper.command,['game.exe'],{env:{PATH:root}});
+  expect(result.output).toMatch(/^CUSTOM\n/);expect(result.output).toContain('<game.exe>\n<saved argument>');expect(result.code).toBe(7);expect(warnings).toHaveLength(1);
+});
 it('applies the DualSense HIDRAW workaround per game without changing inherited Steam Input or other controllers', async () => {
   const { root, wine, env } = await setup();
   await writeFile(wine, '#!/bin/sh\nprintf "%s\\n" "$PROTON_DISABLE_HIDRAW" "$SteamGameId" "$SDL_GAMECONTROLLERCONFIG"\n');

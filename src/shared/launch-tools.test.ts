@@ -21,8 +21,13 @@ it('validates persisted launch tool settings at the IPC boundary', () => {
   expect(normalizeLaunchTools(undefined)).toEqual(defaultLaunchTools);
   expect(() => normalizeLaunchTools({ ...defaultLaunchTools, mangoHud:'yes' })).toThrow();
   expect(() => normalizeLaunchTools({ ...defaultLaunchTools, dualSenseCompatibility:'yes' })).toThrow();
+  expect(() => normalizeLaunchTools({ ...defaultLaunchTools, gameMode:'yes' })).toThrow('GameMode');
+  expect(() => normalizeLaunchTools({ ...defaultLaunchTools, gameMode:null })).toThrow('GameMode');
   expect(normalizeLaunchTools({ mangoHud:false, gamescope:false, gamescopeArgs:'', launchOptions:'' }).dualSenseCompatibility).toBe(false);
   expect(normalizeLaunchTools({ ...defaultLaunchTools, dualSenseCompatibility:true }).dualSenseCompatibility).toBe(true);
+  expect(defaultLaunchTools.gameMode).toBe(false);
+  expect(normalizeLaunchTools({ mangoHud:false, gamescope:false, gamescopeArgs:'', launchOptions:'gamemoderun %command%' })).toMatchObject({gameMode:false,launchOptions:'gamemoderun %command%'});
+  expect(normalizeLaunchTools(JSON.parse(JSON.stringify({...defaultLaunchTools,gameMode:true})))).toMatchObject({gameMode:true});
   expect(() => normalizeLaunchTools({ ...defaultLaunchTools, gamescopeArgs:'-f --' })).toThrow();
   expect(normalizeLaunchTools({ ...defaultLaunchTools, launchOptions:' PROTON_ENABLE_WAYLAND=1 %command% ' }).launchOptions).toBe('PROTON_ENABLE_WAYLAND=1 %command%');
 });

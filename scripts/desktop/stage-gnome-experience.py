@@ -15,7 +15,7 @@ from pathlib import Path
 UUID = 'xboks-experience@slaveitgr.github.io'
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'desktop' / 'gnome' / UUID
-FILES = ('metadata.json', 'extension.js', 'state.js', 'switcher.js', 'switcher-state.js', 'window-policy.js', 'stylesheet.css', 'README.md')
+FILES = ('metadata.json', 'extension.js', 'state.js', 'switcher.js', 'switcher-state.js', 'switcher-theme.js', 'window-policy.js', 'stylesheet.css', 'README.md')
 
 
 def stage(destination, source_directory=SOURCE):

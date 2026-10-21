@@ -19,6 +19,7 @@ vi.mock('electron', () => ({
   },
 }));
 import { DesktopGuide } from './desktop-guide';
+import { XboxModeEntryHandoff } from './xbox-mode-entry-handoff';
 describe('desktop Game Bar surface', () => {
   beforeEach(() => { state.windows = []; state.loads = []; state.delayLoad = false; delete process.env.VITE_DEV_SERVER_URL; });
   it('opens independently of the launcher on the display under the pointer, and toggles without recreating', async () => {
@@ -34,6 +35,23 @@ describe('desktop Game Bar surface', () => {
     await guide.toggle(); expect(state.windows).toHaveLength(1); expect(win.visible).toBe(true);
     expect(win.webContents.focus).toHaveBeenCalledTimes(2);
     guide.destroy(); expect(win.destroyed).toBe(true);
+  });
+  it.each(['lock-hide', 'same-window-reopen'] as const)('cancels an entry handoff after %s while the launcher loads', async action => {
+    const guide = new DesktopGuide('/app'); await guide.toggle();
+    const original = guide.webContents; let revision = guide.lifecycleRevision;
+    let complete!: () => void; const requested = vi.fn(), target = {};
+    const pending = new XboxModeEntryHandoff().request({
+      authorized: () => true,
+      valid: () => guide.webContents === original && guide.lifecycleRevision === revision,
+      hide: () => { guide.hide(); revision = guide.lifecycleRevision; },
+      show: () => new Promise<void>(resolve => { complete = resolve; }),
+      target: () => target, targetValid: () => true, focused: () => true, requested,
+    });
+    // Repeated hide (lock/suspend) must invalidate even an already hidden window.
+    if (action === 'lock-hide') guide.hide(); else await guide.toggle();
+    expect(guide.webContents).toBe(original); complete();
+    await expect(pending).rejects.toThrow('no longer available');
+    expect(requested).not.toHaveBeenCalled(); guide.destroy();
   });
   it('only focuses visible live Guide contents after a compositor acknowledgement', async () => {
     const guide = new DesktopGuide('/app/dist-electron/main');

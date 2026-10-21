@@ -19,7 +19,7 @@ Version 3 adds an owned native fullscreen window policy, Alt+Tab dispatch and
 measured window proportions to the
 GNOME-native switcher introduced in version 2. While the owned Fullscreen
 Experience lease is active, bare Super and the existing switch-applications /
-switch-windows shortcuts open its light fullscreen surface with
+switch-windows shortcuts open its fullscreen surface with
 actual running-window icons, live Mutter window clones, neighboring previews
 and Xbox/Desktop controls. LB/RB or left/right selects a window; A/Enter activates
 that existing window, B/Escape dismisses, and explicit X asks the selected app to
@@ -30,6 +30,20 @@ releasing the primary shortcut modifier activates the selected window. Bare Supe
 keeps the switcher open until an explicit selection or dismissal. It never terminates a
 process or starts a replacement desktop. English/Greek labels follow Shell's
 language. The Windows screenshots guide placement; no Windows Shell is executed.
+
+Package version 4 follows the GNOME desktop's live
+`org.gnome.desktop.interface color-scheme` preference. `prefer-dark` uses a
+near-black radial gradient, dark cards, white text and a light cyan selected-card
+border/active-mode underline. `default` and `prefer-light` keep the existing
+light palette and geometry. No hour, wallpaper or Shell stylesheet is used to
+guess the desktop preference. Shell51's `St.Settings.color_scheme` native enum
+is a fallback when the desktop schema cannot be read; the separate Shell color
+override does not replace an available desktop preference. Changes update the
+open root's style classes without recreating previews, changing selection or
+acquiring another modal grab. Settings observers exist only while the switcher
+is visible and disconnect on dismissal, failed entry and extension cleanup.
+The extension only reads these settings. The D-Bus capability remains version 3
+because this color change adds no protocol methods or window policy.
 
 Bare Super temporarily leases Shell51's overview `toggle` method. Keyboard
 switching leases `AppSwitcherPopup.prototype.show` and
@@ -177,7 +191,16 @@ system-modal signaling. Shell51 uses `Clutter.Grab.is_revoked()` and the `revoke
 property, rather than the removed `get_seat_state`/`GrabState` API.
 The native typelib probe also checks modifier-change, translated ISO_Left_Tab,
 window state methods/properties, map/unmanaged/tracker signals and GNOME51
-maximize signatures. Official Mutter51.0 `window.c` and
+maximize signatures, St color-scheme values, style-class methods and the radial
+gradient enum. An isolated real GJS fixture uses Gio/St settings with a private
+session bus, no display access and the in-memory GSettings backend. It exercises
+dark/light/default changes, native enum propagation, observer removal, reopen,
+private preference restoration and native stylesheet parsing. Switcher fixtures
+also verify that theme changes retain the same live previews, selected window
+and modal, and that failed modal creation leaves no settings observers.
+Shell51's installed `main.js` confirms that the Shell color override and its
+default style variant are separate from the observed desktop preference.
+Official Mutter51.0 `window.c` and
 `meta-window-config.c` also confirm that maximize flag setters process geometry
 configs, add/remove independent axes, and fullscreen raises windows. Policy fixtures exercise state restoration, exclusions,
 late mapping, closed-window races, minimize/fullscreen enforcement and refused

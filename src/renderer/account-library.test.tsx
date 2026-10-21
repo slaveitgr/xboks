@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AccountGames, Cover, GameLaunchToolFields, GameTitle, HomePage, LibraryPagination, Sidebar, type LibraryFilters } from './App';
 import { defaultLaunchTools } from '../shared/launch-tools';
@@ -116,4 +116,19 @@ it('offers DualSense compatibility per game, off by default and with feature lim
   expect(on).toContain('for this game only');
   expect(on).toContain('Does not change Xbox controller settings');
   expect(on).toContain('adaptive triggers may be unavailable');
+});
+
+it('offers GameMode per game, off for default/older settings, with accurate request and fallback text', () => {
+  const render=(gameMode?:boolean)=>renderToStaticMarkup(<GameLaunchToolFields value={{...defaultLaunchTools,gameMode}} change={()=>{}} />);
+  for(const html of [render(),render(false)]) {
+    expect(html).toContain('Enable GameMode for this game');expect(html).not.toContain('checked');
+    expect(html).toContain('Requests GameMode while this game runs');expect(html).toContain('if unavailable, the game starts normally');
+    expect(html).toContain('Off by default');expect(html).not.toContain('GameMode is active');
+  }
+  expect(render(true)).toMatch(/<input type="checkbox" checked=""\/><span>Enable GameMode for this game/);
+  vi.stubGlobal('localStorage',{getItem:()=> 'el'});
+  try {
+    const greek=render(true);expect(greek).toContain('Ενεργοποίηση GameMode για αυτό το παιχνίδι');
+    expect(greek).toContain('το παιχνίδι ξεκινά κανονικά');expect(greek).toContain('Απενεργοποιημένο από προεπιλογή');
+  } finally {vi.unstubAllGlobals();}
 });

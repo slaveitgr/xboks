@@ -21,6 +21,23 @@ export function shellIsFullscreen(sessionFullscreen: boolean, state: WindowFulls
   return sessionFullscreen || state.documentFullscreen || state.nativeFullscreen;
 }
 
+/** Main confirms focus before sending. Read it again after the renderer has
+ * mounted; a delayed snapshot or native-state read must not reopen old intent. */
+export function observeXboxModeEntryRequests(surface: { fullscreenElement: object | null; hasFocus(): boolean },
+  bridge: Pick<import('../shared/types').LauncherApi, 'onXboxModeEntryRequested' | 'getWindowFullscreen'>,
+  allowed: () => boolean, open: () => void) {
+  let active = true, revision = 0;
+  const eligible = () => active && allowed() && surface.hasFocus() && !surface.fullscreenElement;
+  const unsubscribe = bridge.onXboxModeEntryRequested?.(() => {
+    const request = ++revision;
+    if (!eligible() || !bridge.getWindowFullscreen) return;
+    void bridge.getWindowFullscreen().then(fullscreen => {
+      if (request === revision && fullscreen === false && eligible()) open();
+    }).catch(() => { /* An unknown native mode cannot authorize this handoff. */ });
+  });
+  return () => { active = false; revision++; unsubscribe?.(); };
+}
+
 /** A native event supersedes an older asynchronous initial read. No click or
  * renderer attribute is treated as proof that fullscreen was entered. */
 export function observeWindowFullscreen(document: FullscreenDocument, bridge: NativeFullscreenBridge | undefined, changed: (state: WindowFullscreenState) => void) {
@@ -83,6 +100,9 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
     document.documentElement.toggleAttribute('data-fullscreen-experience', full);
     window.dispatchEvent(new CustomEvent('xboks-fullscreen-experience', { detail: full }));
   }, [full]);
+  useEffect(() => observeXboxModeEntryRequests(document, window.launcher,
+    () => !full && mounted.current && !pending.current, () => setEntryOpen(true)), [full]);
+  useEffect(() => { if (full) setEntryOpen(false); }, [full]);
   useEffect(() => {
     if (entryOpen || !restoreEntryFocus.current) return;
     restoreEntryFocus.current = false;

@@ -72,6 +72,17 @@ async function run(){
   check(await blocked(main.webContents,"window.launcher.setRemotePlayObscured('true')",'Invalid Remote Play view state'),'main rejects non-boolean Remote Play obscuring payload');
   for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
     check(await blocked(main.webContents,call,'disabled in demo mode'),`demo main refuses ${call} before any startup or power operation`);
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.xbox-mode-entry'))"),'header ready for trusted Guide handoff');
+  await evaluate(main,"Object.defineProperty(document,'hasFocus',{configurable:true,value:()=>true});true");
+  main.webContents.send('xbox-mode-entry-requested');
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.xbox-mode-entry-dialog'))"),'trusted Game Bar handoff dialog');
+  check(await evaluate(main,"document.querySelectorAll('.xbox-mode-entry-dialog button').length===3"),'trusted production preload handoff opens existing choices after focus/native-state recheck');
+  check(!main.isFullScreen(),'trusted handoff opens choices without entering native fullscreen');
+  await evaluate(main,"document.querySelector('[data-xbox-mode-action=remain]').click()");
+  await wait(()=>evaluate(main,"!document.querySelector('.xbox-mode-entry-dialog')"),'handoff Remain');
+  await evaluate(main,"Object.defineProperty(document,'hasFocus',{configurable:true,value:()=>false});true");
+  main.webContents.send('xbox-mode-entry-requested'); await pause(100);
+  check(await evaluate(main,"!document.querySelector('.xbox-mode-entry-dialog')"),'trusted handoff is discarded if renderer focus has since left');
   await evaluate(main,"document.querySelector('.xbox-mode-entry').click()");
   await wait(()=>evaluate(main,"Boolean(document.querySelector('.xbox-mode-entry-dialog'))"),'real header entry dialog');
   check(await evaluate(main,"document.querySelectorAll('.xbox-mode-entry-dialog button').length===3"),'production header opens the three-choice Xbox mode dialog');
@@ -91,12 +102,14 @@ async function run(){
   check(await blocked(guide.webContents,'window.launcher.setRemotePlayObscured(true)','Invalid Remote Play view state'),'Guide cannot obscure the launcher native player');
   for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
     check(await blocked(guide.webContents,call,'disabled in demo mode'),`demo Guide refuses ${call} without host actions`);
+  check(await blocked(guide.webContents,'window.desktopGuide.requestXboxModeEntry()','disabled in demo mode'),'demo Guide entry request refuses host mode actions');
   const {BrowserWindow:HiddenWindow}=await import(pathToFileURL(facade).href);
   const document=join(profile,'untrusted.html');await fs.writeFile(document,'<!doctype html><title>Untrusted IPC fixture</title>');
   const rogue=new HiddenWindow({webPreferences:{preload:join(root,'dist-electron/preload/index.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});await rogue.loadFile(document);
   for(const call of['window.launcher.getRemotePlayState()','window.launcher.openRemotePlay()',"window.launcher.controlRemotePlay('close')",'window.launcher.setRemotePlayObscured(true)'])check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
   for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
     check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
+  check(await blocked(rogue.webContents,'window.desktopGuide.requestXboxModeEntry()','Invalid launcher window'),'unregistered window cannot request Game Bar Xbox mode handoff');
   rogue.destroy();
   const mainId=main.id;main.close();await pause(50);
   check(!main.isDestroyed()&&NativeWindow.fromId(mainId)===main,'normal launcher Close hides instead of destroying the resident service window');
