@@ -5,8 +5,39 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { inspectGameDirectory, StateStore } from './store.js';
 import type { DownloadTask } from '../shared/types.js';
+import { managedPaths, migrateManagedPaths } from './managed-paths.js';
 
 const created: string[] = [];
+
+describe('managed runtime path migration', () => {
+  it('defaults new profiles to the XDG xboks Engine runtime root', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'xboks-runtime-default-')); created.push(home);
+    const dataHome = path.join(home, 'data');
+    const store = new StateStore(path.join(home, 'profile'), { home, dataHome }); await store.load();
+    expect(store.settings.runtimeRoot).toBe(managedPaths({ home, dataHome }).runtimeRoot);
+  });
+  it('rebases only validated managed runtime paths while retaining game paths, downloads, custom settings and saved bytes', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'xboks-state-migration-')); created.push(home);
+    const configHome = path.join(home, 'config'); const dataHome = path.join(home, 'data');
+    const profile = path.join(configHome, 'xodus-nexus'); const oldData = path.join(dataHome, 'xodus-nexus');
+    await mkdir(profile, { recursive: true, mode: 0o700 }); await mkdir(path.join(oldData, 'runtimes/release/bin'), { recursive: true, mode: 0o700 });
+    const winePath = path.join(oldData, 'runtimes/release/bin/wine'); await writeFile(winePath, 'fixture wine');
+    const gamePath = path.join(oldData, 'unusual-imported-game'); const destination = path.join(oldData, 'custom-download');
+    const persisted = JSON.stringify({ settings: { runtimeRoot: path.join(oldData, 'runtimes'), winePath, externalXodusRoot: '/mnt/custom-backend' }, games: [{ id: 'g', path: gamePath }], downloads: [{ id: 'd', status: 'paused', destination, checkpoint: 'unchanged' }] });
+    await writeFile(path.join(profile, 'launcher-state.json'), persisted);
+    const migration = await migrateManagedPaths({ home, configHome, dataHome });
+    expect(migration.moves).toHaveLength(2);
+    const store = new StateStore(migration.profile, { pathMoves: migration.moves, home, dataHome }); await store.load();
+    expect(store.settings.runtimeRoot).toBe(migration.runtimeRoot);
+    expect(store.settings.winePath).toBe(path.join(migration.runtimeRoot, 'release/bin/wine'));
+    expect(store.settings.externalXodusRoot).toBe('/mnt/custom-backend');
+    expect(store.games[0].path).toBe(gamePath); expect(store.downloads[0].destination).toBe(destination);
+    expect(await readFile(path.join(migration.profile, 'launcher-state.json'), 'utf8')).toBe(persisted);
+    await store.setSettings({ runtimeRoot: '/mnt/custom-runtimes', winePath: '/mnt/custom-runtimes/bin/wine' });
+    const reopened = new StateStore(migration.profile, { pathMoves: migration.moves, home, dataHome }); await reopened.load();
+    expect(reopened.settings.runtimeRoot).toBe('/mnt/custom-runtimes'); expect(reopened.settings.winePath).toBe('/mnt/custom-runtimes/bin/wine');
+  });
+});
 
 describe('install root migration', () => {
   it('changes only the exact legacy default for future installs while preserving existing game and download paths', async () => {

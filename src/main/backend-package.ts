@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-export const BACKEND_REPOSITORY = 'domsvoboda/xodus-nexus';
+export const BACKEND_REPOSITORY = 'slaveitgr/xboks';
 export const backendAssets = fileURLToPath(new URL('../../assets/', import.meta.url));
 const lockBytes = readFileSync(new URL('../../assets/backend-source.lock.json', import.meta.url));
 export const backendLock = JSON.parse(lockBytes.toString()) as {
@@ -14,7 +14,7 @@ export const backendRecipeSha256 = createHash('sha256').update(lockBytes).digest
 // The launcher accepts any stable backend release at or above the version it was
 // built with, so backend updates no longer require a new launcher release.
 export const minimumBackendVersion = backendLock.version;
-export const backendPackageName = (version: string) => `xodus-nexus-backend-${version}-linux-x86_64`;
+export const backendPackageName = (version: string) => `xboks-engine-backend-${version}-linux-x86_64`;
 
 export function compareVersions(a: string, b: string): number {
   const [aMajor, aMinor, aPatch] = a.split('.').map(Number);

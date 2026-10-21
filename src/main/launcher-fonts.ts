@@ -26,7 +26,7 @@ export function configureLauncherFonts(fontDirectory: string, cacheDirectory: st
     (environment.FONTCONFIG_PATH || '/etc/fonts').split(path.delimiter)
       .map(directory => path.resolve(directory, requested)).find(file => existsSync(file)) ?? requested;
   mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
-  const directory = mkdtempSync(path.join(temporaryRoot, 'nexus-fonts-'));
+  const directory = mkdtempSync(path.join(temporaryRoot, 'xboks-fonts-'));
   const file = path.join(directory, 'fonts.conf');
   try {
     // Keep the host's fonts, aliases and preferences. The private cache comes
@@ -47,14 +47,19 @@ export function configureLauncherFonts(fontDirectory: string, cacheDirectory: st
 
 /** Adopt only the private configuration generated before Electron started. */
 export function adoptLauncherFonts(environment: NodeJS.ProcessEnv = process.env): { dispose(): void } | undefined {
-  const file = environment.XODUS_NEXUS_FONTCONFIG;
+  const ownBootstrap = Boolean(environment.XBOKS_FONTCONFIG);
+  const file = environment.XBOKS_FONTCONFIG || environment.XODUS_NEXUS_FONTCONFIG;
   if (!file) return undefined;
-  const original = environment.XODUS_NEXUS_FONTCONFIG_ORIGINAL_SET === 'x' ? environment.XODUS_NEXUS_FONTCONFIG_ORIGINAL : undefined;
+  const prefix = ownBootstrap ? 'XBOKS_FONTCONFIG' : 'XODUS_NEXUS_FONTCONFIG';
+  const original = environment[prefix + '_ORIGINAL_SET'] === 'x' ? environment[prefix + '_ORIGINAL'] : undefined;
+  delete environment.XBOKS_FONTCONFIG;
+  delete environment.XBOKS_FONTCONFIG_ORIGINAL;
+  delete environment.XBOKS_FONTCONFIG_ORIGINAL_SET;
   delete environment.XODUS_NEXUS_FONTCONFIG;
   delete environment.XODUS_NEXUS_FONTCONFIG_ORIGINAL;
   delete environment.XODUS_NEXUS_FONTCONFIG_ORIGINAL_SET;
   if (!path.isAbsolute(file) || file !== environment.FONTCONFIG_FILE || path.basename(file) !== 'fonts.conf'
-    || !path.basename(path.dirname(file)).startsWith('nexus-fonts-')) throw Error('Invalid launcher font bootstrap.');
+    || !/^(?:xboks|nexus)-fonts-/.test(path.basename(path.dirname(file)))) throw Error('Invalid launcher font bootstrap.');
   const directory = path.dirname(file);
   const parent = lstatSync(directory), config = lstatSync(file);
   if (!parent.isDirectory() || !config.isFile() || parent.uid !== process.getuid?.() || config.uid !== parent.uid

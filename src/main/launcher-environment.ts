@@ -2,7 +2,7 @@ import { externalFontEnvironment } from './launcher-fonts.js';
 
 /** The marker is set only by the pre-GTK wrapper, not by desktop launch paths. */
 export function launcherSteamImeActive(environment: NodeJS.ProcessEnv = process.env, platform = process.platform): boolean {
-  return platform === 'linux' && environment.XODUS_NEXUS_STEAM_IME === '1'
+  return platform === 'linux' && (environment.XBOKS_STEAM_IME === '1' || environment.XODUS_NEXUS_STEAM_IME === '1')
     && environment.GTK_IM_MODULE === 'simple'
     && Boolean(environment.XDG_CURRENT_DESKTOP?.split(':').some(value => value.toLowerCase() === 'gamescope'));
 }
@@ -12,5 +12,6 @@ export function externalLauncherEnvironment(source: NodeJS.ProcessEnv = process.
   const environment = externalFontEnvironment(source);
   if (launcherSteamImeActive(environment, platform)) environment.GTK_IM_MODULE = 'Steam';
   delete environment.XODUS_NEXUS_STEAM_IME;
+  delete environment.XBOKS_STEAM_IME;
   return environment;
 }

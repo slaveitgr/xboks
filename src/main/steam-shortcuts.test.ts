@@ -24,7 +24,7 @@ describe('Steam binary shortcut planning', () => {
     expect(next.bytes.subarray(0, first.bytes.length - 2)).toEqual(first.bytes.subarray(0, -2));
     expect(next.appid).not.toBe(first.appid);
     expect(first.bytes.toString()).toContain('AllowOverlay');
-    expect(first.bytes.toString()).toContain('Xodus Nexus');
+    expect(first.bytes.toString()).toContain('xboks');
   });
   it('is idempotent and preserves user customizations on a matching shortcut', () => {
     const first = planSteamShortcut(undefined, launch);
@@ -72,7 +72,7 @@ describe('Steam filesystem integration', () => {
     const uri = await addSteamShortcut(directory, launch, { cover: image, wide: image }, stopped);
     const result = planSteamShortcut(await fs.readFile(path.join(directory, 'shortcuts.vdf')), launch);
     expect(uri).toBe(`steam://rungameid/${(BigInt(result.appid) << 32n) | 0x02000000n}`);
-    const backup = (await fs.readdir(directory)).find(name => name.startsWith('shortcuts.vdf.nexus-backup-'))!;
+    const backup = (await fs.readdir(directory)).find(name => name.startsWith('shortcuts.vdf.xboks-backup-'))!;
     expect(await fs.readFile(path.join(directory, backup))).toEqual(old);
     expect(await fs.readFile(path.join(directory, 'grid', `${result.appid}p.png`))).toEqual(image);
     expect(result.bytes.subarray(0, old.length - 2)).toEqual(old.subarray(0, -2));
@@ -97,7 +97,7 @@ describe('Steam filesystem integration', () => {
     const directory = await setup(); let checks = 0;
     await expect(addSteamShortcut(directory, launch, {}, async () => ++checks >= 3)).rejects.toThrow('Close Steam');
     await expect(fs.access(path.join(directory, 'shortcuts.vdf'))).rejects.toThrow();
-    expect((await fs.readdir(directory)).some(name => name.includes('.lock') || name.startsWith('shortcuts.vdf.nexus-'))).toBe(false);
+    expect((await fs.readdir(directory)).some(name => name.includes('.lock') || name.startsWith('shortcuts.vdf.xboks-'))).toBe(false);
   });
   it('aborts a concurrent external edit without overwriting it', async () => {
     const directory = await setup(); const file = path.join(directory, 'shortcuts.vdf');

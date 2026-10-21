@@ -18,8 +18,8 @@ function verboseSignature(line: string): { key: string; label: string } | null {
 
 export function gameLoggingEnvironment(source: NodeJS.ProcessEnv, verbose = false): NodeJS.ProcessEnv {
   const environment = { ...source };
-  if (verbose) environment.XODUS_NEXUS_VERBOSE_LOGS = '1';
-  if (environment.XODUS_NEXUS_VERBOSE_LOGS === '1') return environment;
+  if (verbose) environment.XBOKS_VERBOSE_LOGS = '1';
+  if (environment.XBOKS_VERBOSE_LOGS === '1' || environment.XODUS_NEXUS_VERBOSE_LOGS === '1') return environment;
   environment.WINEDEBUG ??= '-fixme';
   environment.VKD3D_DEBUG ??= 'warn';
   environment.VKD3D_SHADER_DEBUG ??= 'warn';
@@ -77,7 +77,7 @@ export class GameLogReducer {
 
   private report(entry: RepeatedLine): void {
     if (entry.suppressed === 0) return;
-    this.write(`Suppressed ${entry.suppressed} repeated ${entry.label} diagnostic lines. Enable verbose logs in Settings or set XODUS_NEXUS_VERBOSE_LOGS=1 for full output.`);
+    this.write(`Suppressed ${entry.suppressed} repeated ${entry.label} diagnostic lines. Enable verbose logs in Settings for full output.`);
     entry.suppressed = 0;
     entry.lastReportAt = this.now();
   }

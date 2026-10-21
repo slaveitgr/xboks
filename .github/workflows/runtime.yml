@@ -1,4 +1,4 @@
-name: Nexus runtime build
+name: xboks Engine runtime build
 
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
           node scripts/ci/check-media-glibc.mjs media-build/media-manifest.json
       - uses: actions/upload-artifact@v4
         with:
-          name: nexus-runtime-media
+          name: xboks-engine-runtime-media
           path: media-build/media-bundle.tar.xz
           if-no-files-found: error
           retention-days: 3
@@ -83,7 +83,7 @@ jobs:
       - name: Upload clean-build components and provenance
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-runtime-components
+          name: xboks-engine-runtime-components
           path: |
             shared-build/components/
             shared-build/tests/
@@ -95,7 +95,7 @@ jobs:
       - name: Unpack portable media build
         uses: actions/download-artifact@v4
         with:
-          name: nexus-runtime-media
+          name: xboks-engine-runtime-media
           path: shared-build
 
       - name: Verify media build provenance
@@ -162,7 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           nexus_version="11.0-$(date -u +%Y%m%d)-g${GITHUB_SHA:0:8}"
-          nexus_name="xodus-nexus-runtime-$nexus_version"
+          nexus_name="xboks-engine-runtime-$nexus_version"
           node --input-type=module -e '
             import fs from "node:fs";
             const file="shared-build/runtime/XODUS_NEXUS_PATCH.json";
@@ -203,7 +203,7 @@ jobs:
       - name: Upload runtime candidate (never publish)
         uses: actions/upload-artifact@v4
         with:
-          name: nexus-runtime
+          name: xboks-engine-runtime
           path: |
             shared-build/${{ env.nexus_name }}-x86_64.tar.xz
             shared-build/${{ env.nexus_name }}-x86_64.sha512sum

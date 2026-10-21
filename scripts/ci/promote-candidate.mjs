@@ -18,9 +18,9 @@ const expectedWorkflow = kind === 'launcher' ? '.github/workflows/ci.yml' : `.gi
 if (run.conclusion !== 'success' || run.head_branch !== 'main' || !['push', 'workflow_dispatch'].includes(run.event) ||
     workflow.path !== expectedWorkflow || !/^[a-f0-9]{40}$/.test(run.head_sha ?? '')) throw Error('Not a successful main candidate build');
 command('git', ['merge-base', '--is-ancestor', run.head_sha, 'HEAD']);
-const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-promotion-'));
+const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-promotion-'));
 try {
-  command('gh', ['run', 'download', runId, '--repo', repo, '--name', kind === 'launcher' ? 'launcher-candidate' : `nexus-${kind}`, '--dir', directory]);
+  command('gh', ['run', 'download', runId, '--repo', repo, '--name', kind === 'launcher' ? 'launcher-candidate' : `xboks-engine-${kind}`, '--dir', directory]);
   const manifest = await verifyManifest(directory, { kind, repository: repo, commit: run.head_sha, runId });
   const hash = createHash('sha256').update(await fs.readFile(path.join(directory, 'candidate.json'))).digest('hex');
   const approvals = JSON.parse(await fs.readFile('.github/release-validation.json', 'utf8'));
@@ -40,7 +40,7 @@ try {
       'scripts/runtime-tests', '.github/workflows/runtime.yml']).trim();
     if (changed) throw Error('Runtime build inputs changed after candidate validation');
     const archive = manifest.files.find(file => /-x86_64\.tar\.xz$/.test(file.name));
-    tag = archive.name.replace(/^xodus-nexus-runtime-/, 'runtime-').replace(/-x86_64\.tar\.xz$/, '');
+    tag = archive.name.replace(/^xboks-engine-runtime-/, 'runtime-').replace(/-x86_64\.tar\.xz$/, '');
   } else if (kind === 'backend') {
     const lock = JSON.parse(command('git', ['show', `${run.head_sha}:assets/backend-source.lock.json`]));
     const file = manifest.files.find(file => file.name.endsWith('.manifest.json'));
@@ -65,6 +65,6 @@ try {
   command('gh', ['release', 'create', tag, '--repo', repo, '--target', run.head_sha,
     ...manifest.files.map(file => path.join(directory, file.name)), path.join(directory, 'candidate.json'),
     ...(kind === 'launcher' ? [] : ['--latest=false']),
-    '--title', `Xodus Nexus ${kind} ${kind === 'backend' ? tag.slice('backend-v'.length) : tag}`, '--notes', notes]);
+    '--title', `${kind === 'launcher' ? 'xboks' : 'xboks Engine'} ${kind} ${kind === 'backend' ? tag.slice('backend-v'.length) : tag}`, '--notes', notes]);
   console.log(`Promoted tested ${kind} candidate ${runId} as ${tag}; no rebuild performed.`);
 } finally { await fs.rm(directory, { recursive: true, force: true }); }

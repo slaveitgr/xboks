@@ -1,20 +1,20 @@
 name: Launcher, account or download problem
-description: Report a Nexus interface, sign-in, library, installation or update problem with logs.
+description: Report a xboks interface, sign-in, library, installation or update problem with logs.
 title: "[Bug] "
 body:
   - type: markdown
     attributes:
       value: |
-        This tracker is for **Xodus Nexus**, an independent, unofficial project, not upstream Xodus.
+        This tracker is for **xboks**, an independent, unofficial project, not upstream Xodus.
         Report one problem per issue and search existing issues first.
 
-        **Logs are required.** Reproduce the problem, then open **Settings → Xodus backend → Open backend diagnostic log**.
+        **Logs are required.** Reproduce the problem, then open **Settings → xboks Engine → Open backend diagnostic log**.
         Use **Copy log**, save the text as `backend.txt`, and attach it below. For a download problem, also copy
         **Install Queue → Show log** (the terminal icon) into `download.txt` and attach it.
 
         Review files before uploading. Remove account names, email addresses, tokens, cookies, signed URLs and other
         private information. Never upload credentials, a Wine prefix, game files or saves. Screenshots do not replace logs.
-        If Nexus cannot start or no log can be obtained, use **Cannot start Nexus / logs unavailable** instead.
+        If xboks cannot start or no log can be obtained, use **Cannot start xboks / logs unavailable** instead.
   - type: dropdown
     id: area
     attributes:
@@ -40,15 +40,15 @@ body:
   - type: input
     id: backend-version
     attributes:
-      label: Nexus backend version
-      description: Settings → Xodus backend. This is updated separately from the launcher. If not installed, say so.
+      label: xboks backend version
+      description: Settings → xboks Engine. This is updated separately from the launcher. If not installed, say so.
       placeholder: 0.2.8
     validations:
       required: true
   - type: input
     id: runtime-version
     attributes:
-      label: Nexus runtime version
+      label: xboks runtime version
       description: Copy the active runtime name/version from Settings. If not installed, say so.
       placeholder: Exact active runtime name/version
     validations:
@@ -85,7 +85,7 @@ body:
     attributes:
       label: Launcher installation
       options:
-        - AppImage from Nexus GitHub Releases
+        - AppImage from xboks GitHub Releases
         - Built from source (include commit below)
         - Other (describe below)
     validations:
@@ -102,7 +102,7 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: List the actions from opening Nexus to the failure. Mention whether the problem began after an update, suspend or network change.
+      description: List the actions from opening xboks to the failure. Mention whether the problem began after an update, suspend or network change.
       placeholder: "1. Open ...\n2. Select ...\n3. The error appears ..."
     validations:
       required: true

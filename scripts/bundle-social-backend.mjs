@@ -25,7 +25,7 @@ export async function bundleSocialBackend({ binary, license, sourceArchive, outp
   try { await fs.lstat(destination); throw new Error('Output already exists; choose a new --output directory.'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const inputs = await Promise.all([checkedFile(binary, limits.binary, true), checkedFile(license, limits.license), checkedFile(sourceArchive, limits.sourceArchive)]);
-  const names = ['xodus-cli', 'LICENSE', 'source.tar.xz'];
+  const names = ['xboks-engine', 'LICENSE', 'source.tar.xz'];
   const bounds = [limits.binary, limits.license, limits.sourceArchive];
   const digests = await Promise.all(inputs.map((input, index) => sha256(input.file, bounds[index])));
   const parent = path.dirname(destination); await fs.mkdir(parent, { recursive: true });
@@ -37,10 +37,10 @@ export async function bundleSocialBackend({ binary, license, sourceArchive, outp
       await fs.chmod(target, index === 0 ? 0o755 : 0o644);
       if ((await fs.stat(target)).size !== inputs[index].size || await sha256(target, bounds[index]) !== digests[index]) throw new Error('Input changed while copying: ' + names[index]);
     }
-    const manifest = { schema: 1, version: '0.3.0', sha256: digests[0], binary: 'xodus-cli',
+    const manifest = { schema: 1, version: '0.3.0', sha256: digests[0], binary: 'xboks-engine',
       license: 'LICENSE', licenseSha256: digests[1], sourceArchive: 'source.tar.xz', sourceArchiveSha256: digests[2] };
     await fs.writeFile(path.join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o644 });
-    await fs.writeFile(path.join(staging, 'README.txt'), 'Optional Xodus social companion 0.3.0.\nThe supplied license is LICENSE; the supplied corresponding-source archive is source.tar.xz.\nTheir exact SHA-256 hashes are recorded in manifest.json. The bundler copies these inputs; it does not certify their source completeness or licensing compliance.\nThis companion does not replace your installed backend or user profile.\n', { flag: 'wx', mode: 0o644 });
+    await fs.writeFile(path.join(staging, 'README.txt'), 'Optional xboks Engine social companion 0.3.0.\nBuilt from the pinned Xodus source and xboks patches. The supplied license is LICENSE; the supplied corresponding-source archive is source.tar.xz.\nTheir exact SHA-256 hashes are recorded in manifest.json. The bundler copies these inputs; it does not certify their source completeness or licensing compliance.\nThis companion does not replace your installed backend or user profile.\n', { flag: 'wx', mode: 0o644 });
     await fs.chmod(staging, 0o755);
     // Recheck just before publication; existing generated or user files are never replaced.
     try { await fs.lstat(destination); throw new Error('Output already exists; choose a new --output directory.'); }

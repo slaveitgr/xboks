@@ -11,13 +11,13 @@ import { run } from './process.js';
 vi.mock('./process.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./process.js')>();
   return { ...actual, run: vi.fn(async (cmd: string, args: string[], options: object) => {
-    if (cmd.endsWith('/xodus-cli')) {
+    if (['/xodus-cli', '/xboks-engine'].some(name => cmd.endsWith(name))) {
       const marker = (await fs.readFile(cmd))[63];
       return { code: 0, output: args[0] === 'streaming' ? '--selected-content-id\n' + ([3,5].includes(marker) ? '--progress-json\n--control-stdin\n' : '') + (marker === 3 ? '--download-limit-kib\n' : '') : args[0] === 'run' ? (marker === 2 ? '--unsupported' : '--materialize-chain') :
         (marker === 1 ? 'xodus-cli 0.1.0\n  login    Login\n  streaming    Streaming\n' :
         'xodus-cli 0.1.0\n  account    Account\n  login    Login\n  logout    Logout\n  download    Download\n  streaming    Streaming\n  run    Run\n  resolve-package    Resolve packages\n' + (marker === 4 ? '' : '\nOptions:\n  --external-webview-stdio  External UI\n')) };
     }
-    if (cmd.endsWith('/xodus-service')) throw new Error('Service must never be started by installer tests');
+    if (['/xodus-service', '/xboks-engine-service'].some(name => cmd.endsWith(name))) throw new Error('Service must never be started by installer tests');
     if (['git', 'cargo', 'rustc', 'protoc'].includes(cmd)) return { code: 1, output: 'Build tool intentionally absent' };
     if (cmd === 'ps') return { code: 0, output: '' };
     return actual.run(cmd, args, options);
@@ -25,7 +25,7 @@ vi.mock('./process.js', async importOriginal => {
 });
 const sha = (data: Buffer, algorithm = 'sha256') => createHash(algorithm).update(data).digest('hex');
 const tag = `backend-v${backendLock.version}`;
-const url = (name: string) => `https://github.com/domsvoboda/xodus-nexus/releases/download/${tag}/${name}`;
+const url = (name: string) => `https://github.com/slaveitgr/xboks/releases/download/${tag}/${name}`;
 const elf = () => { const bytes = Buffer.alloc(64); bytes.set([0x7f, 0x45, 0x4c, 0x46, 2, 1]); bytes.writeUInt16LE(62, 18); return bytes; };
 
 describe('prebuilt backend', () => {
@@ -95,7 +95,7 @@ describe('prebuilt backend', () => {
         downloading = true;
         return new Response(data);
       }) as unknown as typeof fetch;
-      const managed = path.join(root, 'xodus-backends');
+      const managed = path.join(root, 'engine');
       await fs.mkdir(managed);
       const old = '{"previous":"keep intact"}';
       await fs.writeFile(path.join(managed, 'current.json'), old);
@@ -115,7 +115,7 @@ describe('prebuilt backend', () => {
       }
       expect(manager.current.updating).toBe(false);
       expect((await fs.readdir(managed)).some(name => name.startsWith('.download-'))).toBe(false);
-      expect(vi.mocked(run).mock.calls.some(([cmd]) => cmd.endsWith('/xodus-service'))).toBe(false);
+      expect(vi.mocked(run).mock.calls.some(([cmd]) => ['/xodus-service', '/xboks-engine-service'].some(name => cmd.endsWith(name)))).toBe(false);
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 
@@ -133,9 +133,9 @@ describe('prebuilt backend', () => {
       const manager = new BackendManager(root, '', () => {}, () => false, fetcher);
       const status = await manager.checkUpdate();
       expect(status.releaseAvailable).toBe(false);
-      expect(status.blockReason).toBe('No compatible Nexus backend release has been published yet.');
+      expect(status.blockReason).toBe('No compatible xboks Engine backend release has been published yet.');
       await expect(manager.update(() => {})).rejects.toThrow('No compatible');
-      await expect(fs.stat(path.join(root, 'xodus-backends/current.json'))).rejects.toThrow();
+      await expect(fs.stat(path.join(root, 'engine/current.json'))).rejects.toThrow();
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 
@@ -146,16 +146,16 @@ describe('prebuilt backend', () => {
 
   it('discovers the newest stable backend release above the launcher minimum, ignoring older ones', async () => {
     const newest = `backend-v9.9.9`;
-    const name = (version: string, suffix: string) => `xodus-nexus-backend-${version}-linux-x86_64${suffix}`;
+    const name = (version: string, suffix: string) => `xboks-engine-backend-${version}-linux-x86_64${suffix}`;
     const manifest = { schema: 1, authUi: 'electron', version: '9.9.9', commit: 'a'.repeat(40), recipeSha256: 'b'.repeat(64), compatibility: 'linux-run-fixture',
       platform: 'linux', arch: 'x64', archive: name('9.9.9', '.tar.xz'), archiveSha512: 'c'.repeat(128),
       files: { 'xodus-cli': 'd'.repeat(64), 'xodus-service': 'e'.repeat(64), LICENSE: 'f'.repeat(64) } };
-    const newestUrl = (asset: string) => `https://github.com/domsvoboda/xodus-nexus/releases/download/${newest}/${asset}`;
+    const newestUrl = (asset: string) => `https://github.com/slaveitgr/xboks/releases/download/${newest}/${asset}`;
     const fetcher = (async (input: URL | RequestInfo) => {
       const target = String(input);
       if (target.includes('/releases?')) return new Response(JSON.stringify([
         { tag_name: 'v9.9.9', assets: [] },
-        { tag_name: `backend-v${backendLock.version}`, assets: [{ name: name(backendLock.version, '.tar.xz'), browser_download_url: 'https://github.com/domsvoboda/xodus-nexus/releases/download/ignored/x' }] },
+        { tag_name: `backend-v${backendLock.version}`, assets: [{ name: name(backendLock.version, '.tar.xz'), browser_download_url: 'https://github.com/slaveitgr/xboks/releases/download/ignored/x' }] },
         { tag_name: 'backend-v0.1.0', assets: [] },
         { tag_name: newest, assets: ['.tar.xz', '.manifest.json', '.sha512sum', '-source.tar.xz', '-source.sha512sum']
           .map(suffix => ({ name: name('9.9.9', suffix), browser_download_url: newestUrl(name('9.9.9', suffix)) })) },
@@ -174,7 +174,7 @@ describe('prebuilt backend', () => {
       { tag_name: 'backend-v0.1.0', assets: [] },
       { tag_name: 'v0.1.0', assets: [] },
     ]))) as unknown as typeof fetch;
-    await expect(discoverBackend(fetcher)).rejects.toThrow('No compatible Nexus backend release');
+    await expect(discoverBackend(fetcher)).rejects.toThrow('No compatible xboks Engine backend release');
   });
 
   it('rejects foreign asset URLs rather than downloading executable code from them', async () => {

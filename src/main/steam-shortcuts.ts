@@ -96,7 +96,7 @@ export function planSteamShortcut(original: Buffer | undefined, launch: SteamLau
     string('ShortcutPath', ''), string('LaunchOptions', launch.options), integer('IsHidden', 0), integer('AllowDesktopConfig', 1),
     integer('AllowOverlay', 1), integer('OpenVR', 0), integer('Devkit', 0), string('DevkitGameID', ''),
     integer('DevkitOverrideAppID', 0), integer('LastPlayTime', 0), string('FlatpakAppID', ''),
-    Buffer.from('\0tags\0\x01' + '0\0Xodus Nexus\0\x08\x08')]);
+    Buffer.from('\0tags\0\x01' + '0\0xboks\0\x08\x08')]);
   const updated = Buffer.concat([bytes.subarray(0, -2), block, bytes.subarray(-2)]);
   parse(updated);
   return { bytes: updated, appid, added: true };
@@ -155,11 +155,18 @@ export async function writeSteamArtwork(config: string, appid: number, artwork: 
 }
 export async function addSteamShortcut(config: string, launch: SteamLaunch, artwork: { cover?: Buffer; wide?: Buffer },
   running = steamRunning): Promise<string> {
-  const stopped = async () => { if (await running()) throw Error('Close Steam completely, then try Add to Steam again. Nexus will not close Steam for you.'); };
+  const stopped = async () => { if (await running()) throw Error('Close Steam completely, then try Add to Steam again. xboks will not close Steam for you.'); };
   await stopped(); await safeDirectory(config);
-  const lockPath = path.join(config, '.xodus-nexus-shortcuts.lock');
+  const lockPath = path.join(config, '.xboks-shortcuts.lock');
   const lock = await fs.open(lockPath, 'wx', 0o600).catch(() => { throw Error('Another Steam shortcut update is in progress.'); });
-  const file = path.join(config, 'shortcuts.vdf'), temp = file + '.nexus-' + randomUUID();
+  // A second exclusive lease coordinates with older installed launchers. It is
+  // removed on completion; no old application data or artwork is rewritten.
+  const legacyLockPath = path.join(config, '.xodus-nexus-shortcuts.lock');
+  const legacyLock = await fs.open(legacyLockPath, 'wx', 0o600).catch(async () => {
+    await lock.close(); await fs.unlink(lockPath);
+    throw Error('Another Steam shortcut update is in progress.');
+  });
+  const file = path.join(config, 'shortcuts.vdf'), temp = file + '.xboks-' + randomUUID();
   try {
     const original = await readSteamShortcuts(file);
     const planned = planSteamShortcut(original, launch);
@@ -169,7 +176,7 @@ export async function addSteamShortcut(config: string, launch: SteamLaunch, artw
     await writeSteamArtwork(config, planned.appid, artwork);
     if (planned.added) {
       await fs.writeFile(temp, planned.bytes, { flag: 'wx', mode: 0o600 });
-      if (original) await fs.writeFile(file + '.nexus-backup-' + randomUUID(), original, { flag: 'wx', mode: 0o600 });
+      if (original) await fs.writeFile(file + '.xboks-backup-' + randomUUID(), original, { flag: 'wx', mode: 0o600 });
       const current = await readSteamShortcuts(file);
       if (original ? !current?.equals(original) : current !== undefined) throw Error('Steam shortcuts changed concurrently. Try again after closing Steam.');
       await stopped();
@@ -179,6 +186,7 @@ export async function addSteamShortcut(config: string, launch: SteamLaunch, artw
     return `steam://rungameid/${(BigInt(planned.appid) << 32n) | 0x02000000n}`;
   } finally {
     await fs.rm(temp, { force: true });
+    await legacyLock.close(); await fs.unlink(legacyLockPath);
     await lock.close(); await fs.unlink(lockPath);
   }
 }

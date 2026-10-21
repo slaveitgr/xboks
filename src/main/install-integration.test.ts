@@ -40,6 +40,12 @@ vi.mock('electron', () => ({
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1440, height: 900 } }) },
   dialog: { showMessageBox: h.showMessage }, nativeImage: {}, shell: { trashItem: h.trash }, powerSaveBlocker: { start: h.blockDisplay, stop: h.releaseDisplay },
 }));
+vi.mock('./managed-paths.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./managed-paths.js')>();
+  const fixtureOptions = () => ({ home: h.root, configHome: path.join(h.root, 'config'), dataHome: path.join(h.root, 'data') });
+  return { ...actual, managedPaths: (options = {}) => actual.managedPaths({ ...fixtureOptions(), ...options }),
+    migrateManagedPaths: (options = {}) => actual.migrateManagedPaths({ ...fixtureOptions(), ...options }) };
+});
 vi.mock('./backend.js', () => ({ LINUX_RUN_PATCH: 'test-patch', BackendManager: class {
   get current() { return h.backend; } async refresh() {} async checkUpdate() {} async externalDownloadRunning() { return false; }
   setExternalRoot() {} } }));
@@ -61,7 +67,7 @@ vi.mock('./shortcut-icon.js', () => ({ loadShortcutIcon: async () => undefined }
 vi.mock('./steam-artwork.js', () => ({ gameSteamPortrait: async (bytes: Buffer) => bytes, nexusSteamArtwork: async (bytes: Buffer) => ({ cover: bytes, wide: bytes }) }));
 vi.mock('./install-plan.js', () => ({ readInstallPlan: async () => ({}), installSelection: () => '11111111-1111-4111-8111-111111111111' }));
 vi.mock('./xodus-service.js', () => ({ cloudSaveRuntime: async () => false, unbridgedCloudSaveRuntime: async () => false,
-  selectedWinePath: () => h.wine, storeContentRuntime: async () => false, startXodusService: vi.fn() }));
+  backendServiceBinary: async () => undefined, selectedWinePath: () => h.wine, storeContentRuntime: async () => false, startXodusService: vi.fn() }));
 vi.mock('./proton.js', () => ({ prepareProtonRunner: async () => undefined, syncPrefixUserLocale: async () => {}, syncUnrealCultureGameIni: async () => {} }));
 vi.mock('./game-wrapper.js', () => ({ prepareGameWrapper: async () => ({ command: h.wine, cleanup: async () => {} }) }));
 vi.mock('./process.js', () => ({
@@ -327,8 +333,8 @@ it('runs real queue IPC, pause/cancel/failure/restart and simultaneous play/down
   expect(h.downloads).toHaveLength(1); expect(snapshot().downloads.find((task: any) => task.id === next).status).toBe('queued');
   await expect(install('C')).rejects.toThrow('already in');
   await expect(install('D', path.join(h.root, 'installed-game', 'nested'))).rejects.toThrow('overlaps');
-  await expect(ipc('update-installed-game', 'sample')).rejects.toThrow('Another Xodus');
-  await expect(ipc('update-settings', { market: 'GB' })).rejects.toThrow('Another Xodus');
+  await expect(ipc('update-installed-game', 'sample')).rejects.toThrow('Another xboks Engine');
+  await expect(ipc('update-settings', { market: 'GB' })).rejects.toThrow('Another xboks Engine');
   await ipc('cancel-download', cancel); h.downloads[0].finish(1);
   await vi.waitFor(() => expect(h.downloads).toHaveLength(2));
   expect(h.downloads[1].args[1]).toBe('9CCCCCCCCCCC');

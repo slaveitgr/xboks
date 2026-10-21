@@ -11,10 +11,10 @@ function image(marker: number): Buffer {
   bytes[4] = 2; bytes[5] = 1; Buffer.from('414902', 'hex').copy(bytes, 8); bytes.writeUInt16LE(62, 18); return bytes;
 }
 function release(version = '0.2.3') {
-  const name = `Xodus-Nexus-${version}-x86_64.AppImage`;
+  const name = `xboks-${version}-x86_64.AppImage`;
   return { tag_name: `v${version}`, assets: [
-    { name, size: 100, browser_download_url: `https://github.com/domsvoboda/xodus-nexus/releases/download/v${version}/${name}` },
-    { name: `${name}.sha512sum`, size: 200, browser_download_url: `https://github.com/domsvoboda/xodus-nexus/releases/download/v${version}/${name}.sha512sum` },
+    { name, size: 100, browser_download_url: `https://github.com/slaveitgr/xboks/releases/download/v${version}/${name}` },
+    { name: `${name}.sha512sum`, size: 200, browser_download_url: `https://github.com/slaveitgr/xboks/releases/download/v${version}/${name}.sha512sum` },
   ] };
 }
 async function fixture(bad = '') {
@@ -25,6 +25,7 @@ async function fixture(bad = '') {
   const fetcher = (async (url: string | URL | Request) => {
     const text = String(url);
     if (text.includes('api.github')) return new Response(JSON.stringify([r]));
+    if (text.endsWith('.sha512sum') && bad === 'oversized-checksum') return new Response('x'.repeat(4097));
     if (text.endsWith('.sha512sum')) return new Response(`${bad === 'checksum' ? '0'.repeat(128) : createHash('sha512').update(next).digest('hex')}  ${r.assets[0].name}\n`);
     if (bad === 'network') throw new Error('Network interrupted');
     return new Response(next);
@@ -48,10 +49,10 @@ describe('AppImage updater', () => {
     expect(restarted.state.canRollback).toBe(true); await restarted.rollback();
     expect(await fs.readFile(target)).toEqual(image(1)); expect(await fs.readFile(path.join(root, 'settings.json'), 'utf8')).toBe('KEEP');
   });
-  it.each(['checksum', 'network', 'format'])('preserves the installed image on %s failure and removes staging/lock', async bad => {
+  it.each(['checksum', 'oversized-checksum', 'network', 'format'])('preserves the installed image on %s failure and removes staging/lock', async bad => {
     const { root, target, updater } = await fixture(bad);
     await expect(updater.install()).rejects.toThrow(); expect(await fs.readFile(target)).toEqual(image(1));
-    expect((await fs.readdir(root)).some(name => name.includes('nexus-update') || name.includes('nexus-backup'))).toBe(false);
+    expect((await fs.readdir(root)).some(name => name.includes('xboks-update') || name.includes('xboks-backup'))).toBe(false);
     expect(updater.state.updating).toBe(false);
   });
   it('rejects shared-writable images and keeps manual release download available for development builds', async () => {

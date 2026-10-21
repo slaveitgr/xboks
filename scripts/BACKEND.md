@@ -1,4 +1,4 @@
-# Shared Nexus backend
+# xboks Engine backend
 
 `patchId` identifies the exact source recipe. `compatibility` identifies the
 game-launch contract accepted by existing launchers. A credential-only hotfix
@@ -116,11 +116,11 @@ the normal install path never clones moving `main` or silently compiles.
 The backend workflow builds CLI + service on Ubuntu 22.04, runs the account-free
 launch-chain tests and CLI capability checks, then packages:
 
-- `xodus-nexus-backend-<version>-linux-x86_64.tar.xz` and SHA-512
+- `xboks-engine-backend-<version>-linux-x86_64.tar.xz` and SHA-512
 - matching `.manifest.json` (recipe/source identity and per-file hashes)
 - matching `-source.tar.xz` and SHA-512 (patched upstream, vendored dependencies,
   offline Cargo configuration, recipe, build instructions and retained licenses)
-- `candidate.json` binding all five assets to the Nexus commit and workflow run
+- `candidate.json` binding all five assets to the xboks commit and workflow run
 
 Native build dependencies: Git, Rust from the lock, Node 22, Cargo, pkg-config,
 C/C++ toolchain, OpenSSL, protoc, CMake, D-Bus development headers,
@@ -141,8 +141,8 @@ release. Never overwrite a version's published assets; bump backend version and
 ship a matching launcher recipe for a changed backend. Versions are independent
 of launcher and Wine runtime versions.
 
-Launcher uses only stable releases from this repository, the exact pinned
-recipe, matching source assets, checksum verification, a strict regular-file
+Launcher uses only stable backend releases from `slaveitgr/xboks`, matching
+source assets, manifest source/recipe identity, checksum verification, a strict regular-file
 archive layout, ELF architecture and CLI feature validation. Installation swaps
 the active pointer atomically only while idle; older builds remain available.
 An unavailable/private release, incompatible system libraries or failed checksum

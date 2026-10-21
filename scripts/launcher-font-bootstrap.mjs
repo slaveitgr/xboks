@@ -8,6 +8,6 @@ const resources = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const cache = process.env.XDG_CACHE_HOME && path.isAbsolute(process.env.XDG_CACHE_HOME)
   ? process.env.XDG_CACHE_HOME : path.join(os.homedir(), '.cache');
 try {
-  configureLauncherFonts(path.join(resources, 'fonts'), path.join(cache, 'xodus-nexus', 'fontconfig'));
+  configureLauncherFonts(path.join(resources, 'fonts'), path.join(cache, 'xboks', 'fontconfig'));
   process.stdout.write(process.env.FONTCONFIG_FILE);
 } catch (error) { console.error('Launcher fallback font unavailable:', error.message); }

@@ -73,7 +73,7 @@ for (const flag of ['--progress-json', '--control-stdin', '--selected-content-id
   if (!streamingHelp.includes(flag)) throw Error(`Structured download capability missing: ${flag}`);
 }
 // xodus-service has no --help parser; running it would access keychain/network.
-const name = `xodus-nexus-backend-${lock.version}-linux-x86_64`;
+const name = `xboks-engine-backend-${lock.version}-linux-x86_64`;
 const bundle = path.join(work, name);
 await fs.mkdir(bundle);
 const files = {};
@@ -97,7 +97,7 @@ await fs.mkdir(path.join(recipe, 'scripts'));
 await fs.copyFile(fileURLToPath(import.meta.url), path.join(recipe, 'scripts/build-backend.mjs'));
 await fs.copyFile(path.join(root, 'scripts/backend-source-archive.mjs'), path.join(recipe, 'scripts/backend-source-archive.mjs'));
 await fs.copyFile(path.join(root, 'scripts/BACKEND.md'), path.join(recipe, 'scripts/BACKEND.md'));
-await fs.writeFile(path.join(recipe, 'BUILD.txt'), `Patched upstream source + vendored dependencies.\nRust ${lock.rust}; cargo build --locked --offline --release ${features.join(' ')} -p xodus-cli -p xodus-service from source/.\nAuthentication UI: ${authUi}.\nNative build dependencies and release policy: scripts/BACKEND.md in the Nexus repository.\nBackend is GPL-3.0; dependency licenses are retained in vendor/.\n`);
+await fs.writeFile(path.join(recipe, 'BUILD.txt'), `Patched upstream source + vendored dependencies.\nRust ${lock.rust}; cargo build --locked --offline --release ${features.join(' ')} -p xodus-cli -p xodus-service from source/.\nAuthentication UI: ${authUi}.\nNative build dependencies and release policy: scripts/BACKEND.md in the xboks repository (upstream source attribution is retained).\nBackend is GPL-3.0; dependency licenses are retained in vendor/.\n`);
 command('tar', backendSourceArchiveArgs(path.join(output, `${name}-source.tar.xz`), work));
 for (const archive of [`${name}.tar.xz`, `${name}-source.tar.xz`]) {
   await fs.writeFile(path.join(output, archive.replace('.tar.xz', '.sha512sum')), `${sha(await fs.readFile(path.join(output, archive)), 'sha512')}  ${archive}\n`);

@@ -109,7 +109,7 @@ export class XboxSocialService {
     if (operation === 'search' && (typeof options.query !== 'string' || !options.query.trim() || [...options.query].length > 64 || optionalText(options.query, 256) === undefined)) throw Error('Enter a player name of 1–64 characters.');
     const account = this.account, binary = this.binary, generation = this.generation;
     if (!account) return this.state('signed-out', 'Sign in to your Xbox account to load friends and chats.');
-    if (!binary) return this.state('unsupported', 'This Nexus backend does not include Xbox social support. Update the backend in Settings.');
+    if (!binary) return this.state('unsupported', 'This xboks Engine does not include Xbox social support. Update the backend in Settings.');
     const key = `${operation}:${options.peer ?? options.query ?? ''}`;
     if (this.pending.has(key)) {
       if (operation === 'send') throw Error('Wait for the pending message to finish.');

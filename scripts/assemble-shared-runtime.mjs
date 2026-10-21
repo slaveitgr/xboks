@@ -60,8 +60,8 @@ for (const name of componentNames) {
     await fs.rename(temporary, target);
   }
 }
-const licenseDirectory = path.join(options.output, 'files/share/doc/xodus-nexus-runtime');
-await safeParent('files/share/doc/xodus-nexus-runtime/license');
+const licenseDirectory = path.join(options.output, 'files/share/doc/xboks-engine-runtime');
+await safeParent('files/share/doc/xboks-engine-runtime/license');
 for (const name of ['nghttp2-LICENSE', 'Wine-LICENSE', 'xgameruntime-LICENSE', 'vkd3d-LICENSE', 'Vulkan-Headers-LICENSE', 'Vulkan-Headers-Apache-2.0', 'Vulkan-Headers-MIT', 'SPIRV-Headers-LICENSE',
   'DXVK-LICENSE', 'DXBC-SPIRV-LICENSE', 'DXVK-display-LICENSE', 'DXVK-directx-LICENSE', 'DXVK-Vulkan-LICENSE', 'DXVK-SPIRV-LICENSE']) await fs.copyFile(path.join(options.components, name), path.join(licenseDirectory, name));
 await fs.copyFile(path.join(options.components, 'runtime-compat-LICENSE'), path.join(licenseDirectory, 'runtime-compat-LICENSE'));
@@ -120,7 +120,7 @@ let baseMetadata = {};
 try { baseMetadata = JSON.parse(await fs.readFile(path.join(options.base, 'XODUS_NEXUS_PATCH.json'), 'utf8')); }
 catch (e) { if (e.code !== 'ENOENT') throw e; }
 const metadata = {
-  ...manifest, name: 'Nexus runtime',
+  ...manifest, name: 'xboks Engine runtime',
   description: 'Pinned shared XGameRuntime and HTTP/2 compatibility line. Experimental; see limitations.',
   features: [...new Set([...(baseMetadata.features ?? []), 'cloud-saves-pr28', 'xodus-tcp-bridge-v1', 'package-locale', 'xuser-contract-v1', 'wine-winhttp-http2-v1', 'nghttp2-v1', 'winrt-json-v1', 'xasync-provider-contract-v1', 'xtaskqueue-lifecycle-v1', 'playfab-package-save-folder-v1', 'xstore-entitlements-v1', 'xpackage-content-v1', 'xstore-package-license-v1', ...(mediaMetadata ? ['bundled-ffmpeg-media-v1'] : [])])],
   baseWineSha256, patchedDllSha256: manifest.components['xgameruntime.dll'],

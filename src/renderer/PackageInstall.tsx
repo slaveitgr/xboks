@@ -15,7 +15,7 @@ export function PackageDialog({ plan, choose }: { plan: InstallPlan; choose: (id
   return <div className="dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) choose(); }}>
     <section className="game-dialog package-dialog" role="dialog" aria-modal="true" aria-labelledby="package-dialog-title">
       <h2 id="package-dialog-title">Choose files to install</h2>
-      <p>Choose the package you want to install from this Store offer. Xodus checks your license before downloading.</p>
+      <p>Choose the package you want to install from this Store offer. xboks Engine checks your license before downloading.</p>
       <div className="package-choices">{plan.choices.map(item => <label className={`package-choice${item.supported ? '' : ' unsupported'}`} key={`${item.productId}:${item.contentId}`}>
         <input type="radio" name="install-package" value={item.contentId} disabled={!item.supported} checked={selected === item.contentId} onChange={() => setSelected(item.contentId)} />
         <span><strong>{item.title}</strong><small>{item.platform || 'Unknown platform'} · {item.packageFormat || 'Unknown format'}{item.kind === 'GameAddOn' ? ' · Add-on' : ''}{!item.supported ? ' · Unsupported' : ''}</small><small>Store ID {item.productId}</small><small className="package-content-id">Package {item.contentId}</small></span>

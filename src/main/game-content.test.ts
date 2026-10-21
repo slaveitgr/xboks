@@ -48,6 +48,20 @@ async function installFixture() {
   return { ...f, selected, directory };
 }
 
+it('reads completed legacy content without trusting malformed new metadata', async () => {
+  const f = await installFixture();
+  await f.manager.complete(f.game, f.selected);
+  const current = path.join(f.directory, '.xboks-content-complete.json');
+  const legacy = path.join(f.directory, '.nexus-content-complete.json');
+  await fs.rename(current, legacy);
+  expect(await f.manager.roots(f.game)).toEqual([f.directory]);
+  await fs.writeFile(current, 'invalid');
+  expect(await f.manager.roots(f.game)).toEqual([]);
+  await f.manager.prepare(f.game, f.selected);
+  await expect(fs.access(legacy)).rejects.toThrow();
+  await expect(fs.access(current)).rejects.toThrow();
+});
+
 it('parses bounded XML with namespaces and encoded identity values, rejects malformed or external entities', () => {
   expect(parsePackageXml('<Root><!-- comment --><ns:Child A="a &amp; b">&#x41;</ns:Child></Root>').children[0]).toMatchObject({ name: 'ns:Child', attributes: { A: 'a & b' }, text: 'A' });
   for (const xml of ['<!DOCTYPE Game [<!ENTITY x SYSTEM "file:///secret">]><Game/>', '<A><B></A>', '<A/><B/>', '<A X="1" X="2"/>', '<A>&unknown;</A>', '<A X="bad&"/>', '<A>' + '<B>'.repeat(40), '<A>\0</A>', '<A/>garbage']) expect(() => parsePackageXml(xml)).toThrow();

@@ -1,11 +1,11 @@
-import { constants, promises as fs } from 'node:fs';
+import { constants, existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID, createHash } from 'node:crypto';
 import type { BackendCapabilities, BackendStatus } from '../shared/types.js';
 import { parseBackendHelp } from '../shared/utils.js';
 import { run } from './process.js';
 import { backendLock, backendRecipeSha256, backendAssets, compareVersions } from './backend-package.js';
-import { discoverBackend, installBackend, type BackendArtifact } from './backend-releases.js';
+import { discoverBackend, installBackend, ensureEngineAliases, type BackendArtifact } from './backend-releases.js';
 
 const REPOSITORY = backendLock.repository;
 export const LINUX_RUN_PATCH = backendLock.compatibility;
@@ -31,7 +31,9 @@ export class BackendManager {
     isOperationActive: () => boolean,
     private readonly fetcher: typeof fetch = fetch,
   ) {
-    this.managedRoot = path.join(userData, 'xodus-backends');
+    const canonicalRoot = path.join(userData, 'engine');
+    const legacyRoot = path.join(userData, 'xodus-backends');
+    this.managedRoot = existsSync(canonicalRoot) || !existsSync(legacyRoot) ? canonicalRoot : legacyRoot;
     this.pointerFile = path.join(this.managedRoot, 'current.json');
     this.emitLog = emitLog;
     this.isOperationActive = isOperationActive;
@@ -80,7 +82,13 @@ export class BackendManager {
   }
 
   private async readPointer(): Promise<ManagedPointer | null> {
-    try { return JSON.parse(await fs.readFile(this.pointerFile, 'utf8')) as ManagedPointer; } catch { return null; }
+    try {
+      const pointer = JSON.parse(await fs.readFile(this.pointerFile, 'utf8')) as ManagedPointer;
+      if (typeof pointer.binaryPath !== 'string') return null;
+      // Legacy migration aliases keep the serialized pointer valid; resolve the
+      // active path without rewriting its provenance or touching external builds.
+      return { ...pointer, binaryPath: await fs.realpath(pointer.binaryPath).catch(() => pointer.binaryPath) };
+    } catch { return null; }
   }
 
   async refresh(): Promise<BackendStatus> {
@@ -93,8 +101,15 @@ export class BackendManager {
     if (pointer) {
       const capabilities = await this.validate(pointer.binaryPath);
       if (capabilities) {
+        const releases = await fs.realpath(path.join(this.managedRoot, 'releases')).catch(() => '');
+        let binaryPath = pointer.binaryPath;
+        if (releases && binaryPath.startsWith(releases + path.sep) && ['xodus-cli', 'xboks-engine'].includes(path.basename(binaryPath))) {
+          const directory = path.dirname(binaryPath);
+          const stat = await fs.lstat(directory);
+          if (stat.isDirectory() && stat.uid === process.getuid?.() && !(stat.mode & 0o022)) binaryPath = await ensureEngineAliases(directory);
+        }
         Object.assign(this.status, {
-          available: true, source: 'managed', binaryPath: pointer.binaryPath,
+          available: true, source: 'managed', binaryPath,
           commit: pointer.commit, capabilities, blockReason: undefined,
           linuxRunPatch: pointer.linuxRunPatch,
           version: pointer.version, delivery: pointer.delivery,
@@ -117,7 +132,7 @@ export class BackendManager {
         available: false, source: 'none', binaryPath: undefined, commit: undefined,
         version: undefined, delivery: undefined, linuxRunPatch: undefined,
         capabilities: EMPTY_CAPABILITIES,
-        blockReason: 'No validated xodus-cli with login and streaming commands was found.',
+        blockReason: 'No validated xboks Engine with login and streaming commands was found.',
       });
     }
     return this.current;
@@ -128,14 +143,14 @@ export class BackendManager {
       const result = await run('ps', ['-eo', 'args='], { maxOutput: 2_000_000 });
       return result.output.split('\n').some((line) => {
         const lower = line.toLowerCase();
-        return lower.includes('xodus-cli') && /\s(streaming|download)\s/.test(lower);
+        return (lower.includes('xboks-engine') || lower.includes('xodus-cli')) && /\s(streaming|download)\s/.test(lower);
       });
     } catch { return false; }
   }
 
   private async assertUpdateAllowed(): Promise<void> {
     if (this.isOperationActive()) throw new Error('The backend cannot be updated while authentication, a download, or a game is active.');
-    if (await this.externalDownloadRunning()) throw new Error('An external Xodus download is active. The update was blocked.');
+    if (await this.externalDownloadRunning()) throw new Error('An external xboks Engine download is active. The update was blocked.');
   }
 
   async checkUpdate(): Promise<BackendStatus> {
@@ -153,7 +168,7 @@ export class BackendManager {
       this.status.releaseAvailable = false;
       this.status.updateAvailable = false;
       const message = (error as Error).message;
-      this.status.blockReason = message.startsWith('No compatible Nexus backend release')
+      this.status.blockReason = message.startsWith('No compatible xboks Engine backend release')
         ? message : `Backend release check failed: ${message}`;
     } finally { this.status.checking = false; }
     return this.current;
@@ -210,7 +225,7 @@ export class BackendManager {
       for (const patch of backendLock.patches) {
         if (createHash('sha256').update(await fs.readFile(path.join(backendAssets, patch.file))).digest('hex') !== patch.sha256) throw new Error('Backend patch checksum mismatch.');
       }
-      log(`Cloning the pinned Xodus source ${backendLock.commit}…`);
+      log(`Cloning the pinned engine source ${backendLock.commit}…`);
       let result = await run('git', ['clone', '--no-checkout', REPOSITORY, staging], { onLine: log });
       if (result.code !== 0) throw new Error(`git clone exited with code ${result.code}`);
       result = await run('git', ['-C', staging, 'checkout', '--detach', backendLock.commit], { onLine: log });
@@ -244,13 +259,14 @@ export class BackendManager {
 
       const releaseDir = path.join(this.managedRoot, 'releases', `${commit}-${LINUX_RUN_RELEASE}-local-${randomUUID()}`);
       await fs.mkdir(releaseDir, { recursive: true });
-      const managedCli = path.join(releaseDir, 'xodus-cli');
-      await fs.copyFile(builtCli, managedCli);
-      await fs.chmod(managedCli, 0o755);
+      const originalCli = path.join(releaseDir, 'xodus-cli');
+      await fs.copyFile(builtCli, originalCli);
+      await fs.chmod(originalCli, 0o755);
       const builtService = path.join(target, 'release', 'xodus-service');
       await fs.copyFile(builtService, path.join(releaseDir, 'xodus-service'));
       await fs.chmod(path.join(releaseDir, 'xodus-service'), 0o755);
       await fs.writeFile(path.join(releaseDir, 'metadata.json'), JSON.stringify({ commit, builtAt: new Date().toISOString(), capabilities, linuxRunPatch: LINUX_RUN_PATCH }, null, 2));
+      const managedCli = await ensureEngineAliases(releaseDir);
       const pointer: ManagedPointer = { commit, binaryPath: managedCli, builtAt: new Date().toISOString(), linuxRunPatch: LINUX_RUN_PATCH,
         recipeSha256: backendRecipeSha256, version: backendLock.version, delivery: 'local' };
       const pointerTmp = `${this.pointerFile}.tmp`;

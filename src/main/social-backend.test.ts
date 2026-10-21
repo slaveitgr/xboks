@@ -10,12 +10,15 @@ import { socialBackend } from './social-backend.js';
 const roots: string[] = [];
 const digest = (bytes: string | Buffer) => createHash('sha256').update(bytes).digest('hex');
 const help = 'Xbox command-line client\n\nUsage: xodus-cli [OPTIONS] <COMMAND>\n\nCommands:\n  account  Account\n  social   Friends and chats\n  help     Help\n\nOptions:\n  --help   Help\n';
-async function fixture() {
+async function fixture(name = 'xodus-cli') {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-social-backend-')); roots.push(root);
-  const binary = path.join(root, 'xodus-cli'), manifestFile = path.join(root, 'manifest.json');
+  const binary = path.join(root, name), manifestFile = path.join(root, 'manifest.json');
   const bytes = Buffer.from('Synthetic executable fixture; never executed.');
+  const license = 'Synthetic license fixture', source = 'Synthetic corresponding-source archive; never extracted.';
   await fs.writeFile(binary, bytes, { mode: 0o755 });
-  const manifest = { schema: 1, version: '0.3.0', sha256: digest(bytes), binary: 'xodus-cli' };
+  await fs.writeFile(path.join(root, 'LICENSE'), license); await fs.writeFile(path.join(root, 'source.tar.xz'), source);
+  const manifest = { schema: 1, version: '0.3.0', sha256: digest(bytes), binary: name,
+    license: 'LICENSE', licenseSha256: digest(license), sourceArchive: 'source.tar.xz', sourceArchiveSha256: digest(source) };
   await fs.writeFile(manifestFile, JSON.stringify(manifest));
   const probe = vi.fn(async (_binary: string, _args: readonly string[], _options: { timeout: number; maxBuffer: number }) => ({ code: 0, stdout: help }));
   return { root, binary, manifestFile, bytes, manifest, probe };
@@ -23,8 +26,8 @@ async function fixture() {
 afterEach(async () => { vi.useRealTimers(); await Promise.all(roots.splice(0).map(root => fs.rm(root, { recursive: true, force: true }))); });
 
 describe('optional bundled social companion', () => {
-  it('verifies bytes and only probes bounded top-level help before resolving the executable', async () => {
-    const f = await fixture();
+  it.each(['xboks-engine', 'xodus-cli'])('verifies %s bytes and only probes bounded top-level help before resolving the executable', async name => {
+    const f = await fixture(name);
     expect(await socialBackend(f.root, f.probe)).toBe(f.binary);
     expect(f.probe).toHaveBeenCalledOnce();
     expect(f.probe).toHaveBeenCalledWith(f.binary, ['--help'], { timeout: 5_000, maxBuffer: 100_000 });
@@ -34,6 +37,8 @@ describe('optional bundled social companion', () => {
   it.each([
     { schema: 2 }, { version: '0.2.0' }, { version: '9.0.0' }, { binary: '../outside' }, { binary: '/tmp/outside' },
     { sha256: 'not-a-hash' }, { sha256: '0'.repeat(64) },
+    { license: undefined }, { sourceArchive: undefined }, { licenseSha256: undefined }, { sourceArchiveSha256: undefined },
+    { license: '../LICENSE' }, { sourceArchive: '/tmp/source.tar.xz' }, { licenseSha256: 'invalid' }, { sourceArchiveSha256: 'invalid' },
   ])('rejects incompatible/traversing/corrupt manifests before execution: %j', async patch => {
     const f = await fixture(); await fs.writeFile(f.manifestFile, JSON.stringify({ ...f.manifest, ...patch }));
     expect(await socialBackend(f.root, f.probe)).toBeUndefined(); expect(f.probe).not.toHaveBeenCalled();
@@ -46,19 +51,32 @@ describe('optional bundled social companion', () => {
     const f = await fixture();
     expect(await socialBackend(path.join(f.root, 'missing'), f.probe)).toBeUndefined();
     expect(await socialBackend('relative/bundle', f.probe)).toBeUndefined();
-    expect(f.probe).not.toHaveBeenCalled(); expect(await fs.readdir(f.root)).toEqual(['manifest.json', 'xodus-cli']);
+    expect(f.probe).not.toHaveBeenCalled(); expect(await fs.readdir(f.root)).toEqual(['LICENSE', 'manifest.json', 'source.tar.xz', 'xodus-cli']);
   });
-  it.each(['root', 'manifest', 'binary'])('rejects symlinked %s paths, including links outside the bundle', async target => {
+  it.each(['root', 'manifest', 'binary', 'LICENSE', 'source.tar.xz'])('rejects symlinked %s paths, including links outside the bundle', async target => {
     const f = await fixture();
     if (target === 'root') {
       const linked = path.join(f.root, 'linked'); await fs.symlink(f.root, linked);
       expect(await socialBackend(linked, f.probe)).toBeUndefined();
     } else {
-      const source = target === 'binary' ? f.binary : f.manifestFile;
+      const source = target === 'binary' ? f.binary : target === 'manifest' ? f.manifestFile : path.join(f.root, target);
       await fs.rename(source, source + '.outside'); await fs.symlink(source + '.outside', source);
       expect(await socialBackend(f.root, f.probe)).toBeUndefined();
     }
     expect(f.probe).not.toHaveBeenCalled();
+  });
+  it.each(['LICENSE', 'source.tar.xz'])('requires present, bounded, unmodified %s bytes before probing', async name => {
+    const f = await fixture(), file = path.join(f.root, name), original = await fs.readFile(file);
+    for (const scenario of ['missing', 'empty', 'corrupt', 'directory', 'oversized']) {
+      await fs.rm(file, { recursive: true, force: true });
+      if (scenario === 'directory') await fs.mkdir(file);
+      else if (scenario !== 'missing') {
+        await fs.writeFile(file, scenario === 'empty' ? '' : scenario === 'corrupt' ? 'wrong bytes' : original);
+        if (scenario === 'oversized') await fs.truncate(file, (name === 'LICENSE' ? 2 * 1024 * 1024 : 2 * 1024 ** 3) + 1);
+      }
+      expect(await socialBackend(f.root, f.probe), scenario).toBeUndefined();
+      expect(f.probe).not.toHaveBeenCalled();
+    }
   });
   it.each(['directory', 'empty', 'non-executable', 'oversized'])('rejects an unsafe %s binary before any process probe', async scenario => {
     const f = await fixture();
@@ -84,10 +102,10 @@ describe('optional bundled social companion', () => {
     f.probe.mockResolvedValueOnce({ code: 0, stdout: help + 'X'.repeat(100_001) }); expect(await socialBackend(f.root, f.probe)).toBeUndefined();
     f.probe.mockRejectedValueOnce(new Error('Synthetic timeout/start failure')); expect(await socialBackend(f.root, f.probe)).toBeUndefined();
   });
-  it.each(['binary', 'manifest'])('rejects %s replacement while help is running', async target => {
+  it.each(['binary', 'manifest', 'LICENSE', 'source.tar.xz'])('rejects %s replacement while help is running', async target => {
     const f = await fixture();
     f.probe.mockImplementationOnce(async () => {
-      const file = target === 'binary' ? f.binary : f.manifestFile;
+      const file = target === 'binary' ? f.binary : target === 'manifest' ? f.manifestFile : path.join(f.root, target);
       await fs.rename(file, file + '.old'); await fs.copyFile(file + '.old', file);
       return { code: 0, stdout: help };
     });
@@ -113,15 +131,15 @@ describe('social companion distribution assembly', () => {
     await fs.writeFile(license, 'Synthetic license fixture'); await fs.writeFile(sourceArchive, 'Synthetic opaque corresponding-source archive');
     const output = path.join(f.root, 'generated');
     const result = await bundleSocialBackend({ binary: f.binary, license, sourceArchive, output });
-    expect(result).toMatchObject({ output, schema: 1, version: '0.3.0', sha256: digest(f.bytes), binary: 'xodus-cli', sourceArchive: 'source.tar.xz' });
-    expect(await fs.readFile(path.join(output, 'xodus-cli'))).toEqual(f.bytes);
-    expect((await fs.stat(path.join(output, 'xodus-cli'))).mode & 0o777).toBe(0o755);
+    expect(result).toMatchObject({ output, schema: 1, version: '0.3.0', sha256: digest(f.bytes), binary: 'xboks-engine', sourceArchive: 'source.tar.xz' });
+    expect(await fs.readFile(path.join(output, 'xboks-engine'))).toEqual(f.bytes);
+    expect((await fs.stat(path.join(output, 'xboks-engine'))).mode & 0o777).toBe(0o755);
     expect(await fs.readFile(path.join(output, 'LICENSE'), 'utf8')).toBe('Synthetic license fixture');
     expect(await fs.readFile(path.join(output, 'source.tar.xz'), 'utf8')).toBe('Synthetic opaque corresponding-source archive');
     expect(result.licenseSha256).toBe(digest('Synthetic license fixture'));
     expect(result.sourceArchiveSha256).toBe(digest('Synthetic opaque corresponding-source archive'));
     expect(await fs.readFile(f.binary)).toEqual(f.bytes);
-    expect(await socialBackend(output, f.probe)).toBe(path.join(output, 'xodus-cli'));
+    expect(await socialBackend(output, f.probe)).toBe(path.join(output, 'xboks-engine'));
     expect(await fs.readFile(path.join(output, 'README.txt'), 'utf8')).toContain('does not certify');
   });
   it('refuses existing outputs and symlink/empty input files without replacing any files', async () => {

@@ -31,7 +31,7 @@ it('keeps Nexus tools available in details without displacing original context a
     onUpdate: () => {}, onContent: () => {} };
   const shared = renderToStaticMarkup(<GameMenuActions {...props} />);
   const context = renderToStaticMarkup(<GameContextMenu x={0} y={0} {...props} />);
-  expect(context).toContain('Nexus / Proton options');
+  expect(context).toContain('xboks Engine / Proton options');
   expect(context).not.toContain('Install / update VC++');
   expect(context).not.toContain('Add to Steam');
   for (const name of ['Install / update VC++', 'Remove game', 'Game settings', 'Manage content', 'Check for updates', 'Add to Steam']) expect(shared).toContain(name);

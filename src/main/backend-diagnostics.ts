@@ -162,7 +162,7 @@ export function observeBackendChild(child: ChildProcess, operation: string): voi
   child.once('close', (code, signal) => log.record({ operation, event: 'exit', code: code ?? -1, signal: signal ?? undefined, elapsedMs: performance.now() - start }));
 }
 export function observeBackendCommand(child: ChildProcess, binary: string, args: string[]): void {
-  if (path.basename(binary) !== 'xodus-cli') return;
+  if (!['xboks-engine', 'xodus-cli'].includes(path.basename(binary))) return;
   const operation = args.includes('--help') || args.includes('--version') ? 'probe' : args[0];
   observeBackendChild(child, operation);
 }

@@ -27,7 +27,7 @@ export function KeyringSetup({ disabled = false, compact = false }: { disabled?:
     <button className="secondary" aria-label="Check keyring" title="Check keyring" disabled={busy || disabled} onClick={() => void check()}><RefreshCw />{compact ? null : 'Check keyring'}</button>
   </div>;
   const icon = busy ? <LoaderCircle className="spin" /> : status?.state === 'ready' ? <Check /> : <CircleAlert />;
-  const safety = 'Nexus can start an installed service. It does not install a provider, enable a wallet you disabled, change its password or reset stored credentials.';
+  const safety = 'xboks Engine can start an installed service. It does not install a provider, enable a wallet you disabled, change its password or reset stored credentials.';
   const gameModeHelp = 'Wallet setup and password prompts may not appear in Game Mode. Complete this step in Desktop Mode first, then return to Game Mode.';
   if (compact) {
     const problem = failed || Boolean(status && !['ready', 'stopped'].includes(status.state));

@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { DownloadTask, Game, Settings } from '../shared/types.js';
+import { managedPaths, rebaseManagedPath, type ManagedPathMove } from './managed-paths.js';
 import { downloadLimitKiB } from '../shared/download-bandwidth.js';
 import { resolvePackageFile } from './windows-path.js';
 import { parsePackageXml } from './package-xml.js';
@@ -14,7 +15,6 @@ interface PersistedState {
   settings: Settings;
 }
 
-const defaultDataRoot = path.join(os.homedir(), '.local', 'share', 'xodus-nexus');
 const legacyDefaultInstallRoot = path.join(os.homedir(), 'Games', 'Xodus Nexus');
 const defaultSettings: Settings = {
   installRoot: path.join(os.homedir(), 'Games', 'Xboks'),
@@ -28,7 +28,7 @@ const defaultSettings: Settings = {
   minimizeToTray: false,
   winePath: '',
   externalXodusRoot: '',
-  runtimeRoot: path.join(defaultDataRoot, 'runtimes'),
+  runtimeRoot: managedPaths().runtimeRoot,
   verboseLogs: false,
 };
 
@@ -38,7 +38,9 @@ export class StateStore {
   private state: PersistedState = { games: [], downloads: [], settings: defaultSettings };
   private readonly file: string;
 
-  constructor(userData: string) {
+  constructor(userData: string, private readonly options: { pathMoves?: readonly ManagedPathMove[]; home?: string; dataHome?: string; defaultRuntimeRoot?: string } = {}) {
+    this.state = { games: [], downloads: [], settings: { ...defaultSettings,
+      runtimeRoot: options.defaultRuntimeRoot ?? managedPaths(options).runtimeRoot } };
     this.file = path.join(userData, 'launcher-state.json');
   }
 
@@ -61,7 +63,9 @@ export class StateStore {
             transferRate: undefined, phase: 'Paused — resume to reconnect and restore saved download checkpoints',
           } : task) : [],
         settings: Object.fromEntries(Object.entries({
-          ...defaultSettings, ...parsed.settings, downloadLimitMiB,
+          ...this.state.settings, ...parsed.settings, downloadLimitMiB,
+          ...(typeof parsed.settings?.runtimeRoot === 'string' ? { runtimeRoot: rebaseManagedPath(parsed.settings.runtimeRoot, this.options.pathMoves ?? []) } : {}),
+          ...(typeof parsed.settings?.winePath === 'string' ? { winePath: rebaseManagedPath(parsed.settings.winePath, this.options.pathMoves ?? []) } : {}),
           // Rename only the former default for future installs. Existing game
           // paths, resumable download destinations and custom roots stay intact.
           ...(parsed.settings?.installRoot === legacyDefaultInstallRoot ? { installRoot: defaultSettings.installRoot } : {}),

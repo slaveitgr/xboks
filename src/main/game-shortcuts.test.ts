@@ -7,10 +7,48 @@ import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { GameShortcuts, desktopArgument, shortcutArguments, shortcutInstanceData, shortcutInstanceRequest, shortcutTitleStem } from './game-shortcuts.js';
 import { ShortcutLaunch } from './shortcut-launch.js';
+import { migrateManagedPaths } from './managed-paths.js';
 
 const execute = promisify(execFile);
 const id = '0123456789abcdef';
 const game = { id, title: 'A game\nExec=unwanted', installState: 'ready' as const };
+
+it('emits the canonical xboks profile flag, accepts the legacy flag and rejects conflicting profile flags', () => {
+  expect(shortcutArguments(['--xboks-profile', '/profile', '--launch-game', id])).toEqual({ profile: '/profile', gameId: id });
+  expect(shortcutArguments(['--nexus-profile', '/profile'])).toEqual({ profile: '/profile' });
+  expect(() => shortcutArguments(['--xboks-profile', '/one', '--nexus-profile', '/two'])).toThrow('profile');
+  expect(shortcutInstanceRequest({ nexusShortcut: { schema: 1, request: { profile: '/profile' } } }, '/profile')).toEqual({ profile: '/profile' });
+  expect(shortcutInstanceData({})).toEqual({ xboksShortcut: { schema: 1, request: {} } });
+});
+
+it('preserves managed shortcut identity and existing Steam wrapper paths after a profile migration', async () => {
+  const f = await fixture();
+  try {
+    const configHome = path.join(f.root, 'config'); const legacy = path.join(configHome, 'xodus-nexus');
+    const old = new GameShortcuts({ ...f.locations, userData: legacy }); await old.initialize();
+    // Older installed versions created this wrapper; model that exact owned file.
+    await fs.copyFile(path.join(legacy, 'shortcuts/launch-xboks'), path.join(legacy, 'shortcuts/launch-nexus'));
+    const before = await old.steamLaunch(game); const desktop = await old.create(game, 'desktop');
+    const steamFile = (await old.steamDesktop(game)).file;
+    for (const file of [path.join(legacy, 'shortcuts/launch-game'), path.join(legacy, 'shortcuts/launch-nexus'), desktop, steamFile]) {
+      await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replaceAll('X-Xboks-', 'X-Xodus-Nexus-'));
+    }
+    const migration = await migrateManagedPaths({ home: f.root, configHome, dataHome: path.join(f.root, 'data') });
+    expect(migration.warnings).toEqual([]);
+    const current = new GameShortcuts({ ...f.locations, userData: migration.profile, legacyProfiles: migration.legacyProfiles });
+    await current.initialize();
+    expect((await current.steamLaunch(game)).identity).toBe(before.identity);
+    expect((await execute('/bin/sh', [path.join(legacy, 'shortcuts/launch-nexus')])).stdout.trim()).toBe(`--xboks-profile ${migration.profile}`);
+    expect((await execute('/bin/sh', [path.join(legacy, 'shortcuts/launch-game'), id])).stdout.trim()).toBe(`--xboks-profile ${migration.profile} --launch-game ${id}`);
+    expect(shortcutInstanceRequest(shortcutInstanceData({ profile: legacy, gameId: id }), migration.profile).gameId).toBe(id);
+    expect(await current.create(game, 'desktop')).toBe(desktop);
+    expect(await fs.readFile(desktop, 'utf8')).toContain('X-Xboks-Profile=');
+    expect(await fs.readFile(desktop, 'utf8')).not.toContain('X-Xodus-Nexus-');
+    await current.steamDesktop(game);
+    expect(await fs.readFile(path.join(migration.profile, 'shortcuts/steam', id + '.desktop'), 'utf8')).toContain('X-Xboks-Steam=');
+    await current.remove(id); await expect(fs.stat(desktop)).rejects.toThrow();
+  } finally { await fs.rm(f.root, { recursive: true, force: true }); }
+});
 
 it('writes safe persistent desktop descriptors for live Steam imports without touching user application menus', async () => {
   const f = await fixture();
@@ -26,7 +64,7 @@ it('writes safe persistent desktop descriptors for live Steam imports without to
     expect((await fs.stat(prepared.file)).mode & 0o777).toBe(0o600);
     await expect(fs.access(f.locations.applications)).rejects.toThrow();
     const nexus = await f.shortcuts.steamDesktop();
-    expect(await fs.readFile(nexus.file, 'utf8')).toContain('Name=Xodus Nexus\n');
+    expect(await fs.readFile(nexus.file, 'utf8')).toContain('Name=xboks\n');
     await fs.writeFile(prepared.file, 'unrelated user file');
     await expect(f.shortcuts.steamDesktop(game)).rejects.toThrow('unrelated');
     expect(await fs.readFile(prepared.file, 'utf8')).toBe('unrelated user file');
@@ -41,12 +79,12 @@ it('creates Steam launch descriptions without unwanted desktop/menu entries and 
     expect(steam.executable).toBe('"/bin/sh"');
     expect(steam.options).toContain('"' + id + '"');
     expect((await execute('/bin/sh', [path.join(f.locations.userData, 'shortcuts/launch-game'), id])).stdout.trim())
-      .toBe(`--nexus-profile ${f.locations.userData} --launch-game ${id}`);
+      .toBe(`--xboks-profile ${f.locations.userData} --launch-game ${id}`);
     const nexus = await f.shortcuts.steamLaunch();
-    expect(nexus.title).toBe('Xodus Nexus');
+    expect(nexus.title).toBe('xboks');
     expect(nexus.identity).not.toBe(steam.identity);
-    expect((await execute('/bin/sh', [path.join(f.locations.userData, 'shortcuts/launch-nexus')])).stdout.trim())
-      .toBe(`--nexus-profile ${f.locations.userData}`);
+    expect((await execute('/bin/sh', [path.join(f.locations.userData, 'shortcuts/launch-xboks')])).stdout.trim())
+      .toBe(`--xboks-profile ${f.locations.userData}`);
     await expect(fs.access(f.locations.desktop)).rejects.toThrow();
     await expect(fs.access(f.locations.applications)).rejects.toThrow();
     await expect(f.shortcuts.steamLaunch({ ...game, installState: 'imported' })).rejects.toThrow('ready');
@@ -79,7 +117,7 @@ it('creates profile-scoped desktop/menu entries and starts the launcher, not the
     expect((await fs.stat(menu)).mode & 0o777).toBe(0o644);
     const entry = path.join(f.locations.userData, 'shortcuts/launch-game');
     const result = await execute(entry, [id]);
-    expect(result.stdout.trim()).toBe(`--nexus-profile ${f.locations.userData} --launch-game ${id}`);
+    expect(result.stdout.trim()).toBe(`--xboks-profile ${f.locations.userData} --launch-game ${id}`);
     const before = await fs.readFile(target, 'utf8');
     // AppImage update replaces the file at the same path; shortcut stays valid.
     await fs.rename(f.locations.launcher, `${f.locations.launcher}.old`);
@@ -133,7 +171,7 @@ it('names files by game title and safely separates games and profiles with ident
     expect(await f.shortcuts.create(named,'desktop')).toBe(first);
     const second=await f.shortcuts.create({...named,id:'fedcba9876543210'},'desktop');
     expect(path.basename(second)).toBe('Shift At Midnight (fedcba98).desktop');
-    expect(await fs.readFile(first,'utf8')).toContain(`X-Xodus-Nexus-Game=${id}\n`);
+    expect(await fs.readFile(first,'utf8')).toContain(`X-Xboks-Game=${id}\n`);
     const other=new GameShortcuts({...f.locations,userData:path.join(f.root,'other-profile')});
     await other.initialize();
     const third=await other.create(named,'desktop');
@@ -154,7 +192,7 @@ it('migrates a legacy hash entry and removes only its own old title after explic
     const profile=createHash('sha256').update(path.resolve(f.locations.userData)).digest('hex').slice(0,12);
     const legacy=path.join(f.locations.desktop,`xodus-nexus-${profile}-${id}.desktop`);
     await fs.rename(first,legacy);
-    await fs.writeFile(legacy,(await fs.readFile(legacy,'utf8')).replace(`X-Xodus-Nexus-Game=${id}\n`,''));
+    await fs.writeFile(legacy,(await fs.readFile(legacy,'utf8')).replaceAll('X-Xboks-', 'X-Xodus-Nexus-').replace(`X-Xodus-Nexus-Game=${id}\n`,''));
     const renamed=await f.shortcuts.create({...named,title:'Shift At Midnight'},'desktop');
     expect(path.basename(renamed)).toBe('Shift At Midnight.desktop');
     await expect(fs.stat(legacy)).rejects.toThrow();
@@ -167,7 +205,7 @@ it('migrates a legacy hash entry and removes only its own old title after explic
 it('sanitizes path separators, controls and reserved punctuation and bounds UTF8 filenames', () => {
   expect(shortcutTitleStem('Shift At Midnight')).toBe('Shift At Midnight');
   expect(shortcutTitleStem('../../Game: A/B\\C?\n')).toBe('Game A B C');
-  expect(shortcutTitleStem('../\0')).toBe('Xodus Nexus game');
+  expect(shortcutTitleStem('../\0')).toBe('xboks game');
   expect(shortcutTitleStem('Příliš žluťoučký kůň')).toBe('Příliš žluťoučký kůň');
   for(const title of ['A'.repeat(1000),'猫'.repeat(1000),'é'.repeat(1000)]) {
     const stem=shortcutTitleStem(title);
@@ -183,8 +221,8 @@ it('atomically creates colliding titles without overwriting either entry', async
     const paths=await Promise.all([game,{...game,id:'fedcba9876543210'}].map(entry=>f.shortcuts.create({...entry,title:'Same title'},'desktop')));
     expect(new Set(paths).size).toBe(2);
     const bodies=await Promise.all(paths.map(file=>fs.readFile(file,'utf8')));
-    expect(bodies[0]).toContain(`X-Xodus-Nexus-Game=${id}`);
-    expect(bodies[1]).toContain('X-Xodus-Nexus-Game=fedcba9876543210');
+    expect(bodies[0]).toContain(`X-Xboks-Game=${id}`);
+    expect(bodies[1]).toContain('X-Xboks-Game=fedcba9876543210');
   } finally { await fs.rm(f.root,{recursive:true,force:true}); }
 });
 
@@ -200,12 +238,12 @@ it('hands off the original request independently of Chromium switch reordering',
   const profile = '/tmp/a profile/žluťoučký';
   const original = shortcutArguments(['--nexus-profile', profile, '--launch-game', id]);
   // This is the order observed from the actual second-instance event on Linux.
-  expect(() => shortcutArguments(['--nexus-profile', '--launch-game', '--ozone-platform=wayland', profile, id])).toThrow('Invalid Nexus profile');
+  expect(() => shortcutArguments(['--nexus-profile', '--launch-game', '--ozone-platform=wayland', profile, id])).toThrow('Invalid xboks profile');
   const data = JSON.parse(JSON.stringify(shortcutInstanceData(original)));
   expect(shortcutInstanceRequest(data, profile)).toEqual(original);
   expect(shortcutInstanceRequest(shortcutInstanceData({}), profile)).toEqual({});
   expect(shortcutInstanceRequest(shortcutInstanceData({ gameId: id }), profile)).toEqual({ gameId: id });
-  expect(() => shortcutInstanceRequest(data, '/tmp/another-profile')).toThrow('different Nexus profile');
+  expect(() => shortcutInstanceRequest(data, '/tmp/another-profile')).toThrow('different xboks profile');
 });
 
 it('rejects malformed or failed handoffs instead of converting them into a normal launch', () => {
@@ -233,7 +271,7 @@ it('writes a persistent per-game PNG, reuses it offline and keeps Nexus as the f
     const menu = await f.shortcuts.create(game, 'applications');
     expect(await fs.readFile(menu, 'utf8')).toContain(`Icon=${icon}\n`);
     const other = await f.shortcuts.create({ ...game, id: 'fedcba9876543210' }, 'desktop', Buffer.from('not an image'));
-    expect(await fs.readFile(other, 'utf8')).toContain(`Icon=${path.join(f.locations.userData, 'shortcuts/nexus.png')}\n`);
+    expect(await fs.readFile(other, 'utf8')).toContain(`Icon=${path.join(f.locations.userData, 'shortcuts/xboks.png')}\n`);
   } finally { await fs.rm(f.root, { recursive: true, force: true }); }
 });
 

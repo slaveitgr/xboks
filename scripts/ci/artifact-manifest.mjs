@@ -20,12 +20,12 @@ function validateContext(kind, context) {
 export async function writeManifest(kind, directory, context) {
   validateContext(kind, context);
   const entries = await fs.readdir(directory);
-  const binaries = entries.filter(name => kind === 'launcher' ? name.endsWith('.AppImage') :
-    new RegExp(`^xodus-nexus-${kind}-[A-Za-z0-9._-]+-x86_64\\.tar\\.xz$`).test(name));
-  const sources = entries.filter(name => new RegExp(`^xodus-nexus-${kind}-[A-Za-z0-9._-]+-source\\.tar\\.xz$`).test(name));
+  const binaries = entries.filter(name => kind === 'launcher' ? /^xboks-\d+\.\d+\.\d+-x86_64\.AppImage$/.test(name) :
+    new RegExp(`^xboks-engine-${kind}-[A-Za-z0-9._-]+-x86_64\\.tar\\.xz$`).test(name));
+  const sources = entries.filter(name => new RegExp(`^xboks-engine-${kind}-[A-Za-z0-9._-]+-source\\.tar\\.xz$`).test(name));
   const sourceName = name => kind === 'backend' ? name.replace('.tar.xz', '-source.tar.xz') : name.replace('-x86_64.tar.xz', '-source.tar.xz');
   if (kind === 'backend') {
-    const exactSources = entries.filter(name => /^xodus-nexus-backend-[A-Za-z0-9._-]+-x86_64-source\.tar\.xz$/.test(name));
+    const exactSources = entries.filter(name => /^xboks-engine-backend-[A-Za-z0-9._-]+-x86_64-source\.tar\.xz$/.test(name));
     sources.splice(0, sources.length, ...exactSources);
   }
   if (binaries.length !== 1 || (kind !== 'launcher' && (sources.length !== 1 ||
@@ -66,7 +66,7 @@ export async function verifyManifest(directory, expected = {}) {
     names.add(file.name);
     if (await digest(path.join(directory, file.name), 'sha256') !== file.sha256) throw Error(`Candidate checksum mismatch: ${file.name}`);
   }
-  const binaries = [...names].filter(name => manifest.kind === 'launcher' ? name.endsWith('.AppImage') : new RegExp(`^xodus-nexus-${manifest.kind}-[A-Za-z0-9._-]+-x86_64\\.tar\\.xz$`).test(name));
+  const binaries = [...names].filter(name => manifest.kind === 'launcher' ? /^xboks-\d+\.\d+\.\d+-x86_64\.AppImage$/.test(name) : new RegExp(`^xboks-engine-${manifest.kind}-[A-Za-z0-9._-]+-x86_64\\.tar\\.xz$`).test(name));
   if (binaries.length !== 1) throw Error('Candidate binary missing');
   const expectedFiles = [binaries[0], manifest.kind === 'launcher' ? `${binaries[0]}.sha512sum` : binaries[0].replace(/\.tar\.xz$/, '.sha512sum')];
   if (manifest.kind !== 'launcher') {

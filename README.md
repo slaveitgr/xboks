@@ -15,7 +15,7 @@
 
 </div>
 
-xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass browsing, a combined library, Store, game pages, installation queue, settings and a desktop guide. It builds on **[Xodus](https://github.com/xodus-gaming/xodus)** and **[Xodus Nexus](https://github.com/domsvoboda/xodus-nexus)**, with Proton/runtime integration for supported games.
+xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass browsing, a combined library, Store, game pages, installation queue, settings and a desktop guide. Its **xboks Engine** provides the managed backend and Proton/runtime integration for supported games. The [upstream foundation and licenses](#built-on-xodus-and-xodus-nexus) remain credited below.
 
 > **Independent development project.** The target is faithful visual and interaction parity with the Windows Xbox client. That work is ongoing. xboks is unofficial, and neither complete Windows feature parity nor universal game compatibility is claimed.
 
@@ -24,8 +24,8 @@ xboks brings a reference-driven Xbox-style interface to Linux: Home, Game Pass b
 | Area | Implemented | Current boundary |
 | --- | --- | --- |
 | Home, Library, Game Pass and Store | Compact navigation, catalog browsing, filters, product-specific game pages, menus and installation queue | Exact visual parity and complete service coverage remain in progress |
-| Settings | Nine reference categories, provider pages, Greek/English controls and integrated Nexus/Proton settings | Windows-specific services follow actual Linux capabilities |
-| Accounts and games | Microsoft/Nexus account integration, entitlement-aware access, installation and runtime tooling | Download-to-launch acceptance remains game-specific; owning a license is required |
+| Settings | Nine reference categories, provider pages, Greek/English controls and integrated xboks Engine/Proton settings | Windows-specific services follow actual Linux capabilities |
+| Accounts and games | Microsoft account integration through xboks Engine, entitlement-aware access, installation and runtime tooling | Download-to-launch acceptance remains game-specific; owning a license is required |
 | Friends and presence | Shared app/guide service, player search and presence reported by Xbox | Authenticated friends and inbox reads have been exercised; unavailable presence stays unknown |
 | Text conversations | One-to-one inbox/history, explicit Send, account/participant validation and no automatic resend | Sending is fixture-tested; live delivery remains to be verified. Group/system threads are omitted |
 | Desktop guide | Separate top-level Game Bar-style window, scoped menus/Back, system audio and xboks-window screenshots | Wayland/global shortcuts, external-game stacking and video capture have separate limits |
@@ -59,12 +59,14 @@ npm run dev
 For a UI preview with sample account/library data:
 
 ```sh
-XODUS_DEMO=1 npm run dev
+XBOKS_DEMO=1 npm run dev
 ```
 
 Demo mode does not sign in, install or launch real games. It can fetch public Store catalog data and artwork.
 
-For real use, configure the Nexus backend and shared runtime in Settings, then sign in through the Account flow. Supported games use the configured Proton/runtime; account privileges, licenses, runtime compatibility and the game itself determine availability. The upstream Nexus installer installs Nexus; xboks is built from this repository.
+For real use, configure **xboks Engine** and its shared runtime in Settings, then sign in through the Account flow. Supported games use the configured Proton/runtime; account privileges, licenses, runtime compatibility and the game itself determine availability. The default runtime location is `<XDG data home>/xboks/engine/runtimes`; the backend lives under the xboks profile's `engine/` directory.
+
+Launcher, backend and runtime update checks now use **[slaveitgr/xboks releases](https://github.com/slaveitgr/xboks/releases)**. They do not fall back to upstream project binaries or require a GitHub login for runtime downloads. A compatible, complete xboks release must actually be published before it can be installed this way; changing the channel does not create those releases. Microsoft sign-in, game payloads, catalog and required redistributables continue to use their actual vendor services. See the [download and source-provenance audit](docs/engine-downloads.md).
 
 ### Check and package
 
@@ -79,7 +81,7 @@ npm run dist
 
 ### Optional social companion — backend 0.3.0
 
-Friends/chat use the selected backend when it advertises social support. A packaged build can instead include the **0.3.0 social companion**, without replacing the selected game backend. It reads existing Nexus credentials through a read-only path; expired credentials need the normal Account refresh/sign-in flow.
+Friends/chat use the selected backend when it advertises social support. A packaged build can instead include the **0.3.0 social companion**, without replacing the selected game backend. It reads the existing compatible account credentials through a read-only path; expired credentials need the normal Account refresh/sign-in flow.
 
 To build the companion from the pinned source recipe, use the Rust toolchain in [`assets/backend-source.lock.json`](assets/backend-source.lock.json) and the native prerequisites in [`scripts/BACKEND.md`](scripts/BACKEND.md), including `protoc`:
 
@@ -89,11 +91,11 @@ node scripts/build-backend.mjs --work work/social-build --output outputs/social-
 node scripts/bundle-social-backend.mjs \
   --binary work/social-build/target/release/xodus-cli \
   --license work/social-build/source/LICENSE \
-  --source-archive outputs/social-backend/xodus-nexus-backend-0.3.0-linux-x86_64-source.tar.xz
+  --source-archive outputs/social-backend/xboks-engine-backend-0.3.0-linux-x86_64-source.tar.xz
 npm run dist
 ```
 
-Work/output directories must be new; the bundler also refuses to overwrite `assets/social-backend/`. Generated binaries and their corresponding-source archive stay out of Git. The companion is checked by hash and a bounded help probe, never used for login or game execution, and does not enable party voice. The local companion's OpenSSL 4/glibc dependencies and verification scope are recorded in the [social/system integration report](docs/analysis/social-system-integration.md).
+The private Cargo build output remains named `xodus-cli`; the bundler publishes its verified bytes as `xboks-engine`. Work/output directories must be new; the bundler also refuses to overwrite `assets/social-backend/`. Generated binaries and their corresponding-source archive stay out of Git. The companion is checked by hash and a bounded help probe, never used for login or game execution, and does not enable party voice. The local companion's OpenSSL 4/glibc dependencies and verification scope are recorded in the [social/system integration report](docs/analysis/social-system-integration.md).
 
 ## Fullscreen Experience & Game Bar
 
@@ -123,7 +125,7 @@ Synthetic tests, authenticated service checks, physical-controller checks and au
 
 ## Roadmap
 
-- [x] Establish the Xodus Nexus foundation and preserve upstream attribution.
+- [x] Establish the xboks Engine foundation and preserve upstream attribution.
 - [x] Build the original-package/screenshot reference library.
 - [x] Implement reference-driven browsing, product pages, menus, queue and nine Settings categories.
 - [x] Add scoped controller navigation and the separate desktop guide.

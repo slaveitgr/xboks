@@ -10,7 +10,7 @@ it('has one sidebar queue entry below Settings', () => {
 it('keeps backend health and launcher update notices distinct', () => {
   const data = demoSnapshot(); data.launcherUpdate!.latestVersion = '0.3.1';
   const html = renderToStaticMarkup(<TopStatus data={data} go={() => {}} />);
-  expect(html).toContain('Update available'); expect(html).toContain('Xodus ready');
+  expect(html).toContain('Update available'); expect(html).toContain('xboks Engine ready');
 });
 it.each([
   [false, false, false], [true, false, false], [false, true, false], [false, false, true],
@@ -27,7 +27,7 @@ it.each([
   for (const [available, label] of [[launcher, 'Launcher 0.3.9'], [backend, 'Backend 0.2.9'], [runtime, 'Runtime 11.0-new']] as const) {
     if (available) expect(html).toContain(label); else expect(html).not.toContain(label);
   }
-  expect(html).toContain('Xodus ready');
+  expect(html).toContain('xboks Engine ready');
 });
 it('does not advertise failed, incomplete or already installed component releases', () => {
   const data = demoSnapshot();
@@ -49,7 +49,7 @@ it('preserves the launcher restart notice while listing pending backend and runt
 it('offers verified in-app install with independent backend version labels', () => {
   const data = demoSnapshot(); data.launcherUpdate = { currentVersion: '9.0.0', checking: false, latestVersion: '9.0.1', canInstall: true }; data.backend.version = '0.2.1';
   const html = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} />);
-  expect(html).toContain('Install launcher update'); expect(html).toContain('Nexus backend 0.2.1'); expect(html).not.toContain('Backend updates are versioned independently');
+  expect(html).toContain('Install launcher update'); expect(html).toContain('xboks Engine 0.2.1'); expect(html).not.toContain('Backend updates are versioned independently');
 });
 it('shows game update badges and a separate version-check action', () => {
   const data = demoSnapshot(); data.gameUpdates = { [data.games[0].id]: { checking: false, available: true, latestVersion: '1.10.0.0' } };

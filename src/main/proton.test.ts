@@ -69,6 +69,7 @@ describe('prepareProtonRunner', () => {
     expect(game.stdout).not.toContain('/wrong/host/data');
     expect(game.stdout).toContain('<controller:0x054c/0x0ce6:16968485195965530112>');
     if (withTools) {
+      expect(runner.launchCommand).toBe(path.join(compat, 'xboks-engine-game'));
       expect(game.stdout).toContain(`dxgi=n,b;winhttp=b\nfps\n${path.join(compat,'pfx')}`);
       expect(game.stdout).toContain('<actual game.exe>\n<--launcher-skip>');
     } else {
@@ -152,13 +153,14 @@ describe('prepareProtonRunner', () => {
     await mkdir(path.join(root, 'runtime', 'files', 'share', 'default_pfx'), { recursive: true });
     await writeFile(wine, '#!/bin/sh\nprintf \'%s\\n\' "$WINEPREFIX" "$WINEDLLPATH" "$WINEDLLOVERRIDES" "$1"\n');
     await chmod(wine, 0o700);
-    await writeFile(proton, '#!/bin/sh\nroot="$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/system32"\nmkdir -p "$root"\ntouch "$root/libvkd3d-utils-1.dll" "$root/dxgi.dll" "$root/d3d12.dll"\n');
+    await writeFile(proton, '#!/bin/sh\nroot="$STEAM_COMPAT_DATA_PATH/pfx/drive_c/windows/system32"\nmkdir -p "$root"\ntouch "$root/libvkd3d-utils-1.dll" "$root/dxgi.dll" "$root/d3d12.dll"\nprintf "%s" "$UMU_ID" > "$STEAM_COMPAT_DATA_PATH/engine-id"\n');
     await chmod(proton, 0o700);
 
     const compat = path.join(root, "compat game's data");
     const steam = path.join(root, "steam user's root");
     const result = await prepareProtonRunner(wine, compat, steam);
-    expect(result?.command).toBe(path.join(compat, 'xodus-proton-wine'));
+    expect(result?.command).toBe(path.join(compat, 'xboks-engine-wine'));
+    expect(await readFile(path.join(compat, 'engine-id'), 'utf8')).toBe('xboks-engine');
     const { stdout } = await execFile(result!.command, ['target path']);
     const lines = stdout.trim().split('\n');
     expect(lines[0]).toBe(path.join(compat, 'pfx'));
@@ -410,6 +412,22 @@ describe('syncUnrealCultureGameIni', () => {
     expect(lines.join('\n')).toContain('manually configured');
   });
 
+  it('adopts a legacy read-only culture pin without duplicating it and can clear the pin', async () => {
+    const { prefix, configDirectory, install } = await makePrefix('legacy');
+    const gameIni = path.join(configDirectory, 'Game.ini');
+    await writeFile(gameIni, '[Internationalization]\n; Xodus Nexus game language\nCulture=cs-CZ\n\n[Other]\nKeep=1\n', { mode: 0o444 });
+    const lines: string[] = [];
+    await syncUnrealCultureGameIni(prefix, install, '6BE41AB5', 'cs-CZ', line => lines.push(line));
+    const adopted = await readFile(gameIni, 'utf8');
+    expect(adopted.match(/^Culture=/gm)).toHaveLength(1);
+    expect(adopted).toContain('; xboks Engine game language\nCulture=cs-CZ');
+    expect(adopted).not.toContain('Xodus Nexus');
+    expect(adopted).toContain('[Other]\nKeep=1');
+    expect((await stat(gameIni)).mode & 0o222).toBe(0);
+    await syncUnrealCultureGameIni(prefix, install, '6BE41AB5', undefined, line => lines.push(line));
+    expect(await readFile(gameIni, 'utf8')).toBe('[Other]\nKeep=1\n');
+  });
+
   it('does nothing without a title id, for non-Unreal installs, or without a config directory', async () => {
     const { prefix, install } = await makePrefix('skip', { unreal: false });
     const lines: string[] = [];
@@ -421,15 +439,33 @@ describe('syncUnrealCultureGameIni', () => {
 });
 
 describe('managedUnrealCultureGameIni', () => {
+  it.each(['cs-CZ', 'de-DE', undefined])('recognizes the old ownership marker when selecting %s', locale => {
+    const legacy = '[Internationalization]\r\n; Xodus Nexus game language\r\nCulture=cs-CZ\r\n[Other]\r\nKeep=1\r\n';
+    const plan = managedUnrealCultureGameIni(legacy, locale);
+    expect(plan.managed).toBe(true);
+    expect(plan.manual).toBe(false);
+    expect(plan.content).toContain('[Other]\r\nKeep=1');
+    expect(plan.content).not.toContain('Xodus Nexus');
+    if (locale) {
+      expect(plan.content).toContain(`; xboks Engine game language\r\nCulture=${locale}`);
+      expect(plan.content?.match(/^Culture=/gm)).toHaveLength(1);
+    } else expect(plan.content).not.toContain('Culture=');
+  });
+  it('preserves a manually configured culture beside a legacy pin', () => {
+    const existing = '[Internationalization]\n; Xodus Nexus game language\nCulture=cs-CZ\nCulture=fr-FR\n';
+    expect(managedUnrealCultureGameIni(existing, 'de-DE')).toEqual({ content: null, managed: false, manual: true });
+    const cleared = managedUnrealCultureGameIni(existing, undefined);
+    expect(cleared.content).toBe('[Internationalization]\nCulture=fr-FR\n');
+  });
   it('appends a marker-owned section and removes only the owned lines', () => {
     const created = managedUnrealCultureGameIni('', 'cs-CZ');
-    expect(created.content).toBe('[Internationalization]\r\n; Xodus Nexus game language\r\nCulture=cs-CZ\r\n');
+    expect(created.content).toBe('[Internationalization]\r\n; xboks Engine game language\r\nCulture=cs-CZ\r\n');
     expect(created.managed).toBe(true);
 
     const removed = managedUnrealCultureGameIni(created.content!, undefined);
     expect(removed.content).not.toBeNull();
     expect(removed.content).not.toContain('Culture');
-    expect(removed.content).not.toContain('Xodus Nexus');
+    expect(removed.content).not.toContain('xboks Engine');
 
     const untouched = managedUnrealCultureGameIni('[Internationalization]\r\nCulture=en\r\n', 'cs-CZ');
     expect(untouched.content).toBeNull();

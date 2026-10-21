@@ -57,7 +57,7 @@ export async function startXodusBridge(socketPath: string): Promise<XodusBridge>
     server.listen(0, '127.0.0.1', () => { server.removeListener('error', reject); resolve(); });
   });
   const address = server.address();
-  if (!address || typeof address === 'string') throw new Error('Could not bind the Xodus loopback bridge.');
+  if (!address || typeof address === 'string') throw new Error('Could not bind the xboks Engine loopback bridge.');
   return {
     port: address.port,
     key,
@@ -111,15 +111,23 @@ export function selectedWinePath(
   return isManaged && activeWine ? activeWine : configuredWine;
 }
 
+/** New managed packages expose owned names; external/legacy builds retain ABI names. */
+export async function backendServiceBinary(backendBinary: string): Promise<string | undefined> {
+  for (const name of ['xboks-engine-service', 'xodus-service']) {
+    const file = path.join(path.dirname(backendBinary), name);
+    if (await fs.access(file, constants.X_OK).then(() => true, () => false)) return file;
+  }
+  return undefined;
+}
+
 export async function startXodusService(
   backendBinary: string,
   userData: string,
   onStatus: (message: string) => void,
   signal?: AbortSignal,
 ): Promise<XodusServiceSession> {
-  const binary = path.join(path.dirname(backendBinary), 'xodus-service');
-  try { await fs.access(binary, constants.X_OK); }
-  catch { throw new Error('This Xodus backend has no xodus-service. Rebuild the managed backend to use Xbox cloud saves.'); }
+  const binary = await backendServiceBinary(backendBinary);
+  if (!binary) throw new Error('The xboks Engine account service is unavailable. Rebuild the managed backend to use Xbox cloud saves.');
 
   const sessionRoot = path.join(userData, 'service-sessions');
   await fs.mkdir(sessionRoot, { recursive: true, mode: 0o700 });
@@ -159,22 +167,22 @@ export async function startXodusService(
   signal?.addEventListener('abort', aborted, { once: true });
 
   try {
-    onStatus('Connecting the Xodus account service…');
+    onStatus('Connecting the xboks Engine account service…');
     const deadline = Date.now() + 90_000;
     while (Date.now() < deadline) {
       if (signal?.aborted) throw new Error('Account service operation cancelled.');
-      if (spawnError) throw new Error(`Could not start xodus-service: ${spawnError.message}`);
+      if (spawnError) throw new Error(`Could not start the xboks Engine account service: ${spawnError.message}`);
       if (await socketReady(socketPath)) {
         bridge = await startXodusBridge(socketPath);
         backendDiagnostic({ operation: 'service', event: 'validation', stage: 'ready' });
-        onStatus('Xodus account service and private loopback bridge are ready.');
+        onStatus('xboks Engine account service and private loopback bridge are ready.');
         return { socketPath, bridgePort: bridge.port, bridgeKey: bridge.key, stop };
       }
-      if (exitCode !== null) throw new Error(`xodus-service exited with code ${exitCode}. Check the stored Xodus account and network connection.`);
+      if (exitCode !== null) throw new Error(`xboks Engine account service exited with code ${exitCode}. Check the stored xboks Engine account and network connection.`);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     backendDiagnostic({ operation: 'service', event: 'validation', stage: 'timeout' });
-    throw new Error('xodus-service did not become ready within 90 seconds. Check the stored Xodus account and network connection.');
+    throw new Error('xboks Engine account service did not become ready within 90 seconds. Check the stored xboks Engine account and network connection.');
   } catch (error) {
     await stop();
     throw error;

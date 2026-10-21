@@ -10,7 +10,7 @@ it.each(['wizard', 'settings'])('offers explicit keyring checks and safe setup g
   expect(html).toContain('Check keyring');
   expect(html).toContain('keyring-compact');
   expect(html).toContain('Checking…');
-  expect(html).not.toContain('Nexus can start an installed service.');
+  expect(html).not.toContain('xboks Engine can start an installed service.');
   expect(html).not.toContain('Keep your wallet password enabled');
   expect(html).not.toContain('keyring-help');
   expect(html).not.toContain('Start keyring service'); // Only offered after an actual activatable-provider result.
@@ -21,6 +21,6 @@ it.each([false, true])('keeps limiter instructions short with bandwidth support=
   const html = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} />);
   expect(html).toContain('0 = unlimited. Applies to active and future game downloads.');
   expect(html).not.toContain('Small network-buffering bursts');
-  expect(html).not.toContain('Update the Nexus backend to use a speed limit');
+  expect(html).not.toContain('Update xboks Engine to use a speed limit');
   expect(html).not.toContain('Keep your wallet password enabled');
 });

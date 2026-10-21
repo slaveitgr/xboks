@@ -44,6 +44,22 @@ it('retains proof across launcher restarts but never trusts task flags', async (
   await cleanup.complete(task); expect((await available()).deleteFilesAllowed).toBe(false);
   expect(await fs.readdir(task.destination)).toEqual(['partial.bin']);
 });
+it('retains ownership verification for legacy markers after an engine upgrade', async () => {
+  await partial();
+  const record = path.join(state, 'download-ownership', task.id + '.json');
+  const proof = JSON.parse(await fs.readFile(record, 'utf8'));
+  const oldMarker = `.nexus-download-${proof.token}`;
+  await fs.rename(path.join(task.destination, proof.marker), path.join(task.destination, oldMarker));
+  proof.marker = oldMarker;
+  await fs.writeFile(record, JSON.stringify(proof), { mode: 0o600 });
+  cleanup = new DownloadCleanup(state);
+  expect((await available()).deleteFilesAllowed).toBe(true);
+  // A prefix match alone cannot authorize an unrelated marker or directory.
+  proof.marker = '.nexus-download-' + randomUUID();
+  await fs.writeFile(record, JSON.stringify(proof), { mode: 0o600 });
+  expect((await available()).deleteFilesAllowed).toBe(false);
+  expect(await fs.readFile(path.join(task.destination, 'partial.bin'), 'utf8')).toBe('disposable download');
+});
 it.each(['directory', 'symlink', 'file', 'missing'])('rejects a %s replacement without touching the old folder or a linked game', async replacement => {
   await partial(); const original = path.join(root, 'original'); await fs.rename(task.destination, original);
   if (replacement === 'directory') await fs.mkdir(task.destination);
@@ -59,7 +75,7 @@ it('rejects a symlinked ancestor, overlaps, aliases and protected roots', async 
   try { await expect(cleanup.remove(task, [], [])).rejects.toThrow(); } finally { await fs.unlink(root); await fs.rename(moved, root); }
 });
 it.each(['changed', 'missing', 'symlink'])('does not trust a %s ownership marker', async mode => {
-  await partial(); const name = (await fs.readdir(task.destination)).find(name => name.startsWith('.nexus-download-'))!, marker = path.join(task.destination, name);
+  await partial(); const name = (await fs.readdir(task.destination)).find(name => name.startsWith('.xboks-download-'))!, marker = path.join(task.destination, name);
   await fs.unlink(marker);
   if (mode === 'changed') await fs.writeFile(marker, 'wrong');
   if (mode === 'symlink') await fs.symlink(path.join(task.destination, 'partial.bin'), marker);
@@ -81,7 +97,7 @@ it('preserves a new folder containing an unsafe link, including the linked save 
 it('rejects same-device bind mounts before deleting any files', async () => {
   await partial(); const remove = vi.fn(async () => {});
   cleanup = new DownloadCleanup(state, remove, async () => {
-    const temporary = (await fs.readdir(root)).find(name => name.startsWith('.nexus-cancel-'))!;
+    const temporary = (await fs.readdir(root)).find(name => name.startsWith('.xboks-cancel-'))!;
     return `1 2 0:1 / ${path.join(root, temporary, 'files', 'bind')} rw - tmpfs tmpfs rw`;
   });
   await expect(cleanup.remove(task, [], [])).rejects.toThrow('mounted filesystem'); expect(remove).not.toHaveBeenCalled();
@@ -113,6 +129,6 @@ it('never overwrites a replacement at the original path when cleanup fails', asy
   });
   await expect(cleanup.remove(task, [], [])).rejects.toThrow('Remaining files are preserved at');
   expect(await fs.readFile(path.join(task.destination, 'existing-game'), 'utf8')).toBe('keep');
-  const quarantine = (await fs.readdir(root)).find(name => name.startsWith('.nexus-cancel-'))!;
+  const quarantine = (await fs.readdir(root)).find(name => name.startsWith('.xboks-cancel-'))!;
   expect(await fs.readFile(path.join(root, quarantine, 'files', 'partial.bin'), 'utf8')).toBe('disposable download');
 });

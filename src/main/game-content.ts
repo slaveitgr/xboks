@@ -6,7 +6,8 @@ import { children, parsePackageXml, single, type XmlNode } from './package-xml.j
 
 const productId = /^[A-Z0-9]{12}$/;
 const contentId = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-const markerName = '.nexus-content-complete.json';
+const markerName = '.xboks-content-complete.json';
+const legacyMarkerName = '.nexus-content-complete.json';
 interface Manifest {
   storeId: string; name: string; publisher: string; version: string;
   related: string[]; allowed: string[]; dependency?: string;
@@ -87,7 +88,7 @@ export function contentOffers(base: Manifest, catalog: unknown, access: Access):
     const pkg = [...unique.values()][0];
     const downloadBytes = Number.isSafeInteger(pkg.MaxDownloadSizeInBytes) && pkg.MaxDownloadSizeInBytes > 0 ? pkg.MaxDownloadSizeInBytes : undefined;
     selected.push({ productId: id, contentId: pkg.ContentId.toLowerCase(), family: pkg.PackageFamilyName, downloadBytes });
-    return { productId: id, title, access: licensed, status: 'available', downloadBytes, note: 'Install-time licensing is checked again by Xodus.' };
+    return { productId: id, title, access: licensed, status: 'available', downloadBytes, note: 'Install-time licensing is checked again by xboks Engine.' };
   });
   return { items, packages: selected };
 }
@@ -198,7 +199,9 @@ export class GameContent {
     const base = await baseManifest(game);
     if (!base.related.includes(pkg.productId) || !contentId.test(pkg.contentId)) throw Error('Invalid content installation.');
     const directory = await this.safeDirectory(game, pkg.productId, true);
-    await fs.unlink(path.join(directory, markerName)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    for (const name of [markerName, legacyMarkerName]) {
+      await fs.unlink(path.join(directory, name)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+    }
     return directory;
   }
   async complete(game: Game, pkg: ContentPackage): Promise<void> {
@@ -213,7 +216,13 @@ export class GameContent {
     for (const id of base.related) {
       try {
         const directory = await this.safeDirectory(game, id);
-        const marker = JSON.parse(await boundedFile(path.join(directory, markerName)));
+        const markerText = await boundedFile(path.join(directory, markerName)).catch(error => {
+          // Only an absent new marker permits a legacy read. Invalid or unsafe
+          // new metadata must never promote an older installation to complete.
+          if (error.code !== 'ENOENT') throw error;
+          return boundedFile(path.join(directory, legacyMarkerName));
+        });
+        const marker = JSON.parse(markerText);
         if (marker.schema !== 1 || marker.parent !== base.storeId || marker.productId !== id || !contentId.test(marker.contentId)) continue;
         const content = await this.validate(game, id, directory);
         if (marker.name === content.name && marker.version === content.version) installed.push(id);

@@ -20,9 +20,9 @@ const fs = require('node:fs');
 const bootstrap = process.argv[2]?.endsWith('/font-bootstrap/bootstrap.mjs');
 const selected = ['LD_PRELOAD', 'LD_LIBRARY_PATH', 'SteamAppId', 'SteamGameId',
   'STEAM_COMPAT_APP_ID', 'DISPLAY', 'WAYLAND_DISPLAY', 'ELECTRON_RUN_AS_NODE',
-  'FONTCONFIG_FILE', 'XODUS_NEXUS_FONTCONFIG', 'XODUS_NEXUS_FONTCONFIG_ORIGINAL',
-  'XODUS_NEXUS_FONTCONFIG_ORIGINAL_SET', 'GTK_IM_MODULE', 'QT_IM_MODULE',
-  'XDG_CURRENT_DESKTOP', 'XODUS_NEXUS_STEAM_IME'];
+  'FONTCONFIG_FILE', 'XBOKS_FONTCONFIG', 'XBOKS_FONTCONFIG_ORIGINAL',
+  'XBOKS_FONTCONFIG_ORIGINAL_SET', 'GTK_IM_MODULE', 'QT_IM_MODULE',
+  'XDG_CURRENT_DESKTOP', 'XBOKS_STEAM_IME'];
 fs.appendFileSync(process.env.NEXUS_TEST_CAPTURE, JSON.stringify({
   bootstrap: !!bootstrap, pid: process.pid, args: process.argv.slice(2),
   env: Object.fromEntries(selected.map(key => [key, process.env[key] ?? null]))
@@ -35,9 +35,9 @@ else process.exitCode = Number(process.env.NEXUS_TEST_EXIT || 0);
   writeFileSync(path.join(root, 'custom1.so'), 'not a library');
   const env: NodeJS.ProcessEnv = { ...process.env, NEXUS_TEST_CAPTURE: capture };
   for (const key of ['LD_PRELOAD', 'ELECTRON_RUN_AS_NODE', 'FONTCONFIG_FILE',
-    'XODUS_NEXUS_FONTCONFIG', 'XODUS_NEXUS_FONTCONFIG_ORIGINAL',
-    'XODUS_NEXUS_FONTCONFIG_ORIGINAL_SET', 'GTK_IM_MODULE', 'QT_IM_MODULE',
-    'XDG_CURRENT_DESKTOP', 'XODUS_NEXUS_STEAM_IME']) delete env[key];
+    'XBOKS_FONTCONFIG', 'XBOKS_FONTCONFIG_ORIGINAL',
+    'XBOKS_FONTCONFIG_ORIGINAL_SET', 'GTK_IM_MODULE', 'QT_IM_MODULE',
+    'XDG_CURRENT_DESKTOP', 'XBOKS_STEAM_IME']) delete env[key];
   Object.assign(env, environment);
   const result = spawnSync('/bin/sh', [wrapper, ...args], { env, cwd: root, encoding: 'utf8', timeout: 10_000 });
   expect(result.error).toBeUndefined();
@@ -56,7 +56,7 @@ describe('packaged Linux launcher bootstrap', () => {
     expect(main.bootstrap).toBe(false);
     expect(main.args).toEqual(args);
     expect(main.env.FONTCONFIG_FILE).toBe('/private/fonts.conf');
-    expect(main.env.XODUS_NEXUS_FONTCONFIG_ORIGINAL).toBe('/original/fonts.conf');
+    expect(main.env.XBOKS_FONTCONFIG_ORIGINAL).toBe('/original/fonts.conf');
     expect(main.pid).toBe(result.pid);
   });
   it.each(['gamescope', 'Gamescope', 'steam:GaMeScOpE'])
@@ -66,7 +66,7 @@ describe('packaged Linux launcher bootstrap', () => {
     expect(result.status).toBe(0);
     for (const record of records) {
       expect(record.env.GTK_IM_MODULE).toBe('simple');
-      expect(record.env.XODUS_NEXUS_STEAM_IME).toBe('1');
+      expect(record.env.XBOKS_STEAM_IME).toBe('1');
       expect(record.env.QT_IM_MODULE).toBe('steam');
       expect(record.env.SteamGameId).toBe('456');
     }
@@ -77,16 +77,16 @@ describe('packaged Linux launcher bootstrap', () => {
   it.each(['KDE', 'GNOME', 'KDE:gamescope-nested', 'notgamescope', ''])
   ('does not change desktop input even when Steam is running: %s', desktop => {
     const { main } = launch({ XDG_CURRENT_DESKTOP: desktop, GTK_IM_MODULE: 'Steam',
-      SteamGameId: '456', XODUS_NEXUS_STEAM_IME: '1' });
+      SteamGameId: '456', XBOKS_STEAM_IME: '1' });
     expect(main.env.GTK_IM_MODULE).toBe('Steam');
-    expect(main.env.XODUS_NEXUS_STEAM_IME).toBeNull();
+    expect(main.env.XBOKS_STEAM_IME).toBeNull();
   });
 
   it.each([undefined, '', 'simple', 'ibus', 'fcitx', 'steam', 'Steam;$(false)'])
   ('preserves custom or unset IME in Game Mode: %j', ime => {
     const { main } = launch({ XDG_CURRENT_DESKTOP: 'gamescope', GTK_IM_MODULE: ime });
     expect(main.env.GTK_IM_MODULE).toBe(ime ?? null);
-    expect(main.env.XODUS_NEXUS_STEAM_IME).toBeNull();
+    expect(main.env.XBOKS_STEAM_IME).toBeNull();
   });
 
   it('does not change native Node helper input or arguments', () => {
@@ -94,7 +94,7 @@ describe('packaged Linux launcher bootstrap', () => {
       XDG_CURRENT_DESKTOP: 'gamescope', GTK_IM_MODULE: 'Steam' }, ['--native-helper']);
     expect(records).toHaveLength(1);
     expect(main.env.GTK_IM_MODULE).toBe('Steam');
-    expect(main.env.XODUS_NEXUS_STEAM_IME).toBeNull();
+    expect(main.env.XBOKS_STEAM_IME).toBeNull();
     expect(main.args).toEqual(['--native-helper']);
   });
 
@@ -166,8 +166,8 @@ describe('packaged Linux launcher bootstrap', () => {
     expect(records[0].bootstrap).toBe(true);
     expect(records[0].env.FONTCONFIG_FILE).toBe('/original/fonts.conf');
     expect(main.env.FONTCONFIG_FILE).toBe('/private/fonts.conf');
-    expect(main.env.XODUS_NEXUS_FONTCONFIG_ORIGINAL).toBe('/original/fonts.conf');
-    expect(main.env.XODUS_NEXUS_FONTCONFIG_ORIGINAL_SET).toBe('x');
+    expect(main.env.XBOKS_FONTCONFIG_ORIGINAL).toBe('/original/fonts.conf');
+    expect(main.env.XBOKS_FONTCONFIG_ORIGINAL_SET).toBe('x');
     expect(main.env.LD_PRELOAD).toBeNull();
   });
 });

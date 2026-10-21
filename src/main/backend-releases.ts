@@ -1,3 +1,4 @@
+import { fetchEngineRelease } from './engine-fetch.js';
 import { constants, promises as fs } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -10,7 +11,7 @@ import {
 export interface BackendArtifact { tag: string; manifest: BackendPackageManifest; archiveUrl: string }
 
 async function bytes(url: string, fetcher: typeof fetch, limit: number): Promise<Buffer> {
-  const response = await fetcher(url, { signal: AbortSignal.timeout(60_000) });
+  const response = await fetchEngineRelease(fetcher, url, { signal: AbortSignal.timeout(60_000) });
   if (!response.ok || !response.body) throw new Error(`Backend download failed (HTTP ${response.status}).`);
   const parts: Uint8Array[] = [];
   const reader = response.body.getReader();
@@ -41,10 +42,14 @@ export async function discoverBackend(fetcher: typeof fetch): Promise<BackendArt
     if (!match || compareVersions(match[1], minimumBackendVersion) < 0) continue;
     if (!selected || compareVersions(match[1], selected.version) > 0) selected = { tag: item.tag_name!, version: match[1], release: item };
   }
-  if (!selected) throw new Error('No compatible Nexus backend release has been published yet.');
+  if (!selected) throw new Error('No compatible xboks Engine backend release has been published yet.');
   const tag = selected.tag;
   const packageName = backendPackageName(selected.version);
-  const asset = (name: string) => backendAssetUrl(tag, name, selected!.release.assets?.find(item => item.name === name)?.browser_download_url);
+  const asset = (name: string) => {
+    const matches = selected!.release.assets?.filter(item => item.name === name) ?? [];
+    if (matches.length !== 1) throw new Error('The newest xboks Engine backend release is incomplete.');
+    return backendAssetUrl(tag, name, matches[0].browser_download_url);
+  };
   const archive = `${packageName}.tar.xz`;
   const manifest = validateBackendManifest(JSON.parse((await bytes(asset(`${packageName}.manifest.json`), fetcher, 100_000)).toString()));
   if (manifest.version !== selected.version) throw new Error('The backend release does not match its manifest.');
@@ -64,12 +69,14 @@ export async function installBackend(
   if (process.platform !== 'linux' || process.arch !== 'x64') throw new Error('The prebuilt backend currently supports x86_64 Linux only.');
   await assertIdle();
   const manifest = validateBackendManifest(artifact.manifest);
+  if (artifact.tag !== `backend-v${manifest.version}`) throw new Error('The backend tag does not match its manifest.');
+  const archiveUrl = backendAssetUrl(artifact.tag, manifest.archive, artifact.archiveUrl);
   const staging = path.join(managedRoot, `.download-${randomUUID()}`);
   await fs.mkdir(staging, { recursive: true });
   try {
-    phase('Downloading the Nexus backend…');
+    phase('Downloading xboks Engine…');
     const archive = path.join(staging, manifest.archive);
-    const response = await fetcher(artifact.archiveUrl, { signal: AbortSignal.timeout(300_000) });
+    const response = await fetchEngineRelease(fetcher, archiveUrl, { signal: AbortSignal.timeout(300_000) });
     if (!response.ok || !response.body) throw new Error(`Backend download failed (HTTP ${response.status}).`);
     const reader = response.body.getReader();
     const file = await fs.open(archive, 'wx');
@@ -126,6 +133,27 @@ export async function installBackend(
       await verifyFiles(release);
     }
     await fs.writeFile(path.join(release, 'metadata.json'), JSON.stringify(manifest, null, 2));
-    return path.join(release, 'xodus-cli');
+    return await ensureEngineAliases(release);
   } finally { await fs.rm(staging, { recursive: true, force: true }); }
+}
+
+/** Give managed installs owned executable names without changing the pinned
+ * Cargo/manifest ABI. Call only for an application-owned, validated directory;
+ * external executables retain their real paths. Every copy is byte checked. */
+export async function ensureEngineAliases(directory: string): Promise<string> {
+  for (const [sourceName, aliasName] of [['xodus-cli', 'xboks-engine'], ['xodus-service', 'xboks-engine-service']]) {
+    const source = path.join(directory, sourceName), alias = path.join(directory, aliasName);
+    let stat;
+    try { stat = await fs.lstat(source); }
+    catch (error) { if (sourceName === 'xodus-service' && (error as NodeJS.ErrnoException).code === 'ENOENT') continue; throw error; }
+    if (!stat.isFile() || stat.size < 1 || stat.size > 256 * 1024 * 1024) throw new Error('Unsafe managed engine executable.');
+    const digest = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+    const expected = digest(await fs.readFile(source));
+    try { await fs.copyFile(source, alias, constants.COPYFILE_EXCL); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
+    if (!(await fs.lstat(alias)).isFile() || digest(await fs.readFile(alias)) !== expected ||
+        digest(await fs.readFile(source)) !== expected) throw new Error('Managed engine alias verification failed.');
+    await fs.chmod(alias, 0o755);
+  }
+  return path.join(directory, 'xboks-engine');
 }

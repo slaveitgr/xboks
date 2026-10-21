@@ -20,7 +20,7 @@ export function isNewerVersion(candidate: string | undefined, current: string): 
 
 export function parseBackendHelp(help: string): BackendCapabilities {
   const commands = [...help.matchAll(COMMAND_LINE)].map((match) => match[1]);
-  const version = help.match(/xodus-cli\s+([\w.+-]+)/i)?.[1];
+  const version = help.match(/(?:xboks-engine|xodus-cli)\s+([\w.+-]+)/i)?.[1];
   return {
     commands,
     account: commands.includes('account'),
@@ -65,9 +65,9 @@ export function progressBytesFromLine(line: string): { current: number; total: n
 
 export function downloadFailure(log: string[], exitCode: number): string {
   const transfer = transferFailure(log);
-  if (transfer) return `Xodus exited with code ${exitCode}: ${transfer}`;
+  if (transfer) return `xboks Engine exited with code ${exitCode}: ${transfer}`;
   const licensing = contentLicenseFailure(log);
-  if (licensing) return `Xodus exited with code ${exitCode}: ${licensing}`;
+  if (licensing) return `xboks Engine exited with code ${exitCode}: ${licensing}`;
   const detail = [...log].reverse().find((line) =>
     line.trim().length > 0
     && !/^\d+% ·/.test(line)
@@ -75,7 +75,7 @@ export function downloadFailure(log: string[], exitCode: number): string {
     && !/^session terminated/i.test(line)
     && !/^script done/i.test(line),
   );
-  return detail ? `Xodus exited with code ${exitCode}: ${detail.slice(0, 300)}` : `Xodus exited with code ${exitCode}`;
+  return detail ? `xboks Engine exited with code ${exitCode}: ${detail.slice(0, 300)}` : `xboks Engine exited with code ${exitCode}`;
 }
 
 export function safeProductId(value: string): string {

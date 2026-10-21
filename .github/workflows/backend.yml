@@ -1,4 +1,4 @@
-name: Nexus backend build
+name: xboks Engine backend build
 
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
         run: node scripts/ci/artifact-manifest.mjs write backend backend-release
       - uses: actions/upload-artifact@v4
         with:
-          name: nexus-backend
+          name: xboks-engine-backend
           path: backend-release/*
           if-no-files-found: error
           retention-days: 7

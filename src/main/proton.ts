@@ -65,7 +65,7 @@ async function rebaseRuntimeSymlinks(prefix: string, protonRoot: string): Promis
       try { await fs.access(replacement, constants.R_OK); }
       catch { continue; }
 
-      const temporary = `${entryPath}.xodus-runtime-${process.pid}-${serial++}`;
+      const temporary = `${entryPath}.xboks-engine-runtime-${process.pid}-${serial++}`;
       try {
         await fs.symlink(replacement, temporary);
         await fs.rename(temporary, entryPath);
@@ -134,7 +134,9 @@ function unrealCultureGameIniContent(existing: string, locale: string): string |
 // The launcher only manages the two marker-owned lines it wrote itself; a
 // manually authored Culture line is never modified, and clearing the game
 // language in the launcher removes the pin again.
-const MANAGED_CULTURE_MARKER = '; Xodus Nexus game language';
+const MANAGED_CULTURE_MARKER = '; xboks Engine game language';
+// Existing prefixes retain their ownership identity across the UI rebrand.
+const LEGACY_MANAGED_CULTURE_MARKER = '; Xodus Nexus game language';
 
 export interface UnrealCulturePlan {
   content: string | null;
@@ -146,7 +148,7 @@ export function managedUnrealCultureGameIni(existing: string, locale: string | u
   const newline = existing.includes('\r\n') || !existing.includes('\n') ? '\r\n' : '\n';
   const lines = existing.split(/\r?\n/);
   const sectionHeader = (line: string) => line.match(/^\s*\[([^\]]+)\]\s*$/);
-  const isMarker = (line: string) => line.trim() === MANAGED_CULTURE_MARKER;
+  const isMarker = (line: string) => [MANAGED_CULTURE_MARKER, LEGACY_MANAGED_CULTURE_MARKER].includes(line.trim());
   const isCulture = (line: string) => line.match(/^(\s*Culture\s*=\s*)(.*?)\s*$/i);
 
   let intlStart = -1;
@@ -197,7 +199,8 @@ export function managedUnrealCultureGameIni(existing: string, locale: string | u
 
   if (ownedCultureIndex >= 0) {
     const [, prefix, value] = isCulture(lines[ownedCultureIndex])!;
-    if (value === locale) return { content: null, managed: true, manual: false };
+    if (value === locale && lines[ownedCultureIndex - 1].trim() === MANAGED_CULTURE_MARKER) return { content: null, managed: true, manual: false };
+    lines[ownedCultureIndex - 1] = MANAGED_CULTURE_MARKER;
     lines[ownedCultureIndex] = `${prefix}${locale}`;
     return { content: `${lines.join(newline).replace(/\s*$/, newline)}`, managed: true, manual: false };
   }
@@ -252,7 +255,7 @@ export async function syncUnrealCultureGameIni(
       }
       if (plan.content !== null) {
         await fs.chmod(gameIni, 0o644).catch(() => undefined);
-        const temporary = `${gameIni}.xodus-culture-${process.pid}`;
+        const temporary = `${gameIni}.xboks-engine-culture-${process.pid}`;
         await fs.writeFile(temporary, plan.content, { mode: 0o644 });
         await fs.rename(temporary, gameIni);
         onLine(locale
@@ -292,7 +295,7 @@ export async function prepareProtonRunner(
         STEAM_COMPAT_CLIENT_INSTALL_PATH: steamRoot,
         SteamAppId: '0',
         SteamGameId: '0',
-        UMU_ID: 'xodus-nexus',
+        UMU_ID: 'xboks-engine',
         UMU_USE_STEAM: '0',
       },
       maxOutput: 1_000_000,
@@ -342,7 +345,7 @@ export async function prepareProtonRunner(
       let current: Buffer | undefined;
       try { current = await fs.readFile(target); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       if (!current?.equals(bytes)) {
-        const temporary = `${target}.nexus-${process.pid}`;
+        const temporary = `${target}.xboks-engine-${process.pid}`;
         try {
           await fs.writeFile(temporary, bytes, { flag: 'wx', mode: 0o644 });
           await fs.rename(temporary, target);
@@ -364,7 +367,7 @@ export async function prepareProtonRunner(
   const wineDllPath = [path.join(files, 'lib', 'vkd3d'), path.join(files, 'lib', 'wine')].join(':');
   const executablePath = [path.join(files, 'bin'), process.env.PATH ?? ''].filter(Boolean).join(':');
   const eacRuntime = await installedEacRuntime(steamRoot);
-  const runner = path.join(compatibilityDataPath, 'xodus-proton-wine');
+  const runner = path.join(compatibilityDataPath, 'xboks-engine-wine');
   const temporary = `${runner}.tmp-${process.pid}`;
   const makeScript = (launchWine: string) => [
     '#!/bin/sh',
@@ -416,7 +419,7 @@ export async function prepareProtonRunner(
   await fs.chmod(runner, 0o700);
   let launchCommand: string | undefined;
   if (gameWineCommand !== winePath) {
-    launchCommand = path.join(compatibilityDataPath, 'xodus-proton-game');
+    launchCommand = path.join(compatibilityDataPath, 'xboks-engine-game');
     const temporaryLaunch = `${launchCommand}.tmp-${process.pid}`;
     await fs.writeFile(temporaryLaunch, makeScript(gameWineCommand), { mode: 0o700 });
     await fs.rename(temporaryLaunch, launchCommand);

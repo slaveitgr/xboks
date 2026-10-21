@@ -53,20 +53,20 @@ export function demoSnapshot(versions: DemoVersions = { launcher: '0.0.0', backe
   backendCommit: '0'.repeat(40), backendCompatibility: 'demo' }, artwork: ReadonlyMap<string, DemoArtwork> = new Map()): AppSnapshot {
   return {
     backend: {
-      available: true, source: 'managed', binaryPath: '/home/demo/.config/xodus-nexus/xodus-backends/current', commit: versions.backendCommit, upstreamCommit: versions.backendCommit, updateAvailable: false, checking: false, updating: false, externalRoot: '',
+      available: true, source: 'managed', binaryPath: '/home/demo/.config/xboks/engine/current', commit: versions.backendCommit, upstreamCommit: versions.backendCommit, updateAvailable: false, checking: false, updating: false, externalRoot: '',
       capabilities: { commands: ['login', 'logout', 'download', 'streaming', 'run', 'license', 'extract', 'profile', 'library'], account: true, profile: true, library: true, login: true, externalAuth: true, logout: true, download: true, streaming: true, streamingProgressJson: true, streamingControls: true, run: true, version: '0.5.0' },
       prerequisites: { git: true, cargo: true, rustc: true, protoc: true },
       linuxRunPatch: versions.backendCompatibility,
       version: versions.backend, delivery: 'release', releaseAvailable: true, releaseVersion: versions.backend,
     },
     runtime: {
-      installed: true, checking: false, updating: false, runtimeRoot: '/home/demo/.local/share/xodus-nexus/runtimes', name: 'xodus-nexus-runtime-demo', winePath: '/home/demo/.local/share/xodus-nexus/runtimes/demo/files/bin/wine', artifactAvailable: false,
+      installed: true, checking: false, updating: false, runtimeRoot: '/home/demo/.local/share/xboks/engine/runtimes', name: 'xodus-nexus-runtime-demo', winePath: '/home/demo/.local/share/xboks/engine/runtimes/demo/files/bin/wine', artifactAvailable: false,
       prerequisites: { gh: true, authenticated: true, tar: true, sha512sum: true },
     },
     games: structuredClone([...demoGames.slice(1, 2), ...demoGames.slice(0, 1), ...demoGames.slice(2)]).map((game) => ({ ...game, ...(game.storeId ? artwork.get(game.storeId) : undefined) })),
     downloads: structuredClone(demoDownloads).map((task) => ({ ...task, coverUrl: task.productId ? artwork.get(task.productId)?.coverUrl : undefined })),
     settings: { installRoot: '/home/demo/Games/Xboks', market: 'US', parallelDownloads: 4, winePath: '', externalXodusRoot: '', runtimeRoot: '', verboseLogs: false, firstRunCompleted: true },
-    auth: { running: false, stored: true, username: 'sample@example.test', gamertag: 'NexusPlayer',
+    auth: { running: false, stored: true, username: 'sample@example.test', gamertag: 'xboksPlayer',
       subscription: { status: 'active', productIds: ['CFQ7TTC0KGQ8'], checkedAt: new Date().toISOString() },
       lastResult: 'success', note: 'Demo mode: sample data only. Store pages show the live Microsoft Store catalog.' },
     launcherUpdate: { currentVersion: versions.launcher, checking: false, checkedAt: new Date().toISOString() },

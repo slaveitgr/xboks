@@ -92,6 +92,15 @@ describe('launcher-only fallback fonts', () => {
     expect(environment.FONTCONFIG_FILE).toBe('/host/fonts.conf');
     expect(existsSync(file)).toBe(false);
   });
+  it('adopts the owned bootstrap without leaking launcher variables into children', () => {
+    const { environment, file } = setup();
+    expect(path.basename(path.dirname(file))).toMatch(/^xboks-fonts-/);
+    Object.assign(environment, { XBOKS_FONTCONFIG: file, XBOKS_FONTCONFIG_ORIGINAL_SET: 'x', XBOKS_FONTCONFIG_ORIGINAL: '/host/fonts.conf' });
+    installation = adoptLauncherFonts(environment);
+    expect(externalFontEnvironment(environment)).toEqual({ FONTCONFIG_FILE: '/host/fonts.conf' });
+    installation!.dispose(); installation = undefined;
+    expect(existsSync(file)).toBe(false);
+  });
   it('never recursively removes files beside an adopted configuration', () => {
     const { environment, file } = setup();
     const unrelated = path.join(path.dirname(file), 'unrelated');

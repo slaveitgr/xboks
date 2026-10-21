@@ -167,12 +167,12 @@ function directPackageSupport(product: Record<string, unknown> | undefined): Pac
   if (desktopFormats.has('MSIXVC')) return {
     installability: 'supported',
     packageFormat: 'MSIXVC',
-    supportNote: 'A direct Windows.Desktop MSIXVC package was verified. Ownership is checked by Xodus when installation starts.',
+    supportNote: 'A direct Windows.Desktop MSIXVC package was verified. Ownership is checked by xboks Engine when installation starts.',
   };
   if (desktopFormats.size > 0) return {
     installability: 'unsupported',
     packageFormat: [...desktopFormats].join(', '),
-    supportNote: `The PC package uses ${[...desktopFormats].join(', ')}, which the current Xodus streaming path does not support.`,
+    supportNote: `The PC package uses ${[...desktopFormats].join(', ')}, which the current xboks Engine streaming path does not support.`,
   };
   return undefined;
 }
@@ -211,7 +211,7 @@ function packageSupport(productId: string, details: Map<string, Record<string, u
     const resolved = references.map(reference => packageSupport(reference.productId, details, nextVisited));
     if (resolved.some(item => item.installability === 'supported')) return {
       installability: 'supported', packageFormat: 'MSIXVC',
-      supportNote: 'This Store offer contains multiple products. Choose a verified PC package before installing. Ownership is checked by Xodus.',
+      supportNote: 'This Store offer contains multiple products. Choose a verified PC package before installing. Ownership is checked by xboks Engine.',
     };
     return { installability: resolved.some(item => item.installability === 'unknown') ? 'unknown' : 'unsupported',
       supportNote: 'No supported PC package could be verified in this Store bundle.' };
@@ -221,7 +221,7 @@ function packageSupport(productId: string, details: Map<string, Record<string, u
   if (candidates.length === 0) return {
     installability: 'unsupported',
     supportNote: references.length > 1
-      ? 'This Store offer contains multiple packages without one unambiguous primary PC product. Nexus will not guess which one to install.'
+      ? 'This Store offer contains multiple packages without one unambiguous primary PC product. xboks will not guess which one to install.'
       : 'No Windows.Desktop MSIXVC package or resolvable primary bundle product was found. It may be an add-on or console-only product.',
   };
 
@@ -234,7 +234,7 @@ function packageSupport(productId: string, details: Map<string, Record<string, u
   return {
     ...resolved,
     installProductId,
-    supportNote: `The Store bundle was resolved to its primary Windows.Desktop MSIXVC product ${installProductId}. Ownership is checked by Xodus when installation starts.`,
+    supportNote: `The Store bundle was resolved to its primary Windows.Desktop MSIXVC product ${installProductId}. Ownership is checked by xboks Engine when installation starts.`,
   };
 }
 

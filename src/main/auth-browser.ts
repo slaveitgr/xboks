@@ -47,7 +47,7 @@ export function browserLaunch(browser: AuthBrowser, profile: string, headless = 
   if (browser.kind === 'native') return { command: browser.binary, args, input: 3, output: 4 };
   return { command: browser.binary, args: ['run', browser.installation, '--die-with-parent', '--filesystem=' + profile,
     '--env=XDG_CONFIG_HOME=' + path.join(profile, 'config'), '--env=XDG_CACHE_HOME=' + path.join(profile, 'cache'), '--env=XDG_DATA_HOME=' + path.join(profile, 'data'), '--env=TMPDIR=' + path.join(profile, 'tmp'),
-    '--command=sh', browser.ref, '-c', 'exec /app/bin/chrome "$@" 3<&0 4>&1 </dev/null >/dev/null', 'nexus-browser-auth', ...args], input: 0, output: 1 };
+    '--command=sh', browser.ref, '-c', 'exec /app/bin/chrome "$@" 3<&0 4>&1 </dev/null >/dev/null', 'xboks-browser-auth', ...args], input: 0, output: 1 };
 }
 
 // Main-world bridge on trusted Microsoft pages only. It never changes WebAuthn.
@@ -124,7 +124,7 @@ export function createBrowserAuthViewFactory(browser: AuthBrowser | string, envi
       send(active.session, p.payload);
     }
     async function initialize(): Promise<void> {
-      profile = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-browser-auth-')); await fs.chmod(profile, 0o700);
+      profile = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-browser-auth-')); await fs.chmod(profile, 0o700);
       if (disposed) return;
       await Promise.all(['profile', 'config', 'cache', 'data', 'tmp'].map(name => fs.mkdir(path.join(profile!, name), { mode: 0o700 })));
       if (disposed) return;

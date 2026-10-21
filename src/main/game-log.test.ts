@@ -41,7 +41,7 @@ describe('gameLoggingEnvironment', () => {
 
   it('keeps full diagnostics when verbose logging is enabled in Settings', () => {
     const environment = gameLoggingEnvironment({}, true);
-    expect(environment).toEqual({ XODUS_NEXUS_VERBOSE_LOGS: '1' });
+    expect(environment).toEqual({ XBOKS_VERBOSE_LOGS: '1' });
   });
 });
 

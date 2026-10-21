@@ -66,7 +66,7 @@ export function assertActivityCompatible(operations: Iterable<string>, downloads
   const allowedGame = (mode === 'install' || mode === 'remove') && gameActive && game.kind === 'launch' && game.status === 'running';
   if ((!mode && queued > 0) || (gameActive && !allowedGame) || [...operations].some(id =>
     !(mode && downloadIds.has(id)) && !(allowedGame && game.id === id))) {
-    throw Error('Another Xodus operation is active. Wait for it to finish or stop it first.');
+    throw Error('Another xboks Engine operation is active. Wait for it to finish or stop it first.');
   }
 }
 

@@ -1,10 +1,12 @@
+import { fetchEngineRelease, releaseText } from './engine-fetch.js';
 import { constants, promises as fs } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { LauncherUpdate } from '../shared/types.js';
 import { isNewerVersion } from '../shared/utils.js';
 
-const REPO = 'domsvoboda/xodus-nexus';
+export const LAUNCHER_REPOSITORY = 'slaveitgr/xboks';
+const REPO = LAUNCHER_REPOSITORY;
 const API = `https://api.github.com/repos/${REPO}/releases?per_page=100`;
 interface Asset { name: string; browser_download_url: string; size: number }
 interface Release { tag_name: string; draft?: boolean; prerelease?: boolean; assets: Asset[] }
@@ -18,7 +20,7 @@ export function launcherCandidate(releases: Release[], current: string): Launche
   stable.sort((a, b) => isNewerVersion(a.tag_name, b.tag_name) ? -1 : isNewerVersion(b.tag_name, a.tag_name) ? 1 : 0);
   for (const r of stable) {
     if (!isNewerVersion(r.tag_name, current)) continue;
-    const name = `Xodus-Nexus-${r.tag_name.slice(1)}-x86_64.AppImage`;
+    const name = `xboks-${r.tag_name.slice(1)}-x86_64.AppImage`;
     const image = r.assets?.find(a => a.name === name);
     const checksum = r.assets?.find(a => a.name === `${name}.sha512sum`);
     if (!image || !checksum || !assetUrl(image.browser_download_url, r.tag_name, image.name) ||
@@ -57,7 +59,7 @@ export class LauncherUpdater {
     try {
       const j = JSON.parse(await fs.readFile(path.join(this.userData, 'launcher-update.json'), 'utf8')) as Journal;
       if (j.target !== this.targetPath || path.dirname(j.backup) !== path.dirname(j.target) ||
-          !path.basename(j.backup).startsWith(path.basename(j.target) + '.nexus-backup-')) return;
+          !['.xboks-backup-', '.nexus-backup-'].some(prefix => path.basename(j.backup).startsWith(path.basename(j.target) + prefix))) return;
       const stat = await fs.lstat(j.backup);
       if (!stat.isFile() || stat.uid !== process.getuid?.()) return;
       this.journal = j; this.state.canRollback = true;
@@ -72,9 +74,9 @@ export class LauncherUpdater {
   private async performCheck(): Promise<void> {
     this.state.checking = true; this.state.error = undefined; this.changed();
     try {
-      const response = await this.fetcher(API, { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15_000) });
+      const response = await fetchEngineRelease(this.fetcher, API, { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(15_000) });
       if (!response.ok) throw new Error(`GitHub update check returned HTTP ${response.status}.`);
-      const releases = await response.json() as Release[];
+      const releases = JSON.parse(await releaseText(response, 2_000_000)) as Release[];
       if (!Array.isArray(releases)) throw new Error('Invalid GitHub release list.');
       this.candidate = launcherCandidate(releases, this.version);
       this.state.latestVersion = this.candidate?.version;
@@ -87,7 +89,7 @@ export class LauncherUpdater {
     if (!this.candidate) throw new Error('Check for a newer launcher release first.');
     const candidate = this.candidate;
     const target = await this.writableImage();
-    const lockPath = `${target}.nexus-update.lock`;
+    const lockPath = `${target}.xboks-update.lock`;
     let lock;
     try { lock = await fs.open(lockPath, 'wx', 0o600); }
     catch (error) {
@@ -102,19 +104,19 @@ export class LauncherUpdater {
     }
     await lock.writeFile(String(process.pid)); await lock.close();
     const before = await fs.stat(target);
-    const temporary = `${target}.nexus-update-${randomUUID()}`;
-    const backup = `${target}.nexus-backup-${randomUUID()}`;
+    const temporary = `${target}.xboks-update-${randomUUID()}`;
+    const backup = `${target}.xboks-backup-${randomUUID()}`;
     const previousJournal = this.journal;
     let replaced = false, backedUp = false;
     this.controller = new AbortController();
     this.state.updating = true; this.state.error = undefined; this.state.progress = 0; this.state.phase = 'Downloading launcher update…'; this.changed();
     try {
-      const checksumResponse = await this.fetcher(candidate.checksum.browser_download_url, { signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(15_000)]) });
+      const checksumResponse = await fetchEngineRelease(this.fetcher, candidate.checksum.browser_download_url, { signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(15_000)]) });
       if (!checksumResponse.ok || candidate.checksum.size > 4096) throw new Error('Could not download the launcher checksum.');
-      const checksum = (await checksumResponse.text()).trim();
+      const checksum = (await releaseText(checksumResponse, 4096)).trim();
       const match = checksum.match(/^([a-f0-9]{128})  ([A-Za-z0-9._-]+)$/i);
       if (!match || match[2] !== candidate.image.name) throw new Error('Invalid launcher checksum file.');
-      const response = await this.fetcher(candidate.image.browser_download_url, { signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(600_000)]) });
+      const response = await fetchEngineRelease(this.fetcher, candidate.image.browser_download_url, { signal: AbortSignal.any([this.controller.signal, AbortSignal.timeout(600_000)]) });
       if (!response.ok || !response.body) throw new Error('Could not download the launcher AppImage.');
       const handle = await fs.open(temporary, 'wx', 0o700);
       const hash = createHash('sha512'); let bytes = 0; let header = Buffer.alloc(0);

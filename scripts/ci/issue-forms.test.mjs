@@ -23,7 +23,7 @@ test('issue chooser disables blank issues and keeps every supported report route
   for (const link of config.contact_links) {
     assert.ok(link.name && link.about);
     assert.equal(new URL(link.url).origin, 'https://github.com');
-    assert.ok(new URL(link.url).pathname.startsWith('/domsvoboda/xodus-nexus/'));
+    assert.ok(new URL(link.url).pathname.startsWith('/slaveitgr/xboks'));
   }
 });
 
@@ -101,7 +101,7 @@ test('normal bug routes require actual log attachments, not just screenshots', a
     assert.ok(text.includes('Copy log'));
   }
   const launcher = JSON.stringify(await read('01-launcher-bug'));
-  assert.ok(launcher.includes('Cannot start Nexus / logs unavailable'));
+  assert.ok(launcher.includes('Cannot start xboks / logs unavailable'));
   for (const word of ['tokens', 'cookies', 'signed URLs', 'saves']) assert.ok(launcher.includes(word));
   const game = await read('02-game-bug');
   required(game, 'game', 'input'); required(game, 'access', 'dropdown');

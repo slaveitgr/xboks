@@ -30,7 +30,7 @@ export class DownloadCleanup {
       const value = JSON.parse(await handle.readFile('utf8')) as Proof;
       if (value.schema !== 1 || value.id !== task.id || value.product !== task.productId || value.directory !== task.destination
         || !/^\d+$/.test(value.device) || !/^\d+$/.test(value.inode) || !uuid.test(value.token)
-        || value.marker !== `.nexus-download-${value.token}`) throw Error('Ownership mismatch.');
+        || ![`.xboks-download-${value.token}`, `.nexus-download-${value.token}`].includes(value.marker)) throw Error('Ownership mismatch.');
       return value;
     } finally { await handle.close(); }
   }
@@ -53,7 +53,7 @@ export class DownloadCleanup {
       if (await fs.realpath(task.destination) !== task.destination) return;
       const stat = await fs.lstat(task.destination, { bigint: true }), token = randomUUID();
       const proof: Proof = { schema: 1, id: task.id, product: task.productId, directory: task.destination,
-        device: String(stat.dev), inode: String(stat.ino), marker: `.nexus-download-${token}`, token };
+        device: String(stat.dev), inode: String(stat.ino), marker: `.xboks-download-${token}`, token };
       await fs.writeFile(path.join(task.destination, proof.marker), token, { flag: 'wx', mode: 0o600 });
       await fs.mkdir(this.root, { recursive: true, mode: 0o700 });
       await this.safeRoot();
@@ -99,7 +99,7 @@ export class DownloadCleanup {
       if (await fs.realpath(anchor) !== parent) throw Error('Installation parent changed.');
       const source = path.join(anchor, path.basename(task.destination));
       await this.verify(source, proof);
-      quarantine = await fs.mkdtemp(path.join(anchor, '.nexus-cancel-'));
+      quarantine = await fs.mkdtemp(path.join(anchor, '.xboks-cancel-'));
       moved = path.join(quarantine, 'files');
       await fs.rename(source, moved);
       // An atomic rename cannot accidentally delete a replacement at the old path.

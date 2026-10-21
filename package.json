@@ -1,9 +1,9 @@
 {
   "name": "xboks",
-  "version": "0.3.11",
-  "description": "Unofficial Xbox mode-inspired Linux client based on Xodus Nexus",
+  "version": "0.3.12",
+  "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
   "license": "MIT",
-  "author": "Xodus Nexus contributors",
+  "author": "xboks contributors",
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {

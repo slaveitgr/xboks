@@ -14,6 +14,9 @@ describe('demo presentation data', () => {
     expect(state.backend).toMatchObject({ version: versions.backend, releaseVersion: versions.backend,
       commit: versions.backendCommit, linuxRunPatch: versions.backendCompatibility });
     expect(state.runtime.name).toBe('xodus-nexus-runtime-demo');
+    expect(state.backend.binaryPath).toBe('/home/demo/.config/xboks/engine/current');
+    expect(state.runtime.runtimeRoot).toBe('/home/demo/.local/share/xboks/engine/runtimes');
+    expect(state.auth.gamertag).toBe('xboksPlayer');
   });
 
   it('preserves separate box art and landscape art for home, library and account entries', () => {

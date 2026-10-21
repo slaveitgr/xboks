@@ -73,8 +73,8 @@ export interface RuntimeStatus {
   artifactName?: string;
   artifactExpiresAt?: string;
   artifactAvailable: boolean;
-  // Prebuilt runtime with the Nexus xgameruntime patches, published on the
-  // Xodus Nexus GitHub releases. Preferred over the official snapshot.
+  // Owned xboks Engine release channel. Legacy field names remain for stored
+  // snapshots and IPC compatibility; consumer downloads use slaveitgr/xboks.
   nexusAvailable?: boolean;
   nexusName?: string;
   nexusVersion?: string;
