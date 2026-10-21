@@ -45,7 +45,7 @@ export async function inspectDesktopSettings(configRoot: string, environment: No
     const file = path.join(configRoot, 'autostart', autostartName);
     try {
       const stat = await fs.lstat(file);
-      if (!stat.isFile()) throw new Error('The xboks autostart entry is not a regular file.');
+      if (!stat.isFile()) throw new Error('The XBOKS autostart entry is not a regular file.');
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
     return { ...session, canSetAutostart: true };
   } catch (error) {
@@ -83,7 +83,7 @@ export async function setAutostart(configRoot: string, args: string[], enabled: 
   if (!enabled) { await fs.rm(file, { force: true }); return; }
   await fs.mkdir(path.dirname(file), { recursive: true });
   const temporary = `${file}.tmp`;
-  await fs.writeFile(temporary, `[Desktop Entry]\nType=Application\nName=xboks\nExec=${desktopExec(args)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`, { mode: 0o600 });
+  await fs.writeFile(temporary, `[Desktop Entry]\nType=Application\nName=XBOKS\nExec=${desktopExec(args)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`, { mode: 0o600 });
   await fs.rename(temporary, file);
 }
 
@@ -111,7 +111,7 @@ export async function applyDesktopSettings(current: Settings, patch: Partial<Set
   if (changeAutostart) {
     try {
       const stat = await fs.lstat(file);
-      if (!stat.isFile() || stat.size > 64 * 1024) throw new Error('The existing xboks autostart entry cannot be safely updated.');
+      if (!stat.isFile() || stat.size > 64 * 1024) throw new Error('The existing XBOKS autostart entry cannot be safely updated.');
       previousMode = stat.mode & 0o777;
       previousFile = await fs.readFile(file);
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }

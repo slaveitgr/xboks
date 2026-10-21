@@ -1,10 +1,10 @@
 {
   "name": "xboks",
-  "version": "0.3.22",
+  "version": "0.3.23",
   "homepage": "https://github.com/slaveitgr/xboks",
-  "description": "Xbox-inspired Linux gaming client powered by xboks Engine",
+  "description": "XBOKS — Linux gaming with controller navigation, Game Bar, Fullscreen Experience and Proton integration",
   "license": "MIT",
-  "author": "xboks contributors",
+  "author": "XBOKS contributors",
   "type": "module",
   "main": "dist-electron/main/index.js",
   "scripts": {
@@ -99,7 +99,12 @@
       "target": [
         "AppImage",
         "deb"
-      ]
+      ],
+      "executableName": "xboks",
+      "desktop": {
+        "Name": "XBOKS",
+        "Comment": "Linux gaming with Game Bar, Fullscreen Experience and Proton integration"
+      }
     },
     "deb": {
       "maintainer": "xboks maintainers <slaveitgr@users.noreply.github.com>",
@@ -110,5 +115,6 @@
     "electron@44.8.0": true,
     "esbuild@0.25.12": true,
     "esbuild@0.21.5": true
-  }
+  },
+  "productName": "XBOKS"
 }

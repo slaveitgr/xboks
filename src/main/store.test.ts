@@ -10,7 +10,7 @@ import { managedPaths, migrateManagedPaths } from './managed-paths.js';
 const created: string[] = [];
 
 describe('managed runtime path migration', () => {
-  it('defaults new profiles to the XDG xboks Engine runtime root', async () => {
+  it('defaults new profiles to the XDG XBOKS Engine runtime root', async () => {
     const home = await mkdtemp(path.join(tmpdir(), 'xboks-runtime-default-')); created.push(home);
     const dataHome = path.join(home, 'data');
     const store = new StateStore(path.join(home, 'profile'), { home, dataHome }); await store.load();

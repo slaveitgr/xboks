@@ -39,7 +39,7 @@ export function authViewFactory(parent?: BrowserWindow, testSession?: Session, r
         if (disposed || !trustedAuthUrl(frame.url)) throw Error('Unsupported sign-in URL.');
         close(); id = frame.session;
         const current = new BrowserWindow({
-          width: 580, height: 760, parent, show: false, title: 'xboks Engine sign in', autoHideMenuBar: true,
+          width: 580, height: 760, parent, show: false, title: 'XBOKS Engine sign in', autoHideMenuBar: true,
           webPreferences: { session: isolated, preload: path.join(folder, '../preload/auth.cjs'), nodeIntegration: false, contextIsolation: true,
             sandbox: true, webSecurity: true, allowRunningInsecureContent: false, webviewTag: false, devTools: false, navigateOnDragDrop: false },
         });

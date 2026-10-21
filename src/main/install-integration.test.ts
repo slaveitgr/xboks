@@ -34,7 +34,7 @@ vi.mock('electron', () => ({
   Notification: class { static isSupported() { return true; } constructor(private options: { title: string; body: string }) {} on() {} show() { h.notifications.push(this.options); } },
   app: { requestSingleInstanceLock: () => true, getPath: (name: string) => path.join(h.root, name),
     getAppPath: () => path.join(h.root, 'source'),
-    setPath: vi.fn(), on: (name: string, callback: (...args: any[]) => any) => h.events.set(name, callback), once: vi.fn(),
+    setName: vi.fn(), setPath: vi.fn(), on: (name: string, callback: (...args: any[]) => any) => h.events.set(name, callback), once: vi.fn(),
     whenReady: () => Promise.resolve(), getVersion: () => '0.0.0', isPackaged: false, quit: h.quit },
   ipcMain: { handle: (name: string, callback: (...args: any[]) => any) => h.handlers.set(name, callback) },
   session: { defaultSession: { setPermissionCheckHandler: h.permissionCheck, setPermissionRequestHandler: h.permissionRequest } },
@@ -377,8 +377,8 @@ it('runs real queue IPC, pause/cancel/failure/restart and simultaneous play/down
   expect(h.downloads).toHaveLength(1); expect(snapshot().downloads.find((task: any) => task.id === next).status).toBe('queued');
   await expect(install('C')).rejects.toThrow('already in');
   await expect(install('D', path.join(h.root, 'installed-game', 'nested'))).rejects.toThrow('overlaps');
-  await expect(ipc('update-installed-game', 'sample')).rejects.toThrow('Another xboks Engine');
-  await expect(ipc('update-settings', { market: 'GB' })).rejects.toThrow('Another xboks Engine');
+  await expect(ipc('update-installed-game', 'sample')).rejects.toThrow('Another XBOKS Engine');
+  await expect(ipc('update-settings', { market: 'GB' })).rejects.toThrow('Another XBOKS Engine');
   await ipc('cancel-download', cancel); h.downloads[0].finish(1);
   await vi.waitFor(() => expect(h.downloads).toHaveLength(2));
   expect(h.downloads[1].args[1]).toBe('9CCCCCCCCCCC');

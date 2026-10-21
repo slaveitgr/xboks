@@ -35,7 +35,7 @@ static const GUID threadingId={0x073b7dcb,0x1fcf,0x4030,{0x94,0xbe,0xe3,0xc9,0xe
 static void note(const char *phase,HRESULT hr)
 {
     /* Numeric status only; never paths, identities or SDK payloads. */
-    fprintf(stderr,"Nexus cloud saves: %s hr=%08lx\n",phase,(unsigned long)hr);
+    fprintf(stderr,"XBOKS cloud saves: %s hr=%08lx\n",phase,(unsigned long)hr);
 }
 static FARPROC sdk_proc(const char *name) { return sdkModule?GetProcAddress(sdkModule,name):NULL; }
 static HRESULT bind_session(HMODULE sdk)
@@ -124,7 +124,7 @@ static int choose(Dialog *dialog)
         if(owner)GetWindowThreadProcessId(owner,&ownerPid);
         config.hwndParent=ownerPid==GetCurrentProcessId()?owner:NULL;
         config.cbSize=sizeof(config);config.dwFlags=TDF_ALLOW_DIALOG_CANCELLATION|TDF_SIZE_TO_CONTENT|TDF_POSITION_RELATIVE_TO_WINDOW;
-        config.dwCommonButtons=TDCBF_CANCEL_BUTTON;config.pszWindowTitle=L"Nexus runtime — Cloud saves";
+        config.dwCommonButtons=TDCBF_CANCEL_BUTTON;config.pszWindowTitle=L"XBOKS Engine runtime — Cloud saves";
         config.pszMainInstruction=instruction;config.pszContent=text;
         config.cButtons=second?2:1;config.pButtons=options;config.nDefaultButton=IDCANCEL;
         HRESULT hr=task_dialog(&config,&selected,NULL,NULL);
@@ -133,7 +133,7 @@ static int choose(Dialog *dialog)
     } else if(controls) FreeLibrary(controls);
     /* Explicit labels in fallback text, never rely on ambiguous Yes/No. */
     if(second) wcscat(text,dialog->kind==2?L"\n\nYES = Cloud save; NO = Local save; CANCEL = Neither":L"\n\nYES = Sync last completed cloud save; NO = Retry; CANCEL = Stop synchronization");
-    int selected=MessageBoxW(NULL,text,L"Nexus runtime — Cloud saves",buttons);
+    int selected=MessageBoxW(NULL,text,L"XBOKS Engine runtime — Cloud saves",buttons);
     return selected==IDYES||selected==IDRETRY?1:selected==IDNO?2:0;
 #endif
 }
@@ -341,7 +341,7 @@ HRESULT nexus_session_cleanup(HMODULE sdk,NexusAsync *async)
     ReleaseSRWLockExclusive(&sessionLock);
     if(FAILED(hr))return hr;
     /* The real caller's completion port and callback remain owned by XAsync. */
-    hr=threads->vtable->begin(threads,async,f,NULL,"Nexus PlayFab final synchronization",finish_provider);
+    hr=threads->vtable->begin(threads,async,f,NULL,"XBOKS PlayFab final synchronization",finish_provider);
     if(FAILED(hr)) {
         AcquireSRWLockExclusive(&sessionLock);users=f->users;f->users=NULL;closing=FALSE;
         ReleaseSRWLockExclusive(&sessionLock);finish_release(f);

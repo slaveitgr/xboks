@@ -190,7 +190,7 @@ export async function migrateManagedPaths(options: ManagedPathOptions = {}): Pro
   } catch (error) {
     // Starting a cooperating launcher while an offline copy owns the same
     // lease would race its final profile commit. Fail startup, never bypass it.
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw Error('Managed paths are busy. Wait for the current migration or offline copy to finish before starting xboks.');
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw Error('Managed paths are busy. Wait for the current migration or offline copy to finish before starting XBOKS.');
     result.warnings.push(`Managed paths were not moved: ${(error as Error).message}`);
     await keepLegacy();
     return result;

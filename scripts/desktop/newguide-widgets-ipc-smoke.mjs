@@ -67,7 +67,7 @@ const watchdog = setTimeout(() => { console.error('Guide widget IPC smoke timed 
 await import(pathToFileURL(join(root, 'dist-electron/main/index.js')).href);
 async function run() {
   try {
-    await wait(() => { main = NativeWindow.getAllWindows().find(window => window.getTitle() === 'xboks'); return main && !main.webContents.isLoading(); }, 'production launcher', 15_000);
+    await wait(() => { main = NativeWindow.getAllWindows().find(window => window.getTitle() === 'XBOKS'); return main && !main.webContents.isLoading(); }, 'production launcher', 15_000);
     await wait(() => evaluate(main, `typeof window.launcher?.getSpotifyState==='function'&&typeof window.launcher?.getGuideMixer==='function'`), 'current production preload');
     check(main.webContents.isOffscreen() === true && !main.isVisible(), 'production main runs offscreen without focus or a visible native window');
     const actual = await evaluate(main, `Promise.all([window.launcher.getSpotifyState(),window.launcher.getGuideMixer(),window.launcher.getGuidePerformance(),window.launcher.getGuideGallery()])`);

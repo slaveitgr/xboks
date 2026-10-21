@@ -1,4 +1,4 @@
-/** Consumer distribution belongs to xboks. Upstream source/build pins live in
+/** Consumer distribution belongs to XBOKS. Upstream source/build pins live in
  * scripts/runtime-*.lock.json and never provide an automatic update fallback. */
 export const RUNTIME_REPOSITORY = 'slaveitgr/xboks';
 export const runtimeReleasesUrl = `https://api.github.com/repos/${RUNTIME_REPOSITORY}/releases?per_page=100`;
@@ -8,12 +8,12 @@ export interface EngineRuntimeArtifact {
 
 export function runtimeAssetUrl(tag: string, name: string, value: unknown): string {
   const expected = `https://github.com/${RUNTIME_REPOSITORY}/releases/download/${encodeURIComponent(tag)}/${name}`;
-  if (value !== expected) throw new Error('Unexpected xboks Engine runtime asset URL.');
+  if (value !== expected) throw new Error('Unexpected XBOKS Engine runtime asset URL.');
   return expected;
 }
 
 export function runtimeCandidate(value: unknown): EngineRuntimeArtifact {
-  if (!Array.isArray(value)) throw new Error('Invalid xboks Engine runtime release list.');
+  if (!Array.isArray(value)) throw new Error('Invalid XBOKS Engine runtime release list.');
   // Only runtime tags participate; unrelated newer launcher/backend releases do
   // not hide the current runtime. Commit suffixes are not sortable versions.
   const releases = value.filter(release => release && !release.draft && !release.prerelease &&
@@ -24,14 +24,14 @@ export function runtimeCandidate(value: unknown): EngineRuntimeArtifact {
     return left === right ? 0 : left > right ? -1 : 1;
   });
   const selected = releases[0];
-  if (!selected) throw new Error('No xboks Engine runtime release has been published yet.');
+  if (!selected) throw new Error('No XBOKS Engine runtime release has been published yet.');
   const version = selected.tag_name as string;
   const base = `xboks-engine-runtime-${version.slice('runtime-'.length)}`;
   const name = `${base}-x86_64.tar.xz`, checksumName = `${base}-x86_64.sha512sum`;
   const assets: Array<{ name?: unknown; browser_download_url?: unknown }> = Array.isArray(selected.assets) ? selected.assets : [];
   const asset = (file: string) => {
     const matches = assets.filter(item => item && item.name === file);
-    if (matches.length !== 1) throw new Error('The newest xboks Engine runtime release is incomplete.');
+    if (matches.length !== 1) throw new Error('The newest XBOKS Engine runtime release is incomplete.');
     return runtimeAssetUrl(version, file, matches[0].browser_download_url);
   };
   // Matching source is a distribution requirement even though installation only

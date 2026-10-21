@@ -115,7 +115,7 @@ export default class XboksExperience extends Extension {
         const parent = parentProcess(senderPid), ownUid = processUser('self');
         if (ownUid < 1 || processUser(senderPid) !== ownUid || processUser(parent) !== ownUid) throw Error('not-authorized');
         // Installed background service may not have any window yet. Portable
-        // and development clients must already have an identifiable xboks
+        // and development clients must already have an identifiable XBOKS
         // native window owned by the helper's actual parent process.
         const observed = global.get_window_actors().some(actor => {
             try { return actor.meta_window.get_pid() === parent && xboksWindow(actor.meta_window); } catch { return false; }
@@ -128,7 +128,7 @@ export default class XboksExperience extends Extension {
         try {
             this._applicationPid = await this._callerMain(invocation);
             const focused = global.display.focus_window;
-            if (focused && focused.get_title() !== 'xboks Game Bar') this._foregroundWindow = focused;
+            if (focused && !['XBOKS Game Bar', 'xboks Game Bar'].includes(focused.get_title())) this._foregroundWindow = focused;
             const window = this._foregroundWindow;
             let data = null;
             try {
@@ -146,7 +146,7 @@ export default class XboksExperience extends Extension {
         try {
             const pid = await this._callerMain(invocation);
             const window = global.get_window_actors().map(actor => actor.meta_window).find(candidate => {
-                try { return candidate.get_pid() === pid && candidate.get_title() === 'xboks Game Bar' && xboksWindow(candidate); } catch { return false; }
+                try { return candidate.get_pid() === pid && ['XBOKS Game Bar', 'xboks Game Bar'].includes(candidate.get_title()) && xboksWindow(candidate); } catch { return false; }
             });
             if (!window) throw Error('guide-unavailable');
             this._switcher?.hide();
@@ -278,7 +278,7 @@ export default class XboksExperience extends Extension {
 
     _focusXbox() {
         const window = global.get_window_actors().map(actor => actor.meta_window).find(candidate => {
-            try { return candidate.get_pid() === this._applicationPid && candidate.get_title() !== 'xboks Game Bar' && xboksWindow(candidate); } catch { return false; }
+            try { return candidate.get_pid() === this._applicationPid && !['XBOKS Game Bar', 'xboks Game Bar'].includes(candidate.get_title()) && xboksWindow(candidate); } catch { return false; }
         });
         if (window) Main.activateWindow(window, global.get_current_time());
     }
@@ -296,7 +296,7 @@ export default class XboksExperience extends Extension {
             try { object.disconnect(signal); } catch { /* Actor may already be gone. */ }
         }
         for (const error of this._changes?.restore() ?? [])
-            console.warn(`xboks Experience restoration: ${error.message}`);
+            console.warn(`XBOKS Experience restoration: ${error.message}`);
         this._changes = null;
         if (this._emergencyAction !== Meta.KeyBindingAction.NONE) {
             Main.wm.allowKeybinding(Meta.external_binding_name_for_action(this._emergencyAction), Shell.ActionMode.NONE);

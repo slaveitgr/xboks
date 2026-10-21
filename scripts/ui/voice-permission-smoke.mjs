@@ -23,7 +23,7 @@ async function run() {
 try {
   await mkdir(output, { recursive: true });
   session.defaultSession.webRequest.onBeforeRequest({ urls: ['http://*/*', 'https://*/*', 'ws://*/*', 'wss://*/*'] }, (_details, callback) => callback({ cancel: true }));
-  const html = join(profile, 'test.html'); await writeFile(html, '<!doctype html><html><meta charset="utf-8"><title>xboks synthetic microphone permission test</title><body>Fake microphone permission checks</body></html>');
+  const html = join(profile, 'test.html'); await writeFile(html, '<!doctype html><html><meta charset="utf-8"><title>XBOKS synthetic microphone permission test</title><body>Fake microphone permission checks</body></html>');
   window = new BrowserWindow({ show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
   const doc = pathToFileURL(html).href;
   broker = new VoiceCapturePermissions(contents => contents === window.webContents, url => voiceDocumentAllowed(url, doc));

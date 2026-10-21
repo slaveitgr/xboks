@@ -64,7 +64,7 @@ it('writes safe persistent desktop descriptors for live Steam imports without to
     expect((await fs.stat(prepared.file)).mode & 0o777).toBe(0o600);
     await expect(fs.access(f.locations.applications)).rejects.toThrow();
     const nexus = await f.shortcuts.steamDesktop();
-    expect(await fs.readFile(nexus.file, 'utf8')).toContain('Name=xboks\n');
+    expect(await fs.readFile(nexus.file, 'utf8')).toContain('Name=XBOKS\n');
     await fs.writeFile(prepared.file, 'unrelated user file');
     await expect(f.shortcuts.steamDesktop(game)).rejects.toThrow('unrelated');
     expect(await fs.readFile(prepared.file, 'utf8')).toBe('unrelated user file');
@@ -81,7 +81,7 @@ it('creates Steam launch descriptions without unwanted desktop/menu entries and 
     expect((await execute('/bin/sh', [path.join(f.locations.userData, 'shortcuts/launch-game'), id])).stdout.trim())
       .toBe(`--xboks-profile ${f.locations.userData} --launch-game ${id}`);
     const nexus = await f.shortcuts.steamLaunch();
-    expect(nexus.title).toBe('xboks');
+    expect(nexus.title).toBe('XBOKS');
     expect(nexus.identity).not.toBe(steam.identity);
     expect((await execute('/bin/sh', [path.join(f.locations.userData, 'shortcuts/launch-xboks')])).stdout.trim())
       .toBe(`--xboks-profile ${f.locations.userData}`);
@@ -214,6 +214,19 @@ it('sanitizes path separators, controls and reserved punctuation and bounds UTF8
   }
 });
 
+it('uses the display brand for an empty game title while retaining its existing shortcut filename', async () => {
+  const f = await fixture();
+  try {
+    await f.shortcuts.initialize();
+    const file = await f.shortcuts.create({ ...game, title: '\0\r\n\t' }, 'desktop');
+    expect(path.basename(file)).toBe('xboks game.desktop');
+    const body = await fs.readFile(file, 'utf8');
+    expect(body).toContain('Name=XBOKS game\n');
+    expect(body).toContain('Comment=Play with XBOKS\n');
+    expect(body).toContain(desktopArgument(path.join(f.locations.userData, 'shortcuts/launch-game')));
+  } finally { await fs.rm(f.root, { recursive: true, force: true }); }
+});
+
 it('atomically creates colliding titles without overwriting either entry', async () => {
   const f=await fixture();
   try {
@@ -238,12 +251,12 @@ it('hands off the original request independently of Chromium switch reordering',
   const profile = '/tmp/a profile/žluťoučký';
   const original = shortcutArguments(['--nexus-profile', profile, '--launch-game', id]);
   // This is the order observed from the actual second-instance event on Linux.
-  expect(() => shortcutArguments(['--nexus-profile', '--launch-game', '--ozone-platform=wayland', profile, id])).toThrow('Invalid xboks profile');
+  expect(() => shortcutArguments(['--nexus-profile', '--launch-game', '--ozone-platform=wayland', profile, id])).toThrow('Invalid XBOKS profile');
   const data = JSON.parse(JSON.stringify(shortcutInstanceData(original)));
   expect(shortcutInstanceRequest(data, profile)).toEqual(original);
   expect(shortcutInstanceRequest(shortcutInstanceData({}), profile)).toEqual({});
   expect(shortcutInstanceRequest(shortcutInstanceData({ gameId: id }), profile)).toEqual({ gameId: id });
-  expect(() => shortcutInstanceRequest(data, '/tmp/another-profile')).toThrow('different xboks profile');
+  expect(() => shortcutInstanceRequest(data, '/tmp/another-profile')).toThrow('different XBOKS profile');
 });
 
 it('rejects malformed or failed handoffs instead of converting them into a normal launch', () => {

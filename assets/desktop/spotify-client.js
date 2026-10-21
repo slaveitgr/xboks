@@ -195,7 +195,9 @@ const propertySignal = connection.signal_subscribe(null, PROPERTIES, 'Properties
 const seekSignal = connection.signal_subscribe(null, PLAYER, 'Seeked', OBJECT, null, Gio.DBusSignalFlags.NONE,
     (_bus, sender) => { if (sender === owner) scheduleRefresh(); });
 const closed = connection.connect('closed', () => { void stop(); });
-const signals = [2, 15].map(signal => GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal, () => { void stop(); return GLib.SOURCE_REMOVE; }));
+// Older GLib typelibs expose Unix signal watches through GLib itself.
+const signalAdd = typeof GLibUnix.signal_add === 'function' ? GLibUnix.signal_add : GLib.unix_signal_add;
+const signals = [2, 15].map(signal => signalAdd(GLib.PRIORITY_DEFAULT, signal, () => { void stop(); return GLib.SOURCE_REMOVE; }));
 void refresh(true); void readInput(); loop.run();
 connection.signal_unsubscribe(nameSignal); connection.signal_unsubscribe(propertySignal); connection.signal_unsubscribe(seekSignal); connection.disconnect(closed);
 if (refreshTimer) GLib.Source.remove(refreshTimer);

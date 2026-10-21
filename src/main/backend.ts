@@ -132,7 +132,7 @@ export class BackendManager {
         available: false, source: 'none', binaryPath: undefined, commit: undefined,
         version: undefined, delivery: undefined, linuxRunPatch: undefined,
         capabilities: EMPTY_CAPABILITIES,
-        blockReason: 'No validated xboks Engine with login and streaming commands was found.',
+        blockReason: 'No validated XBOKS Engine with login and streaming commands was found.',
       });
     }
     return this.current;
@@ -150,7 +150,7 @@ export class BackendManager {
 
   private async assertUpdateAllowed(): Promise<void> {
     if (this.isOperationActive()) throw new Error('The backend cannot be updated while authentication, a download, or a game is active.');
-    if (await this.externalDownloadRunning()) throw new Error('An external xboks Engine download is active. The update was blocked.');
+    if (await this.externalDownloadRunning()) throw new Error('An external XBOKS Engine download is active. The update was blocked.');
   }
 
   async checkUpdate(): Promise<BackendStatus> {
@@ -171,8 +171,8 @@ export class BackendManager {
       this.status.releaseVersion = undefined;
       this.status.updateAvailable = false;
       const message = (error as Error).message;
-      this.status.releaseState = message.startsWith('No compatible xboks Engine backend release') ? 'unpublished' : 'error';
-      this.status.releaseError = message.startsWith('No compatible xboks Engine backend release')
+      this.status.releaseState = message.startsWith('No compatible XBOKS Engine backend release') ? 'unpublished' : 'error';
+      this.status.releaseError = message.startsWith('No compatible XBOKS Engine backend release')
         ? message : `Backend release check failed: ${message}`;
       if (!this.status.available) this.status.blockReason = this.status.releaseError;
     } finally { this.status.checking = false; }

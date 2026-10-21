@@ -13,7 +13,7 @@ it.each<SettingsSection>(['account', 'application', 'subscriptions', 'notificati
 
 it('keeps upstream credits, copyright and license links in About', () => {
   const html = settings('about');
-  expect(text(html)).toContain('xboks Engine builds on Xodus and Xodus Nexus.');
+  expect(text(html)).toContain('XBOKS Engine builds on Xodus and Xodus Nexus.');
   expect(text(html)).toContain('Copyright © 2026 Xodus Nexus contributors.');
   expect(text(html)).toContain('The launcher retains its MIT license.');
   for (const href of ['https://github.com/xodus-gaming/xodus', 'https://github.com/domsvoboda/xodus-nexus', 'https://github.com/slaveitgr/xboks/blob/HEAD/LICENSE']) expect(html).toContain(`href="${href}"`);
@@ -26,13 +26,15 @@ it('preserves exact user-selected paths while labeling engine settings', () => {
   data.settings.runtimeRoot = '/mnt/Nexus custom/runtime';
   data.settings.winePath = '/mnt/Nexus custom/runtime/wine';
   const html = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} initialSection="install" />);
-  expect(text(html)).toContain('xboks Engine / Proton settings');
+  expect(text(html)).toContain('XBOKS Engine / Proton settings');
   for (const value of [data.settings.externalXodusRoot, data.settings.runtimeRoot, data.settings.winePath]) expect(html).toContain(`value="${value}"`);
 });
 
-it('uses xboks identity during first-run setup', () => {
+it('uses XBOKS identity during first-run setup', () => {
   const html = renderToStaticMarkup(<FirstRunWizard data={demoSnapshot()} toast={() => {}} />);
   expect(text(html)).not.toMatch(/xodus|nexus/i);
+  expect(text(html)).toContain('Set up XBOKS');
+  expect(text(html)).toContain('Start using XBOKS');
   expect(text(html)).toContain('Upstream credits and licenses are available in Settings → About.');
 });
 
@@ -42,7 +44,7 @@ it('allows owned runtime installation without gh or a GitHub sign-in and require
   data.runtime.nexusName = 'xboks-engine-runtime-new-x86_64.tar.xz';
   data.runtime.prerequisites = { gh: false, authenticated: false, tar: true, sha512sum: true };
   const render = () => renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} initialSection="install" />);
-  const installButton = (html: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(match => text(match[0]).includes('Install xboks Engine runtime'))?.[0];
+  const installButton = (html: string) => [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(match => text(match[0]).includes('Install XBOKS Engine runtime'))?.[0];
   expect(installButton(render())).toBeDefined();
   expect(installButton(render())).not.toContain('disabled=""');
   expect(text(render())).not.toMatch(/GitHub Actions|Install gh|Authenticate gh/);

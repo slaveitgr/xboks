@@ -60,7 +60,7 @@ async function run(){
   await wait(()=>channels.has('remote-play-state'),'service IPC readiness',15000);await pause(100);
   check(NativeWindow.getAllWindows().length===0,'service startup creates zero launcher, Guide or account windows');
   app.emit('activate');let main;
-  await wait(()=>{main=NativeWindow.getAllWindows().find(window=>window.getTitle()==='xboks');return main&&!main.webContents.isLoading();},'launcher activation');
+  await wait(()=>{main=NativeWindow.getAllWindows().find(window=>window.getTitle()==='XBOKS');return main&&!main.webContents.isLoading();},'launcher activation');
   await wait(()=>evaluate(main,"typeof window.launcher?.getRemotePlayState==='function'"),'production preload');
   const snapshot=await evaluate(main,'window.launcher.getSnapshot()');
   check(snapshot.desktopSettings.gameBarResident===true,'native demo snapshot reports explicit service residency');
@@ -133,10 +133,10 @@ async function run(){
   const shows=main.__showRequests;app.emit('activate');await pause(100);
   check(main.__showRequests>shows,'activating the resident service reshow requests the existing hidden launcher');
   main.destroy();app.emit('activate');await pause(100);
-  const reopened=NativeWindow.getAllWindows().find(window=>window.getTitle()==='xboks');
+  const reopened=NativeWindow.getAllWindows().find(window=>window.getTitle()==='XBOKS');
   check(Boolean(reopened)&&reopened.id!==mainId,'service activation recreates a destroyed launcher even when the lazy Guide exists');
   if(reopened){await wait(()=>!reopened.webContents.isLoading(),'recreated launcher document');main=reopened;}
-  else {guide.destroy();app.emit('activate');await wait(()=>{main=NativeWindow.getAllWindows().find(window=>window.getTitle()==='xboks');return main&&!main.webContents.isLoading();},'fallback launcher for Quit check');}
+  else {guide.destroy();app.emit('activate');await wait(()=>{main=NativeWindow.getAllWindows().find(window=>window.getTitle()==='XBOKS');return main&&!main.webContents.isLoading();},'fallback launcher for Quit check');}
   check(report.helperAttempts.length===0&&report.externalOpens.length===0,'service and IPC checks spawn no host helper or external application');
   check(NativeWindow.getAllWindows().every(window=>!window.isVisible()),'all native test and product surfaces remain hidden');
   check(report.rendererErrors.length===0,'main and Guide renderers remain alive during the checks');

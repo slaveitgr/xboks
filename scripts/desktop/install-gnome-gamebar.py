@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind GNOME Super+G to an existing xboks launcher; preserve other bindings."""
+"""Bind GNOME Super+G to an existing XBOKS launcher; preserve other bindings."""
 import argparse
 import ast
 import subprocess
@@ -19,7 +19,7 @@ entries = ast.literal_eval(raw.removeprefix('@as '))
 for item in entries:
     if item != entry and get(entry_schema + ':' + item, 'binding') in ("'<Super>g'", "'<Super>G'"):
         raise SystemExit('Super+G is already assigned; existing shortcut was preserved.')
-put(entry_schema + ':' + entry, 'name', 'xboks Game Bar')
+put(entry_schema + ':' + entry, 'name', 'XBOKS Game Bar')
 put(entry_schema + ':' + entry, 'command', args.command)
 put(entry_schema + ':' + entry, 'binding', '<Super>g')
 if entry not in entries:

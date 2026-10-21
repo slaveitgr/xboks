@@ -35,7 +35,7 @@ export function shortcutArguments(argv: string[]): { gameId?: string; profile?: 
       if (result.gameId || !value || !validId(value)) throw new Error('Invalid game shortcut ID.');
       result.gameId = value;
     } else {
-      if (result.profile || !value || !path.isAbsolute(value) || /[\0\r\n]/.test(value)) throw new Error('Invalid xboks profile path.');
+      if (result.profile || !value || !path.isAbsolute(value) || /[\0\r\n]/.test(value)) throw new Error('Invalid XBOKS profile path.');
       result.profile = value;
     }
   }
@@ -50,15 +50,15 @@ export function shortcutInstanceData(request: ReturnType<typeof shortcutArgument
 
 export function shortcutInstanceRequest(data: unknown, currentProfile: string): ReturnType<typeof shortcutArguments> {
   const object = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
-  if (!object(data)) throw Error('Missing xboks shortcut handoff. Restart xboks using the updated launcher.');
+  if (!object(data)) throw Error('Missing XBOKS shortcut handoff. Restart XBOKS using the updated launcher.');
   const message = data.xboksShortcut ?? data.nexusShortcut;
-  if (!object(message)) throw Error('Missing xboks shortcut handoff. Restart xboks using the updated launcher.');
-  if (message.schema !== 1 || message.invalid !== undefined || !object(message.request)) throw Error('Invalid xboks shortcut request.');
+  if (!object(message)) throw Error('Missing XBOKS shortcut handoff. Restart XBOKS using the updated launcher.');
+  if (message.schema !== 1 || message.invalid !== undefined || !object(message.request)) throw Error('Invalid XBOKS shortcut request.');
   const request = message.request;
-  if (Object.keys(request).some(key => key !== 'profile' && key !== 'gameId')) throw Error('Invalid xboks shortcut request.');
+  if (Object.keys(request).some(key => key !== 'profile' && key !== 'gameId')) throw Error('Invalid XBOKS shortcut request.');
   const argv: string[] = [];
   if (Object.hasOwn(request, 'profile')) {
-    if (typeof request.profile !== 'string') throw Error('Invalid xboks profile path.');
+    if (typeof request.profile !== 'string') throw Error('Invalid XBOKS profile path.');
     argv.push('--xboks-profile', request.profile);
   }
   if (Object.hasOwn(request, 'gameId')) {
@@ -67,7 +67,7 @@ export function shortcutInstanceRequest(data: unknown, currentProfile: string): 
   }
   const result = shortcutArguments(argv);
   const canonical = (profile: string) => { try { return realpathSync(profile); } catch { return path.resolve(profile); } };
-  if (result.profile && canonical(result.profile) !== canonical(currentProfile)) throw Error('Shortcut belongs to a different xboks profile.');
+  if (result.profile && canonical(result.profile) !== canonical(currentProfile)) throw Error('Shortcut belongs to a different XBOKS profile.');
   return result;
 }
 
@@ -185,7 +185,7 @@ export class GameShortcuts {
         const stat = await fs.lstat(gameIcon);
         if (stat.isFile() && stat.uid === process.getuid?.() && !(stat.mode & 0o022) && stat.size <= 4 * 1024 * 1024 &&
             (await fs.readFile(gameIcon)).subarray(0, 8).toString('hex') === '89504e470d0a1a0a') icon = gameIcon;
-      } catch { /* No cached artwork, keep the xboks fallback. */ }
+      } catch { /* No cached artwork, keep the XBOKS fallback. */ }
     }
     return icon;
   }
@@ -193,7 +193,7 @@ export class GameShortcuts {
     if (!this.entry || !this.icon || !this.nexusEntry) throw new Error(this.reason);
     if (game && (game.installState !== 'ready' || !validId(game.id))) throw Error('Only installed, ready games can be added to Steam.');
     const entry = game ? this.entry : this.nexusEntry;
-    return { title: game ? game.title.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 256) || 'xboks game' : 'xboks',
+    return { title: game ? game.title.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 256) || 'XBOKS game' : 'XBOKS',
       executable: steamArgument('/bin/sh'), options: steamArgument(entry) + (game ? ' ' + steamArgument(game.id) : ''),
       directory: path.dirname(entry), identity: this.profileId + ':' + (game?.id ?? 'launcher'),
       icon: game ? await this.gameIcon(game.id, png) : this.icon };
@@ -217,11 +217,12 @@ export class GameShortcuts {
     const directory = this.locations[destination];
     await this.directory(directory);
     const icon = await this.gameIcon(game.id, png);
-    const title = game.title.replace(/[\0\r\n\t]/g, ' ').trim() || 'xboks game';
+    const cleanTitle = game.title.replace(/[\0\r\n\t]/g, ' ').trim();
+    const title = cleanTitle || 'XBOKS game';
     // Keep the executable field constant: desktop loaders may check it before
     // expanding %% in arguments. /bin/sh runs a file, never a shell -c string.
-    const body = `[Desktop Entry]\nType=Application\nVersion=1.0\nName=${desktopValue(title)}\nComment=Play with Xodus Nexus\nExec=/bin/sh ${desktopArgument(this.entry)} ${desktopArgument(game.id)}\nIcon=${desktopValue(icon)}\nTerminal=false\nCategories=Game;\nStartupNotify=false\n${this.marker}\n${this.gameMarker(game.id)}\n`;
-    const target = await this.writeEntry(directory, shortcutTitleStem(title), game.id, body, destination === 'desktop' ? 0o755 : 0o644);
+    const body = `[Desktop Entry]\nType=Application\nVersion=1.0\nName=${desktopValue(title)}\nComment=Play with XBOKS\nExec=/bin/sh ${desktopArgument(this.entry)} ${desktopArgument(game.id)}\nIcon=${desktopValue(icon)}\nTerminal=false\nCategories=Game;\nStartupNotify=false\n${this.marker}\n${this.gameMarker(game.id)}\n`;
+    const target = await this.writeEntry(directory, shortcutTitleStem(cleanTitle), game.id, body, destination === 'desktop' ? 0o755 : 0o644);
     // Migrate only this game's managed entries, after the replacement is safe.
     for (const old of await this.ownedFiles(directory, game.id)) if (old !== target && await this.owns(old, game.id)) await fs.unlink(old);
     return target;

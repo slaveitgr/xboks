@@ -9,7 +9,7 @@ test('installer release selection, checksum/body bounds and CDN policy use only 
   execFileSync('python3', ['scripts/installer-release.test.py'], { stdio: 'pipe' });
   execFileSync('bash', ['-n', 'scripts/install.sh'], { stdio: 'pipe' });
   const help = execFileSync('bash', ['scripts/install.sh', '--help'], { encoding: 'utf8' });
-  assert.match(help, /xboks user installer/);
+  assert.match(help, /XBOKS user installer/);
   assert.doesNotMatch(help, /domsvoboda|Xodus Nexus/);
 });
 
@@ -30,7 +30,7 @@ test('local installer uses owned paths, preserves an old install on invalid repl
     assert.deepEqual(await fs.readFile(installed), bytes);
     assert.equal(await fs.readlink(path.join(prefix, 'bin/xboks')), installed);
     const desktop = await fs.readFile(path.join(data, 'applications/xboks.desktop'), 'utf8');
-    assert.match(desktop, /^Name=xboks$/m); assert.match(desktop, /^Exec=".*\/xboks" %U$/m);
+    assert.match(desktop, /^Name=XBOKS$/m); assert.match(desktop, /^Exec=".*\/xboks" %U$/m);
     assert.doesNotMatch(desktop, /xodus|nexus/i);
     await fs.writeFile(image, 'Invalid replacement');
     assert.throws(() => execFileSync('bash', ['scripts/install.sh'], { env, stdio: 'pipe' }));

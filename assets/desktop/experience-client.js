@@ -182,7 +182,9 @@ const closed = connection.connect('closed', () => {
     output({event: 'unavailable', active, owned});
     void stop();
 });
-const signals = [2, 15].map(signal => GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal, () => {
+// Older GLib typelibs expose Unix signal watches through GLib itself.
+const signalAdd = typeof GLibUnix.signal_add === 'function' ? GLibUnix.signal_add : GLib.unix_signal_add;
+const signals = [2, 15].map(signal => signalAdd(GLib.PRIORITY_DEFAULT, signal, () => {
     void stop();
     return GLib.SOURCE_REMOVE;
 }));

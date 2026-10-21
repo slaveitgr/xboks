@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { demoSnapshot } from '../shared/demo-data';
 import { FirstRunWizard } from './App';
 
-it('shows independent client status and xboks reporting before setup and sign-in', () => {
+it('shows independent client status and XBOKS reporting before setup and sign-in', () => {
   const html = renderToStaticMarkup(<FirstRunWizard data={demoSnapshot()} toast={() => {}} />);
   const notice = html.match(/<section class="wizard-disclaimer"[^>]*>[\s\S]*?<\/section>/)?.[0];
   expect(notice).toContain('role="note"');
@@ -16,5 +16,5 @@ it('shows independent client status and xboks reporting before setup and sign-in
   expect(notice).not.toMatch(/xodus|nexus/i);
   expect(html.indexOf('wizard-disclaimer')).toBeLessThan(html.indexOf('Games folder'));
   expect(html).toMatch(/<input[^>]*data-gamepad-initial/);
-  expect(html).toContain('Start using xboks');
+  expect(html).toContain('Start using XBOKS');
 });

@@ -137,7 +137,7 @@ describe('prebuilt backend', () => {
       const status = await manager.checkUpdate();
       expect(status.releaseAvailable).toBe(false);
       expect(status.releaseState).toBe('unpublished');
-      expect(status.blockReason).toBe('No compatible xboks Engine backend release has been published yet.');
+      expect(status.blockReason).toBe('No compatible XBOKS Engine backend release has been published yet.');
       await expect(manager.update(() => {})).rejects.toThrow('No compatible');
       await expect(fs.stat(path.join(root, 'engine/current.json'))).rejects.toThrow();
     } finally { await fs.rm(root, { recursive: true, force: true }); }
@@ -194,7 +194,7 @@ describe('prebuilt backend', () => {
       { tag_name: 'backend-v0.1.0', assets: [] },
       { tag_name: 'v0.1.0', assets: [] },
     ]))) as unknown as typeof fetch;
-    await expect(discoverBackend(fetcher)).rejects.toThrow('No compatible xboks Engine backend release');
+    await expect(discoverBackend(fetcher)).rejects.toThrow('No compatible XBOKS Engine backend release');
   });
 
   it('rejects foreign asset URLs rather than downloading executable code from them', async () => {

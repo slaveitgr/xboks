@@ -2,11 +2,11 @@
 // arbitrary backend stderr, JSON, account identifiers or provider error text.
 const messages: Record<string, string> = {
   'keyring-unavailable': 'The system keyring could not be accessed. Check that it is running and unlocked, then try again. On KDE or SteamOS, check that KDE Wallet is enabled. Use Desktop Mode to unlock it without removing its password.',
-  'keyring-invalid-data': 'Stored xboks Engine credentials are empty or invalid. Check the system keyring; reinstalling xboks does not repair these credentials.',
+  'keyring-invalid-data': 'Stored XBOKS Engine credentials are empty or invalid. Check the system keyring; reinstalling XBOKS does not repair these credentials.',
   'keyring-write-verification': 'The system keyring did not return the credentials just saved. Check the keyring service before trying sign-in again.',
-  'keyring-missing-data': 'Required xboks Engine credentials are missing. Please sign in again.',
+  'keyring-missing-data': 'Required XBOKS Engine credentials are missing. Please sign in again.',
   'device-authentication': 'Device authentication did not complete. Check the network connection and try again.',
-  'credential-io': 'Stored xboks Engine credentials could not be read or saved.',
+  'credential-io': 'Stored XBOKS Engine credentials could not be read or saved.',
 };
 
 export class CredentialErrorReader {

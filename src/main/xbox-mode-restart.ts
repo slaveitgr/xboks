@@ -28,7 +28,7 @@ export class XboxModeRestart {
   }
   private async probe(owner: number): Promise<XboxModeRestartStatus> {
     this.assertOwner(owner);
-    if (!await this.options.integration()) return { available: false, reason: 'Enable the xboks GNOME extension before restarting into Xbox mode.' };
+    if (!await this.options.integration()) return { available: false, reason: 'Enable the XBOKS GNOME extension before restarting into Xbox mode.' };
     this.assertOwner(owner);
     const startup = await this.options.startup.status();
     this.assertOwner(owner);

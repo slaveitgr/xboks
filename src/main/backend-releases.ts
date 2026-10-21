@@ -42,12 +42,12 @@ export async function discoverBackend(fetcher: typeof fetch): Promise<BackendArt
     if (!match || compareVersions(match[1], minimumBackendVersion) < 0) continue;
     if (!selected || compareVersions(match[1], selected.version) > 0) selected = { tag: item.tag_name!, version: match[1], release: item };
   }
-  if (!selected) throw new Error('No compatible xboks Engine backend release has been published yet.');
+  if (!selected) throw new Error('No compatible XBOKS Engine backend release has been published yet.');
   const tag = selected.tag;
   const packageName = backendPackageName(selected.version);
   const asset = (name: string) => {
     const matches = selected!.release.assets?.filter(item => item.name === name) ?? [];
-    if (matches.length !== 1) throw new Error('The newest xboks Engine backend release is incomplete.');
+    if (matches.length !== 1) throw new Error('The newest XBOKS Engine backend release is incomplete.');
     return backendAssetUrl(tag, name, matches[0].browser_download_url);
   };
   const archive = `${packageName}.tar.xz`;
@@ -74,7 +74,7 @@ export async function installBackend(
   const staging = path.join(managedRoot, `.download-${randomUUID()}`);
   await fs.mkdir(staging, { recursive: true });
   try {
-    phase('Downloading xboks Engine…');
+    phase('Downloading XBOKS Engine…');
     const archive = path.join(staging, manifest.archive);
     const response = await fetchEngineRelease(fetcher, archiveUrl, { signal: AbortSignal.timeout(300_000) });
     if (!response.ok || !response.body) throw new Error(`Backend download failed (HTTP ${response.status}).`);

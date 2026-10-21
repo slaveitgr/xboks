@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LaunchExperience } from './LaunchExperience';
 import type { GameOperation } from '../shared/types';
-const operation:GameOperation={id:'launch',gameId:'game',title:'Example Game',kind:'launch',status:'preparing',phase:'Preparing xboks Engine…',log:[],startedAt:'2026-10-20'};
+const operation:GameOperation={id:'launch',gameId:'game',title:'Example Game',kind:'launch',status:'preparing',phase:'Preparing XBOKS Engine…',log:[],startedAt:'2026-10-20'};
 it('shows actual launch preparation without fabricating sync or a percentage',()=>{
  const html=renderToStaticMarkup(<LaunchExperience operation={operation} close={()=>{}} />);
  expect(html).toContain('aria-modal="true"');expect(html).toContain('Preparing your game');expect(html).toContain(operation.phase);

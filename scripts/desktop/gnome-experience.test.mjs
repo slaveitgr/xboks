@@ -213,9 +213,9 @@ test('Alt+Tab dispatch leases existing popup show methods and restores exact inh
  assert.equal(windows.show,own);f.extension.disable();
 });
 
-test('foreground and Guide focus bind the real bus parent to xboks windows and do not accept another window PID', async () => {
+for (const title of ['XBOKS Game Bar', 'xboks Game Bar']) test(`foreground and Guide focus retain current/legacy title compatibility and bind the actual parent: ${title}`, async () => {
   const f=await shellFixture(),external={get_pid:()=>200,get_wm_class:()=> 'Steam',get_title:()=> 'A game\nwindow',appId:'steam.desktop',appName:'Steam'};
-  const guide={get_pid:()=>100,get_wm_class:()=> 'xboks',get_title:()=> 'xboks Game Bar'};
+  const guide={get_pid:()=>100,get_wm_class:()=> 'xboks',get_title:()=> title};
   const impostor={...guide,get_pid:()=>999};f.windows.push(impostor,guide,external);f.display.focus_window=external;
   const foreground=await f.invoke('GetForegroundApp');assert.deepEqual(JSON.parse(foreground.value[0]),{desktopId:'steam.desktop',name:'Steam',title:'A gamewindow'});
   await f.invoke('FocusGuide');assert.equal(f.display.focus_window,guide);
@@ -355,10 +355,10 @@ test('owned native policy enforces fullscreen and no minimize, restoring each or
 
 test('native policy excludes Guide, taskbar-skipped, attached/transient/modal/dialog/system and untracked windows',async()=>{
  const f=await policyFixture(),normal=f.create(1);
- for(const options of [{title:'xboks Game Bar'},{skip_taskbar:true},{attached:true},{transient:normal},{type:f.Meta.WindowType.DIALOG},
+ for(const options of [{title:'XBOKS Game Bar'},{skip_taskbar:true},{attached:true},{transient:normal},{type:f.Meta.WindowType.DIALOG},
   {type:f.Meta.WindowType.MODAL_DIALOG},{type:f.Meta.WindowType.DESKTOP},{override:true},{app:null}])f.create(f.windows.length+1,options);
  f.policy.start();assert.equal(normal.fullscreen,true);assert.ok(f.windows.slice(1).every(window=>!window.fullscreen&&window.calls.length===0));
- normal.change('title','xboks Game Bar');assert.equal(normal.fullscreen,false,'a newly identified auxiliary window immediately restores');
+ normal.change('title','XBOKS Game Bar');assert.equal(normal.fullscreen,false,'a newly identified auxiliary window immediately restores');
  f.policy.stop();assert.equal(normal.signals.size,0);
 });
 
@@ -410,10 +410,11 @@ test('actual installed Shell51 typelibs provide the exact native controller/clon
   const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false); assert.equal(result.fullscreenCapabilityQuery, false);
   assert.equal(Object.keys(result.checks).length, 28); assert.ok(Object.values(result.checks).every(Boolean));
 });
-test('actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service', { skip: !hasGjs }, () => {
-  const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs'],
+for (const legacyOnly of [false, true]) test(`actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service: legacy signals=${legacyOnly}`, { skip: !hasGjs }, () => {
+  const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs', ...(legacyOnly ? ['--legacy-unix-signals'] : [])],
     { encoding: 'utf8', timeout: 20000, env: { ...process.env, GIO_USE_VFS: 'local' } });
   const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.hostShellEntered, false);
+  assert.equal(result.unixSignals, legacyOnly ? 'legacy-only' : 'native');
 });
 
 test('actual Gio/St settings update both switcher palettes, restore private settings and disconnect observers', {skip: !hasShell51}, async () => {

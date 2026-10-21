@@ -65,6 +65,6 @@ try {
   command('gh', ['release', 'create', tag, '--repo', repo, '--target', run.head_sha,
     ...manifest.files.map(file => path.join(directory, file.name)), path.join(directory, 'candidate.json'),
     ...(kind === 'launcher' ? [] : ['--latest=false']),
-    '--title', `${kind === 'launcher' ? 'xboks' : 'xboks Engine'} ${kind} ${kind === 'backend' ? tag.slice('backend-v'.length) : tag}`, '--notes', notes]);
+    '--title', `${kind === 'launcher' ? 'XBOKS' : 'XBOKS Engine'} ${kind} ${kind === 'backend' ? tag.slice('backend-v'.length) : tag}`, '--notes', notes]);
   console.log(`Promoted tested ${kind} candidate ${runId} as ${tag}; no rebuild performed.`);
 } finally { await fs.rm(directory, { recursive: true, force: true }); }

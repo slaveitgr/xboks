@@ -14,7 +14,7 @@ it.each(['mangohud %command% %command%', 'a%command%', 'bad "quote', 'bad\\', 'x
 });
 
 it.each(['WINEPREFIX=/other', 'XODUS_SOCKET=/other', 'WINE_DLL_FILE_MAP=bad', 'STEAM_COMPAT_DATA_PATH=/other'])('protects managed identity/prefix settings: %s', value => {
-  expect(() => parseLaunchOptions(value)).toThrow('managed by xboks Engine');
+  expect(() => parseLaunchOptions(value)).toThrow('managed by XBOKS Engine');
 });
 
 it('validates persisted launch tool settings at the IPC boundary', () => {

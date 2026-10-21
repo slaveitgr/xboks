@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage the optional xboks GNOME extension; install only with explicit --install.
+"""Stage the optional XBOKS GNOME extension; install only with explicit --install.
 
 Never enables an extension, changes settings, restarts Shell or logs out.
 """

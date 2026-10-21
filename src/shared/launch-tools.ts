@@ -35,7 +35,7 @@ export function parseLaunchOptions(input: string): { environment: Record<string,
   while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(prefix[0] ?? '')) {
     const assignment = prefix.shift()!, equals = assignment.indexOf('=');
     const name = assignment.slice(0, equals);
-    if (/^(?:WINEPREFIX|WINEARCH|WINE_DLL_FILE_MAP|XODUS_.*|STEAM_COMPAT_.*)$/.test(name)) throw Error(`${name} is managed by xboks Engine and cannot be overridden in launch options.`);
+    if (/^(?:WINEPREFIX|WINEARCH|WINE_DLL_FILE_MAP|XODUS_.*|STEAM_COMPAT_.*)$/.test(name)) throw Error(`${name} is managed by XBOKS Engine and cannot be overridden in launch options.`);
     environment[name] = assignment.slice(equals + 1);
   }
   return { environment, prefix, gameArgs: marker < 0 ? [] : words.slice(marker + 1) };
@@ -50,7 +50,7 @@ export function normalizeLaunchTools(value: unknown): GameLaunchTools {
   if (tools.gameMode !== undefined && typeof tools.gameMode !== 'boolean') throw Error('Invalid GameMode setting.');
   const result = { dualSenseCompatibility: tools.dualSenseCompatibility ?? false, gameMode: tools.gameMode ?? false, mangoHud: tools.mangoHud, gamescope: tools.gamescope, gamescopeArgs: tools.gamescopeArgs.trim(), launchOptions: tools.launchOptions.trim() };
   const args = commandWords(result.gamescopeArgs);
-  if (args.includes('--') || args.some(arg => arg.includes('%command%'))) throw Error('Gamescope options must not include -- or %command%; xboks Engine adds the game command.');
+  if (args.includes('--') || args.some(arg => arg.includes('%command%'))) throw Error('Gamescope options must not include -- or %command%; XBOKS Engine adds the game command.');
   parseLaunchOptions(result.launchOptions);
   return result;
 }

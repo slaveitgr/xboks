@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install an opt-in, session-scoped xboks Game Bar user service.
+"""Install an opt-in, session-scoped XBOKS Game Bar user service.
 
 Does not start or enable the unit unless explicitly requested. This helper never
 uses sudo, enables lingering, imports desktop environment variables, or edits an
@@ -54,7 +54,7 @@ def render_unit(launcher: str | Path) -> str:
     return f"""{MARKER}
 {LAUNCHER_HEADER}{json.dumps(launcher, ensure_ascii=True)}
 [Unit]
-Description=xboks Game Bar
+Description=XBOKS Game Bar
 PartOf=graphical-session.target
 After=graphical-session-pre.target
 StartLimitIntervalSec=60
@@ -262,7 +262,7 @@ def install(config_root: str | Path, launcher: str | Path | None = None, *, enab
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--launcher", help="Absolute installed xboks executable/AppImage wrapper (no symlink).")
+    parser.add_argument("--launcher", help="Absolute installed XBOKS executable/AppImage wrapper (no symlink).")
     parser.add_argument("--config-root", type=Path, default=default_config_root(),
                         help="XDG config root used by your user manager; default XDG_CONFIG_HOME or ~/.config.")
     parser.add_argument("--enable", action="store_true", help="Explicitly enable startup in future graphical sessions.")

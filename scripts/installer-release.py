@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download a verified xboks launcher. Standard library only; no account access."""
+"""Download a verified XBOKS launcher. Standard library only; no account access."""
 import argparse
 import hashlib
 import json
@@ -57,7 +57,7 @@ def bounded(response, limit):
 
 def candidate(value):
     if not isinstance(value, list):
-        raise ValueError('Invalid xboks release list.')
+        raise ValueError('Invalid XBOKS release list.')
     releases = [item for item in value if isinstance(item, dict) and not item.get('draft') and
                 not item.get('prerelease') and re.fullmatch(r'v\d+\.\d+\.\d+', str(item.get('tag_name', '')))]
     releases.sort(key=lambda item: tuple(map(int, item['tag_name'][1:].split('.'))), reverse=True)
@@ -78,7 +78,7 @@ def candidate(value):
                 type(checksum.get('size')) is not int or not 1 <= checksum['size'] <= 4096):
             continue
         return image, checksum
-    raise ValueError('No compatible complete xboks launcher release is published; use a verified local AppImage.')
+    raise ValueError('No compatible complete XBOKS launcher release is published; use a verified local AppImage.')
 
 
 def verify_appimage(file):
@@ -96,7 +96,7 @@ def download(output, opener=None):
         text = bounded(response, 4096).decode('ascii').strip()
     match = re.fullmatch(r'([a-fA-F0-9]{128})  ([A-Za-z0-9._-]+)', text)
     if not match or match[2] != image['name']:
-        raise ValueError('The SHA-512 file does not identify the selected xboks AppImage.')
+        raise ValueError('The SHA-512 file does not identify the selected XBOKS AppImage.')
     digest, size = hashlib.sha512(), 0
     output = Path(output)
     created = False
@@ -136,7 +136,7 @@ def main():
             print(download(args.output))
     except Exception as error:
         # Avoid logging signed redirect URLs or remote response bodies.
-        message = str(error) if isinstance(error, ValueError) else 'Could not obtain a verified xboks AppImage.'
+        message = str(error) if isinstance(error, ValueError) else 'Could not obtain a verified XBOKS AppImage.'
         parser.exit(1, message + '\n')
 
 

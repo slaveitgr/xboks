@@ -200,7 +200,7 @@ export class RuntimeManager {
       const response = await fetchEngineRelease(this.fetcher, runtimeReleasesUrl, {
         headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(20_000),
       });
-      if (!response.ok || !response.body) throw new Error('The xboks Engine runtime release list could not be read.');
+      if (!response.ok || !response.body) throw new Error('The XBOKS Engine runtime release list could not be read.');
       const reader = response.body.getReader(), parts: Uint8Array[] = [];
       let size = 0;
       try {
@@ -217,7 +217,7 @@ export class RuntimeManager {
       this.nexusArtifact = undefined;
       const message = (error as Error).message;
       Object.assign(this.status, { nexusAvailable: false, nexusName: undefined, nexusVersion: undefined, nexusError: message,
-        releaseState: message.startsWith('No xboks Engine runtime release has been published') ? 'unpublished' : 'error' });
+        releaseState: message.startsWith('No XBOKS Engine runtime release has been published') ? 'unpublished' : 'error' });
     } finally { this.status.nexusChecking = false; }
     return this.current;
   }
@@ -241,7 +241,7 @@ export class RuntimeManager {
     if (this.isOperationActive()) throw new Error('The runtime cannot be changed while an engine operation is active.');
     if (!this.nexusArtifact) await this.checkNexus();
     const artifact = this.nexusArtifact;
-    if (!artifact) throw new Error(this.status.nexusError ?? 'No xboks Engine runtime is available.');
+    if (!artifact) throw new Error(this.status.nexusError ?? 'No XBOKS Engine runtime is available.');
     if (!this.status.prerequisites.tar || !this.status.prerequisites.sha512sum) throw new Error('tar or sha512sum is missing.');
 
     this.status.updating = true;
@@ -251,14 +251,14 @@ export class RuntimeManager {
     const downloads = path.join(staging, 'downloads');
     try {
       await fs.mkdir(downloads, { recursive: true });
-      this.setPhase(`Downloading xboks Engine runtime ${artifact.version}…`, onStatus);
+      this.setPhase(`Downloading XBOKS Engine runtime ${artifact.version}…`, onStatus);
       await this.downloadFile(runtimeAssetUrl(artifact.version, artifact.name, artifact.url), path.join(downloads, artifact.name), 4 * 1024 ** 3);
       this.setPhase('Verifying the SHA-512 checksum…', onStatus);
       await this.downloadFile(runtimeAssetUrl(artifact.version, artifact.checksumName, artifact.checksumUrl), path.join(downloads, artifact.checksumName), 4096);
       const checksum = (await fs.readFile(path.join(downloads, artifact.checksumName), 'utf8')).trim().match(/^([a-f0-9]{128})[ \t]+\*?([^\r\n]+)$/i);
-      if (!checksum || checksum[2] !== artifact.name) throw new Error('The SHA-512 file does not identify this xboks Engine runtime archive.');
+      if (!checksum || checksum[2] !== artifact.name) throw new Error('The SHA-512 file does not identify this XBOKS Engine runtime archive.');
       const result = await run('sha512sum', ['-c', artifact.checksumName], { cwd: downloads, maxOutput: 100_000 });
-      if (result.code !== 0) throw new Error('xboks Engine runtime SHA-512 verification failed.');
+      if (result.code !== 0) throw new Error('XBOKS Engine runtime SHA-512 verification failed.');
 
       return await this.activateArchive(downloads, artifact.name, artifact.version, onStatus, nexusReleaseName(artifact.name));
     } catch (error) {

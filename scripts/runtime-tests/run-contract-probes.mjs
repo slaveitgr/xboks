@@ -74,7 +74,7 @@ try {
   const session=await run(wine,[path.join(tests,'playfab-session/playfab-session-probe.exe')],60000,
     {WINEDLLOVERRIDES:`${env.WINEDLLOVERRIDES};playfabcore=n;playfabgamesave=n;nexus_pgs_native=n`});
   await fs.writeFile(path.join(root,'playfab-session.log'),session.output,{mode:0o600});
-  const sessionSummary=session.output.split('\n').filter(line=>/^(CHECKS|FAIL|Nexus cloud saves:)/.test(line));
+  const sessionSummary=session.output.split('\n').filter(line=>/^(CHECKS|FAIL|XBOKS cloud saves:)/.test(line));
   results.push({name:'playfab-session',code:session.code,timedOut:session.timedOut,summary:sessionSummary});
   console.log(`playfab-session: exit=${session.code} timeout=${session.timedOut}\n${sessionSummary.join('\n')}`);
   if(session.code!==0||session.timedOut)throw new Error(`PlayFab session contract probe failed; see ${root}`);

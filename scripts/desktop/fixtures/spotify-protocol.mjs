@@ -5,8 +5,10 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { helperForUnixSignals } from './legacy-unix-signals.mjs';
 const processes=[];
 const desktopRoot=await mkdtemp(path.join(os.tmpdir(),'xboks-spotify-desktop-'));
+const legacyUnixSignals = process.argv.includes('--legacy-unix-signals');
 function start(file,args=[],environment={}){
  const child=spawn('gjs',['-m',file,...args],{stdio:['pipe','pipe','pipe'],env:{...process.env,GIO_USE_VFS:'local',...environment}});processes.push(child);
  const messages=[],listeners=new Set();let stderr='';child.stderr.on('data',data=>{stderr+=data;});
@@ -16,11 +18,13 @@ function start(file,args=[],environment={}){
  return{child,messages,wait,exited,send:value=>child.stdin.write(JSON.stringify(value)+'\n')};
 }
 try{
+ const helperFile=await helperForUnixSignals('assets/desktop/spotify-client.js',desktopRoot,legacyUnixSignals);
  await mkdir(path.join(desktopRoot,'applications'));
  // Synthetic fixed Snap desktop ID: no host install and never launched.
  await writeFile(path.join(desktopRoot,'applications','spotify_spotify.desktop'),'[Desktop Entry]\nType=Application\nName=Spotify fixture\nExec=/bin/false\n');
  const fake=start('scripts/desktop/fixtures/spotify-service.js',['org.mpris.MediaPlayer2.vlc']);await fake.wait(v=>v.event==='ready');
- const helper=start('assets/desktop/spotify-client.js',[],{XDG_DATA_HOME:desktopRoot,XDG_DATA_DIRS:desktopRoot});let id=0;
+ const environment={XDG_DATA_HOME:desktopRoot,XDG_DATA_DIRS:desktopRoot};
+ const helper=start(helperFile,[],environment);let id=0;
  const request=async(method,command)=>{const requestId=++id;helper.send({id:requestId,method,...(command?{command}:{})});return helper.wait(v=>v.id===requestId);};
  let reply=await request('state');assert.equal(reply.state.status,'not-running');assert.equal(reply.state.capabilities.open,true,'fixed Snap desktop ID is discoverable without launching it');assert.equal(fake.messages.filter(v=>v.event==='called').length,0);
  const service=start('scripts/desktop/fixtures/spotify-service.js');await service.wait(v=>v.event==='ready');
@@ -55,6 +59,8 @@ try{
  assert.equal(reply.state.reason,'permission-denied');assert.ok(denied.messages.some(v=>v.event==='denied'));
  denied.child.kill('SIGTERM');await denied.exited;
  helper.child.stdin.end();assert.deepEqual(await helper.exited,{code:0,signal:null});
+ const terminated=start(helperFile,[],environment);terminated.send({id:1,method:'state'});await terminated.wait(v=>v.id===1);
+ terminated.child.kill('SIGTERM');assert.deepEqual(await terminated.exited,{code:0,signal:null});
  assert.equal(fake.messages.filter(v=>v.event==='called').length,0,'other MPRIS players must never receive controls');
- console.log(JSON.stringify({status:'passed',transport:'real-gjs-isolated-dbus',discoveryReadOnly:true,spotifyOnly:true,capabilityGuards:true,pauseResume:true,absoluteTrackBoundSeek:true,explicitRaise:true,ownerDisappearance:true,permissionDenied:true,hostPlaybackChanged:false}));
+ console.log(JSON.stringify({status:'passed',transport:'real-gjs-isolated-dbus',unixSignals:legacyUnixSignals?'legacy-only':'native',sigtermCleanup:true,discoveryReadOnly:true,spotifyOnly:true,capabilityGuards:true,pauseResume:true,absoluteTrackBoundSeek:true,explicitRaise:true,ownerDisappearance:true,permissionDenied:true,hostPlaybackChanged:false}));
 }finally{for(const child of processes)child.kill('SIGKILL');await rm(desktopRoot,{recursive:true,force:true});}

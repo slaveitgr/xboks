@@ -1,14 +1,14 @@
-name: Cannot start xboks / logs unavailable
-description: Use only when xboks cannot start or a required diagnostic log cannot be obtained.
+name: Cannot start XBOKS / logs unavailable
+description: Use only when XBOKS cannot start or a required diagnostic log cannot be obtained.
 title: "[No logs] "
 body:
   - type: markdown
     attributes:
       value: |
         This is the exception route when a normal bug report cannot include logs, not a shortcut around collecting them.
-        **xboks is an independent, unofficial project, not upstream Xodus.**
+        **XBOKS is an independent, unofficial project, not upstream Xodus.**
 
-        If xboks opens, try **Settings → xboks Engine → Open backend diagnostic log** first.
+        If XBOKS opens, try **Settings → XBOKS Engine → Open backend diagnostic log** first.
         Download logs are under **Install Queue → Show log** (the terminal icon).
         Game logs are on the game page under the launch result → **Open diagnostic log**.
         If you can obtain these, use the corresponding normal bug form instead.
@@ -27,14 +27,14 @@ body:
   - type: input
     id: backend-version
     attributes:
-      label: xboks backend version
+      label: XBOKS backend version
       description: Copy from Settings. If not installed or inaccessible, explicitly say so.
     validations:
       required: true
   - type: input
     id: runtime-version
     attributes:
-      label: xboks runtime version
+      label: XBOKS runtime version
       description: Copy the active runtime from Settings. If not installed or inaccessible, explicitly say so.
     validations:
       required: true
@@ -70,7 +70,7 @@ body:
     attributes:
       label: Launcher installation
       options:
-        - AppImage from xboks GitHub Releases
+        - AppImage from XBOKS GitHub Releases
         - Built from source (include commit below)
         - Other (describe below)
     validations:
@@ -87,7 +87,7 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Include how xboks was opened and whether it previously worked.
+      description: Include how XBOKS was opened and whether it previously worked.
     validations:
       required: true
       min_length: 20
@@ -103,7 +103,7 @@ body:
     id: terminal-output
     attributes:
       label: Terminal output or explanation
-      description: Paste the output of starting xboks from a terminal after reviewing it for private information. If there is no output or a terminal cannot be used, explicitly explain that here.
+      description: Paste the output of starting XBOKS from a terminal after reviewing it for private information. If there is no output or a terminal cannot be used, explicitly explain that here.
       render: text
     validations:
       required: true

@@ -14,11 +14,11 @@ it('does not create remote content from rendering the host and tolerates a missi
   const bridge = {getCloudGamingState: vi.fn(), onCloudGamingState: vi.fn(), controlCloudGaming: vi.fn()};
   expect(renderToStaticMarkup(<CloudGamingHost bridge={bridge}/>)).toBe('');
   for (const method of Object.values(bridge)) expect(method).not.toHaveBeenCalled();
-  expect(renderToStaticMarkup(<CloudGamingPage/>)).toContain('requires the desktop xboks application');
+  expect(renderToStaticMarkup(<CloudGamingPage/>)).toContain('requires the desktop XBOKS application');
 });
 it('keeps Back/reload/close and origin in trusted controls without claiming a stream is active', () => {
   const command = vi.fn(), html = renderToStaticMarkup(<CloudGamingSurface state={ready} command={command}/>);
-  for (const label of ['Return to xboks', 'Cloud gaming home', 'Reload Cloud gaming', 'Close Cloud gaming', 'https://www.xbox.com', 'Ctrl + F6']) expect(html).toContain(label);
+  for (const label of ['Return to XBOKS', 'Cloud gaming home', 'Reload Cloud gaming', 'Close Cloud gaming', 'https://www.xbox.com', 'Ctrl + F6']) expect(html).toContain(label);
   expect(command).not.toHaveBeenCalled(); expect(html).not.toMatch(/Connected|streaming now/i);
   expect(cloudGamingStatusLabel({...ready, origin: 'https://login.live.com'}, 'en')).toContain('Microsoft sign-in');
   expect(cloudGamingStatusLabel({...ready, blockedNavigation: true}, 'en')).toContain('outside Xbox');

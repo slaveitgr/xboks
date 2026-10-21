@@ -91,6 +91,9 @@ import { batteryPowerStatus } from './battery-status.js';
 import { managedPaths, migrateManagedPaths, type ManagedPathMigration } from './managed-paths.js';
 import { guideInputActions, type DesktopForegroundApp, type GuideInputAction, type ShellSwitcherAction } from '../shared/desktop-shell.js';
 
+// Keep Electron's profile and native application identity stable across display-name changes.
+app.setName('xboks');
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const downloadNotifications = new DownloadCompletionNotifications({
   isSupported: () => store.settings.downloadNotifications !== false && Notification.isSupported(),
@@ -133,11 +136,11 @@ function ensureSettingsTray(): void {
   if (settingsTray && !settingsTray.isDestroyed()) return;
   try {
     settingsTray = new Tray(fileURLToPath(new URL('../../assets/icon.png', import.meta.url)));
-    settingsTray.setToolTip('xboks');
+    settingsTray.setToolTip('XBOKS');
     settingsTray.on('click', () => { void showLauncher().catch(console.error); });
     settingsTray.setContextMenu(Menu.buildFromTemplate([
-      { label: 'Open xboks', click: () => { void showLauncher().catch(console.error); } },
-      { label: 'Quit xboks', click: () => { quitting = true; app.quit(); } },
+      { label: 'Open XBOKS', click: () => { void showLauncher().catch(console.error); } },
+      { label: 'Quit XBOKS', click: () => { quitting = true; app.quit(); } },
     ]));
     desktopSettingsStatus.trayAvailable = true;
   } catch (error) {
@@ -223,7 +226,7 @@ let shutdownStarted = false;
 let authState: AppSnapshot['auth'] = {
   running: false,
   stored: null,
-  note: 'Checking the xboks Engine system keychain for a stored Microsoft account…',
+  note: 'Checking the XBOKS Engine system keychain for a stored Microsoft account…',
 };
 let authJob: Promise<void> | undefined;
 const catalog = new CatalogService();
@@ -594,9 +597,9 @@ function emitLog(scope: string, line: string): void {
 
 function requireBackend(command: keyof typeof backend.current.capabilities): string {
   const status = backend.current;
-  if (!status.available || !status.binaryPath) throw new Error('The xboks Engine is unavailable.');
+  if (!status.available || !status.binaryPath) throw new Error('The XBOKS Engine is unavailable.');
   if (typeof status.capabilities[command] === 'boolean' && !status.capabilities[command]) {
-    throw new Error(`The active xboks Engine does not support the ${String(command)} command.`);
+    throw new Error(`The active XBOKS Engine does not support the ${String(command)} command.`);
   }
   return status.binaryPath;
 }
@@ -614,7 +617,7 @@ function ensureIdle(mode?: 'install' | 'launch' | 'remove'): void {
   if (gameRemovalInProgress) throw new Error('A game is being removed. Wait for it to finish.');
   assertActivityCompatible(operations.keys(), store.downloads, gameOperation, installQueue.size, mode);
   if (backend.current.updating) throw new Error('The backend is being updated.');
-  if (runtime.current.updating) throw new Error('xboks Engine Runtime is being installed.');
+  if (runtime.current.updating) throw new Error('XBOKS Engine Runtime is being installed.');
 }
 
 async function syncManagedWinePath(): Promise<void> {
@@ -634,19 +637,19 @@ async function refreshAccount(emit = true, afterAuth = false): Promise<AuthStatu
   await accountRefresh.run(key, async signal => {
     let next: Pick<AuthStatus, 'stored' | 'username' | 'note' | 'storeAccount'>;
     if (!status.available || !status.binaryPath) {
-      next = { stored: null, username: undefined, note: 'Account status is unavailable because the xboks Engine is offline.' };
+      next = { stored: null, username: undefined, note: 'Account status is unavailable because the XBOKS Engine is offline.' };
     } else if (!status.capabilities.account) {
       next = {
         stored: null,
         username: undefined,
         note: status.source === 'external'
-          ? 'This external engine build cannot report the stored account. Install xboks Engine from Settings.'
+          ? 'This external engine build cannot report the stored account. Install XBOKS Engine from Settings.'
           : 'This managed backend predates read-only account status. Update it from Settings.',
       };
     } else {
       const result = await readAccount(status.binaryPath, signal).catch(() => ({ code: -1, output: '' }));
       if (result.code !== 0) {
-        next = { stored: null, username: undefined, note: 'xboks Engine could not read its system-keychain account record.' };
+        next = { stored: null, username: undefined, note: 'XBOKS Engine could not read its system-keychain account record.' };
       } else {
         try {
           const line = result.output.split('\n').map((entry) => entry.trim()).reverse().find((entry) => entry.startsWith('{'));
@@ -657,16 +660,16 @@ async function refreshAccount(emit = true, afterAuth = false): Promise<AuthStatu
               username: account.username.trim(),
               storeAccount: readStoreIdentity(account.storeAccount, account.username.trim()),
               note: runtime?.current.name?.includes('-xgamesave-pr28-')
-                ? 'Credentials are stored by xboks Engine. The experimental PR #28 runtime can try in-game Xbox sign-in and two-way cloud save sync; this account status alone does not verify either.'
-                : 'Credentials are stored by xboks Engine in the system keychain. This does not mean in-game Xbox platform sign-in is implemented.',
+                ? 'Credentials are stored by XBOKS Engine. The experimental PR #28 runtime can try in-game Xbox sign-in and two-way cloud save sync; this account status alone does not verify either.'
+                : 'Credentials are stored by XBOKS Engine in the system keychain. This does not mean in-game Xbox platform sign-in is implemented.',
             };
           } else if (account.stored === false) {
-            next = { stored: false, username: undefined, note: 'No Microsoft account is stored by xboks Engine.' };
+            next = { stored: false, username: undefined, note: 'No Microsoft account is stored by XBOKS Engine.' };
           } else {
             throw new Error('unexpected account response');
           }
         } catch {
-          next = { stored: null, username: undefined, note: 'xboks Engine returned an unreadable account-status response.' };
+          next = { stored: null, username: undefined, note: 'XBOKS Engine returned an unreadable account-status response.' };
         }
       }
     }
@@ -750,7 +753,7 @@ async function runAuth(command: 'login' | 'logout'): Promise<void> {
   emitSnapshot();
   try {
     if (command === 'login' && !backend.current.capabilities.externalAuth) {
-      throw Error('Update the xboks Engine in Settings before signing in with this launcher.');
+      throw Error('Update the XBOKS Engine in Settings before signing in with this launcher.');
     }
     if (command === 'login') await prepareSystemWallet();
     const view = fallbackAuthViewFactory(request => authViewFactory(mainWindow ?? undefined, undefined, request), () => browserAuthViewFactory());
@@ -769,7 +772,7 @@ async function runAuth(command: 'login' | 'logout'): Promise<void> {
       lastAction: command,
       lastResult: result.code === 0 ? 'success' : 'failed',
     };
-    if (result.code !== 0) throw new Error(`xboks Engine ${command} exited with code ${result.code}.`);
+    if (result.code !== 0) throw new Error(`XBOKS Engine ${command} exited with code ${result.code}.`);
   } finally {
     operations.delete(id);
     authState.running = false;
@@ -811,14 +814,14 @@ async function installGameContent(id: string, productId: string): Promise<string
     const manager = contentManager();
     const { plan, packages } = await gameContent(id);
     if (shutdownStarted) throw Error('The launcher is closing.');
-    if (!plan.runtimeSupported) throw Error('Update the xboks Engine runtime in Settings to install and use related content.');
+    if (!plan.runtimeSupported) throw Error('Update the XBOKS Engine runtime in Settings to install and use related content.');
     const game = store.games.find(entry => entry.id === id);
     const item = plan.items.find(item => item.productId === productId);
     const pkg = packages.find(pkg => pkg.productId === productId);
     if (!game || !item?.access || !pkg || !['available', 'installed'].includes(item.status)) throw Error('No supported licensed content package was verified.');
     // Downloads use the existing genuine license-checked backend, not catalog URLs.
     requireBackend('streaming');
-    if (await backend.externalDownloadRunning()) throw Error('Another xboks Engine download is running.');
+    if (await backend.externalDownloadRunning()) throw Error('Another XBOKS Engine download is running.');
     const destination = await manager.prepare(game, pkg);
     preparingInstall = true;
     return await prepareInstall({ productId, title: `${game.title}: ${item.title}`, destination }, undefined, { game, pkg, manager });
@@ -831,7 +834,7 @@ async function prepareInstall(request: InstallRequest, updateGame?: Game, conten
   const market = currentMarket();
   let selectedContentId: string | undefined;
   if (!content) {
-    if (!backend.current.capabilities.packageSelection) throw Error('Update the xboks Engine in Settings before installing games.');
+    if (!backend.current.capabilities.packageSelection) throw Error('Update the XBOKS Engine in Settings before installing games.');
     if (request.selectionMarket !== undefined && request.selectionMarket !== market) throw Error('Store market changed. Choose the installation package again.');
     if (request.selectedContentId !== undefined) {
       if (request.selectionMarket !== market || !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(request.selectedContentId)) throw Error('Invalid installation package selection.');
@@ -852,7 +855,7 @@ async function prepareInstall(request: InstallRequest, updateGame?: Game, conten
   if (updateGame) {
     const actual = await fs.realpath(destination);
     if (actual !== await fs.realpath(updateGame.path)) throw new Error('Update destination differs from the installed game.');
-    if (await backend.externalDownloadRunning()) throw new Error('Another xboks Engine download is running. Wait before updating this game.');
+    if (await backend.externalDownloadRunning()) throw new Error('Another XBOKS Engine download is running. Wait before updating this game.');
     const processes = await run('ps', ['-eo', 'args='], { maxOutput: 2_000_000 });
     if (processes.code !== 0) throw new Error('Could not verify that the game is closed. Update was not started.');
     const executable = updateGame.executable ? path.basename(updateGame.executable).toLowerCase() : '';
@@ -885,7 +888,7 @@ async function prepareInstall(request: InstallRequest, updateGame?: Game, conten
   installQueue.enqueue({ id, run: async () => {
     if (shutdownStarted) throw Error('The launcher is closing.');
     if (identity !== `${authState.username}:${backend.current.binaryPath}:${currentMarket()}`) throw Error('Account, backend or Store market changed. Retry the installation.');
-    if (await backend.externalDownloadRunning()) throw Error('Another xboks Engine download is running outside this queue.');
+    if (await backend.externalDownloadRunning()) throw Error('Another XBOKS Engine download is running outside this queue.');
     await assertInstallDestination(destination, store.games.filter(game => game.id !== updateGame?.id && game.id !== content?.game.id).map(game => game.path));
     if (gameOperation && ['preparing', 'running', 'stopping'].includes(gameOperation.status)) {
       const playing = store.games.find(game => game.id === gameOperation?.gameId);
@@ -894,7 +897,7 @@ async function prepareInstall(request: InstallRequest, updateGame?: Game, conten
     if (shutdownStarted || isCancelled()) return;
     await downloadCleanup.prepare(task);
     if (shutdownStarted || isCancelled()) return;
-    await store.updateDownload(id, { status: 'running', phase: updateGame ? 'Checking installed files with xboks Engine…' : 'Starting xboks Engine streaming…' });
+    await store.updateDownload(id, { status: 'running', phase: updateGame ? 'Checking installed files with XBOKS Engine…' : 'Starting XBOKS Engine streaming…' });
     if (shutdownStarted || isCancelled()) return;
     await runDownload(task, binary, market, updateGame, content);
   }, failed: async error => {
@@ -911,7 +914,7 @@ async function runDownload(task: DownloadTask, binary: string, market: string, u
   const { id, productId, destination, selectedContentId } = task;
   const structured = Boolean(backend.current.capabilities.streamingProgressJson);
   const controllable = structured && Boolean(backend.current.capabilities.streamingControls);
-  if (!structured) task.log.push('Update the xboks Engine in Settings for numeric progress and Pause/Resume. This download can continue without them.');
+  if (!structured) task.log.push('Update the XBOKS Engine in Settings for numeric progress and Pause/Resume. This download can continue without them.');
   emitSnapshot();
   const args = ['streaming', content?.pkg.contentId ?? productId, destination, '--parallel', String(store.settings.parallelDownloads)];
   args.push('--market', market);
@@ -984,7 +987,7 @@ async function runDownload(task: DownloadTask, binary: string, market: string, u
     if (task.status === 'cancelled') task.error = undefined;
     if (shutdownStarted && controllable && !cancelled && task.status !== 'complete') task.status = 'paused';
     task.progress = task.status === 'complete' ? 100 : task.progress;
-    task.phase = task.status === 'complete' ? updateGame ? 'Update complete' : 'Installation complete' : task.status === 'cancelled' ? 'Cancelled by user' : structured && result.code === 0 ? 'The backend did not confirm a completed installation.' : `xboks Engine exited with code ${result.code}`;
+    task.phase = task.status === 'complete' ? updateGame ? 'Update complete' : 'Installation complete' : task.status === 'cancelled' ? 'Cancelled by user' : structured && result.code === 0 ? 'The backend did not confirm a completed installation.' : `XBOKS Engine exited with code ${result.code}`;
     if (task.status === 'failed') task.error = downloadFailure(task.log, result.code);
     if (task.status === 'paused') {
       task.phase = 'Paused — resume to restore saved download checkpoints';
@@ -1075,7 +1078,7 @@ function cancelDownload(id: string, mode: 'keep' | 'delete-files' = 'keep'): Pro
       if (operations.has(id) || installQueue.has(id)) throw Error('The download is still stopping. Files were not deleted.');
       if (task.status !== 'cancelled') throw Error('The installation state changed. Files were not deleted.');
       if (mode === 'delete-files') {
-        if (await backend.externalDownloadRunning()) throw Error('Another xboks Engine download is running. Files were not deleted.');
+        if (await backend.externalDownloadRunning()) throw Error('Another XBOKS Engine download is running. Files were not deleted.');
         const { locked, roots } = downloadCleanupProtection(task);
         await downloadCleanup.remove(task, locked, roots);
       }
@@ -1113,7 +1116,7 @@ async function gameLaunchOptions(id: string): Promise<GameLaunchOptions> {
   const game = store.games.find((entry) => entry.id === id);
   if (!game) throw new Error('Game not found.');
   const wine = selectedWinePath(store.settings.winePath, store.settings.runtimeRoot, runtime.current.winePath);
-  if (!wine) return { cloudSaves: false, cloudReason: 'Select xboks Engine Runtime in Settings.', vcInstall: false, vcReason: 'Select xboks Engine Runtime in Settings.' };
+  if (!wine) return { cloudSaves: false, cloudReason: 'Select XBOKS Engine Runtime in Settings.', vcInstall: false, vcReason: 'Select XBOKS Engine Runtime in Settings.' };
   const wineAvailable = await fs.access(wine, constants.X_OK).then(() => true, () => false);
   if (!wineAvailable) return { cloudSaves: false, cloudReason: 'The selected Wine binary is unavailable.', vcInstall: false, vcReason: 'The selected Wine binary is unavailable.' };
   const protonRoot = path.resolve(path.dirname(wine), '..', '..');
@@ -1125,9 +1128,9 @@ async function gameLaunchOptions(id: string): Promise<GameLaunchOptions> {
   const serviceAvailable = Boolean(backend.current.binaryPath && await backendServiceBinary(backend.current.binaryPath));
   return {
     cloudSaves: previewRuntime && serviceAvailable,
-    cloudReason: !previewRuntime ? 'The selected Wine runtime does not include the cloud-save preview.' : !serviceAvailable ? 'This xboks Engine account service is unavailable.' : undefined,
+    cloudReason: !previewRuntime ? 'The selected Wine runtime does not include the cloud-save preview.' : !serviceAvailable ? 'This XBOKS Engine account service is unavailable.' : undefined,
     vcInstall: protonAvailable,
-    vcReason: protonAvailable ? undefined : 'VC++ installation requires a full xboks Engine Proton distribution.',
+    vcReason: protonAvailable ? undefined : 'VC++ installation requires a full XBOKS Engine Proton distribution.',
   };
 }
 
@@ -1167,13 +1170,13 @@ async function prepareGameLaunch(id: string): Promise<void> {
   });
   emitSnapshot();
   const binary = requireBackend('run');
-  if (inspected.installState !== 'ready') throw new Error(inspected.installMessage ?? 'The installation is not ready for xboks Engine run.');
+  if (inspected.installState !== 'ready') throw new Error(inspected.installMessage ?? 'The installation is not ready for XBOKS Engine run.');
   const locale = supportedGameLocale(game.locale ?? '', await gameLocales(game));
   const titleId = await gameTitleId(game);
   const wine = selectedWinePath(store.settings.winePath, store.settings.runtimeRoot, runtime.current.winePath);
-  if (!wine) throw new Error('Select a Wine/xboks Engine Proton binary in Settings.');
+  if (!wine) throw new Error('Select a Wine/XBOKS Engine Proton binary in Settings.');
   try { await fs.access(wine, constants.X_OK); }
-  catch { throw new Error(`The selected Wine runtime is unavailable: ${wine}. Select or reinstall xboks Engine Runtime in Settings.`); }
+  catch { throw new Error(`The selected Wine runtime is unavailable: ${wine}. Select or reinstall XBOKS Engine Runtime in Settings.`); }
   const cloudRuntime = await cloudSaveRuntime(wine);
   if (await unbridgedCloudSaveRuntime(wine)) {
     throw new Error('The active runtime has cloud saves without the required service bridge. Update the active runtime in Settings.');
@@ -1193,7 +1196,7 @@ async function prepareGameLaunch(id: string): Promise<void> {
     title: game.title,
     kind: 'launch',
     status: 'preparing',
-    phase: 'Preparing Proton and xboks Engine…',
+    phase: 'Preparing Proton and XBOKS Engine…',
     log: [],
     logPath,
     startedAt: new Date().toISOString(),
@@ -1228,7 +1231,7 @@ async function prepareGameLaunch(id: string): Promise<void> {
     const wineCommand = protonRunner?.command ?? wine;
     args[2] = preparedGameWine(protonRunner, launchWrapper.command);
     if (inspected.vcRedistEncrypted) {
-      if (!protonRunner) throw new Error('This encrypted VC++ prerequisite requires a Proton prefix. Select xboks Engine Runtime in Settings.');
+      if (!protonRunner) throw new Error('This encrypted VC++ prerequisite requires a Proton prefix. Select XBOKS Engine Runtime in Settings.');
       const installed = await installedVcRuntimeVersion(path.join(compatibilityDataPath, 'pfx'));
       if (!installed || !versionAtLeast(installed, VC_REDIST_VERSION)) {
         throw new Error(`VC++ runtime ${installed ?? 'not found'} is too old for this encrypted installer. Right-click the game and choose Install / update VC++, then press Play.`);
@@ -1269,10 +1272,10 @@ async function prepareGameLaunch(id: string): Promise<void> {
     gameProcesses.set(operationId, tracked);
     releaseDisplay = gameDisplay.acquire();
     gameOperation.status = 'running';
-    gameOperation.phase = 'xboks Engine is running; waiting for the game window…';
+    gameOperation.phase = 'XBOKS Engine is running; waiting for the game window…';
     emitSnapshot();
     void tracked.result.then((result) => {
-      addGameLog(`The xboks Engine process exited with code ${result.code}.`);
+      addGameLog(`The XBOKS Engine process exited with code ${result.code}.`);
       if (!gameOperation || gameOperation.id !== operationId) return;
       gameOperation.finishedAt = new Date().toISOString();
       if (result.code === 0 || gameOperation.status === 'stopping') {
@@ -1281,7 +1284,7 @@ async function prepareGameLaunch(id: string): Promise<void> {
       } else {
         const detail = result.output.split('\n').map((line) => line.trim()).filter(Boolean).slice(-6).join(' | ');
         gameOperation.status = 'failed';
-        gameOperation.error = `xboks Engine run exited with code ${result.code}${detail ? `: ${detail.slice(0, 900)}` : '.'}`;
+        gameOperation.error = `XBOKS Engine run exited with code ${result.code}${detail ? `: ${detail.slice(0, 900)}` : '.'}`;
         gameOperation.phase = gameOperation.error;
       }
     }).catch((error) => {
@@ -1337,7 +1340,7 @@ async function installGameVcRuntime(id: string): Promise<void> {
   const inspected = await inspectGameDirectory(game.path);
   if (inspected.installState !== 'ready') throw new Error(inspected.installMessage ?? 'The game installation is not ready.');
   const wine = selectedWinePath(store.settings.winePath, store.settings.runtimeRoot, runtime.current.winePath);
-  if (!wine) throw new Error('Select xboks Engine Runtime in Settings first.');
+  if (!wine) throw new Error('Select XBOKS Engine Runtime in Settings first.');
   await fs.access(wine, constants.X_OK);
 
   const operationId = `vc-${id}`;
@@ -1372,7 +1375,7 @@ async function installGameVcRuntime(id: string): Promise<void> {
   try {
     const compatibilityDataPath = path.join(dataRoot, 'compatdata', game.id);
     const protonRunner = await prepareProtonRunner(wine, compatibilityDataPath, path.join(app.getPath('home'), '.steam', 'root'));
-    if (!protonRunner) throw new Error('VC++ installation requires xboks Engine Proton, not a standalone Wine binary.');
+    if (!protonRunner) throw new Error('VC++ installation requires XBOKS Engine Proton, not a standalone Wine binary.');
     const prefix = path.join(compatibilityDataPath, 'pfx');
     const previous = await installedVcRuntimeVersion(prefix);
     if (previous && versionAtLeast(previous, VC_REDIST_VERSION)) {
@@ -1743,7 +1746,7 @@ function registerIpc(): void {
   });
   ipcMain.handle('guide-capture', async event => {
     systemSender(event); if (demoMode) throw Error(demoSystemReason);
-    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The xboks window is unavailable.');
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('The XBOKS window is unavailable.');
     const folder = path.join(app.getPath('pictures'), 'xboks');
     await guideGallery().checkDirectory(true);
     const image = await mainWindow.webContents.capturePage();
@@ -1852,7 +1855,7 @@ function registerIpc(): void {
   ipcMain.handle('start-install', (_event, request: InstallRequest) => startInstall(request));
   ipcMain.handle('install-plan', async (_event, raw: string) => {
     const binary = requireBackend('streaming');
-    if (!backend.current.capabilities.packageSelection) throw Error('Update the xboks Engine in Settings to choose installation packages.');
+    if (!backend.current.capabilities.packageSelection) throw Error('Update the XBOKS Engine in Settings to choose installation packages.');
     const productId = safeProductId(raw), market = currentMarket();
     const plan = await readInstallPlan(binary, productId, market);
     if (binary !== backend.current.binaryPath || market !== currentMarket()) throw Error('Backend or Store market changed. Try again.');
@@ -1874,14 +1877,14 @@ function registerIpc(): void {
   ipcMain.handle('pause-download', (_event, id: string) => {
     if (downloadCancellations.has(id)) throw Error('This download is being cancelled.');
     const control = downloadControls.get(id);
-    if (!control) throw new Error('Pause requires a backend with download controls. Update the xboks Engine in Settings.');
+    if (!control) throw new Error('Pause requires a backend with download controls. Update the XBOKS Engine in Settings.');
     return control(true);
   });
   ipcMain.handle('resume-download', (_event, id: string) => {
     if (downloadCancellations.has(id)) throw Error('This download is being cancelled.');
     const control = downloadControls.get(id);
     if (!control) {
-      if (!backend.current.capabilities.streamingControls) throw new Error('Update the xboks Engine in Settings before resuming a saved download.');
+      if (!backend.current.capabilities.streamingControls) throw new Error('Update the XBOKS Engine in Settings before resuming a saved download.');
       const task = store.downloads.find(entry => entry.id === id);
       if (!task || task.status !== 'paused' || operations.has(id)) throw new Error('This download cannot be resumed.');
       // Remove only the stale queue row, never files/checkpoints. The new backend
@@ -2053,10 +2056,10 @@ function registerIpc(): void {
     const child = operations.get(gameOperation.id);
     const gameProcess = gameProcesses.get(gameOperation.id);
     const controller = preparationControllers.get(gameOperation.id);
-    if (!child && !controller) throw new Error('xboks Engine is still preparing; try stopping again in a moment.');
+    if (!child && !controller) throw new Error('XBOKS Engine is still preparing; try stopping again in a moment.');
     if (child && gameOperation.kind === 'prerequisite') throw new Error('VC++ installation is running. Wait for it to finish; interrupting it could damage the Proton prefix.');
     gameOperation.status = 'stopping';
-    gameOperation.phase = child ? 'Stopping xboks Engine and Wine…' : 'Cancelling prerequisite download…';
+    gameOperation.phase = child ? 'Stopping XBOKS Engine and Wine…' : 'Cancelling prerequisite download…';
     controller?.abort();
     if (child && gameProcess) {
       const operationId = gameOperation.id;
@@ -2072,10 +2075,10 @@ function registerIpc(): void {
     emitSnapshot();
   });
   ipcMain.handle('update-settings', (_event, patch: Partial<Settings>) => {
-    if (quitting) throw new Error('Settings cannot be changed while xboks is closing.');
+    if (quitting) throw new Error('Settings cannot be changed while XBOKS is closing.');
     pendingSettingsUpdates++;
     const update = settingsUpdates.then(async () => {
-      if (quitting) throw new Error('Settings cannot be changed while xboks is closing.');
+      if (quitting) throw new Error('Settings cannot be changed while XBOKS is closing.');
       if (patch.downloadLimitMiB !== undefined) {
         downloadLimitKiB(patch.downloadLimitMiB);
         downloadLimitArgs(patch.downloadLimitMiB, backend.current.capabilities);
@@ -2207,7 +2210,7 @@ async function createWindow(background = false): Promise<void> {
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#080a0c',
-    title: 'xboks',
+    title: 'XBOKS',
     icon: fileURLToPath(new URL('../../assets/icon.png', import.meta.url)),
     autoHideMenuBar: true,
     show: !hiddenCapture && !background,
@@ -2346,7 +2349,7 @@ async function createWindow(background = false): Promise<void> {
 
 app.whenReady().then(async () => {
   if (!primaryInstance) return;
-  if (startupError) { dialog.showErrorBox('Invalid xboks shortcut', startupError.message); app.quit(); return; }
+  if (startupError) { dialog.showErrorBox('Invalid XBOKS shortcut', startupError.message); app.quit(); return; }
   voiceCapture.install(session.defaultSession);
   if (!demoMode) {
     powerMonitor.on('lock-screen', blockControllerSession);
@@ -2440,7 +2443,7 @@ app.whenReady().then(async () => {
     }
     emitSnapshot();
   }, () => { /* Keep the installed backend available if GitHub is unreachable. */ });
-  void runtime.checkNexus().then(() => emitSnapshot(), () => { /* xboks Engine runtime is optional. */ });
+  void runtime.checkNexus().then(() => emitSnapshot(), () => { /* XBOKS Engine runtime is optional. */ });
   await syncManagedWinePath();
   void enrichLibraryCovers().then(() => emitSnapshot(), () => { /* Covers are optional. */ });
   void enrichDownloadCovers(store.downloads, currentMarket()).catch(() => { /* Covers are optional. */ });
@@ -2474,7 +2477,7 @@ app.whenReady().then(async () => {
       windowOpening ??= createWindow(true).finally(() => { windowOpening = undefined; });
       await windowOpening;
     },
-    trayUnavailable: error => console.warn('Background launch unavailable; showing xboks:', error),
+    trayUnavailable: error => console.warn('Background launch unavailable; showing XBOKS:', error),
   }), refreshInitialAccount, () => {
     if (shutdownStarted || authState.running || authState.lastResult === 'success') return;
     authState = { ...authState, note: 'Account status is unavailable. Check the system keyring in Settings, then refresh.' };
@@ -2486,7 +2489,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => { void showLauncher(); });
 }).catch((error) => {
   console.error(error);
-  if (startupRequest.gameId && primaryInstance) dialog.showErrorBox('Unable to start xboks', error instanceof Error ? error.message : String(error));
+  if (startupRequest.gameId && primaryInstance) dialog.showErrorBox('Unable to start XBOKS', error instanceof Error ? error.message : String(error));
   app.quit();
 });
 

@@ -5,11 +5,11 @@ body:
   - type: markdown
     attributes:
       value: |
-        This tracker is for **xboks**, an independent, unofficial project, not upstream Xodus.
+        This tracker is for **XBOKS**, an independent, unofficial project, not upstream Xodus.
         Report **one game per issue**. For installation or ownership errors, use **Launcher, account or download problem**.
 
         Reproduce the failure, then attach both:
-        - **Backend log:** Settings → xboks Engine → Open backend diagnostic log → Copy log. Save as `backend.txt`.
+        - **Backend log:** Settings → XBOKS Engine → Open backend diagnostic log → Copy log. Save as `backend.txt`.
         - **Game log:** open the game page, expand **Launch failed** or **Game exited**, then choose **Open diagnostic log**.
           Copy the text and save as `game.txt`. For a crash, temporarily enable **Settings → Advanced → Game logging →
           Verbose game logs**, click **Save diagnostics**, reproduce once, then turn verbose logging off again.
@@ -45,15 +45,15 @@ body:
   - type: input
     id: backend-version
     attributes:
-      label: xboks backend version
-      description: Settings → xboks Engine. This is updated separately from the launcher.
+      label: XBOKS backend version
+      description: Settings → XBOKS Engine. This is updated separately from the launcher.
       placeholder: 0.2.8
     validations:
       required: true
   - type: input
     id: runtime-version
     attributes:
-      label: xboks runtime version
+      label: XBOKS runtime version
       description: Copy the active runtime name/version from Settings, not "latest". Describe any custom runtime below.
       placeholder: Exact active runtime name/version
     validations:
@@ -90,7 +90,7 @@ body:
     attributes:
       label: Launcher installation
       options:
-        - AppImage from xboks GitHub Releases
+        - AppImage from XBOKS GitHub Releases
         - Built from source (include commit below)
         - Other (describe below)
     validations:
@@ -107,7 +107,7 @@ body:
     id: reproduction
     attributes:
       label: Steps to reproduce
-      description: Explain how to reach the failure, whether it happens every time, and whether the game previously worked with xboks.
+      description: Explain how to reach the failure, whether it happens every time, and whether the game previously worked with XBOKS.
       placeholder: "1. Launch ...\n2. Choose ...\n3. The error appears ..."
     validations:
       required: true

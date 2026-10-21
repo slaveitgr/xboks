@@ -25,7 +25,7 @@ export async function fetchEngineRelease(fetcher: typeof fetch, input: string, i
   const safeUrl = (value: URL) => value.protocol === 'https:' && !value.username && !value.password && !value.port && !value.hash;
   const api = url.hostname === 'api.github.com' && url.pathname === `/repos/${repository}/releases`;
   const asset = url.hostname === 'github.com' && new RegExp(`^/${repository}/releases/download/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`).test(url.pathname);
-  if (!safeUrl(url) || !api && !asset || init.method && init.method !== 'GET' || init.body) throw Error('Unexpected xboks Engine release request.');
+  if (!safeUrl(url) || !api && !asset || init.method && init.method !== 'GET' || init.body) throw Error('Unexpected XBOKS Engine release request.');
   const headers = new Headers(init.headers);
   // No account credentials belong on public binary/checksum requests.
   if (headers.has('authorization') || headers.has('cookie')) throw Error('Credentials cannot be sent to the release channel.');
@@ -38,9 +38,9 @@ export async function fetchEngineRelease(fetcher: typeof fetch, input: string, i
     if (!redirectStatus.has(response.status)) return response;
     const location = response.headers.get('location');
     await response.body?.cancel();
-    if (api || !location || redirects === 5) throw Error('Unexpected xboks Engine release redirect.');
+    if (api || !location || redirects === 5) throw Error('Unexpected XBOKS Engine release redirect.');
     const next = new URL(location, url);
-    if (!safeUrl(next) || !assetHosts.has(next.hostname)) throw Error('Unexpected xboks Engine asset redirect destination.');
+    if (!safeUrl(next) || !assetHosts.has(next.hostname)) throw Error('Unexpected XBOKS Engine asset redirect destination.');
     url = next;
   }
   throw Error('Too many release redirects.');

@@ -120,7 +120,7 @@ let baseMetadata = {};
 try { baseMetadata = JSON.parse(await fs.readFile(path.join(options.base, 'XODUS_NEXUS_PATCH.json'), 'utf8')); }
 catch (e) { if (e.code !== 'ENOENT') throw e; }
 const metadata = {
-  ...manifest, name: 'xboks Engine runtime',
+  ...manifest, name: 'XBOKS Engine runtime',
   description: 'Pinned shared XGameRuntime and HTTP/2 compatibility line. Experimental; see limitations.',
   features: [...new Set([...(baseMetadata.features ?? []), 'cloud-saves-pr28', 'xodus-tcp-bridge-v1', 'package-locale', 'xuser-contract-v1', 'wine-winhttp-http2-v1', 'nghttp2-v1', 'winrt-json-v1', 'xasync-provider-contract-v1', 'xtaskqueue-lifecycle-v1', 'playfab-package-save-folder-v1', 'xstore-entitlements-v1', 'xpackage-content-v1', 'xstore-package-license-v1', ...(mediaMetadata ? ['bundled-ffmpeg-media-v1'] : [])])],
   baseWineSha256, patchedDllSha256: manifest.components['xgameruntime.dll'],

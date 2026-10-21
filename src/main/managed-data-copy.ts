@@ -112,7 +112,7 @@ async function copyScope(scope: Scope, stagingRoot: string, finalRoot: string, s
         if (existing) await fs.link(existing, destination);
         else {
           // FICLONE is an optimization only. The normal real copy remains the
-          // fallback, and neither path hardlinks mutable destination data to Nexus.
+          // fallback, and neither path hardlinks mutable destination data to the source installation.
           await fs.copyFile(`/proc/self/fd/${handle.fd}`, destination, constants.COPYFILE_EXCL | constants.COPYFILE_FICLONE);
           await fs.chmod(destination, node.stat.mode & 0o755);
           const copied = await fs.lstat(destination);
@@ -205,7 +205,7 @@ export class ManagedDataCopyPlan {
   }
 }
 
-/** Explicit offline copy for an already-owned xboks profile that still selects
+/** Explicit offline copy for an already-owned XBOKS profile that still selects
  * the exact shared legacy runtime root. Never runs automatically at startup. */
 export async function planManagedDataCopy(options: ManagedDataCopyOptions = {}): Promise<ManagedDataCopyPlan> {
   if (process.platform !== 'linux') throw Error('Offline managed data copies require Linux.');

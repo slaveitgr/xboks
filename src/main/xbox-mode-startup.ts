@@ -161,7 +161,7 @@ export class XboxModeStartup {
     await this.bootId();
   }
   private entry(intent: Intent): Buffer {
-    return Buffer.from(`[Desktop Entry]\nType=Application\nName=xboks Xbox mode\nExec=${desktopExec(intent.launchArguments)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-Xboks-Xbox-Mode-Intent=${intent.id}\n`);
+    return Buffer.from(`[Desktop Entry]\nType=Application\nName=XBOKS Xbox mode\nExec=${desktopExec(intent.launchArguments)}\nTerminal=false\nX-GNOME-Autostart-enabled=true\nX-Xboks-Xbox-Mode-Intent=${intent.id}\n`);
   }
   private intent(file: OwnedFile): Intent {
     let value: Intent;

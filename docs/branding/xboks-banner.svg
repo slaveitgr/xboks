@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-labelledby="title desc">
-<title id="title">xboks — The familiar gaming experience. On Linux.</title>
-<desc id="desc">A dark banner with the xboks wordmark and a green accent.</desc>
+<title id="title">XBOKS — The familiar gaming experience. On Linux.</title>
+<desc id="desc">A dark banner with the XBOKS wordmark and a green accent.</desc>
 <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101815"/><stop offset="1" stop-color="#1b1d1f"/></linearGradient><radialGradient id="glow"><stop stop-color="#9bf00b" stop-opacity=".15"/><stop offset="1" stop-color="#9bf00b" stop-opacity="0"/></radialGradient></defs>
 <rect width="1280" height="360" rx="20" fill="url(#bg)"/>
 <ellipse cx="1100" cy="130" rx="400" ry="300" fill="url(#glow)"/>
 <rect x="76" y="74" width="7" height="128" rx="3" fill="#9bf00b"/>
-<g font-family="Segoe UI,Arial,sans-serif" fill="#fff"><text x="108" y="160" font-size="96" font-weight="700" letter-spacing="-5">xboks</text><text x="110" y="220" font-size="28" fill="#e2e5e2">The familiar gaming experience. On Linux.</text><text x="110" y="284" font-size="17" fill="#a8b3ac" letter-spacing="2">XBOX MODE UI · LINUX DESKTOP · CONTROLLER FIRST</text></g>
+<g font-family="Segoe UI,Arial,sans-serif" fill="#fff"><text x="108" y="160" font-size="96" font-weight="700" letter-spacing="-3">XBOKS</text><text x="110" y="220" font-size="28" fill="#e2e5e2">The familiar gaming experience. On Linux.</text><text x="110" y="284" font-size="17" fill="#a8b3ac" letter-spacing="2">XBOX MODE UI · LINUX DESKTOP · CONTROLLER FIRST</text></g>
 </svg>

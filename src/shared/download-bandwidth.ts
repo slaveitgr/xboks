@@ -8,7 +8,7 @@ export function downloadLimitKiB(value: unknown): number {
 export function downloadLimitArgs(value: unknown, capabilities: Pick<BackendCapabilities, 'streamingBandwidthLimit'>): string[] {
   const kib = downloadLimitKiB(value);
   if (!capabilities.streamingBandwidthLimit) {
-    if (kib) throw Error('Update the xboks Engine in Settings to use the configured download speed limit. The download was not started without its limit.');
+    if (kib) throw Error('Update the XBOKS Engine in Settings to use the configured download speed limit. The download was not started without its limit.');
     return [];
   }
   return ['--download-limit-kib', String(kib)];

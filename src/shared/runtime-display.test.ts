@@ -11,19 +11,19 @@ describe('runtimeDisplay', () => {
     expect(nexusRuntimeUpdateAvailable({ ...runtime, nexusAvailable: false })).toBe(false);
     expect(nexusRuntimeUpdateAvailable({ ...runtime, nexusName: undefined })).toBe(false);
   });
-  it('uses the installed Nexus version, not an available update', () => {
+  it('uses the installed Engine version, not an available update', () => {
     const runtime = demoSnapshot().runtime;
     runtime.name = 'xodus-nexus-runtime-11.0-20261011-g3fd4ae10';
     runtime.nexusVersion = 'runtime-11.0-newer';
-    expect(runtimeDisplay(runtime)).toEqual({ title: 'xboks Engine runtime', source: 'xboks Engine runtime', version: '11.0-20261011-g3fd4ae10' });
+    expect(runtimeDisplay(runtime)).toEqual({ title: 'XBOKS Engine runtime', source: 'XBOKS Engine runtime', version: '11.0-20261011-g3fd4ae10' });
   });
   it('recognizes the owned runtime distribution name as managed', () => {
-    expect(runtimeDisplay({ ...demoSnapshot().runtime, name: 'xboks-engine-runtime-11.0-20261021' })).toEqual({ title: 'xboks Engine runtime', source: 'xboks Engine runtime', version: '11.0-20261021' });
+    expect(runtimeDisplay({ ...demoSnapshot().runtime, name: 'xboks-engine-runtime-11.0-20261021' })).toEqual({ title: 'XBOKS Engine runtime', source: 'XBOKS Engine runtime', version: '11.0-20261021' });
   });
   it.each(['proton-xodus-af521bf3-eac-bridge-v1', 'proton-xodus-af521bf3-xgamesave-pr28-0123456789-bridge-v1'])('identifies a legacy patched runtime: %s', name => {
-    expect(runtimeDisplay({ ...demoSnapshot().runtime, name }).source).toBe('xboks Engine runtime');
+    expect(runtimeDisplay({ ...demoSnapshot().runtime, name }).source).toBe('XBOKS Engine runtime');
   });
-  it('does not rename an unmodified upstream runtime to Nexus', () => {
+  it('does not rename an unmodified upstream runtime to XBOKS', () => {
     expect(runtimeDisplay({ ...demoSnapshot().runtime, name: 'xodus-proton-af521bf3' }).source).toBe('Proton snapshot');
   });
   it('does not claim an unknown custom runtime is official', () => {

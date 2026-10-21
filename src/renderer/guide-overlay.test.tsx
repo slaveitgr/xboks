@@ -32,10 +32,10 @@ it('shows capability limits rather than fictitious social data or a stale signed
   expect(html).toContain('Sign in to your Xbox account to load friends and chats'); expect(html).toContain('Xbox party voice is not available in this version.'); expect(html).not.toContain('Online (');
   expect(html).toContain('Not signed in'); expect(html).not.toContain('StalePlayer');
 });
-it('labels capture as the xboks window and disables it when the capture adapter is unavailable', () => {
+it('labels capture as the XBOKS window and disables it when the capture adapter is unavailable', () => {
   const html = render('capture');
-  expect(html).toContain('Captures the xboks window without this overlay');
-  expect(html).toContain('Game video recording and capture outside xboks are not connected yet');
+  expect(html).toContain('Captures the XBOKS window without this overlay');
+  expect(html).toContain('Game video recording and capture outside XBOKS are not connected yet');
   expect(html).toMatch(/class="guide-wide guide-capture" disabled=""/);
   const capture=vi.fn(); vi.stubGlobal('window',{location:{hash:'#desktop-guide'},launcher:{captureLauncher:capture}});
   expect(render('capture')).not.toMatch(/class="guide-wide guide-capture" disabled=""/);

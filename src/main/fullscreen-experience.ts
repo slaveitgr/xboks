@@ -46,7 +46,7 @@ export class FullscreenExperience {
     try {
       if (enabled) {
         if (!this.options.session) await this.refresh();
-        if (requireIntegration && !this.current.available) throw Error(this.current.reason || 'Install and enable the xboks GNOME extension first.');
+        if (requireIntegration && !this.current.available) throw Error(this.current.reason || 'Install and enable the XBOKS GNOME extension first.');
         await this.options.setWindowFullscreen(true);
         // Required integration cannot silently become window-only fullscreen
         // if the extension vanishes while the native transition is awaited.

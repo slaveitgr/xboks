@@ -155,7 +155,7 @@ export async function writeSteamArtwork(config: string, appid: number, artwork: 
 }
 export async function addSteamShortcut(config: string, launch: SteamLaunch, artwork: { cover?: Buffer; wide?: Buffer },
   running = steamRunning): Promise<string> {
-  const stopped = async () => { if (await running()) throw Error('Close Steam completely, then try Add to Steam again. xboks will not close Steam for you.'); };
+  const stopped = async () => { if (await running()) throw Error('Close Steam completely, then try Add to Steam again. XBOKS will not close Steam for you.'); };
   await stopped(); await safeDirectory(config);
   const lockPath = path.join(config, '.xboks-shortcuts.lock');
   const lock = await fs.open(lockPath, 'wx', 0o600).catch(() => { throw Error('Another Steam shortcut update is in progress.'); });

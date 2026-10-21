@@ -1,7 +1,7 @@
 {
   "uuid": "xboks-experience@slaveitgr.github.io",
-  "name": "xboks Fullscreen Experience",
-  "description": "Reversible Xbox mode, native window switcher and xboks Guide focus bridge. GNOME Shell 51 only.",
+  "name": "XBOKS Fullscreen Experience",
+  "description": "Reversible Xbox mode, native window switcher and XBOKS Guide focus bridge. GNOME Shell 51 only.",
   "shell-version": ["51"],
   "session-modes": ["user"],
   "version": 4,

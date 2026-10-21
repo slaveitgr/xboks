@@ -27,12 +27,12 @@ export function KeyringSetup({ disabled = false, compact = false }: { disabled?:
     ? 'Keyring status could not be checked. Open your desktop wallet settings and ensure the wallet is enabled and unlocked.'
     : status?.message ?? 'Checking the system wallet without reading saved credentials…';
   const actions = <div className="button-row">
-    {status?.state === 'needs-setup' && status.canCreate ? <button className="secondary" aria-label="Create wallet" title="Open the system wallet dialog. Choose your password there, not in xboks Engine." disabled={busy || disabled} onClick={() => void check(false, true)}>Create wallet</button> : null}
+    {status?.state === 'needs-setup' && status.canCreate ? <button className="secondary" aria-label="Create wallet" title="Open the system wallet dialog. Choose your password there, not in XBOKS Engine." disabled={busy || disabled} onClick={() => void check(false, true)}>Create wallet</button> : null}
     {status?.canStart || status?.canUnlock ? <button className="secondary" aria-label={status.canUnlock ? 'Unlock wallet' : 'Start keyring service'} title="Start or unlock the installed wallet using its own password window. Security settings are unchanged." disabled={busy || disabled} onClick={() => void check(true)}>{status.canUnlock ? 'Unlock wallet' : compact ? 'Start service' : 'Start keyring service'}</button> : null}
     <button className="secondary" aria-label="Check keyring" title="Check keyring" disabled={busy || disabled} onClick={() => void check()}><RefreshCw />{compact ? null : 'Check keyring'}</button>
   </div>;
   const icon = busy ? <LoaderCircle className="spin" /> : status?.state === 'ready' ? <Check /> : <CircleAlert />;
-  const safety = 'Your wallet provider handles its password window. xboks Engine does not receive the password, enable a disabled wallet or reset stored credentials.';
+  const safety = 'Your wallet provider handles its password window. XBOKS Engine does not receive the password, enable a disabled wallet or reset stored credentials.';
   const gameModeHelp = 'Use Start service or Unlock wallet for this session. Create wallet opens your provider’s setup dialog when no collection exists. If setup is unavailable here, complete it in Desktop Mode.';
   if (compact) {
     const problem = failed || Boolean(status && !['ready', 'stopped'].includes(status.state));

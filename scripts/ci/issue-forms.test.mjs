@@ -101,7 +101,7 @@ test('normal bug routes require actual log attachments, not just screenshots', a
     assert.ok(text.includes('Copy log'));
   }
   const launcher = JSON.stringify(await read('01-launcher-bug'));
-  assert.ok(launcher.includes('Cannot start xboks / logs unavailable'));
+  assert.ok(launcher.includes('Cannot start XBOKS / logs unavailable'));
   for (const word of ['tokens', 'cookies', 'signed URLs', 'saves']) assert.ok(launcher.includes(word));
   const game = await read('02-game-bug');
   required(game, 'game', 'input'); required(game, 'access', 'dropdown');

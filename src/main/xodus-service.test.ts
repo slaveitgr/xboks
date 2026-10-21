@@ -13,7 +13,7 @@ it.each(['credential', 'unknown', 'stdout'])('reports only safe service %s error
     const body = `#!/usr/bin/env node\nprocess.stderr.write('private-account-token\\n');\nprocess.${mode === 'stdout' ? 'stdout' : 'stderr'}.write(${JSON.stringify(marker)});\nprocess.exitCode=1;\n`;
     await fs.writeFile(path.join(root, 'xboks-engine-service'), body, { mode: 0o700 });
     const error = await startXodusService(path.join(root, 'xboks-engine-backend'), path.join(root, 'profile'), () => {}).then(() => '', error => error.message as string);
-    expect(error).toContain(mode === 'credential' ? 'system keyring could not be accessed' : 'xboks Engine account service exited with code 1');
+    expect(error).toContain(mode === 'credential' ? 'system keyring could not be accessed' : 'XBOKS Engine account service exited with code 1');
     expect(error).not.toMatch(/private-account|private-secret/);
     expect(await fs.readdir(path.join(root, 'profile/service-sessions'))).toEqual([]);
   } finally { await fs.rm(root, { recursive: true, force: true }); }

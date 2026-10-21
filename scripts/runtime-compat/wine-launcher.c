@@ -171,7 +171,7 @@ static int visit(int directory, const char *path, int proxy, unsigned depth)
                     copy_fd(proxy, directory, item->d_name)) result = -1;
                 if (alias >= 0) close(alias);
                 if (!result) stagedFds[staged++] = mapped;
-            } else fprintf(stderr, "Nexus runtime: unsupported PlayFab SDK export contract; left unchanged.\n");
+            } else fprintf(stderr, "XBOKS Engine runtime: unsupported PlayFab SDK export contract; left unchanged.\n");
             if (mapped < 0 && source >= 0) close(source);
             free(sdkPath);
             if (result) break;
@@ -184,7 +184,7 @@ static void filter_map(const char *key)
     const char *map = getenv(key);
     if (!map) return;
     char *output = calloc(strlen(map) + 1, 1);
-    if (!output) { perror("Nexus runtime file map"); exit(70); }
+    if (!output) { perror("XBOKS Engine runtime file map"); exit(70); }
     size_t used = 0;
     for (const char *item = map; *item;) {
         const char *end = strchr(item, '|'); if (!end) end = item + strlen(item);
@@ -197,7 +197,7 @@ static void filter_map(const char *key)
         }
         item = *end ? end + 1 : end;
     }
-    if (setenv(key, output, 1)) { perror("Nexus runtime file map"); exit(70); }
+    if (setenv(key, output, 1)) { perror("XBOKS Engine runtime file map"); exit(70); }
     free(output);
 }
 static int version_override(const char *binary, const char *loader)
@@ -207,7 +207,7 @@ static int version_override(const char *binary, const char *loader)
     const char *prefix = getenv("WINEPREFIX");
     struct stat st;
     if (!prefix || prefix[0] != '/' || lstat(prefix, &st) || !S_ISDIR(st.st_mode) || st.st_uid != geteuid() || (st.st_mode & 0022)) {
-        fprintf(stderr, "Nexus runtime: explicit owner-only-write WINEPREFIX required for version override.\n"); return -1;
+        fprintf(stderr, "XBOKS Engine runtime: explicit owner-only-write WINEPREFIX required for version override.\n"); return -1;
     }
     char helper[PATH_MAX];
     if (snprintf(helper, sizeof(helper), "%s/../share/xodus-nexus/compat/gaming-services-version.exe", binary) >= (int)sizeof(helper)) return -1;
@@ -255,11 +255,11 @@ int main(int argc, char **argv)
                 if (dir >= 0 && !fstat(dir, &st) && st.st_uid == geteuid() && !(st.st_mode & 0022)) {
                     /* Backend TempDir inherits umask (often 0755). Seal the
                      * owner-only-write temporary view before staging. */
-                    if (fchmod(dir, 0700)) { perror("Nexus runtime private view"); return 70; }
+                    if (fchmod(dir, 0700)) { perror("XBOKS Engine runtime private view"); return 70; }
                     int lock = openat(dir, ".nexus-pgs-lock", O_CREAT | O_RDWR | O_NOFOLLOW | O_CLOEXEC, 0600);
                     int proxy = open(proxyPath, O_RDONLY | O_CLOEXEC);
                     if (lock < 0 || proxy < 0 || flock(lock, LOCK_EX) || visit(dir, view, proxy, 0)) {
-                        fprintf(stderr, "Nexus runtime: PlayFab staging failed; refusing a partial launch.\n"); return 70;
+                        fprintf(stderr, "XBOKS Engine runtime: PlayFab staging failed; refusing a partial launch.\n"); return 70;
                     }
                     close(proxy); close(lock);
                 }
@@ -281,5 +281,5 @@ int main(int argc, char **argv)
         fprintf(stderr, "NEXUS_BOOTSTRAP sdk=%u appLocal=0\n", staged);
     argv[0] = loader;
     execv(loader, argv);
-    perror("Nexus runtime Wine loader"); return 70;
+    perror("XBOKS Engine runtime Wine loader"); return 70;
 }

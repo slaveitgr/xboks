@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# xboks user installer.
+# XBOKS user installer.
 #
 # One-liner (once the repository is public):
 #   curl -fsS --location --max-redirs 0 https://raw.githubusercontent.com/slaveitgr/xboks/main/scripts/install.sh | bash
@@ -8,7 +8,7 @@
 #   1. Installs system prerequisites with your package manager (skip with
 #      XBOKS_SKIP_DEPS=1): backend sign-in and Electron runtime libraries.
 #      Rust/Cargo/protoc are not needed for the prebuilt backend.
-#   2. Downloads the latest verified xboks AppImage from GitHub Releases.
+#   2. Downloads the latest verified XBOKS AppImage from GitHub Releases.
 #   3. Installs it to ~/.local/opt/xboks, links it into ~/.local/bin
 #      and registers a desktop entry with the app icon.
 #
@@ -113,7 +113,7 @@ if [[ ! -f "$validator" ]]; then
   validator="$install_stage/installer-release.py"
   curl -fsS --proto '=https' --location --max-redirs 0 --max-time 30 --max-filesize 65536 \
     -o "$validator" "https://raw.githubusercontent.com/$REPO/main/scripts/installer-release.py" \
-    || die "Could not load the xboks release validator."
+    || die "Could not load the XBOKS release validator."
 fi
 if [[ -n "$LOCAL_APPIMAGE" ]]; then
   [[ -f "$LOCAL_APPIMAGE" ]] || die "XBOKS_APPIMAGE points to a missing file."
@@ -121,9 +121,9 @@ if [[ -n "$LOCAL_APPIMAGE" ]]; then
   python3 "$validator" --verify-local "$LOCAL_APPIMAGE" || die "Local AppImage validation failed; previous install kept."
   install -m 0755 "$LOCAL_APPIMAGE" "$install_stage/xboks.AppImage"
 else
-  log "Finding and verifying the newest published xboks launcher…"
+  log "Finding and verifying the newest published XBOKS launcher…"
   python3 "$validator" --output "$install_stage/xboks.AppImage" \
-    || die "No verified xboks download was installed; previous install kept."
+    || die "No verified XBOKS download was installed; previous install kept."
 fi
 mv -- "$install_stage/xboks.AppImage" "$target"
 
@@ -138,7 +138,7 @@ ln -sf "$target" "$BIN_DIR/xboks"
 cat > "$DESKTOP_DIR/xboks.desktop" <<EOF
 [Desktop Entry]
 Type=Application
-Name=xboks
+Name=XBOKS
 Comment=Open-source Xbox-inspired game launcher
 Exec="$BIN_DIR/xboks" %U
 Icon=$APP_DIR/icon.png
@@ -153,12 +153,12 @@ case ":$PATH:" in
   *) warn "Add $BIN_DIR to PATH to run 'xboks' from a terminal (usually already in ~/.profile)." ;;
 esac
 
-log "xboks installed."
+log "XBOKS installed."
 cat <<'EOF'
 
 First run:
-  1. Start xboks from your application menu (or: xboks).
-  2. Open Settings -> xboks Engine to configure the backend and runtime.
+  1. Start XBOKS from your application menu (or: xboks).
+  2. Open Settings -> XBOKS Engine to configure the backend and runtime.
      Downloads use slaveitgr/xboks releases and verify published checksums.
      A complete compatible release must exist; there is no upstream fallback
      or automatic source compilation when an owned release is unavailable.

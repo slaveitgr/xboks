@@ -39,7 +39,7 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
     bus_unwatch_name(id) { watches.delete(id); },
   };
   const Meta = { KeyBindingAction: { NONE: 0 }, KeyBindingFlags: { NONE: 0 }, external_binding_name_for_action: id => `external-${id}` };
-  const tracker = new Signals(); tracker.get_window_app = window => ({ get_id: () => window.appId ?? 'xboks.desktop', get_name: () => window.appName ?? 'xboks' });
+  const tracker = new Signals(); tracker.get_window_app = window => ({ get_id: () => window.appId ?? 'xboks.desktop', get_name: () => window.appName ?? 'XBOKS' });
   const Shell = { ActionMode: { NONE: 0, ALL: 0xffff }, WindowTracker: { get_default: () => tracker } };
   const panel = new Actor(true), dash = new Actor(false), dock = new Actor(true, 'dashtodockContainer'), uiGroup = new Actor();
   uiGroup.children = [dock];
@@ -52,7 +52,7 @@ export async function shellFixture({ emergencyAvailable = true, failApply = fals
     sessionMode: session, wm: { allowed: [], allowKeybinding(name, mode) { this.allowed.push([name, mode]); } } };
   class StockPopup { show(backward, binding, mask) { this.stock = {backward, binding, mask}; return 'stock-popup'; } }
   const AltTab = {AppSwitcherPopup: class extends StockPopup {}, WindowSwitcherPopup: class extends StockPopup {}};
-  const display = new Signals(); Object.assign(display, { focus_window: { get_pid: () => 100, get_wm_class: () => 'xboks', get_title: () => 'xboks' },
+  const display = new Signals(); Object.assign(display, { focus_window: { get_pid: () => 100, get_wm_class: () => 'xboks', get_title: () => 'XBOKS' },
     grabbed: [], ungrabbed: [], grab_accelerator(accelerator) { this.grabbed.push(accelerator); return emergencyAvailable ? 42 : 0; },
     ungrab_accelerator(action) { this.ungrabbed.push(action); } });
   class XboksSwitcher {

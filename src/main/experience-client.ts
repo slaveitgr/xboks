@@ -77,7 +77,7 @@ export class GnomeExperienceClient implements ExperienceBridge {
       const message = JSON.parse(line);
       if (!message || typeof message !== 'object') throw Error();
       if (message.event === 'unavailable') {
-        this.fail('The xboks GNOME extension is not installed or enabled.'); return;
+        this.fail('The XBOKS GNOME extension is not installed or enabled.'); return;
       }
       if (typeof message.active !== 'boolean' || typeof message.owned !== 'boolean' || message.owned && !message.active) throw Error();
       const state: ExperienceLease = { available: true, active: message.active, owned: message.owned };
@@ -104,9 +104,9 @@ export class GnomeExperienceClient implements ExperienceBridge {
       }
       clearTimeout(request.timer); this.pending.delete(message.id);
       this.publish(message.ok === false && message.error === 'unavailable'
-        ? { available: false, active: false, owned: false, reason: 'The xboks GNOME extension is not installed or enabled.' } : state);
+        ? { available: false, active: false, owned: false, reason: 'The XBOKS GNOME extension is not installed or enabled.' } : state);
       if (message.ok) request.resolve({ ...reply, ...this.current });
-      else request.reject(Error('GNOME could not change Xbox mode. Keep xboks focused and check that the extension is enabled.'));
+      else request.reject(Error('GNOME could not change Xbox mode. Keep XBOKS focused and check that the extension is enabled.'));
     } catch { this.dispose(); }
   }
   async request(method: 'state' | 'enter' | 'leave'): Promise<ExperienceLease> {

@@ -1,4 +1,4 @@
-name: xboks Engine runtime build
+name: XBOKS Engine runtime build
 
 on:
   push:

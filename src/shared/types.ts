@@ -79,7 +79,7 @@ export interface RuntimeStatus {
   artifactName?: string;
   artifactExpiresAt?: string;
   artifactAvailable: boolean;
-  // Owned xboks Engine release channel. Legacy field names remain for stored
+  // Owned XBOKS Engine release channel. Legacy field names remain for stored
   // snapshots and IPC compatibility; consumer downloads use slaveitgr/xboks.
   nexusAvailable?: boolean;
   nexusName?: string;

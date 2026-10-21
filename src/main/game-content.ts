@@ -88,7 +88,7 @@ export function contentOffers(base: Manifest, catalog: unknown, access: Access):
     const pkg = [...unique.values()][0];
     const downloadBytes = Number.isSafeInteger(pkg.MaxDownloadSizeInBytes) && pkg.MaxDownloadSizeInBytes > 0 ? pkg.MaxDownloadSizeInBytes : undefined;
     selected.push({ productId: id, contentId: pkg.ContentId.toLowerCase(), family: pkg.PackageFamilyName, downloadBytes });
-    return { productId: id, title, access: licensed, status: 'available', downloadBytes, note: 'Install-time licensing is checked again by xboks Engine.' };
+    return { productId: id, title, access: licensed, status: 'available', downloadBytes, note: 'Install-time licensing is checked again by XBOKS Engine.' };
   });
   return { items, packages: selected };
 }

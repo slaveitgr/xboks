@@ -24,7 +24,7 @@ const dependencies = execFileSync('ldd', [plugin], { env, encoding: 'utf8' });
 if (dependencies.includes('not found')) throw new Error(`Bundled GStreamer libav has missing dependencies:\n${dependencies}`);
 for (const soname of ['libavcodec.so.58', 'libavfilter.so.7', 'libavformat.so.58', 'libavutil.so.56']) {
   const line = dependencies.split('\n').find(item => item.includes(`${soname} => `));
-  if (!line?.includes(`=> ${libraryDir}/${soname} `)) throw new Error(`${soname} is not resolved from the Nexus runtime.`);
+  if (!line?.includes(`=> ${libraryDir}/${soname} `)) throw new Error(`${soname} is not resolved from the XBOKS Engine runtime.`);
 }
 const flags = execFileSync('pkg-config', ['--cflags', '--libs', 'gstreamer-1.0'], { encoding: 'utf8' }).trim().split(/\s+/);
 const probe = path.join(work, 'media-codecs-probe');

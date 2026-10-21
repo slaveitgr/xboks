@@ -61,7 +61,7 @@ const watchdog = setTimeout(() => { console.error('Fullscreen IPC smoke timed ou
 await import(pathToFileURL(join(root, 'dist-electron/main/index.js')).href);
 async function run() {
   try {
-    await wait(() => { main = BrowserWindow.getAllWindows().find(window => window.getTitle() === 'xboks'); return main && !main.webContents.isLoading(); }, 'production main window load', 15000);
+    await wait(() => { main = BrowserWindow.getAllWindows().find(window => window.getTitle() === 'XBOKS'); return main && !main.webContents.isLoading(); }, 'production main window load', 15000);
     await wait(() => evaluate(main, `typeof window.launcher?.setWindowFullscreen === 'function'`), 'production preload API');
     main.on('enter-full-screen', () => report.nativeEvents.push('enter'));
     main.on('leave-full-screen', () => report.nativeEvents.push('leave'));

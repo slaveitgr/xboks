@@ -5,6 +5,14 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.23 — 2026-10-21
+
+- Introduce the XBOKS name and owner-supplied green sphere logo across the launcher, application menu, tray, desktop entries and project presentation. Preserve existing install paths, accounts, games and runtime compatibility IDs.
+- Rewrite the English and Greek README around current features, setup, roadmap and an actual-application screenshot gallery. Keep source/license attribution in the dedicated notices and About page.
+- Keep the native Guide window identity compatible with already-loaded GNOME extensions; updated matchers accept either display-title casing.
+- Support older GJS Unix-signal APIs in the Spotify and desktop-experience helpers while preserving bounded shutdown and service ownership checks.
+- Reset inherited publication approvals: future XBOKS stable artifacts require their own exact-candidate approval. Runtime helper display labels are updated in source; this does not replace an installed compatibility runtime.
+
 ## 0.3.22 — 2026-10-21
 
 - Rebuild Store navigation from the original client/package evidence: centered Minecraft editorial fallback, five category shortcuts, measured game shelves, real public PC/Top paid/Add-ons galleries, pagination and product-specific details. Cloud wishlist remains unavailable until its authenticated provider is connected; code redemption opens Microsoft's official account flow.

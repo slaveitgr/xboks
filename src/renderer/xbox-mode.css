@@ -1,4 +1,4 @@
-/* Xbox app 2610.1001.20.0 reference, reconstructed for the Nexus renderer. */
+/* Xbox app 2610.1001.20.0 reference, reconstructed for the XBOKS renderer. */
 .xbox-mode.app-shell { grid-template-columns: 68px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
 .xbox-mode .sidebar { padding: 8px; gap: 12px; border: 0; background: #25282a; align-items: stretch; }
 .xbox-mode .account-summary { width: 52px; height: 44px; margin: 0; padding: 0; display: flex; justify-content: center; }

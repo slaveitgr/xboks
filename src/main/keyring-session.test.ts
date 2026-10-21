@@ -106,7 +106,7 @@ it.each(['error', 'exit'])('reports only a fixed error if systemd-run fails (%s)
   mocks.spawn.mockImplementation(() => { const child = Object.assign(new EventEmitter(), { kill: vi.fn() }); queueMicrotask(() => child.emit(event, event === 'error' ? Error('private error') : 1)); return child; });
   await expect(startSessionKeyring('ksecretd', source, async () => false)).rejects.toThrow('Could not start system keyring provider');
 });
-it('bounds a stalled systemd client without leaving xboks Engine waiting indefinitely', async () => {
+it('bounds a stalled systemd client without leaving XBOKS Engine waiting indefinitely', async () => {
   vi.useFakeTimers();
   const child = Object.assign(new EventEmitter(), { kill: vi.fn() }); mocks.spawn.mockReturnValue(child);
   try {

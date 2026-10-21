@@ -61,7 +61,7 @@ export async function startSessionKeyring(provider: KdeProvider, source: NodeJS.
   const managerBus = await fs.lstat(path.join(runtime, 'bus'));
   if (!directory.isDirectory() || directory.uid !== process.getuid?.() || (directory.mode & 0o077)
     || !managerBus.isSocket() || managerBus.uid !== process.getuid?.()) throw Error('Unavailable user manager');
-  // A provider forked from Steam remains in its reaper even after xboks Engine exits.
+  // A provider forked from Steam remains in its reaper even after XBOKS Engine exits.
   // A transient user service belongs to the graphical session, not the game.
   // Start with an empty service environment: neither Steam nor stale manager Qt
   // settings, loader paths or unrelated credentials belong in this process.
@@ -84,12 +84,12 @@ export async function startSessionKeyring(provider: KdeProvider, source: NodeJS.
       `DBUS_SESSION_BUS_ADDRESS=${env.DBUS_SESSION_BUS_ADDRESS}`, stopHelper, 'keyring-session-stop', '--provider-pid']
       .map(unitWord).join(' ');
     // MAINPID is the systemd-owned provider, never a renderer-supplied PID.
-    // The native helper rechecks its UID, executable, xboks Engine cgroup and unique
+    // The native helper rechecks its UID, executable, XBOKS Engine cgroup and unique
     // bus owner, then waits for Qt's normal exit to flush pending wallet writes.
     stopProperties.push(`--property=ExecStop=${command} \${MAINPID}`, '--property=TimeoutStopSec=12s');
   }
   const args = ['--user', '--collect', '--service-type=exec', '--expand-environment=no', '--quiet',
-    '--description=xboks Engine session wallet',
+    '--description=XBOKS Engine session wallet',
     `--unit=xboks-keyring-${randomUUID()}`, '--property=PartOf=graphical-session.target',
     '--property=StandardOutput=null', '--property=StandardError=null', ...stopProperties, '--',
     '/usr/bin/env', '-i', 'PATH=/usr/bin:/bin', ...assignments, binary];

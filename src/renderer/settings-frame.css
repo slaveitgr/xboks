@@ -35,7 +35,7 @@
 html[data-hide-background] .dashboard-home::before { display: none; }
 html[data-reduce-motion] *, html[data-reduce-motion] *::before, html[data-reduce-motion] *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 @media (max-width: 700px) { .xbox-settings-backdrop { padding: 8px; } .xbox-settings-dialog { width: calc(100vw - 16px); height: calc(100vh - 16px); grid-template-columns: 150px minmax(0, 1fr); border-radius: 12px; } .xbox-settings-nav { padding: 16px 8px; } .xbox-settings-nav button { font-size: 12px; padding: 10px 8px; } .xbox-settings-content { padding: 42px 14px 24px; } }
-/* Override inherited compact Nexus form sizing inside the reference modal. */
+/* Override inherited compact form sizing inside the reference modal. */
 .xbox-settings-dialog .xbox-settings-content .form-grid { grid-template-columns: minmax(0, 1fr); }
 .xbox-settings-dialog .settings-heading p { font-size: 14px; line-height: 1.5; white-space: normal; overflow: visible; text-overflow: clip; }
 .xbox-settings-dialog .form-grid label { font-size: 14px; font-weight: 400; }

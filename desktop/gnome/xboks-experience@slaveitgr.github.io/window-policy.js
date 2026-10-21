@@ -25,7 +25,7 @@ export class ExperienceWindowPolicy {
         try {
             return window.get_window_type() === Meta.WindowType.NORMAL && !window.skip_taskbar &&
                 !window.is_attached_dialog() && !window.get_transient_for() && !window.is_override_redirect() &&
-                window.get_title() !== 'xboks Game Bar' &&
+                !['XBOKS Game Bar', 'xboks Game Bar'].includes(window.get_title()) &&
                 Boolean(Shell.WindowTracker.get_default().get_window_app(window));
         } catch { return false; }
     }
@@ -128,9 +128,9 @@ export class ExperienceWindowPolicy {
                 // Meta51 exposes no can_fullscreen() method. Ask Mutter and
                 // inspect the actual state; never claim success for a refusal.
                 try { window.make_fullscreen(); }
-                catch (error) { this._warn(`xboks Experience native fullscreen request: ${error.message}`); }
+                catch (error) { this._warn(`XBOKS Experience native fullscreen request: ${error.message}`); }
                 record.supported = window.is_fullscreen();
-                if (!record.supported) this._warn('xboks Experience: native fullscreen refused; using available maximize state.');
+                if (!record.supported) this._warn('XBOKS Experience: native fullscreen refused; using available maximize state.');
             }
             if (!window.is_fullscreen() && window.can_maximize() && window.get_maximize_flags() !== Meta.MaximizeFlags.BOTH) {
                 changed = true; window.maximize();
@@ -138,7 +138,7 @@ export class ExperienceWindowPolicy {
         } catch (error) {
             // Closure races and a client refusing a state request must not stop
             // restoration for other windows or leave a recursive notify loop.
-            this._warn(`xboks Experience window policy: ${error.message}`);
+            this._warn(`XBOKS Experience window policy: ${error.message}`);
         } finally {
             record.changing = false;
             // Mutter51 set_fullscreen_state raises even an unfocused window.
@@ -155,7 +155,7 @@ export class ExperienceWindowPolicy {
 
     _restore(record) {
         const {window} = record;
-        const attempt = callback => { try { callback(); } catch (error) { this._warn(`xboks Experience window restoration: ${error.message}`); } };
+        const attempt = callback => { try { callback(); } catch (error) { this._warn(`XBOKS Experience window restoration: ${error.message}`); } };
         // Meta51 flag setters process a real geometry config; set adds axes
         // and unset removes axes. They do not merely mark local state bits.
         // Disconnect first, so restoration cannot be interpreted as a request

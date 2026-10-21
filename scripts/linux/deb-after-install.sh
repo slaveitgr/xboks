@@ -6,7 +6,7 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 APP_DIR='/opt/xboks'
 PARENT_DIR='/opt'
-fail() { printf '%s\n' "xboks sandbox setup failed: $*" >&2; exit 1; }
+fail() { printf '%s\n' "XBOKS sandbox setup failed: $*" >&2; exit 1; }
 case "${1-}" in configure) ;; *) exit 0 ;; esac
 [ "$(id -u)" = 0 ] || fail 'the native package must be configured by the package manager as root.'
 

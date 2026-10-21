@@ -18,7 +18,7 @@ int main(int argc, char **argv)
         if (!error) error = RegSetValueExW(key, L"AvailableVersion", 0, REG_QWORD, (const BYTE *)&version, sizeof(version));
         RegCloseKey(key);
     }
-    if (error) { fprintf(stderr, "Nexus runtime: version override failed (%ld).\n", error); return 70; }
-    fprintf(stderr, "Nexus runtime: TEMPORARY Gaming Services version override 38.117.27001.0; not an installed Microsoft service.\n");
+    if (error) { fprintf(stderr, "XBOKS Engine runtime: version override failed (%ld).\n", error); return 70; }
+    fprintf(stderr, "XBOKS Engine runtime: TEMPORARY Gaming Services version override 38.117.27001.0; not an installed Microsoft service.\n");
     return 0;
 }
