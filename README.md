@@ -96,7 +96,7 @@ Cloud navigation now stays in the application. Public catalog data provides artw
 
 **Cloud settings → Country for cloud sign-in** offers Automatic, Poland, United States, Brazil, Japan and South Korea. Automatic sends no override. The optional compatibility choice follows the login-only technique documented by Better xCloud; it does not create a VPN, route traffic through another country or provide a subscription. Existing-account catalog/MRU reads and the limited live media check below have passed; sustained gameplay remains unverified. End an active cloud session before changing the preference. The same setting is available under **Settings → Application**.
 
-A limited live **Forza Horizon 5** probe used the production **XBOKS Engine 0.3.1** binary included in this candidate ([manifest](assets/social-backend/manifest.json)). WebRTC connected, **18 video frames decoded at 1920×1080**, and 796,521 video bytes plus 61,407 audio RTP bytes were received. The probe deleted its own server session successfully (HTTP 200) and exited cleanly. Only neutral input was sent. Audible audio, physical-controller input, long sessions, reconnection and other games remain unverified.
+A limited live **Forza Horizon 5** probe used the production **XBOKS Engine 0.3.1** binary included in this candidate ([build recipe](assets/backend-source.lock.json), [validation](docs/analysis/cloud-player-interop.md#live-forza-horizon-5-acceptance)). WebRTC connected, **18 video frames decoded at 1920×1080**, and 796,521 video bytes plus 61,407 audio RTP bytes were received. The probe deleted its own server session successfully (HTTP 200) and exited cleanly. Only neutral input was sent. Audible audio, physical-controller input, long sessions, reconnection and other games remain unverified.
 
 ### Console Remote Play inside XBOKS
 
@@ -158,7 +158,7 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 ## Roadmap
 
 - Broader game-by-game install-to-launch validation and clearer compatibility reports.
-- Live cloud and Xbox One X video/audio/controller acceptance, the additional console-transfer ticket handshake, and verified console remote-management controls.
+- Sustained cloud and Xbox One X video/audio/controller acceptance, broader transfer-handshake validation, and verified console remote-management controls.
 - Xbox party signaling and voice transport, followed by cross-device testing.
 - Additional service-backed Store, social, and account capabilities, including wishlist support.
 - Reliable external-game capture and desktop widget pinning.
