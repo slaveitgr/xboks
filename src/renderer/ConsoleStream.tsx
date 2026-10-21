@@ -26,6 +26,7 @@ export function ConsoleStreamHost({bridge = typeof window === 'undefined' ? unde
   const root = useRef<HTMLDivElement>(null), player = useRef<CloudPlayerHandle>(), previous = useRef<HTMLElement | null>(null);
   const stateRef = useRef(state), revision = useRef(0), stopping = useRef<{id?: string}>(), inputOwner = useRef(Symbol('console-stream'));
   const controlsRef = useRef(true), obscured = useStreamObscured(state.phase !== 'closed');
+  const preparing = ['starting','provisioning'].includes(state.phase);
   stateRef.current = state;
   useEffect(() => observeConsoleSession(bridge, value => {revision.current++; stateRef.current = value; setState(value);}), [bridge]);
   useEffect(() => {
@@ -42,21 +43,26 @@ export function ConsoleStreamHost({bridge = typeof window === 'undefined' ? unde
     return () => {if (previous.current?.isConnected) previous.current.focus({preventScroll: true});};
   }, [state.phase === 'closed']);
   useEffect(() => {
-    if (!state.id || !['starting','provisioning'].includes(state.phase) || !bridge?.getConsoleStreamState) return;
+    if (!state.id || !preparing || !bridge?.getConsoleStreamState) return;
+    const id = state.id;
     let cancelled = false; let timer: ReturnType<typeof setTimeout>;
+    const ownsSession = () => !cancelled && stateRef.current.id === id;
     const poll = async () => {
-      const before = revision.current;
+      const before = revision.current; let failed = false;
       try {
-        const value = await bridge.getConsoleStreamState!(state.id);
-        if (!cancelled && before === revision.current && stateRef.current.id === state.id) {
-          stateRef.current = value; setState(value);
-          if (['starting','provisioning'].includes(value.phase)) timer = setTimeout(poll, 2000);
-        }
-      } catch {if (!cancelled && before === revision.current) setConnection('error');}
+        const value = await bridge.getConsoleStreamState!(id);
+        if (ownsSession() && before === revision.current && (value.id === id || value.phase === 'closed' && !value.id)) {stateRef.current = value; setState(value);}
+      } catch {
+        if (ownsSession() && before === revision.current) {failed = true; setConnection('error');}
+      } finally {
+        // A state push sent before the IPC reply supersedes its value, not the
+        // next poll. The loop belongs to the still-preparing current session.
+        if (!failed && ownsSession() && ['starting','provisioning'].includes(stateRef.current.phase)) timer = setTimeout(poll, 2000);
+      }
     };
     timer = setTimeout(poll, 1000);
     return () => {cancelled = true; clearTimeout(timer);};
-  }, [state.id, state.phase, bridge]);
+  }, [state.id, preparing, bridge]);
   useEffect(() => {
     if (state.phase !== 'ready' || !state.id || !bridge?.exchangeConsoleStreamSdp || !bridge.exchangeConsoleStreamIce) return;
     const controller = new AbortController(), container = document.getElementById('xboks-console-video');

@@ -89,7 +89,7 @@ async function jsonBody(response: Response, limit = MAX_JSON): Promise<unknown> 
 }
 class CloudHttpError extends Error { constructor(readonly status: number, readonly providerCode?: CloudDiagnosticEvent['providerCode']) { super('Cloud service request failed.'); } }
 interface Offering { origin: string; token: string; until: number }
-interface ActiveSession { id: string; provider: string; productId: string; offering: Offering; generation: number; created: number; transferAt?: number }
+interface ActiveSession { id: string; provider: string; productId: string; offering: Offering; generation: number; created: number; transferAt?: number; heartbeatPending?: boolean }
 
 /** Same-account SSO and signaling. Neither bearer credentials nor service URLs cross the launcher boundary. */
 export class CloudAccountService {
@@ -108,11 +108,13 @@ export class CloudAccountService {
   private launchRevision = 0;
   private pollSession?: ActiveSession;
   private keepalive?: ReturnType<typeof setInterval>;
+  private cleanups = new Map<string, Promise<void>>();
   private value: CloudSessionState = { phase: 'closed' };
   private history: CloudDiagnosticEvent[] = [];
   constructor(private options: { changed?: (state: CloudSessionState) => void; diagnostic?: (event: CloudDiagnosticEvent) => void; reader?: CloudCredentialReader; transferReader?: CloudTransferReader; fetcher?: typeof fetch; now?: () => number } = {}) {}
   private now() { return this.options.now?.() ?? Date.now(); }
   get state(): CloudSessionState { return { ...this.value }; }
+  get cleanupPending(): boolean {return this.cleanups.size > 0;}
   get diagnostics(): CloudDiagnosticEvent[] {return this.history.map(row => ({...row}));}
   private diagnostic(value: CloudDiagnosticEvent): void {
     const safe = safeCloudDiagnostic(value); if (!safe) return;
@@ -136,7 +138,7 @@ export class CloudAccountService {
     this.starting = false; this.pollSession = undefined; clearInterval(this.keepalive); this.keepalive = undefined;
     this.account = account; this.binary = binary;
     this.publish({ phase: 'closed' });
-    if (old) void this.deleteSession(old);
+    if (old) void this.cleanupSession(old);
   }
   private valid(generation: number) { if (generation !== this.generation || this.controller.signal.aborted) throw Error('Cloud account changed.'); }
   private async request(url: string, options: { method?: string; body?: unknown; token?: string; signal?: AbortSignal; headers?: Record<string, string> } = {}): Promise<{ status: number; value: unknown }> {
@@ -253,13 +255,29 @@ export class CloudAccountService {
       const provider = cloudProviderSessionId(value);
       if (!provider) {this.diagnostic({stage: 'play', outcome: 'invalid-response'}); throw Error('Cloud session response is invalid.');}
       const active: ActiveSession = { id, provider, productId, offering, generation, created: this.now() };
-      if (generation !== this.generation || revision !== this.launchRevision) { void this.deleteSession(active); throw Error('Cloud launch canceled.'); }
+      if (generation !== this.generation || revision !== this.launchRevision) { void this.cleanupSession(active); throw Error('Cloud launch canceled.'); }
       this.active = active;
-      this.keepalive = setInterval(() => { if (this.active === active) void this.request(`${offering.origin}/v5/sessions/cloud/${provider}/keepalive`, { token: offering.token, method: 'POST', body: {} }).catch(() => {}); }, 20_000);
+      this.keepalive = setInterval(() => {void this.heartbeat(active);}, 20_000);
       this.keepalive.unref();
       this.publish({ phase: 'provisioning', id, productId }); return this.getSessionState(id);
     } catch { if (generation === this.generation && revision === this.launchRevision) return this.publish({ phase: 'error', id, productId, error: 'service', ...this.failureDetails() }); return this.state; }
     finally { if (generation === this.generation && revision === this.launchRevision) this.starting = false; }
+  }
+  private async heartbeat(active: ActiveSession): Promise<void> {
+    if (this.active !== active) return;
+    if (this.value.phase !== 'ready' && this.now() - active.created > 15 * 60_000) {
+      this.diagnostic({stage: 'state', outcome: 'timeout'});
+      await this.failSession(active, 'timeout', {errorStage: 'state'}); return;
+    }
+    if (active.heartbeatPending) return;
+    active.heartbeatPending = true;
+    try {
+      await this.request(`${active.offering.origin}/v5/sessions/cloud/${active.provider}/keepalive`, {token: active.offering.token, method: 'POST', body: {}});
+    } catch (error) {
+      if (this.active === active && error instanceof CloudHttpError && [401, 403, 404, 410].includes(error.status))
+        await this.failSession(active, 'service', {errorStage: 'keepalive', httpStatus: error.status});
+      // A transient network or 5xx failure does not prove the stream ended.
+    } finally {active.heartbeatPending = false;}
   }
   async getSessionState(id?: string): Promise<CloudSessionState> {
     if (!this.active) return this.state;
@@ -293,10 +311,11 @@ export class CloudAccountService {
     } catch { if (this.active === active) return this.failSession(active, 'service'); return this.state; }
     finally { if (this.pollSession === active) this.pollSession = undefined; }
   }
-  private async failSession(active: ActiveSession, error: CloudSessionState['error']): Promise<CloudSessionState> {
-    const details = this.failureDetails();
+  private async failSession(active: ActiveSession, error: CloudSessionState['error'], details = this.failureDetails()): Promise<CloudSessionState> {
+    if (this.active !== active) return this.state;
+    const revision = this.launchRevision;
     await this.stop(active.id);
-    if (active.generation !== this.generation || this.value.phase !== 'closed') return this.state;
+    if (active.generation !== this.generation || this.launchRevision !== revision + 1 || this.value.phase !== 'closed') return this.state;
     return this.publish({ phase: 'error', error, ...details });
   }
   private async exchange(active: ActiveSession, endpoint: 'sdp' | 'ice', body: unknown): Promise<unknown> {
@@ -348,10 +367,20 @@ export class CloudAccountService {
   private async deleteSession(active: ActiveSession): Promise<void> {
     try { await this.request(`${active.offering.origin}/v5/sessions/cloud/${active.provider}`, { token: active.offering.token, method: 'DELETE', signal: AbortSignal.timeout(5_000) }); } catch { /* Best-effort service cleanup, never log private responses. */ }
   }
+  private cleanupSession(active: ActiveSession): Promise<void> {
+    const previous = this.cleanups.get(active.id); if (previous) return previous;
+    const job = this.deleteSession(active).finally(() => {if (this.cleanups.get(active.id) === job) this.cleanups.delete(active.id);});
+    this.cleanups.set(active.id, job); return job;
+  }
   async stop(id?: string): Promise<void> {
     const active = this.active;
+    const pending = id === undefined ? undefined : this.cleanups.get(id);
+    // A repeated stop owns only its original deletion, even after replacement.
+    if (pending && id !== active?.id) {await pending; return;}
     if (id !== undefined && id !== (active?.id ?? this.value.id)) throw Error('Cloud session is unavailable.');
     this.launchRevision++; this.starting = false; this.pollSession = undefined; this.active = undefined; clearInterval(this.keepalive); this.keepalive = undefined;
-    this.publish({ phase: 'closed' }); if (active) await this.deleteSession(active);
+    const cleanup = active ? this.cleanupSession(active) : undefined;
+    this.publish({ phase: 'closed' });
+    if (id === undefined) await Promise.all([...this.cleanups.values()]); else await cleanup;
   }
 }

@@ -255,6 +255,84 @@ it('does not send a late purpose proof after cancellation or an account change',
     expect(f.calls.some(row => row.url.endsWith('/connect'))).toBe(false); expect(f.service.state.phase).toBe('closed'); f.service.select();
   }
 });
+it('enforces the existing cloud provisioning deadline even when the renderer stops polling', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture(url => url.endsWith('/state') ? {state: 'Provisioning'} : undefined), state = await f.service.start(PRODUCT);
+    expect(state.phase).toBe('provisioning'); const polls = f.calls.filter(row => row.url.endsWith('/state')).length;
+    f.advance(15 * 60_000 + 1); await vi.advanceTimersByTimeAsync(20_000);
+    expect(f.service.state).toMatchObject({phase: 'error', error: 'timeout', errorStage: 'state'});
+    expect(f.calls.filter(row => row.url.endsWith('/state'))).toHaveLength(polls); expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(true);
+    expect(f.calls.some(row => row.url.endsWith('/keepalive'))).toBe(false); f.service.select();
+  } finally {vi.useRealTimers();}
+});
+it.each([401, 403, 404, 410])('cleans up a terminal HTTP%s heartbeat without exposing its response', async status => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture(url => url.endsWith('/keepalive') ? new Response('private-provider-content', {status}) : undefined);
+    await f.service.start(PRODUCT); await vi.advanceTimersByTimeAsync(20_000);
+    expect(f.service.state).toMatchObject({phase: 'error', error: 'service', errorStage: 'keepalive', httpStatus: status});
+    expect(f.calls.filter(row => row.options.method === 'DELETE')).toHaveLength(1); const count = f.calls.length;
+    await vi.advanceTimersByTimeAsync(40_000); expect(f.calls).toHaveLength(count); expect(JSON.stringify(f.service.state)).not.toContain('private-provider'); f.service.select();
+  } finally {vi.useRealTimers();}
+});
+it.each(['network', 500, 503])('tolerates a transient heartbeat failure %s while keeping a ready stream owned', async failure => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture(url => {if (url.endsWith('/keepalive')) {if (failure === 'network') throw Error('private-network-content'); return new Response(null, {status: failure});}});
+    const state = await f.service.start(PRODUCT); await vi.advanceTimersByTimeAsync(40_000);
+    expect(f.service.state).toEqual(state); expect(f.calls.filter(row => row.url.endsWith('/keepalive'))).toHaveLength(2); expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(false);
+    await f.service.stop(state.id);
+  } finally {vi.useRealTimers();}
+});
+it('does not overlap heartbeats or let a late obsolete heartbeat close a newer cloud session', async () => {
+  vi.useFakeTimers();
+  try {
+    let complete!: (value: Response) => void;
+    const f = fixture(url => url.endsWith('/keepalive') ? new Promise(resolve => {complete = resolve;}) : undefined), first = await f.service.start(PRODUCT);
+    await vi.advanceTimersByTimeAsync(60_000); expect(f.calls.filter(row => row.url.endsWith('/keepalive'))).toHaveLength(1);
+    await f.service.stop(first.id); const next = await f.service.start(SECOND); complete(new Response(null, {status: 410})); await vi.advanceTimersByTimeAsync(0);
+    expect(f.service.state).toEqual(next); expect(f.calls.filter(row => row.options.method === 'DELETE')).toHaveLength(1); await f.service.stop(next.id);
+  } finally {vi.useRealTimers();}
+});
+it('joins an internal heartbeat deletion from repeated Stop and shutdown after the UI has closed', async () => {
+  vi.useFakeTimers();
+  try {
+    let deleted!: (value: unknown) => void;
+    const f = fixture((url, options) => options.method === 'DELETE' ? new Promise(resolve => {deleted = resolve;}) : url.endsWith('/keepalive') ? new Response(null, {status: 410}) : undefined);
+    const state = await f.service.start(PRODUCT); await vi.advanceTimersByTimeAsync(20_000);
+    expect(f.service.state.phase).toBe('closed'); expect(f.service.cleanupPending).toBe(true);
+    let repeatedDone = false, shutdownDone = false;
+    const repeated = f.service.stop(state.id).then(() => {repeatedDone = true;}), shutdown = f.service.stop().then(() => {shutdownDone = true;});
+    await vi.advanceTimersByTimeAsync(0); expect(repeatedDone).toBe(false); expect(shutdownDone).toBe(false);
+    expect(f.calls.filter(row => row.options.method === 'DELETE')).toHaveLength(1);
+    deleted({}); await Promise.all([repeated, shutdown]); await vi.advanceTimersByTimeAsync(0);
+    expect(f.service.cleanupPending).toBe(false); expect(f.service.state).toEqual({phase: 'closed'}); f.service.select();
+  } finally {vi.useRealTimers();}
+});
+it('joining a stopped cloud session never stops or waits on its replacement', async () => {
+  let deleted!: (value: unknown) => void, deletions = 0;
+  const f = fixture((_url, options) => options.method === 'DELETE' && ++deletions === 1 ? new Promise(resolve => {deleted = resolve;}) : undefined);
+  const first = await f.service.start(PRODUCT), stopping = f.service.stop(first.id), next = await f.service.start(SECOND);
+  let oldDone = false; const repeated = f.service.stop(first.id).then(() => {oldDone = true;}); await Promise.resolve();
+  expect(oldDone).toBe(false); expect(f.service.state).toEqual(next); expect(f.calls.filter(row => row.options.method === 'DELETE')).toHaveLength(1);
+  deleted({}); await Promise.all([stopping, repeated]); expect(f.service.state).toEqual(next);
+  await f.service.stop(next.id); expect(f.service.cleanupPending).toBe(false); f.service.select();
+});
+it('retains account-change cleanup for shutdown without publishing the old account again', async () => {
+  let deleted!: (value: unknown) => void;
+  const f = fixture((_url, options) => options.method === 'DELETE' ? new Promise(resolve => {deleted = resolve;}) : undefined);
+  await f.service.start(PRODUCT); f.service.select('other@example.invalid', '/fixture/xboks-engine'); expect(f.service.cleanupPending).toBe(true);
+  let done = false; const shutdown = f.service.stop().then(() => {done = true;}); await Promise.resolve(); expect(done).toBe(false);
+  deleted({}); await shutdown; expect(f.service.cleanupPending).toBe(false); expect(f.service.state).toEqual({phase: 'closed'}); f.service.select();
+});
+it('keeps a late canceled Play deletion joinable by shutdown', async () => {
+  let played!: (value: unknown) => void, deleted!: (value: unknown) => void;
+  const f = fixture((url, options) => url.endsWith('/play') ? new Promise(resolve => {played = resolve;}) : options.method === 'DELETE' ? new Promise(resolve => {deleted = resolve;}) : undefined);
+  const launch = f.service.start(PRODUCT); await vi.waitFor(() => expect(played).toBeTypeOf('function')); await f.service.stop(); played({sessionId: 'provider-private-session'}); await launch;
+  expect(f.service.cleanupPending).toBe(true); let done = false; const shutdown = f.service.stop().then(() => {done = true;}); await Promise.resolve(); expect(done).toBe(false);
+  deleted({}); await shutdown; expect(f.calls.filter(row => row.options.method === 'DELETE')).toHaveLength(1); expect(f.service.cleanupPending).toBe(false); f.service.select();
+});
 it('does not publish an old handshake failure after switching accounts during remote cleanup', async () => {
   let deleted!: (value: unknown) => void;
   const f = fixture((url, options) => options.method === 'DELETE' ? new Promise(resolve => { deleted = resolve; }) : url.endsWith('/state') ? { state: 'ReadyToConnect' } : undefined);

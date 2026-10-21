@@ -5,6 +5,14 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.26 — 2026-10-22
+
+- Fix the full Cloud/Console stream screens stopping their provisioning poll when a state push arrives before the matching IPC response. Continue polling the current pending session while rejecting stale responses and stopping cleanly at readiness, failure or cancellation.
+- Enforce main-process provisioning deadlines independently of renderer polling, and release owned sessions after terminal keepalive responses while tolerating transient service failures.
+- Keep owned cleanup joinable after the screen closes. Shutdown waits for an already pending deletion, and an older failure cannot overwrite a replacement or shutdown state.
+- Add full-application regressions for repeated push-before-response provisioning, player startup and late session isolation. The earlier isolated media probe did not cover this full-screen lifecycle.
+- Check the final full App with live Forza Horizon 5: advancing 1920×1080 video for 15 seconds, Preparing overlay removed, actual End session and awaited owned DELETE 200. Input remained neutral; physical-controller gameplay, audible output and long sessions remain unverified.
+
 ## 0.3.25 — 2026-10-22
 
 - Fix Cloud game details covering the expanded desktop sidebar. Share sidebar/header dimensions across expanded, compact, narrow and Fullscreen Experience layouts.

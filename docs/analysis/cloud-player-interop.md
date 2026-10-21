@@ -104,3 +104,115 @@ This proves cloud provisioning, negotiation and decoded video with the tested
 candidate. It does not establish audible output, gameplay/controller actions,
 reconnection, long-duration stability, every cloud title or console Remote Play
 media. Those remain separate acceptance checks.
+
+## Full application provisioning regression
+
+The preceding media harness exercised the service and player adapter directly;
+it did not exercise the React application's state-polling effect. A subsequent
+0.3.25 application report exposed a race in that effect: main publishes its
+updated session before returning the IPC reply. A same-phase Provisioning push
+advanced the host revision, so the host correctly discarded the older reply but
+also discarded scheduling its next poll. The effect's dependencies had not
+changed, leaving the application at Preparing with only keepalives continuing.
+
+Both Cloud and Console hosts now scope the polling loop to the session and its
+preparing state. A newer push still supersedes an older reply, but scheduling
+uses the current owned session independently of whether that reply was adopted.
+Ready, error, closed, replacement and disposal stop the loop. Cloud session
+entry also resets video, menu, mute and message state so a new Preparing screen
+cannot inherit the prior session's Keep playing menu.
+
+Twenty-two focused component-effect regressions and the nine existing cloud
+host tests pass. A separate full application browser fixture passes 21 checks,
+including both hosts, session replacement and cancellation. That fixture
+reproduces the published 0.3.25 source's one-poll stall and verifies the fixed
+source reaches its simulated handshake. Its peer and media events are explicitly
+simulated; it is separate from live service acceptance.
+
+### Bounded live full application acceptance
+
+The **final full application replay passed**: decoded frames advanced from 17
+to 469 at 1920 × 1080 for 15,426 ms, the loading overlay disappeared, and the
+actual host's End session action completed its awaited DELETE with HTTP 200.
+The first replay and its cleanup limitation are retained separately below.
+
+#### First full application replay
+
+A further private Electron acceptance used the actual App, actual CloudLibrary
+Play with Cloud action, actual CloudStreamHost effect, real player and real
+main-process service. Other app sections used sample snapshots. No harness
+state-polling loop or simulated player participated. The companion and source
+archive are the exact production candidates pinned above. The tested cloud
+host source SHA-256 was
+`468668eae7f7d805ed7a39bfd4d0c0a82651210629da81c9de208cb25b4c885a`.
+
+| Observed full application result | Value |
+| --- | --- |
+| Explicit Play actions | 1 |
+| Host session-state IPC reads | 8 |
+| Same-phase pushes delivered before their replies | 6 |
+| SDP / ICE exchanges | 1 / 1 |
+| Decoded frames at completion | 468 |
+| Video dimensions | 1920 × 1080 |
+| Received video / audio RTP bytes | 32,287,673 / 312,091 |
+| Sustained advancing decoded video | 15,421 ms |
+| Loading overlay removed | Yes |
+| Actual host End session action and UI closure | Yes |
+
+All controller input remained neutral; no gameplay or service dialog was
+accepted. The private harness exited with code 0, but its own cleanup had a
+separate race: the host published Closed while its DELETE promise was pending,
+and the harness attempted another stop before awaiting that existing promise.
+Consequently, **DELETE completion is unconfirmed for this full application
+run**. Its in-memory provider capability was not persisted, so no guessed
+recovery request was made. The private harness was corrected to await its
+owned stop promise before the separately authorized final replay below. The earlier direct
+service/player acceptance's verified DELETE 200 is distinct evidence and does
+not prove cleanup of this later session.
+
+Private aggregate proof retains the exact source and bootstrap checksums and
+the safe counters above. No screenshot or frame from the signed-in session was
+captured or added to the repository.
+
+#### Final full application replay with awaited cleanup
+
+After the service cleanup changes passed their focused tests, one fresh bounded
+replay used the final services and the corrected private harness. The Cloud and
+Console services retain joinable deletion promises, and shutdown can await
+pending cleanup even when an internal terminal-state transition has already
+cleared the active session. The harness retains the actual host stop promise
+and requires a successful owned DELETE before reporting overall success.
+
+This replay again used the actual App, CloudLibrary action, CloudStreamHost
+polling and real player, with a sandboxed narrow IPC bridge to the real main
+service. It reused the signed-in account and production companion above. There
+was no manual state-polling loop, player factory replacement, additional login
+or account transfer from another client.
+
+| Observed final full application result | Value |
+| --- | --- |
+| Explicit Play actions | 1 |
+| Host state reads / same-phase pushes before replies | 5 / 3 |
+| SDP / ICE exchanges | 1 / 1 |
+| First → final decoded frames | 17 → 469 |
+| Sustained advancing decoded video | 15,426 ms |
+| Video dimensions | 1920 × 1080 |
+| Received video / audio RTP bytes | 11,884,682 / 316,951 |
+| Loading overlay removed | Yes |
+| Actual host End session and UI closure | Yes |
+| Awaited owned DELETE | HTTP 200 |
+| Cleanup pending at completion | No |
+| Harness exit | 0 |
+
+The host source SHA remains the value above; the tested final cloud service
+source SHA-256 is
+`765df4a24494df5bbbdeba8c02dff235377bead84a3f8ea9f01483bf05305f3e`.
+Private aggregate proof records 30 exact source, compiled-module, bootstrap and
+companion checksums. Input remained neutral; no service dialog or gameplay
+action was triggered, and no screenshot or video frame was captured.
+
+This final replay verifies its own session's successful cleanup. The earlier
+full application run's unconfirmed DELETE remains a separate limitation; no
+recovery operation on that prior in-memory capability was attempted. Audible
+output, gameplay, reconnection, extended stability and console Remote Play media
+remain outside this bounded acceptance.

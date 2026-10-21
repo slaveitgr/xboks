@@ -303,13 +303,13 @@ function invalidateChangedCloudAccount(): void {
   const identity = JSON.stringify([authState.stored, authState.running, authState.username, backend?.current.binaryPath, currentMarket(), store?.settings.cloudLoginCountry]);
   if (identity !== cloudAccountIdentity) {
     cloudAccountIdentity = identity;
-    if (cloudAccount.state.phase !== 'closed') void stopCloudStreaming().catch(() => {});
+    if (cloudAccount.state.phase !== 'closed' || cloudAccount.cleanupPending) void stopCloudStreaming().catch(() => {});
     cloudAccount.select();
   }
   const consoleIdentity = JSON.stringify([authState.stored, authState.running, authState.username, backend?.current.binaryPath, currentMarket()]);
   if (consoleIdentity !== consoleAccountIdentity) {
     consoleAccountIdentity = consoleIdentity;
-    if (consoleStream.state.phase !== 'closed') void stopConsoleStreaming().catch(() => {});
+    if (consoleStream.state.phase !== 'closed' || consoleStream.cleanupPending) void stopConsoleStreaming().catch(() => {});
     consoleStream.select();
   }
 }
@@ -2676,9 +2676,9 @@ app.on('before-quit', (event) => {
   spotify.dispose();
   remotePlay.destroy();
   cloudGaming.destroy();
-  if (cloudAccount.state.phase !== 'closed') void stopCloudStreaming().catch(() => {});
+  if (cloudAccount.state.phase !== 'closed' || cloudAccount.cleanupPending) void stopCloudStreaming().catch(() => {});
   cloudAccount.select();
-  if (consoleStream.state.phase !== 'closed') void stopConsoleStreaming().catch(() => {});
+  if (consoleStream.state.phase !== 'closed' || consoleStream.cleanupPending) void stopConsoleStreaming().catch(() => {});
   consoleStream.select();
   desktopGuide.destroy();
   installQueue.stop();
@@ -2688,7 +2688,7 @@ app.on('before-quit', (event) => {
   guidePower.clear();
   accountProfile?.cancel();
   accountRefresh.invalidate();
-  if (shutdownStarted || (!cloudStopJob && !consoleStopJob && cloudAccount.state.phase === 'closed' && consoleStream.state.phase === 'closed' && !walletUnlocker.busy && !keyringSupport.busy && !walletTarget && !pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
+  if (shutdownStarted || (!cloudStopJob && !consoleStopJob && !cloudAccount.cleanupPending && !consoleStream.cleanupPending && cloudAccount.state.phase === 'closed' && consoleStream.state.phase === 'closed' && !walletUnlocker.busy && !keyringSupport.busy && !walletTarget && !pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
   event.preventDefault();
   shutdownStarted = true;
   void (async () => {

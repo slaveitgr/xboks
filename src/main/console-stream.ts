@@ -59,8 +59,9 @@ async function body(response: Response, limit = MAX_JSON): Promise<unknown> {
 const deviceInfo = () => JSON.stringify({appInfo: {env: {clientAppId: 'XBOKS', clientAppType: 'web', httpEnvironment: 'prod'}},
   dev: {hw: {make: 'Generic', model: 'Linux PC', sdktype: 'web'}, os: {name: 'Linux', platform: 'desktop'}}});
 interface Offering {origin: string; token: string; until: number}
-interface Active {id: string; provider: string; consoleId: string; offering: Offering; generation: number; created: number; transferAt?: number}
+interface Active {id: string; provider: string; consoleId: string; offering: Offering; generation: number; created: number; transferAt?: number; heartbeatPending?: boolean}
 interface ConsoleEntry {provider: string; device: ConsoleStreamDevice}
+class ConsoleHttpError extends Error {constructor(readonly status: number) {super('Console service request failed.');}}
 
 /** Native console discovery and session signaling, bound to the selected account. */
 export class ConsoleStreamService {
@@ -79,10 +80,12 @@ export class ConsoleStreamService {
   private revision = 0;
   private poll?: Active;
   private keepalive?: ReturnType<typeof setInterval>;
+  private cleanups = new Map<string, Promise<void>>();
   private current: ConsoleStreamState = {phase: 'closed'};
   constructor(private options: {changed?: (state: ConsoleStreamState) => void; reader?: CloudCredentialReader; transferReader?: CloudTransferReader; fetcher?: typeof fetch; now?: () => number} = {}) {}
   private now() {return this.options.now?.() ?? Date.now();}
   get state(): ConsoleStreamState {return {...this.current};}
+  get cleanupPending(): boolean {return this.cleanups.size > 0;}
   private publish(value: ConsoleStreamState) {this.current = {...value}; this.options.changed?.(this.state); return this.state;}
   select(account?: string, binary?: string, locale = 'en-US'): void {
     this.locale = /^[a-z]{2}-[A-Z]{2}$/.test(locale) ? locale : 'en-US';
@@ -92,7 +95,7 @@ export class ConsoleStreamService {
     this.offering = undefined; this.authentication = undefined; this.listJob = undefined; this.cache = undefined; this.consoles.clear();
     this.active = undefined; this.starting = false; this.poll = undefined; clearInterval(this.keepalive); this.keepalive = undefined;
     this.account = account; this.binary = binary; this.publish({phase: 'closed'});
-    if (active) void this.remove(active);
+    if (active) void this.cleanupSession(active);
   }
   private valid(generation: number) {if (generation !== this.generation || this.controller.signal.aborted) throw Error('Console account changed.');}
   private async request(url: string, options: {method?: string; token?: string; data?: unknown; headers?: Record<string, string>; signal?: AbortSignal} = {}) {
@@ -100,7 +103,7 @@ export class ConsoleStreamService {
       headers: {Accept: 'application/json', 'Content-Type': 'application/json', ...(options.token ? {Authorization: `Bearer ${options.token}`} : {}), ...options.headers},
       ...(options.data === undefined ? {} : {body: JSON.stringify(options.data)}),
       signal: AbortSignal.any([options.signal ?? this.controller.signal, AbortSignal.timeout(20_000)])});
-    if (!response.ok) {await response.body?.cancel(); throw Error('Console service request failed.');}
+    if (!response.ok) {await response.body?.cancel(); throw new ConsoleHttpError(response.status);}
     return {status: response.status, value: await body(response)};
   }
   private async login(): Promise<Offering> {
@@ -178,12 +181,22 @@ export class ConsoleStreamService {
       }, headers: {'X-MS-Device-Info': deviceInfo()}});
       const provider = cloudProviderSessionId(value, 'home'); if (!provider) throw Error('Console session response is invalid.');
       const active: Active = {id: sessionId, provider, consoleId: id, offering, generation, created: this.now()};
-      if (generation !== this.generation || revision !== this.revision) {void this.remove(active); throw Error('Console launch canceled.');}
+      if (generation !== this.generation || revision !== this.revision) {void this.cleanupSession(active); throw Error('Console launch canceled.');}
       this.active = active;
-      this.keepalive = setInterval(() => {if (this.active === active) void this.request(`${offering.origin}/v5/sessions/home/${provider}/keepalive`, {token: offering.token, method: 'POST', data: {}}).catch(() => {});}, 20_000); this.keepalive.unref();
+      this.keepalive = setInterval(() => {void this.heartbeat(active);}, 20_000); this.keepalive.unref();
       this.publish({phase: 'provisioning', id: sessionId, consoleId: id}); return this.getSessionState(sessionId);
     } catch {return generation === this.generation && revision === this.revision ? this.publish({phase: 'error', id: sessionId, consoleId: id, error: 'service'}) : this.state;}
     finally {if (generation === this.generation && revision === this.revision) this.starting = false;}
+  }
+  private async heartbeat(active: Active): Promise<void> {
+    if (this.active !== active) return;
+    if (this.current.phase !== 'ready' && this.now() - active.created > 180_000) {await this.fail(active, 'timeout'); return;}
+    if (active.heartbeatPending) return;
+    active.heartbeatPending = true;
+    try {await this.request(`${active.offering.origin}/v5/sessions/home/${active.provider}/keepalive`, {token: active.offering.token, method: 'POST', data: {}});}
+    catch (error) {
+      if (this.active === active && error instanceof ConsoleHttpError && [401, 403, 404, 410].includes(error.status)) await this.fail(active, 'service');
+    } finally {active.heartbeatPending = false;}
   }
   async getSessionState(id?: string): Promise<ConsoleStreamState> {
     if (!this.active) return this.state; const active = this.session(id); if (this.poll === active) return this.state; this.poll = active;
@@ -205,7 +218,8 @@ export class ConsoleStreamService {
     finally {if (this.poll === active) this.poll = undefined;}
   }
   private async fail(active: Active, error: ConsoleStreamState['error']) {
-    await this.stop(active.id); if (active.generation !== this.generation || this.current.phase !== 'closed') return this.state; return this.publish({phase: 'error', error});
+    if (this.active !== active) return this.state; const revision = this.revision;
+    await this.stop(active.id); if (active.generation !== this.generation || this.revision !== revision + 1 || this.current.phase !== 'closed') return this.state; return this.publish({phase: 'error', error});
   }
   private async exchange(active: Active, endpoint: 'sdp' | 'ice', data: unknown): Promise<unknown> {
     try {return await this.exchangeTransaction(active, endpoint, data);}
@@ -251,8 +265,18 @@ export class ConsoleStreamService {
   private async remove(active: Active) {
     try {await this.request(`${active.offering.origin}/v5/sessions/home/${active.provider}`, {token: active.offering.token, method: 'DELETE', signal: AbortSignal.timeout(5_000)});} catch { /* Best-effort cleanup; no provider/account contents are logged. */ }
   }
+  private cleanupSession(active: Active): Promise<void> {
+    const previous = this.cleanups.get(active.id); if (previous) return previous;
+    const job = this.remove(active).finally(() => {if (this.cleanups.get(active.id) === job) this.cleanups.delete(active.id);});
+    this.cleanups.set(active.id, job); return job;
+  }
   async stop(id?: string): Promise<void> {
-    const active = this.active; if (id !== undefined && id !== (active?.id ?? this.current.id)) throw Error('Console session is unavailable.');
-    this.revision++; this.starting = false; this.active = undefined; this.poll = undefined; clearInterval(this.keepalive); this.keepalive = undefined; this.publish({phase: 'closed'}); if (active) await this.remove(active);
+    const active = this.active, pending = id === undefined ? undefined : this.cleanups.get(id);
+    // A repeated stop owns only its original deletion, even after replacement.
+    if (pending && id !== active?.id) {await pending; return;}
+    if (id !== undefined && id !== (active?.id ?? this.current.id)) throw Error('Console session is unavailable.');
+    this.revision++; this.starting = false; this.active = undefined; this.poll = undefined; clearInterval(this.keepalive); this.keepalive = undefined;
+    const cleanup = active ? this.cleanupSession(active) : undefined; this.publish({phase: 'closed'});
+    if (id === undefined) await Promise.all([...this.cleanups.values()]); else await cleanup;
   }
 }

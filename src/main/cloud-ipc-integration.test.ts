@@ -340,6 +340,22 @@ it('quitting waits for owned session cleanup before requesting final app exit', 
   const event = h.quit(); expect(event.preventDefault).toHaveBeenCalledOnce(); await vi.waitFor(() => expect(h.requests.some(r => r.options.method === 'DELETE')).toBe(true));
   expect(h.context.app.quit).not.toHaveBeenCalled(); h.deleted(); await vi.waitFor(() => expect(h.context.app.quit).toHaveBeenCalledOnce());
 });
+it.each(['cloud', 'console'] as const)('quitting joins an already closed %s service while its internal account-change cleanup is pending', async kind => {
+  const h = fixture({holdDelete: true});
+  if (kind === 'cloud') await h.call('cloud-stream-start', PRODUCT);
+  else {const list = await h.call('console-stream-devices'); await h.call('console-stream-start', list.consoles[0].id);}
+  const service = kind === 'cloud' ? h.account : h.consoleStream;
+  // Internal cleanup has no IPC stop wrapper job, and Closed precedes DELETE.
+  service.select('replacement@example.invalid', '/fixture/xboks-engine', 'en-US');
+  expect(service.state.phase).toBe('closed'); expect(service.cleanupPending).toBe(true);
+  expect(h.context.cloudStopJob).toBeUndefined(); expect(h.context.consoleStopJob).toBeUndefined();
+  expect(h.requests.filter(r => r.options.method === 'DELETE')).toHaveLength(1);
+  const event = h.quit(); expect(event.preventDefault).toHaveBeenCalledOnce();
+  expect(h.context.app.quit).not.toHaveBeenCalled();
+  h.deleted(); await vi.waitFor(() => expect(h.context.app.quit).toHaveBeenCalledOnce());
+  expect(service.cleanupPending).toBe(false);
+  expect(h.requests.filter(r => r.options.method === 'DELETE')).toHaveLength(1);
+});
 it('quitting drains both native services and releases both display blockers before final exit', async () => {
   const h = fixture({holdDelete: true}), list = await h.call('console-stream-devices');
   await h.call('console-stream-start', list.consoles[0].id);

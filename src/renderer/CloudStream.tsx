@@ -66,13 +66,14 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
   const [diagnosticLog, setDiagnosticLog] = useState<DiagnosticLog>(), [readingLog, setReadingLog] = useState(false), [logFailed, setLogFailed] = useState(false);
   const [menu, setMenu] = useState(false), [muted, setMuted] = useState(false), [product, setProduct] = useState<CloudProduct>();
   const [message, setMessage] = useState<Parameters<Parameters<typeof connectCloudPlayer>[0]['message']>[0]>();
-  const root = useRef<HTMLDivElement>(null), player = useRef<CloudPlayerHandle>(), stopping = useRef(false), previous = useRef<HTMLElement | null>(null);
+  const root = useRef<HTMLDivElement>(null), player = useRef<CloudPlayerHandle>(), stopping = useRef<{id?: string}>(), previous = useRef<HTMLElement | null>(null);
   const stateRef = useRef(state), revision = useRef(0); stateRef.current = state;
   const inputOwner = useRef(Symbol('cloud-stream'));
   const obscured = useStreamObscured(state.phase !== 'closed');
   const showControlsRef = useRef(true);
+  const preparing = ['starting','queued','provisioning'].includes(state.phase);
   const setConnection = (value: CloudVideoStatus['connection']) => setTransport(previous => ({...previous, connection: value}));
-  useEffect(() => {setTransport({connection: 'connecting'}); setDiagnosticLog(undefined); setReadingLog(false); setLogFailed(false);}, [state.id, state.productId]);
+  useEffect(() => {setVideo(false); setMenu(false); setMuted(false); setMessage(undefined); setTransport({connection: 'connecting'}); setDiagnosticLog(undefined); setReadingLog(false); setLogFailed(false);}, [state.id, state.productId]);
   useEffect(() => observeCloudSession(bridge, value => {revision.current++; stateRef.current = value; setState(value);}), [bridge]);
   useEffect(() => {
     if (!state.productId || !bridge?.getCloudProducts) {setProduct(undefined); return;}
@@ -85,11 +86,25 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
     return () => {if (previous.current?.isConnected) previous.current.focus({preventScroll: true});};
   }, [state.phase === 'closed']);
   useEffect(() => {
-    if (!state.id || !['starting','queued','provisioning'].includes(state.phase) || !bridge?.getCloudStreamState) return;
+    if (!state.id || !preparing || !bridge?.getCloudStreamState) return;
+    const id = state.id;
     let cancelled = false; let timer: ReturnType<typeof setTimeout>;
-    const poll = async () => {const before = revision.current; try {const next = await bridge.getCloudStreamState!(state.id); if (!cancelled && before === revision.current && stateRef.current.id === state.id) {stateRef.current = next; setState(next); if (['starting','queued','provisioning'].includes(next.phase)) timer = setTimeout(poll, 2000);}} catch {if (!cancelled && before === revision.current) setConnection('error');}};
+    const ownsSession = () => !cancelled && stateRef.current.id === id;
+    const poll = async () => {
+      const before = revision.current; let failed = false;
+      try {
+        const next = await bridge.getCloudStreamState!(id);
+        if (ownsSession() && before === revision.current && (next.id === id || next.phase === 'closed' && !next.id)) {stateRef.current = next; setState(next);}
+      } catch {
+        if (ownsSession() && before === revision.current) {failed = true; setConnection('error');}
+      } finally {
+        // Main publishes its state before the IPC reply. A newer push can make
+        // that reply stale without ending this session's provisioning loop.
+        if (!failed && ownsSession() && ['starting','queued','provisioning'].includes(stateRef.current.phase)) timer = setTimeout(poll, 2000);
+      }
+    };
     timer = setTimeout(poll, 1000); return () => {cancelled = true; clearTimeout(timer);};
-  }, [state.id, state.phase, bridge]);
+  }, [state.id, preparing, bridge]);
   useEffect(() => {
     if (state.phase !== 'ready' || !state.id || !bridge?.exchangeCloudSdp || !bridge.exchangeCloudIce) return;
     setVideo(false); setMenu(false); setMuted(false);
@@ -119,11 +134,11 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
     window.addEventListener('keydown', key, true); return () => window.removeEventListener('keydown', key, true);
   }, [state.phase, obscured]);
   async function stop() {
-    if (!bridge?.stopCloudStream || stopping.current) return;
-    const before = revision.current, id = state.id;
-    stopping.current = true; player.current?.pause(true);
-    try {await bridge.stopCloudStream(id); if (before === revision.current && stateRef.current.id === id) setState(closed);} catch {if (stateRef.current.id === id) setConnection('error');}
-    finally {stopping.current = false;}
+    if (!bridge?.stopCloudStream || stopping.current && stopping.current.id === state.id) return;
+    const before = revision.current, request = {id: state.id};
+    stopping.current = request; player.current?.pause(true);
+    try {await bridge.stopCloudStream(request.id); if (before === revision.current && stateRef.current.id === request.id) {stateRef.current = closed; setState(closed);}} catch {if (before === revision.current && stateRef.current.id === request.id) setConnection('error');}
+    finally {if (stopping.current === request) stopping.current = undefined;}
   }
   async function readDiagnostics() {
     if (!bridge?.readBackendDiagnosticLog || readingLog) return;
