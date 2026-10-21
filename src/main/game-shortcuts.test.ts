@@ -33,7 +33,7 @@ it('preserves managed shortcut identity and existing Steam wrapper paths after a
     for (const file of [path.join(legacy, 'shortcuts/launch-game'), path.join(legacy, 'shortcuts/launch-nexus'), desktop, steamFile]) {
       await fs.writeFile(file, (await fs.readFile(file, 'utf8')).replaceAll('X-Xboks-', 'X-Xodus-Nexus-'));
     }
-    const migration = await migrateManagedPaths({ home: f.root, configHome, dataHome: path.join(f.root, 'data') });
+    const migration = await migrateManagedPaths({ home: f.root, configHome, dataHome: path.join(f.root, 'data'), isActive: async () => false });
     expect(migration.warnings).toEqual([]);
     const current = new GameShortcuts({ ...f.locations, userData: migration.profile, legacyProfiles: migration.legacyProfiles });
     await current.initialize();

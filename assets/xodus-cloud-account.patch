@@ -1,0 +1,133 @@
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -73,6 +73,11 @@
+         #[arg(long, default_value_t = false)]
+         json: bool,
+     },
++    #[command(about = "Exchange the stored account for a short-lived cloud credential on a private stdout pipe")]
++    CloudToken {
++        #[arg(long, required = true)]
++        json: bool,
++    },
+     #[command(about = "Read Xbox friends/chats or explicitly send a one-to-one message")]
+     Social {
+         #[arg(long, global = true)]
+@@ -198,7 +203,7 @@
+     let args = CliArgs::parse();
+     // Social search/message bodies and Xbox credentials must never enter a
+     // verbose transport trace, including when XODUS_LOG is inherited.
+-    let filter = if matches!(&args.command, SubCommand::Social { .. }) {
++    let filter = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. }) {
+         tracing_subscriber::EnvFilter::new("off")
+     } else { tracing_subscriber::EnvFilter::from_env("XODUS_LOG") };
+     let registry =
+@@ -240,7 +245,7 @@
+         xodus::tokens::store::TokenStoreError::from(error).report();
+         return ExitCode::FAILURE;
+     }
+-    let tokens = if matches!(&args.command, SubCommand::Social { .. }) {
++    let tokens = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. }) {
+         commands::social::readonly_manager()
+     } else { TokenManager::with_keychain_and_memory() };
+ 
+@@ -254,6 +259,7 @@
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
++            | SubCommand::CloudToken { .. }
+             | SubCommand::Social { .. }
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+@@ -320,6 +326,7 @@
+             }
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
++        SubCommand::CloudToken { json: _ } => commands::cloud::run(&tokens).await,
+         SubCommand::Social { command, json } => commands::social::run(&tokens, command, json).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -6,6 +6,7 @@
+ pub mod login;
+ pub mod logout;
+ pub mod profile;
++pub mod cloud;
+ pub mod game_activity;
+ pub mod achievements;
+ pub mod subscription;
+--- a/crates/xodus-cli/src/commands/profile.rs
++++ b/crates/xodus-cli/src/commands/profile.rs
+@@ -82,6 +82,13 @@
+ // This exchange receives values, not a TokenManager: it cannot persist or renew
+ // cached credentials. Xbox user/XSTS tickets exist only in this process memory.
+ async fn bearer_session(client: reqwest::Client, account: String, device: xodus::models::secrets::LegacyToken, user: xodus::models::secrets::LegacyToken) -> Result<(reqwest::Client, String, String), &'static str> {
++    let (client, xsts, account) = bearer_session_for_party(client, account, device, user, "http://xboxlive.com").await?;
++    let uhs = xsts.user_hash().ok_or("xsts-claim")?;
++    let authorization = format!("XBL3.0 x={uhs};{}", xsts.token);
++    Ok((client, authorization, account))
++}
++
++pub(super) async fn bearer_session_for_party(client: reqwest::Client, account: String, device: xodus::models::secrets::LegacyToken, user: xodus::models::secrets::LegacyToken, relying_party: &str) -> Result<(reqwest::Client, xodus::models::xbox::XstsResponse, String), &'static str> {
+     // Reuse the upstream RPS -> Xbox user -> XSTS exchange. This is a bearer
+     // user token (no ProofKey); it must not use the runtime's PoP-bound token.
+     let outcome = super::session::exchange(|| async { xodus::api::live::exchange_user_token(&client, user.clone(), account.clone(), device.clone(),
+@@ -96,10 +103,8 @@
+     };
+     let Token::Compact(ticket) = token else { return Err("msa-ticket"); };
+     let user = xodus::api::xbox::authenticate_xbox_user(&client, ticket).await.map_err(|_| "xbox-user")?;
+-    let xsts = xodus::api::xbox::request_xsts_token(&client, user.token, "http://xboxlive.com").await.map_err(|_| "xsts")?;
+-    let uhs = xsts.user_hash().ok_or("xsts-claim")?;
+-    let authorization = format!("XBL3.0 x={uhs};{}", xsts.token);
+-    Ok((client, authorization, account))
++    let xsts = xodus::api::xbox::request_xsts_token(&client, user.token, relying_party).await.map_err(|_| "xsts")?;
++    Ok((client, xsts, account))
+ }
+ 
+ async fn profile(tokens: &TokenManager) -> Result<Value, &'static str> {
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/cloud.rs
+@@ -0,0 +1,43 @@
++//! Private stdout-only cloud SSO exchange. No login, device provisioning or credential writes.
++use std::{process::ExitCode, time::Duration};
++use serde_json::{Value, json};
++use xodus::tokens::TokenManager;
++
++const CLOUD_RELYING_PARTY: &str = "http://gssv.xboxlive.com/";
++async fn credential(tokens: &TokenManager) -> Result<Value, &'static str> {
++    let (account, device, user) = super::profile::readonly_credentials(tokens)?;
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
++        .retry(reqwest::retry::never()).timeout(super::session::REQUEST_TIMEOUT)
++        .user_agent("XBOKS-cloud-session/1").build().map_err(|_| "http-client")?;
++    let (_, ticket, account) = super::profile::bearer_session_for_party(client, account, device, user, CLOUD_RELYING_PARTY).await?;
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed"); }
++    if ticket.token.is_empty() || ticket.token.len() > 100_000 || ticket.token.chars().any(char::is_control)
++        || ticket.not_after < chrono::Utc::now() + chrono::Duration::seconds(30) { return Err("cloud-ticket-invalid"); }
++    Ok(json!({"schema":1,"account":account,"token":ticket.token,"expiresAt":ticket.not_after.to_rfc3339_opts(chrono::SecondsFormat::Millis,true)}))
++}
++
++pub async fn run(tokens: &TokenManager) -> ExitCode {
++    match tokio::time::timeout(Duration::from_secs(45), credential(tokens)).await {
++        Ok(Ok(value)) => { println!("{value}"); ExitCode::SUCCESS },
++        Ok(Err(_)) => { eprintln!("XBOKS cloud account exchange is unavailable; refresh your account in Settings."); ExitCode::FAILURE },
++        Err(_) => { eprintln!("XBOKS cloud account exchange timed out; stored account is unchanged."); ExitCode::FAILURE },
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn cloud_credential_has_a_distinct_service_relying_party() {
++        assert_eq!(CLOUD_RELYING_PARTY, "http://gssv.xboxlive.com/");
++        assert_ne!(CLOUD_RELYING_PARTY, "http://xboxlive.com");
++    }
++    #[test]
++    fn cloud_entry_never_writes_credentials_or_provisions_a_device() {
++        let source = include_str!("cloud.rs");
++        let entry = source.split("#[cfg(test)]").next().unwrap();
++        assert!(!entry.contains("with_keychain_and_memory"));
++        assert!(!entry.contains("ensure_device_credentials"));
++        assert!(!entry.contains(".save("));
++    }
++}

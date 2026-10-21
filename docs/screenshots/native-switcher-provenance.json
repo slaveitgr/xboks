@@ -1,0 +1,44 @@
+{
+  "capturedAt": "2026-10-22T00:14:40+03:00",
+  "nativeShell": "GNOME Shell 51.0 / Mutter 51.0",
+  "display": "Private headless Wayland compositor with private Xwayland clients",
+  "productionSources": {
+    "switcher.js": "19e3b31528faee1f7a533f30e29e005130744639723ca176ffd56b829cd88b2a",
+    "switcher-state.js": "504cb34786eb81c66caddc32df1ffebae8fdc9d17e5978bb2653348bd39bbcf7",
+    "switcher-theme.js": "aa8c149562609ea2f5d22dead3ef6a951b670aa85acb67486f7dbac4cdfca480",
+    "stylesheet.css": "292d9a489462531339ccefe7498915f444a04d2d161923a6bf200b2cbabba60f"
+  },
+  "captures": {
+    "xboks-task-switcher.png": {
+      "sha256": "d134627570deeaa237332e6dc0fa556ed32948109c8eefcd23578187ee6a651d",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-task-switcher-light.png": {
+      "sha256": "851e85a58419e1f67c6b4c06f95da7e65b4c9a737e8a5a3e4e0896be68e99199",
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "sampleWindows": [
+    "XBOKS",
+    "Music \u2014 sample",
+    "Notes \u2014 sample"
+  ],
+  "renderer": "Actual XBOKS React renderer in Electron, sample launcher APIs, cached exact-ID public Microsoft artwork; no external network requests permitted",
+  "isolation": [
+    "Temporary HOME and XDG directories",
+    "Private session D-Bus reused as isolated system D-Bus; no host login/power services",
+    "Temporary extension entry point; production switcher, selection, theme and CSS unchanged",
+    "Native full-screen Electron window and two sample GTK windows only",
+    "Shell.Screenshot unmodified PNG exports; watermark is a native actor",
+    "Desktop color-scheme preference changed only inside temporary profile"
+  ],
+  "notValidated": [
+    "Production Experience entry lease",
+    "Host desktop integration",
+    "Physical controller input",
+    "Reboot/startup",
+    "Real accounts, games or streaming"
+  ]
+}

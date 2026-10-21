@@ -8,6 +8,7 @@ import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu } from './ReferenceMenu';
 import type { AccountLibraryPage, AppSnapshot, CatalogProduct, Page } from '../shared/types';
 import { XboxSocialPanel } from './XboxSocialPanel';
+import { ConsoleLibrary } from './ConsoleLibrary';
 
 export type ShellPanel = 'account' | 'friends' | 'notifications' | 'remote-play';
 export function GamePassIcon({ wordmark = false }: { wordmark?: boolean }) {
@@ -15,29 +16,25 @@ export function GamePassIcon({ wordmark = false }: { wordmark?: boolean }) {
   return wordmark ? <span className="game-pass-wordmark" aria-hidden="true">{missing ? 'XBOX GAME PASS' : <img src="./original-xbox/icons/GamePassInline5.svg" alt="" onError={() => setMissing(true)} />}</span> : <GamePassBadge className="game-pass-icon" />;
 }
 
-export function ShellFlyout({ panel, data, close, go, settings }: { panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void }) {
+type ShellFlyoutProps = {panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void};
+export function ShellFlyout(props: ShellFlyoutProps) {
+  if (props.panel === 'remote-play') return <ConsoleLibrary auth={props.data.auth} close={props.close} signIn={() => {props.close(); if (props.settings) props.settings('account'); else props.go('settings');}}/>;
+  return <ShellFlyoutContent {...props} panel={props.panel}/>;
+}
+function ShellFlyoutContent({panel, data, close, go, settings}: Omit<ShellFlyoutProps, 'panel'> & {panel: Exclude<ShellPanel, 'remote-play'>}) {
   const { text } = useReferenceLocale();
   const root = useRef<HTMLDivElement>(null);
   const notificationAnchor = useRef<HTMLButtonElement>(null);
   const [auxiliary, setAuxiliary] = useState<'support' | 'feedback'>();
   const [accountError, setAccountError] = useState('');
   const [accountBusy, setAccountBusy] = useState(false);
-  const [remoteBusy, setRemoteBusy] = useState(false);
-  const [remoteError, setRemoteError] = useState('');
-  const remotePending=useRef(false);
-  const openRemotePlay = async () => {
-    if(remotePending.current)return;remotePending.current=true;setRemoteBusy(true); setRemoteError('');
-    try { await window.launcher.openRemotePlay(); close(); }
-    catch { setRemoteError(text('Remote Play could not open. Try again.','Το Remote Play δεν άνοιξε. Δοκιμάστε ξανά.')); }
-    finally {remotePending.current=false; setRemoteBusy(false); }
-  };
   const [unread, setUnread] = useState(false);
   const [readIds, setReadIds] = useState<string[]>(() => {
     try { const value: unknown = JSON.parse(localStorage.getItem('xboks.read-notifications.v1') ?? '[]'); return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []; } catch { return []; }
   });
   const [menu, setMenu] = useState(false);
-  const title = auxiliary === 'support' ? text('Support', 'Υποστήριξη') : auxiliary === 'feedback' ? text('Feedback', 'Σχόλια') : panel === 'account' ? text('Account menu', 'Μενού λογαριασμού') : panel === 'friends' ? text('Friends', 'Φίλοι') : panel === 'remote-play' ? 'Remote Play' : text('Notifications', 'Ειδοποιήσεις');
-  const closeSurface = () => { if (accountBusy || remoteBusy) return true; if (auxiliary) setAuxiliary(undefined); else close(); return true; };
+  const title = auxiliary === 'support' ? text('Support', 'Υποστήριξη') : auxiliary === 'feedback' ? text('Feedback', 'Σχόλια') : panel === 'account' ? text('Account menu', 'Μενού λογαριασμού') : panel === 'friends' ? text('Friends', 'Φίλοι') : text('Notifications', 'Ειδοποιήσεις');
+  const closeSurface = () => { if (accountBusy) return true; if (auxiliary) setAuxiliary(undefined); else close(); return true; };
   useBackHandler(closeSurface, true, () => root.current);
   useEffect(() => { const closed = () => { if (panel === 'friends') close(); }; window.addEventListener('xboks-close-social', closed); return () => window.removeEventListener('xboks-close-social', closed); }, [panel, close]);
   async function signOut() {
@@ -46,7 +43,6 @@ export function ShellFlyout({ panel, data, close, go, settings }: { panel: Shell
     catch (error) { setAccountError(error instanceof Error ? error.message : text('Sign out failed.', 'Η αποσύνδεση απέτυχε.')); }
     finally { setAccountBusy(false); }
   }
-  const name = data.auth.gamertag ?? data.auth.username ?? 'Sign in';
   const navigate = (page: Page) => { close(); go(page); };
   const openSettings = (section: SettingsSection) => { close(); if (settings) settings(section); else go('settings'); };
   useEffect(() => {
@@ -65,8 +61,8 @@ export function ShellFlyout({ panel, data, close, go, settings }: { panel: Shell
     setReadIds(ids); try { localStorage.setItem('xboks.read-notifications.v1', JSON.stringify(ids)); } catch { /* Keep read state for this session. */ }
     setMenu(false);
   };
-  return <div className={`shell-flyout-backdrop ${panel === 'account' && !auxiliary ? 'account-flyout-backdrop' : panel === 'remote-play' ? 'remote-play-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) closeSurface(); }}>
-    <div className={`shell-flyout ${auxiliary ? 'shell-auxiliary-dialog' : panel === 'account' ? 'shell-account-menu' : panel === 'remote-play' ? 'remote-play-dialog' : ''}`} ref={root} role="dialog" aria-modal="true" aria-label={title} onKeyDown={event => {
+  return <div className={`shell-flyout-backdrop ${panel === 'account' && !auxiliary ? 'account-flyout-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) closeSurface(); }}>
+    <div className={`shell-flyout ${auxiliary ? 'shell-auxiliary-dialog' : panel === 'account' ? 'shell-account-menu' : ''}`} ref={root} role="dialog" aria-modal="true" aria-label={title} onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeSurface(); }
       if (event.key === 'Tab') {
         const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled)') ?? []).filter(el => el.getClientRects().length);
@@ -97,7 +93,7 @@ export function ShellFlyout({ panel, data, close, go, settings }: { panel: Shell
           ]} /> : null}
           <label className="shell-unread-toggle">{text('Show unread only', 'Εμφάνιση μόνο μη αναγνωσμένων')}<input type="checkbox" role="switch" checked={unread} onChange={event => setUnread(event.target.checked)} /></label>
           <div className="shell-notification-list">{visibleNotifications.length ? visibleNotifications.map(task => <button key={task.id} onClick={() => navigate('downloads')} className={readIds.includes(`${task.id}:${task.status}`) ? 'read' : ''}>{task.status === 'failed' ? <CircleAlert /> : <Download />}<span><strong>{task.title}</strong><small>{task.status === 'failed' ? 'Installation needs attention' : 'Installation complete'}</small></span><ChevronRight /></button>) : <p className="shell-panel-empty"><Bell />No new notifications</p>}</div>
-        </> : panel === 'friends' ? <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} /> : <div className="remote-play-content"><p>{text('Turn on your console and enable remote features in its settings.', 'Ενεργοποιήστε την κονσόλα σας και τις απομακρυσμένες λειτουργίες στις ρυθμίσεις της.')}</p><button className="remote-play-profile" disabled={remoteBusy} aria-label={text('Open Xbox Remote Play', 'Άνοιγμα του Xbox Remote Play')} onClick={() => void openRemotePlay()}>{data.auth.stored&&data.auth.avatarDataUrl ? <img src={data.auth.avatarDataUrl} alt="Xbox profile" /> : <CircleUserRound />}<span>{data.auth.stored?name:'Xbox Remote Play'}</span></button><p className="remote-play-signin-note">{text('Continue inside XBOKS. Xbox may ask you to sign in again before showing your consoles.','Συνεχίστε μέσα στο XBOKS. Το Xbox μπορεί να ζητήσει ξανά σύνδεση πριν εμφανίσει τις κονσόλες σας.')}</p>{remoteBusy ? <p role="status">{text('Loading Remote Play…', 'Φόρτωση Remote Play…')}</p> : null}{remoteError ? <p className="remote-play-error" role="alert">{remoteError}</p> : null}</div>}
+        </> : <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} />}
 
       </>}
     </div>

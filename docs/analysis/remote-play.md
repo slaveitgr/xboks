@@ -1,4 +1,11 @@
-# Remote Play integration
+# Remote Play integration: historical website host
+
+The default flow changed in **0.3.24** to a native console picker and direct
+account-bound WebRTC player. See [the current console implementation and
+original-package trace](native-console-streaming.md). The notes below describe
+the isolated website host shipped in 0.3.22–0.3.23. Its manager and focused tests
+remain as legacy code; the application's Remote Play action no longer opens it
+or initiates its separate website sign-in.
 
 The shell entry follows the supplied 416 × 580 profile dialog (`36009.png`). Its wording distinguishes the launcher profile from the separate Microsoft web sign-in: it does not promise that the profile button authenticates the player automatically.
 

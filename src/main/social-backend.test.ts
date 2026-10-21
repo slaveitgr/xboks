@@ -164,3 +164,21 @@ describe('social companion distribution assembly', () => {
     await expect(fs.access(output)).rejects.toThrow();
   });
 });
+describe('cloud companion capability admission', () => {
+  it('keeps a correctly hashed social-only companion unavailable for cloud without accessing credentials', async () => {
+    const f = await fixture('xboks-engine'); expect(await socialBackend(f.root, f.probe, 'cloud-token')).toBeUndefined();
+    expect(f.probe).toHaveBeenCalledWith(f.binary, ['--help'], { timeout: 5000, maxBuffer: 100000 });
+    expect(await socialBackend(f.root, f.probe)).toBe(f.binary);
+  });
+  it('accepts only the actual cloud-token command in the bounded verified help section', async () => {
+    const f = await fixture('xboks-engine'); f.probe.mockResolvedValue({ code: 0, stdout: help.replace('  social   Friends and chats', '  cloud-token   Private cloud account exchange') });
+    expect(await socialBackend(f.root, f.probe, 'cloud-token')).toBe(f.binary);
+    expect(await socialBackend(f.root, f.probe)).toBeUndefined();
+    for (const stdout of ['Commands:\n  cloud-tokenizer  Invalid\n', 'Options:\n  cloud-token  Not a command\n', help + '\ncloud-token is available somewhere\n']) {
+      f.probe.mockResolvedValue({ code: 0, stdout }); expect(await socialBackend(f.root, f.probe, 'cloud-token')).toBeUndefined();
+    }
+  });
+  it('rejects an unsupported capability selector before file/probe access', async () => {
+    const f = await fixture(); expect(await socialBackend(f.root, f.probe, 'cloud-token|social' as any)).toBeUndefined(); expect(f.probe).not.toHaveBeenCalled();
+  });
+});

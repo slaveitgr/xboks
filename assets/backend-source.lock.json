@@ -167,6 +167,10 @@
     {
       "file": "xodus-social.patch",
       "sha256": "1469e37f8ae66e489bcfd6cabee1de6692beb427d3bc56d882edcc59800d3c94"
+    },
+    {
+      "file": "xodus-cloud-account.patch",
+      "sha256": "58000775c7b3e6cb105041cb8235966cc3b87793b7cf410818107a7b30147dfd"
     }
   ]
 }

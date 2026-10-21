@@ -57,6 +57,36 @@ const api: LauncherApi = {
   sendXboxMessage: (peer, text) => ipcRenderer.invoke('xbox-social-send', peer, text),
   quitLauncher: () => ipcRenderer.invoke('quit-launcher'),
   refreshXboxProfile: () => ipcRenderer.invoke('xbox-profile-refresh'),
+  getCloudPublicCatalog: refresh => ipcRenderer.invoke('cloud-public-catalog', refresh),
+  getCloudProducts: ids => ipcRenderer.invoke('cloud-products', ids),
+  getCloudAccountCatalog: refresh => ipcRenderer.invoke('cloud-account-catalog', refresh),
+  startCloudStream: productId => ipcRenderer.invoke('cloud-stream-start', productId),
+  getCloudStreamState: id => ipcRenderer.invoke('cloud-stream-state', id),
+  onCloudStreamState: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, state: import('../shared/cloud-stream.js').CloudSessionState) => callback(state);
+    ipcRenderer.on('cloud-stream-state', listener);
+    return () => ipcRenderer.removeListener('cloud-stream-state', listener);
+  },
+  exchangeCloudSdp: (id, sdp) => ipcRenderer.invoke('cloud-stream-sdp', id, sdp),
+  exchangeCloudIce: (id, candidates) => ipcRenderer.invoke('cloud-stream-ice', id, candidates),
+  stopCloudStream: id => ipcRenderer.invoke('cloud-stream-stop', id),
+  getConsoleStreamDevices: refresh => ipcRenderer.invoke('console-stream-devices', refresh),
+  startConsoleStream: id => ipcRenderer.invoke('console-stream-start', id),
+  getConsoleStreamState: id => ipcRenderer.invoke('console-stream-state', id),
+  exchangeConsoleStreamSdp: (id, sdp) => ipcRenderer.invoke('console-stream-sdp', id, sdp),
+  exchangeConsoleStreamIce: (id, candidates) => ipcRenderer.invoke('console-stream-ice', id, candidates),
+  stopConsoleStream: id => ipcRenderer.invoke('console-stream-stop', id),
+  wakeConsole: id => ipcRenderer.invoke('console-stream-wake', id),
+  onConsoleStreamState: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, state: import('../shared/console-stream.js').ConsoleStreamState) => callback(state);
+    ipcRenderer.on('console-stream-state', listener);
+    return () => ipcRenderer.removeListener('console-stream-state', listener);
+  },
+  onConsoleLibraryOpen: callback => {
+    const listener = () => callback();
+    ipcRenderer.on('console-library-open', listener);
+    return () => ipcRenderer.removeListener('console-library-open', listener);
+  },
   openCloudGaming: () => ipcRenderer.invoke('cloud-gaming-open'),
   getCloudGamingState: () => ipcRenderer.invoke('cloud-gaming-state'),
   onCloudGamingState: callback => {

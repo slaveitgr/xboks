@@ -61,16 +61,18 @@ export function backgroundStartupRequested(args: readonly string[], session: Pic
   return args.includes('--background') && !session.fullscreenExperience;
 }
 
-/** Never create an unreachable hidden launcher when the desktop cannot construct a tray. */
+/** Keep a tray for every running launcher. Closing to it remains a separate preference. */
 export async function startDesktopLauncher(args: readonly string[], session: Pick<DesktopSettingsStatus, 'fullscreenExperience'>, launcher: {
   ensureTray: () => void;
   show: () => Promise<void>;
   background: () => Promise<void>;
   trayUnavailable: (error: unknown) => void;
 }): Promise<void> {
-  if (!backgroundStartupRequested(args, session)) { await launcher.show(); return; }
+  let trayAvailable = true;
   try { launcher.ensureTray(); }
-  catch (error) { launcher.trayUnavailable(error); await launcher.show(); return; }
+  catch (error) { trayAvailable = false; launcher.trayUnavailable(error); }
+  // A tray construction failure must not strand an explicitly hidden launcher.
+  if (!backgroundStartupRequested(args, session) || !trayAvailable) { await launcher.show(); return; }
   await launcher.background();
 }
 
@@ -124,10 +126,9 @@ export async function applyDesktopSettings(current: Settings, patch: Partial<Set
       autostartTouched = true;
       await setAutostart(update.configRoot, autostartArguments(update.launchArguments, patch.launchInBackground ?? current.launchInBackground ?? false), nextAutostart);
     }
-    if (changed('minimizeToTray')) {
+    if (changed('minimizeToTray') && patch.minimizeToTray) {
       trayTouched = true;
-      if (patch.minimizeToTray) update.ensureTray();
-      else update.releaseTray();
+      update.ensureTray();
     }
     return await update.persist(patch);
   } catch (error) {

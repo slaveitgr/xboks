@@ -256,6 +256,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   const pointerMove = (event: PointerEvent) => { if (event.movementX || event.movementY) pointer(); };
   const keyboard = (event: KeyboardEvent) => {
     if (keyboardFromPad) return;
+    if (doc.documentElement.hasAttribute('data-cloud-stream-input')) return;
     if (event.key === 'Escape') {
       const consumed = picker ? (closePicker(true), true) : dispatchBackHandlers(win, currentScope());
       if (consumed) { event.preventDefault(); event.stopImmediatePropagation(); }
@@ -274,6 +275,15 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     closePicker(false);
     const backdrop = doc.createElement('div');
     backdrop.className = 'gamepad-select-backdrop';
+    // The picker is attached to body; place it above the modal that owns it.
+    let owner = scope instanceof HTMLElement ? scope : null;
+    let layer = 80;
+    while (owner) {
+      const zIndex = Number.parseInt(win.getComputedStyle(owner).zIndex, 10);
+      if (Number.isFinite(zIndex)) layer = Math.max(layer, zIndex + 1);
+      owner = owner.parentElement;
+    }
+    backdrop.style.zIndex = String(Math.min(2_147_483_647, layer));
     const dialog = doc.createElement('section');
     dialog.className = 'gamepad-select-dialog';
     dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true');
@@ -501,6 +511,10 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   const tick = (now: number) => {
     if (stopped) return;
     const elapsed = Math.min(40, Math.max(0, now - previousTime)); previousTime = now;
+    if (doc.documentElement.dataset.cloudStreamInput === 'active') {
+      if (active) blur(); inputs.forEach(input => input.reset());
+      frame = win.requestAnimationFrame(tick); return;
+    }
     try {
       if (options.nativeControlsActive?.()) {
         // Main admits these inputs only for its visible focused UI surface.

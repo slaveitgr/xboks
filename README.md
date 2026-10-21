@@ -37,7 +37,8 @@ The project is in active development and currently provides source; public binar
 | **Installation queue** | Package confirmation, installation location, progress, supported pause/resume, cancellation choices, and local diagnostics. |
 | **Launch tools** | Per-game arguments and locale; optional GameMode, MangoHud and Gamescope wrappers; controller compatibility options; desktop and Steam shortcuts. Optional tools are installed separately. |
 | **Accounts and social** | Microsoft sign-in, provider-reported profile/membership, friends, presence, player search, and one-to-one text conversations through a compatible social provider. |
-| **Cloud and console** | Xbox Cloud Gaming and console Remote Play through Microsoft's official web players, with trusted Back, retry, and close controls. Website sign-in is separate from launcher sign-in. |
+| **Cloud Gaming** | In-app Discover, recent games, popular, EA Play and **Stream your own game** collections; exact game details, controller navigation, filters and paging. Uses the current XBOKS account for cloud authentication and an experimental direct WebRTC player. |
+| **Console Remote Play** | Native account-bound console discovery and selection, an explicit Connect action, provisioning and an experimental in-app WebRTC player. Reuses the signed-in XBOKS account. |
 | **Settings and Engine** | English/Greek interface, library-provider pages, downloads/storage settings, runtime selection, update checks, and local diagnostic logs. |
 
 The default game folder is **`~/Games/Xboks`**; custom locations are preserved. Account tokens use the system keyring. Wallet creation/unlocking is explicit and handled by your wallet provider. Diagnostic logs remain local unless you choose to share them.
@@ -67,7 +68,35 @@ The optional **GNOME Shell 51** extension adds Xbox/Desktop transitions and a na
 | Game Bar | Fullscreen interface |
 | ![XBOKS Game Bar](docs/screenshots/xboks-game-bar.png) | ![XBOKS fullscreen interface](docs/screenshots/xboks-fullscreen-experience.png) |
 
-*The fullscreen image shows the actual renderer with a synthetic integration bridge; it is not live GNOME acceptance.*
+*The fullscreen image above uses a synthetic integration bridge. The task switcher below is the actual GNOME Shell 51 implementation, captured with real sample windows in a private headless session; it does not establish acceptance in the user's desktop.*
+
+![XBOKS native Fullscreen Experience task switcher](docs/screenshots/xboks-task-switcher.png)
+
+[Light desktop theme](docs/screenshots/xboks-task-switcher-light.png) · [Capture provenance](docs/screenshots/native-switcher-provenance.json)
+
+### Cloud Gaming inside XBOKS
+
+Cloud navigation now stays in the application. Public catalog data provides artwork and descriptions; the authenticated cloud service provides available titles and recent play. A catalog entry alone never establishes ownership. Selecting a card opens its exact game details; only **Play** requests a streaming session. The launcher performs same-account cloud sign-in privately, without another browser login or passing credentials to the renderer.
+
+| Discover | Stream your own game |
+| --- | --- |
+| ![XBOKS Cloud Gaming](docs/screenshots/xboks-cloud-gaming.png) | ![XBOKS Stream your own game](docs/screenshots/xboks-cloud-own-games.png) |
+
+*Actual XBOKS components; account, access and session states in these screenshots are labeled samples. They do not show a live game stream.*
+
+**Cloud settings → Country for cloud sign-in** offers Automatic, Poland, United States, Brazil, Japan and South Korea. Automatic sends no override. The optional compatibility choice follows the login-only technique documented by Better xCloud; it does not create a VPN, route traffic through another country or provide a subscription. The existing-account catalog/MRU read has been verified with this option; end-to-end video/audio/gameplay still needs acceptance. End an active cloud session before changing the preference. The same setting is available under **Settings → Application**.
+
+### Console Remote Play inside XBOKS
+
+The sidebar's **Remote Play** button opens a native console picker. It reads consoles for the current XBOKS account and keeps provider identifiers and credentials in the main process. **Connect** requests the selected console's home-streaming session; the video player, controller input, fullscreen controls and session menu stay inside the app. No second website login is initiated.
+
+A read-only same-account check successfully authenticated the home-streaming service and found a console in standby. This check did not wake it or create a streaming session.
+
+![XBOKS native console picker](docs/screenshots/xboks-console-remote-play.png)
+
+*Sample console states in the actual XBOKS renderer. End-to-end acceptance with an Xbox One X remains pending. [Protocol and original-package analysis](docs/analysis/native-console-streaming.md).*
+
+The system tray remains available while XBOKS runs, with **Open XBOKS**, **Open Game Bar** and **Quit XBOKS**. Closing to the tray remains a separate preference.
 
 [Full gallery: social, Spotify, audio, and mode entry →](docs/screenshots/README.md)
 
@@ -108,7 +137,8 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 - **Xbox party voice is not connected.** The microphone tools are local tests. A party roster or working microphone does not establish an Xbox voice session.
 - **Social coverage is partial.** Friends/inbox reads have been exercised; live delivery of outgoing text messages still needs acceptance. Group/system conversations and unsupported provider actions remain unavailable.
 - **Cloud wishlist is unavailable.** Store promotions do not imply ownership, a personal discount, or wishlist access. Redemption continues only after an explicit choice to open Microsoft's page.
-- **Cloud/Remote Play are web integrations.** Account, region, subscription, controller, and browser restrictions apply. The embedded Linux player and end-to-end streaming still require acceptance; launcher sign-in is not shared with the website.
+- **Cloud streaming is experimental.** Same-account authentication, catalog and MRU reads have been exercised. Session signaling, WebRTC media, controller input and cleanup are implemented and covered by isolated tests; live end-to-end gameplay is still unverified. A provider `ReadyToConnect` response requiring an additional transfer ticket is explicitly unsupported and closes cleanly. Account, region, subscription and game licensing remain provider decisions.
+- **Console Remote Play is experimental.** The console picker and direct player replace the default website flow, using a separate home-streaming offering for the existing account. Live Xbox One X video/audio/input acceptance is pending. A separate Wake button is unavailable until an appropriate remote-management adapter exists; Connect is a streaming attempt and can wake a configured console through provisioning. Unsupported transfer-ticket stages stop explicitly.
 - **Desktop integration is experimental.** External-game overlay placement/input on Wayland, window restoration across desktop variations, lock/resume, and the real reboot/login path need further live testing. Other GNOME major versions are unsupported.
 - **Capture and pinning are limited.** No external-game/video or retrospective capture; kept-open widgets close with Game Bar rather than remaining as independent desktop overlays.
 
@@ -116,6 +146,7 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 ## Roadmap
 
 - Broader game-by-game install-to-launch validation and clearer compatibility reports.
+- Live cloud and Xbox One X video/audio/controller acceptance, the additional console-transfer ticket handshake, and verified console remote-management controls.
 - Xbox party signaling and voice transport, followed by cross-device testing.
 - Additional service-backed Store, social, and account capabilities, including wishlist support.
 - Reliable external-game capture and desktop widget pinning.

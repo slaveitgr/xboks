@@ -5,6 +5,16 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.24 — 2026-10-22
+
+- Replace the default console website flow with an in-app account-bound console picker and home-streaming session/player using existing sign-in. Add private xhome offering/discovery, opaque console/session identities, bounded SDP/ICE, controller input and cleanup. Live One X video/audio/input remains unverified; standalone wake and purpose-ticket transfer remain explicitly unavailable.
+
+- Replace the Cloud Gaming entry screen with an in-app catalog, recent play, popular/EA Play collections, Stream your own game, exact product details, controller navigation, filters and paging, based on original package evidence.
+- Reuse the signed-in Engine account for private GSSV cloud authentication. Add account-bound session provisioning, state, SDP/ICE and keepalive with an experimental direct WebRTC player, scoped input, cancellation and cleanup. No launcher credential enters the renderer.
+- Add explicit cloud country compatibility settings based on Better xCloud's MIT login-only technique. Automatic remains the default. An existing-account Poland compatibility probe read catalog/MRU successfully; no live game was started. Additional ReadyToConnect transfer tickets remain unsupported.
+- Keep a tray icon while XBOKS runs, independently of the close-to-tray preference, with launcher/Game Bar/quit actions and visible-launch fallback when tray creation fails.
+- Add genuine dark/light GNOME Shell switcher captures and native cloud UI captures to both project guides. Sample account/session data and isolated native capture environments are identified.
+
 ## 0.3.23 — 2026-10-21
 
 - Introduce the XBOKS name and owner-supplied green sphere logo across the launcher, application menu, tray, desktop entries and project presentation. Preserve existing install paths, accounts, games and runtime compatibility IDs.

@@ -1,3 +1,5 @@
+import type {CloudStreamApi} from './cloud-library.js';
+import type {ConsoleStreamApi} from './console-stream.js';
 export type Page = 'home' | 'gamepass' | 'store' | 'library' | 'cloud' | 'profile' | 'downloads' | 'settings';
 
 export interface BackendCapabilities {
@@ -180,6 +182,7 @@ export interface GameOperation {
 export interface Settings {
   installRoot: string;
   market: string;
+  cloudLoginCountry?: import('./cloud-region.js').CloudLoginCountry;
   parallelDownloads: number;
   downloadLimitMiB?: number;
   downloadNotifications?: boolean;
@@ -399,7 +402,7 @@ export interface DesktopGuideApi {
   onInput(callback: (action: import('./desktop-shell.js').GuideInputAction) => void): () => void;
 }
 
-export interface LauncherApi {
+export interface LauncherApi extends CloudStreamApi, ConsoleStreamApi {
   getWindowFullscreen(): Promise<boolean>;
   setWindowFullscreen(enabled: boolean): Promise<boolean>;
   onWindowFullscreenChanged(callback: (enabled: boolean) => void): () => void;
@@ -430,6 +433,7 @@ export interface LauncherApi {
   controlCloudGaming(command: import('./cloud-gaming.js').CloudGamingCommand): Promise<import('./cloud-gaming.js').CloudGamingState>;
   setCloudGamingObscured(obscured: boolean): Promise<void>;
   openRemotePlay(): Promise<void>;
+  onConsoleLibraryOpen(callback: () => void): () => void;
   getRemotePlayState(): Promise<import('./remote-play.js').RemotePlayState>;
   onRemotePlayState(callback: (state: import('./remote-play.js').RemotePlayState) => void): () => void;
   controlRemotePlay(command: import('./remote-play.js').RemotePlayCommand): Promise<import('./remote-play.js').RemotePlayState>;

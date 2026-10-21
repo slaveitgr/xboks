@@ -40,7 +40,7 @@ vi.mock('electron', () => ({
   session: { defaultSession: { setPermissionCheckHandler: h.permissionCheck, setPermissionRequestHandler: h.permissionRequest } },
   powerMonitor: { on: (name: string, callback: (...args: any[]) => any) => h.powerEvents.set(name, callback),
     removeListener: (name: string) => h.powerEvents.delete(name) },
-  BrowserWindow: class { webContents = { on: vi.fn(), send: vi.fn(), setWindowOpenHandler: vi.fn() };
+  BrowserWindow: class { webContents = { on: vi.fn(), send: vi.fn(), isDestroyed: () => false, setWindowOpenHandler: vi.fn() };
     on() {} once() {} show = h.showWindow; restore = h.restoreWindow; focus() {}
     isMinimized() { return false; } isVisible() { return true; } isDestroyed() { return false; } async loadFile() {} },
   screen: { getPrimaryDisplay: () => ({ workArea: { x: 0, y: 0, width: 1440, height: 900 } }) },

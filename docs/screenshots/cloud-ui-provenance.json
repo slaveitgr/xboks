@@ -1,0 +1,90 @@
+{
+  "capturedAt": "2026-10-21T21:41:42.273Z",
+  "fixture": "scripts/ui/fixtures/cloud-library.tsx",
+  "runner": "scripts/ui/cloud-library-smoke.mjs",
+  "productionComponents": [
+    "Sidebar",
+    "GlobalSearch",
+    "ShellHeaderControls",
+    "CloudLibraryPage",
+    "CloudStreamHost",
+    "GamepadNavigation",
+    "CloudRegionSettings",
+    "SettingsPage",
+    "ConfirmationProvider"
+  ],
+  "checksPassed": 51,
+  "publicArtwork": {
+    "metadataEndpoint": "https://catalog.gamepass.com/v3/products?market=US&language=en-US&hydration=RemoteLowJade0",
+    "productIds": [
+      "BT5P2X999VH2",
+      "9N3D82TFF6C4",
+      "9N4PT8HGCDHQ",
+      "9N8PMW7QMD3D",
+      "9NVD16NP4J8T",
+      "9NDF1F263RZ4",
+      "9NLKS78C4F3Z",
+      "9P3PT7PQJD0M",
+      "C0N22P73QZ60",
+      "BPQZT43FWD49",
+      "9P22THR57FV7",
+      "BXBJQ1932138",
+      "BQ1W1T1FC14W",
+      "9PMFDKG5F9R7"
+    ],
+    "cachedImages": 14,
+    "cachedBytes": 548602,
+    "hero": "Gears of War E-Day exact-ID public DisplayCatalog hero reused from preceding gallery cache",
+    "capturedOffline": true
+  },
+  "synthetic": [
+    "Account and single sign-on outcome",
+    "Access and input capabilities",
+    "Recent-play and collection membership/order",
+    "Product detail text",
+    "Cloud session queue, estimated wait and stop acknowledgement",
+    "Controller input events",
+    "Country preference Save/rejection and country-dependent account refresh"
+  ],
+  "notValidated": [
+    "Real account single sign-on and logout",
+    "Subscription or game access",
+    "Xbox session creation",
+    "SDP/ICE exchange or decoded video",
+    "Physical gamepad acceptance",
+    "Game streaming latency or quality"
+  ],
+  "captureBoundary": [
+    "Temporary HOME/XDG/browser profile",
+    "Disconnected session/system D-Bus",
+    "Browser permits only its local fixture origin",
+    "No launcher backend, game operations, host device changes or real network transport"
+  ],
+  "images": {
+    "xboks-cloud-gaming.png": {
+      "sha256": "f9c48a1556a8f487a4cf85d1d5443ba1195234bd33bdcea1ad8b2a90022c7b7a",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-settings.png": {
+      "sha256": "e9b132aa9d8dd09b96e3e2c23f5fa5443a08a612cf31808170a114e5d4a3a8ed",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-own-games.png": {
+      "sha256": "53755443b89c1413516d3ea6435e02e6a237befc63611053cfd72be9e2c13cf7",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-game-details.png": {
+      "sha256": "2b937454a245f859a9ea280db33ac00bd36420e478fc8c3ed7bdfb6acae4ca99",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-session-queue.png": {
+      "sha256": "ef891a605cac1c1982c3a1c2c8122f2abd121890dc43473a13375298f4c9aca7",
+      "width": 1920,
+      "height": 1080
+    }
+  }
+}

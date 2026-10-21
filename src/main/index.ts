@@ -9,6 +9,10 @@ import { scanLibraryProviders } from './library-providers.js';
 import { applyDesktopSettings, backgroundStartupRequested, batteryPercentage, desktopConfigRoot, desktopSession, inspectDesktopSettings, startDesktopLauncher } from './desktop-settings.js';
 import { RemotePlay } from './remote-play.js';
 import { CloudGaming } from './cloud-gaming.js';
+import { CloudCatalogService } from './cloud-catalog.js';
+import { CloudAccountService } from './cloud-account.js';
+import { ConsoleStreamService } from './console-stream.js';
+import {normalizeCloudLoginCountry} from './cloud-region.js';
 import { GameBarResidency, gameBarServiceEnabled } from './gamebar-residency.js';
 import { GameBarController, controllerSessionActive } from './gamebar-controller.js';
 import { DesktopGuide } from './desktop-guide.js';
@@ -110,6 +114,44 @@ const remotePlay = new RemotePlay({ changed: state => {
 const cloudGaming = new CloudGaming({ changed: state => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-gaming-state', state);
 }, toggleFullscreen: owner => fullscreenExperience.setWindow(!owner.isFullScreen()) });
+let cloudDisplayBlocker: number | undefined;
+const cloudCatalog = new CloudCatalogService();
+const cloudAccount = new CloudAccountService({changed: state => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    try {mainWindow.webContents.send('cloud-stream-state', state);} catch { /* Renderer teardown cannot prevent session cleanup. */ }
+  }
+  if (!['closed', 'error'].includes(state.phase)) {
+    if (cloudDisplayBlocker === undefined) cloudDisplayBlocker = powerSaveBlocker.start('prevent-display-sleep');
+  } else if (cloudDisplayBlocker !== undefined) {
+    if (powerSaveBlocker.isStarted(cloudDisplayBlocker)) powerSaveBlocker.stop(cloudDisplayBlocker);
+    cloudDisplayBlocker = undefined;
+  }
+}});
+let cloudStopJob: Promise<void> | undefined;
+function stopCloudStreaming(id?: string): Promise<void> {
+  if (cloudStopJob) return cloudStopJob;
+  const job = cloudAccount.stop(id).finally(() => {if (cloudStopJob === job) cloudStopJob = undefined;});
+  return cloudStopJob = job;
+}
+let consoleDisplayBlocker: number | undefined;
+const consoleStream = new ConsoleStreamService({changed: state => {
+  if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+    try {mainWindow.webContents.send('console-stream-state', state);} catch { /* Renderer teardown cannot prevent session cleanup. */ }
+  }
+  if (!['closed', 'error'].includes(state.phase)) {
+    if (consoleDisplayBlocker === undefined) consoleDisplayBlocker = powerSaveBlocker.start('prevent-display-sleep');
+  } else if (consoleDisplayBlocker !== undefined) {
+    if (powerSaveBlocker.isStarted(consoleDisplayBlocker)) powerSaveBlocker.stop(consoleDisplayBlocker);
+    consoleDisplayBlocker = undefined;
+  }
+}});
+let consoleStopJob: Promise<void> | undefined;
+let streamingTransition = false;
+function stopConsoleStreaming(id?: string): Promise<void> {
+  if (consoleStopJob) return consoleStopJob;
+  const job = consoleStream.stop(id).finally(() => {if (consoleStopJob === job) consoleStopJob = undefined;});
+  return consoleStopJob = job;
+}
 let remotePlayGuideObscured = false, remotePlayInlineObscured = false;
 let cloudGamingInlineObscured = false;
 const updateRemotePlayVisibility = () => {
@@ -140,6 +182,7 @@ function ensureSettingsTray(): void {
     settingsTray.on('click', () => { void showLauncher().catch(console.error); });
     settingsTray.setContextMenu(Menu.buildFromTemplate([
       { label: 'Open XBOKS', click: () => { void showLauncher().catch(console.error); } },
+      { label: 'Open Game Bar', click: () => { void toggleDesktopGuide().catch(console.error); } },
       { label: 'Quit XBOKS', click: () => { quitting = true; app.quit(); } },
     ]));
     desktopSettingsStatus.trayAvailable = true;
@@ -234,6 +277,29 @@ const gameActivities = new GameActivities();
 const gameAchievements = new GameAchievementsReader();
 const xboxSocial = new XboxSocialService();
 let bundledSocialBackendJob: Promise<string | undefined> | undefined;
+let bundledCloudBackendJob: Promise<string | undefined> | undefined;
+function cloudBackendBinary(): Promise<string | undefined> {
+  if (backend?.current.capabilities.commands.includes('cloud-token')) return Promise.resolve(backend.current.binaryPath);
+  const root = app.isPackaged ? path.join(process.resourcesPath, 'social-backend')
+    : fileURLToPath(new URL('../../assets/social-backend', import.meta.url));
+  return bundledCloudBackendJob ??= socialBackend(root, undefined, 'cloud-token');
+}
+let cloudAccountIdentity: string | undefined;
+let consoleAccountIdentity: string | undefined;
+function invalidateChangedCloudAccount(): void {
+  const identity = JSON.stringify([authState.stored, authState.running, authState.username, backend?.current.binaryPath, currentMarket(), store?.settings.cloudLoginCountry]);
+  if (identity !== cloudAccountIdentity) {
+    cloudAccountIdentity = identity;
+    if (cloudAccount.state.phase !== 'closed') void stopCloudStreaming().catch(() => {});
+    cloudAccount.select();
+  }
+  const consoleIdentity = JSON.stringify([authState.stored, authState.running, authState.username, backend?.current.binaryPath, currentMarket()]);
+  if (consoleIdentity !== consoleAccountIdentity) {
+    consoleAccountIdentity = consoleIdentity;
+    if (consoleStream.state.phase !== 'closed') void stopConsoleStreaming().catch(() => {});
+    consoleStream.select();
+  }
+}
 function socialBackendBinary(): Promise<string | undefined> {
   if (backend?.current.capabilities.social) return Promise.resolve(backend.current.binaryPath);
   const root = app.isPackaged ? path.join(process.resourcesPath, 'social-backend')
@@ -581,6 +647,7 @@ async function checkGameUpdates(id?: string): Promise<void> {
 }
 
 function emitSnapshot(): void {
+  invalidateChangedCloudAccount();
   if (snapshotTimer) clearTimeout(snapshotTimer);
   snapshotTimer = undefined;
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('snapshot', snapshot());
@@ -1146,8 +1213,14 @@ async function gameTitleId(game: Game): Promise<string | undefined> {
 
 async function launchGame(id: string): Promise<void> {
   ensureIdle('launch');
+  if (streamingTransition) throw Error('Wait for the current streaming action to finish.');
   preparingLaunch = true;
-  try { await prepareGameLaunch(id); }
+  try {
+    await Promise.all([stopCloudStreaming(), stopConsoleStreaming()]);
+    if (shutdownStarted || quitting) throw Error('The launcher is closing.');
+    remotePlay.destroy(); cloudGaming.destroy();
+    await prepareGameLaunch(id);
+  }
   finally { preparingLaunch = false; }
 }
 
@@ -1640,12 +1713,80 @@ function registerIpc(): void {
     emitSnapshot();
     if (accountProfile.error) throw Error('The Xbox profile could not be refreshed.');
   });
-  ipcMain.handle('cloud-gaming-open', event => {
+  const cloudSender = (event: Electron.IpcMainInvokeEvent) => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents || shutdownStarted || quitting) throw Error('Cloud gaming must be controlled from XBOKS.');
+  };
+  const selectCloudAccount = async (event: Electron.IpcMainInvokeEvent) => {
+    cloudSender(event); invalidateChangedCloudAccount();
+    const account = !demoMode && authState.stored === true && !authState.running ? authState.username : undefined;
+    const selectedBinary = backend?.current.binaryPath;
+    const binary = account ? await cloudBackendBinary() : undefined;
+    cloudSender(event);
+    if (selectedBinary !== backend?.current.binaryPath || account !== (!demoMode && authState.stored === true && !authState.running ? authState.username : undefined)) throw Error('Xbox account changed. Try again.');
+    cloudAccount.select(account, binary, `en-${currentMarket()}`, store.settings.cloudLoginCountry);
+  };
+  const selectConsoleAccount = async (event: Electron.IpcMainInvokeEvent) => {
+    cloudSender(event); invalidateChangedCloudAccount();
+    const account = !demoMode && authState.stored === true && !authState.running ? authState.username : undefined;
+    const selectedBinary = backend?.current.binaryPath;
+    const binary = account ? await cloudBackendBinary() : undefined;
+    cloudSender(event);
+    if (selectedBinary !== backend?.current.binaryPath || account !== (!demoMode && authState.stored === true && !authState.running ? authState.username : undefined)) throw Error('Xbox account changed. Try again.');
+    consoleStream.select(account, binary, `en-${currentMarket()}`);
+  };
+  ipcMain.handle('cloud-public-catalog', (event, refresh?: boolean) => {cloudSender(event); return cloudCatalog.catalog(currentMarket(), refresh === true);});
+  ipcMain.handle('cloud-products', (event, ids: string[]) => {cloudSender(event); return cloudCatalog.describe(ids, currentMarket());});
+  ipcMain.handle('cloud-account-catalog', async (event, refresh?: boolean) => {await selectCloudAccount(event); return cloudAccount.catalog(refresh === true);});
+  ipcMain.handle('cloud-stream-start', async (event, productId: string) => {
+    const owner = mainWindow;
+    cloudSender(event);
+    if (demoMode || preparingLaunch || gameProcesses.size > 0 || serviceSessions.size > 0 || cloudStopJob || streamingTransition) throw Error('Wait for the current game operation to finish.');
+    streamingTransition = true;
+    try {
+      await stopConsoleStreaming(); await selectCloudAccount(event);
+      if (!owner || owner !== mainWindow || owner.isDestroyed() || !owner.isVisible() || !owner.isFocused() || quitting) throw Error('Start cloud games from the visible XBOKS window.');
+      if (preparingLaunch || gameProcesses.size > 0 || serviceSessions.size > 0 || cloudStopJob) throw Error('Wait for the current game operation to finish.');
+      remotePlay.destroy(); cloudGaming.destroy();
+      return await cloudAccount.start(productId);
+    } finally {streamingTransition = false;}
+  });
+  ipcMain.handle('cloud-stream-state', async (event, id?: string) => {cloudSender(event); invalidateChangedCloudAccount(); return id ? cloudAccount.getSessionState(id) : cloudAccount.state;});
+  ipcMain.handle('cloud-stream-sdp', (event, id: string, sdp: string) => {cloudSender(event); invalidateChangedCloudAccount(); return cloudAccount.exchangeSdp(id, sdp);});
+  ipcMain.handle('cloud-stream-ice', (event, id: string, candidates: import('../shared/cloud-stream.js').CloudIceCandidate[]) => {cloudSender(event); invalidateChangedCloudAccount(); return cloudAccount.exchangeIce(id, candidates);});
+  ipcMain.handle('cloud-stream-stop', (event, id?: string) => {cloudSender(event); return stopCloudStreaming(id);});
+  ipcMain.handle('console-stream-devices', async (event, refresh?: boolean) => {await selectConsoleAccount(event); return consoleStream.list(refresh === true);});
+  ipcMain.handle('console-stream-start', async (event, consoleId: string) => {
+    const owner = mainWindow;
+    cloudSender(event);
+    if (demoMode || preparingLaunch || gameProcesses.size > 0 || serviceSessions.size > 0 || consoleStopJob || streamingTransition) throw Error('Wait for the current game operation to finish.');
+    streamingTransition = true;
+    try {
+      await stopCloudStreaming(); await selectConsoleAccount(event);
+      if (!owner || owner !== mainWindow || owner.isDestroyed() || !owner.isVisible() || !owner.isFocused() || quitting) throw Error('Start Remote Play from the visible XBOKS window.');
+      if (preparingLaunch || gameProcesses.size > 0 || serviceSessions.size > 0 || consoleStopJob) throw Error('Wait for the current game operation to finish.');
+      remotePlay.destroy(); cloudGaming.destroy();
+      return await consoleStream.start(consoleId);
+    } finally {streamingTransition = false;}
+  });
+  ipcMain.handle('console-stream-state', (event, id?: string) => {cloudSender(event); invalidateChangedCloudAccount(); return id ? consoleStream.getSessionState(id) : consoleStream.state;});
+  ipcMain.handle('console-stream-sdp', (event, id: string, sdp: string) => {cloudSender(event); invalidateChangedCloudAccount(); return consoleStream.exchangeSdp(id, sdp);});
+  ipcMain.handle('console-stream-ice', (event, id: string, candidates: import('../shared/cloud-stream.js').CloudIceCandidate[]) => {cloudSender(event); invalidateChangedCloudAccount(); return consoleStream.exchangeIce(id, candidates);});
+  ipcMain.handle('console-stream-stop', (event, id?: string) => {cloudSender(event); return stopConsoleStreaming(id);});
+  ipcMain.handle('console-stream-wake', async (event, id: string) => {await selectConsoleAccount(event); return consoleStream.wake(id);});
+  ipcMain.handle('cloud-gaming-open', async event => {
+    const owner = mainWindow;
     systemSender(event);
     if (event.sender !== mainWindow?.webContents) throw Error('Cloud gaming must be opened from the launcher.');
     if (demoMode || shutdownStarted) throw Error('Cloud gaming is disabled in demo mode or during shutdown.');
-    remotePlay.destroy();
-    const opened = cloudGaming.open(mainWindow!); updateRemotePlayVisibility(); return opened;
+    if (streamingTransition) throw Error('Wait for the current streaming action to finish.');
+    streamingTransition = true;
+    try {
+      await Promise.all([stopCloudStreaming(), stopConsoleStreaming()]); cloudSender(event);
+      if (owner !== mainWindow || !owner?.isVisible() || !owner.isFocused() || quitting) throw Error('Open cloud gaming from the visible XBOKS window.');
+      remotePlay.destroy();
+      const opened = cloudGaming.open(mainWindow!); updateRemotePlayVisibility(); return await opened;
+    } finally {streamingTransition = false;}
   });
   ipcMain.handle('cloud-gaming-state', event => { systemSender(event); return cloudGaming.state; });
   ipcMain.handle('cloud-gaming-control', (event, action: import('../shared/cloud-gaming.js').CloudGamingCommand) => {
@@ -1661,12 +1802,14 @@ function registerIpc(): void {
   ipcMain.handle('library-providers', () => demoMode ? [] : scanLibraryProviders());
   ipcMain.handle('battery-percentage', () => batteryPercentage());
   ipcMain.handle('battery-status', () => batteryPowerStatus());
-  ipcMain.handle('remote-play-open', (event) => {
+  ipcMain.handle('remote-play-open', async (event) => {
+    const owner = mainWindow;
     systemSender(event);
     if (event.sender !== mainWindow?.webContents) throw new Error('Remote Play must be opened from the launcher.');
     if (demoMode) throw Error('Console Remote Play is disabled in demo mode.');
-    cloudGaming.destroy();
-    const opened = remotePlay.open(mainWindow!); updateRemotePlayVisibility(); return opened;
+    cloudSender(event);
+    if (owner !== mainWindow || !owner?.isVisible() || !owner.isFocused() || quitting) throw Error('Open Remote Play from the visible XBOKS window.');
+    mainWindow!.webContents.send('console-library-open');
   });
   ipcMain.handle('remote-play-state', event => { systemSender(event); return remotePlay.state; });
   ipcMain.handle('remote-play-control', (event, action: import('../shared/remote-play.js').RemotePlayCommand) => {
@@ -2079,12 +2222,15 @@ function registerIpc(): void {
     pendingSettingsUpdates++;
     const update = settingsUpdates.then(async () => {
       if (quitting) throw new Error('Settings cannot be changed while XBOKS is closing.');
+      if (patch.cloudLoginCountry !== undefined && normalizeCloudLoginCountry(patch.cloudLoginCountry) !== patch.cloudLoginCountry) throw Error('Invalid cloud country preference.');
+      if (patch.cloudLoginCountry !== undefined && patch.cloudLoginCountry !== store.settings.cloudLoginCountry && cloudAccount.state.phase !== 'closed') throw Error('End the current cloud session before changing its country.');
       if (patch.downloadLimitMiB !== undefined) {
         downloadLimitKiB(patch.downloadLimitMiB);
         downloadLimitArgs(patch.downloadLimitMiB, backend.current.capabilities);
       }
       if ((['market', 'winePath', 'externalXodusRoot', 'runtimeRoot'] as const).some(key => patch[key] !== undefined && patch[key] !== store.settings[key])) ensureIdle();
       const allowed: Partial<Settings> = {};
+      if (patch.cloudLoginCountry !== undefined) allowed.cloudLoginCountry = patch.cloudLoginCountry;
       if (typeof patch.launchOnLogin === 'boolean') allowed.launchOnLogin = patch.launchOnLogin;
       if (typeof patch.launchInBackground === 'boolean') allowed.launchInBackground = patch.launchInBackground;
       if (typeof patch.minimizeToTray === 'boolean') allowed.minimizeToTray = patch.minimizeToTray;
@@ -2120,7 +2266,7 @@ function registerIpc(): void {
       }
       // A bandwidth-only change must not restart authentication or refresh devices.
       if (isBandwidthOnlyPatch(patch)) { emitSnapshot(); return settings; }
-      if (Object.keys(patch).every(key => ['downloadNotifications', 'downloadSpeedUnit', 'createDesktopShortcut', 'launchOnLogin', 'launchInBackground', 'minimizeToTray'].includes(key))) { emitSnapshot(); return settings; }
+      if (Object.keys(patch).every(key => ['cloudLoginCountry', 'downloadNotifications', 'downloadSpeedUnit', 'createDesktopShortcut', 'launchOnLogin', 'launchInBackground', 'minimizeToTray'].includes(key))) { emitSnapshot(); return settings; }
       backend.setExternalRoot(settings.externalXodusRoot);
       runtime.setRoot(settings.runtimeRoot);
       await backend.refresh();
@@ -2251,6 +2397,14 @@ async function createWindow(background = false): Promise<void> {
   const captureOwnerId = mainWindow.webContents.id;
   const releaseCapture = () => voiceCapture.release(captureOwnerId);
   mainWindow.on('hide', releaseCapture);
+  const stopOwnedStreams = () => {void stopCloudStreaming().catch(() => {}); void stopConsoleStreaming().catch(() => {});};
+  mainWindow.on('hide', stopOwnedStreams);
+  mainWindow.on('closed', stopOwnedStreams);
+  mainWindow.webContents.on('render-process-gone', stopOwnedStreams);
+  mainWindow.webContents.on('destroyed', stopOwnedStreams);
+  mainWindow.webContents.on('did-start-navigation', (_event, _url, inPlace, isMainFrame) => {
+    if (isMainFrame && !inPlace) stopOwnedStreams();
+  });
   mainWindow.webContents.on('did-start-navigation', releaseCapture);
   mainWindow.webContents.on('render-process-gone', releaseCapture);
   mainWindow.webContents.on('destroyed', releaseCapture);
@@ -2450,6 +2604,7 @@ app.whenReady().then(async () => {
   void checkLauncherUpdate().then(() => emitSnapshot());
   registerIpc();
   launchReady = true;
+  try {ensureSettingsTray();} catch {console.warn('The desktop tray is unavailable; XBOKS remains accessible from its launcher.');}
   gameBarController.start();
   // The resident Game Bar service can win the instance lock at login. The
   // reboot intent belongs to the profile, not whichever startup entry won.
@@ -2508,6 +2663,10 @@ app.on('before-quit', (event) => {
   spotify.dispose();
   remotePlay.destroy();
   cloudGaming.destroy();
+  if (cloudAccount.state.phase !== 'closed') void stopCloudStreaming().catch(() => {});
+  cloudAccount.select();
+  if (consoleStream.state.phase !== 'closed') void stopConsoleStreaming().catch(() => {});
+  consoleStream.select();
   desktopGuide.destroy();
   installQueue.stop();
   installQueue.stop();
@@ -2516,10 +2675,12 @@ app.on('before-quit', (event) => {
   guidePower.clear();
   accountProfile?.cancel();
   accountRefresh.invalidate();
-  if (shutdownStarted || (!walletUnlocker.busy && !keyringSupport.busy && !walletTarget && !pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
+  if (shutdownStarted || (!cloudStopJob && !consoleStopJob && cloudAccount.state.phase === 'closed' && consoleStream.state.phase === 'closed' && !walletUnlocker.busy && !keyringSupport.busy && !walletTarget && !pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
   event.preventDefault();
   shutdownStarted = true;
   void (async () => {
+    await stopCloudStreaming().catch(() => {});
+    await stopConsoleStreaming().catch(() => {});
     await walletUnlocker.stop();
     // Finish preference persistence/rollback before destroying the tray or terminating the process.
     await settingsUpdates;

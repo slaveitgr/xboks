@@ -1,0 +1,78 @@
+{
+  "capturedAt": "2026-10-21T22:06:31.464Z",
+  "fixture": "scripts/ui/fixtures/console-library.tsx",
+  "runner": "scripts/ui/console-library-smoke.mjs",
+  "productionComponents": [
+    "Sidebar",
+    "GlobalSearch",
+    "HomePage",
+    "ShellHeaderControls",
+    "ConsoleLibrary",
+    "ConsoleStreamHost",
+    "CloudStreamHost",
+    "GamepadNavigation"
+  ],
+  "checksPassed": 35,
+  "browserErrors": [],
+  "blockedRequests": [],
+  "synthetic": [
+    "Account identity and console-list response",
+    "Names, models, power/availability states and local console capabilities",
+    "Starting/provisioning/error session responses and stop acknowledgements",
+    "Controller input events and overlay/focus takeover",
+    "Home featured-product ordering"
+  ],
+  "publicArtwork": {
+    "source": "Reused cached anonymous public artwork from cloud-ui-provenance.json; no provider request during capture",
+    "metadataEndpoint": "https://catalog.gamepass.com/v3/products?market=US&language=en-US&hydration=RemoteLowJade0",
+    "productIds": [
+      "BT5P2X999VH2",
+      "9N3D82TFF6C4",
+      "9N4PT8HGCDHQ",
+      "9N8PMW7QMD3D",
+      "9NVD16NP4J8T",
+      "9NDF1F263RZ4",
+      "9NLKS78C4F3Z",
+      "9P3PT7PQJD0M",
+      "C0N22P73QZ60",
+      "BPQZT43FWD49",
+      "9P22THR57FV7",
+      "BXBJQ1932138",
+      "BQ1W1T1FC14W",
+      "9PMFDKG5F9R7"
+    ],
+    "capturedOffline": true
+  },
+  "notValidated": [
+    "Real console-list account SSO",
+    "Physical Xbox One X or Series connection",
+    "Wake or standby connection",
+    "Console session creation, SDP/ICE exchange or decoded playback",
+    "Actual stream resolution, quality or latency",
+    "Physical controller or microphone"
+  ],
+  "captureBoundary": [
+    "Offscreen owned Electron browser with temporary HOME/XDG/profile",
+    "Disconnected session/system D-Bus and no host DISPLAY/WAYLAND",
+    "Browser restricted to its fixture localhost origin",
+    "No real Microsoft account, provider request, console wake/start or operating-system action",
+    "Visible sample account/consoles/session watermark on every image"
+  ],
+  "sourceSha256": {
+    "src/renderer/ConsoleLibrary.tsx": "f69e5bb03eec05aff24331d47df949b2e0dda2bbbe36a7a4e61cbc62eabfff70",
+    "src/renderer/console-library.css": "2ed3331566127dab9f7a9b9a5236a1085097b32ddf4f09fc91e62d86e0b308d7",
+    "src/renderer/ConsoleStream.tsx": "6a952a67d89084dbbea9128e744458880d0a5e9cacbf0a9eeb70c290d47f5ec7",
+    "src/renderer/CloudStream.tsx": "d420f760e2159ce7e0a49ee82cbc3e651f7c6fb9123c8ec25f29f4815f761b7a",
+    "src/renderer/cloud-stream.css": "0013cc70f0e8f577765360bad7773e02d12faa76c0f3bd313f6e82bb98edc861",
+    "src/renderer/stream-input.ts": "7aaf9757f088f93b3f5518281fa4cb9cd26e0a73833f8994bb7e756033347844",
+    "src/renderer/cloud-player.ts": "7937efd4de600476e6628f48dc0f275d48362d6321e883d66a7c759a43986d56",
+    "scripts/ui/fixtures/console-library.tsx": "b11bf6bf344f903696940ef10164708f9ac356ffd6190d4681dbe4fdaea47b52",
+    "scripts/ui/console-library-smoke.mjs": "ff1e57220973d2c86cd819e3f1c6f40caccd0f7581a0f32a4f97227a0cbe46d1",
+    "src/shared/console-stream.ts": "aba656da41504a39aab04448896e153c5ec6bfed4cffbf6f7b00c7a06bedae9f"
+  },
+  "imageSha256": {
+    "xboks-console-remote-play.png": "e8b59a80dbd2b4f5a5cc600a8a01d9d7cbb20c0d9289db4e54d5f3ffb26ed726",
+    "xboks-console-connecting.png": "cbf73f8006423a20b1606e70ab8f717393496511fdf8756bdef9d9d2e92406de",
+    "xboks-console-connection-error.png": "e423ca5a0aa324e0cc7d8deea550f0231138ae8206b80bdac876321b9cc57e53"
+  }
+}

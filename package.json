@@ -1,8 +1,8 @@
 {
   "name": "xboks",
-  "version": "0.3.23",
+  "version": "0.3.24",
   "homepage": "https://github.com/slaveitgr/xboks",
-  "description": "XBOKS — Linux gaming with controller navigation, Game Bar, Fullscreen Experience and Proton integration",
+  "description": "XBOKS \u2014 Linux gaming with controller navigation, Game Bar, Fullscreen Experience and Proton integration",
   "license": "MIT",
   "author": "XBOKS contributors",
   "type": "module",
@@ -21,9 +21,11 @@
     "pack": "npm run build && electron-builder --linux dir --publish never"
   },
   "dependencies": {
+    "events": "3.3.0",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "xbox-xcloud-player": "0.2.11"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

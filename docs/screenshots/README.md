@@ -1,9 +1,12 @@
 # XBOKS screenshots
 
-These are captures of **XBOKS's own React renderer**, taken on 2026-10-21 at
-1920 × 1080. Every gallery image retains a visible fixture watermark. Accounts,
+The launcher and Game Bar images capture **XBOKS's own React renderer**, taken
+on 2026-10-21 at 1920 × 1080. The cloud UI was captured in an isolated Electron
+browser on 2026-10-22; the native task switcher uses a private GNOME Shell 51
+session from that date, as described below. Every
+gallery image identifies its sample environment. Accounts,
 libraries, installation states, messages, media, devices and performance values
-are explicit sample data. Main-app game titles and artwork come from anonymous
+are explicit sample data. The initial launcher gallery's titles and artwork come from anonymous
 public Microsoft Store metadata for the exact nine fixture Product IDs. Images
 were cached before capture and embedded locally; the capture browser cannot
 contact the Store. The Store spotlight also uses an already cached public
@@ -11,8 +14,8 @@ Minecraft image.
 
 The screenshots are unmodified PNG exports. They are not screenshots of the
 Windows Xbox application, and they do not establish game compatibility, live
-account acceptance, physical controller acceptance or operating-system integration.
-No real message, purchase, installation, media command, reboot or device setting
+account acceptance, physical controller acceptance or integration in the user's desktop.
+No real message, purchase, installation, media command, reboot or host device setting
 was executed to make them.
 
 ## Launcher
@@ -41,6 +44,50 @@ Settings with all nine categories. Changing the fixture's controls cannot change
 desktop autostart, the system tray or the installed application's settings.
 
 ![XBOKS Settings — isolated renderer controls](xboks-settings.png)
+
+## Cloud gaming
+
+These captures show the actual XBOKS Cloud library and session components,
+composed with the production navigation rail and header. They are not captures
+of an external website. Fourteen exact-ID public Game Pass metadata/artwork
+records were cached anonymously before capture. The fixture's collection
+membership/order, account, access rights, input capabilities, recent play and
+single sign-on result are samples. They do not establish ownership or cloud
+availability for a real account.
+
+![XBOKS Cloud Gaming — public artwork and sample account](xboks-cloud-gaming.png)
+
+![XBOKS Stream your own game — sample cloud collection and access](xboks-cloud-own-games.png)
+
+Cloud settings, with an unsaved sample Poland choice. The country preference
+starts at Automatic and is saved only by its explicit Save action. Its fixture
+adapter changes no host preference, network route, subscription or real account.
+
+![XBOKS cloud settings — sample country preference, no host or account changes](xboks-cloud-settings.png)
+
+Product-specific details preserve the selected ID, real public title/artwork
+and synthetic detail text. Opening a card does not start a session.
+
+![XBOKS cloud game details — exact-ID public artwork and sample detail response](xboks-cloud-game-details.png)
+
+The queue shown below is an explicit fixture response to Play, including its
+sample estimated wait. No Xbox stream, service session, SDP/ICE exchange or video
+connection was created.
+
+![XBOKS cloud session queue — synthetic session response, no stream](xboks-cloud-session-queue.png)
+
+The isolated smoke run passed 51 checks: catalog failure/retry, loaded search,
+sort and input filters, controller selection, product details and Back focus,
+entitlement denial, explicit and serialized Play/stop, stale detail/stop results,
+signed-out account invalidation and subscription cleanup. Country settings are
+also exercised from the Cloud page and the actual Application Settings page:
+default choice, nested controller picker/Back, visual stacking, Cancel, rejected
+and serialized Save, and invalidated Play readiness during account refresh.
+It uses temporary
+HOME/XDG paths, disconnected D-Bus and a localhost-only browser network boundary.
+These tests do not prove real single sign-on, account-token clearing, game access,
+physical controller behavior or end-to-end streaming. See the
+[cloud capture provenance](cloud-ui-provenance.json).
 
 ## Game Bar and social
 
@@ -88,11 +135,37 @@ Restart confirmation, initially focused on Cancel. No system action occurs.
 
 ![XBOKS power confirmation — isolated action adapter](xboks-power.png)
 
-Remote Play's entry dialog, shown in Greek with the built-in demo profile.
-The official player may require a separate sign-in. This fixture does not contact
-a console, authenticate or start a stream.
+## Console Remote Play
 
-![XBOKS Remote Play entry — isolated demo profile](xboks-remote-play-entry.png)
+The current native console picker uses the signed-in launcher account and local
+console capabilities. The actual component shows returned model and power-state
+labels, a separate Connect action, safe retry and automatic quality negotiation.
+The account, four consoles and their availability in this capture are explicit
+samples; they are not devices discovered on the capture machine.
+
+![XBOKS native console picker — sample account and consoles](xboks-console-remote-play.png)
+
+The actual native stream host after a synthetic provisioning response, followed
+by its safe connection-failure recovery. No iframe, web player, console transport
+or decoded video is used in these captures.
+
+![XBOKS native console connection — synthetic provisioning response](xboks-console-connecting.png)
+
+![XBOKS native console recovery — synthetic failed response](xboks-console-connection-error.png)
+
+The isolated runner passed 35 checks covering safe list retry, empty/signed-out/
+unsupported states, exact console identity and power labels, selection versus
+explicit Connect, pending-start cancellation with B, stale account/list/start/
+stop responses, modal focus, Game Bar/window-focus takeover, shared input
+ownership and listener cleanup. Existing cloud browsing still passed 51 checks.
+These checks do not establish real console SSO, standby wake, session creation,
+SDP/ICE exchange, decoded video, physical controller or microphone acceptance.
+See the [console capture provenance](console-ui-provenance.json).
+
+The previous 0.3.23 web-host entry is retained below as a historical snapshot;
+it is not the current native console flow.
+
+![XBOKS previous Remote Play entry — historical sample profile](xboks-remote-play-entry.png)
 
 ## Fullscreen Experience
 
@@ -107,12 +180,31 @@ Restart and fullscreen actions were handled by fixture adapters.
 
 ![XBOKS mode entry — isolated restart and fullscreen adapters](xboks-mode-entry.png)
 
-There is no native task-switcher screenshot in this gallery. A bounded private
-headless GNOME Shell 51 session could not initialize without system login/time
-services. The attempt used temporary HOME/XDG directories and a private D-Bus
-session; it did not enable an extension or change settings in the user's desktop.
-Native behavior is covered separately by the project's isolated Shell actor and
-protocol tests, not by these renderer images.
+The native task switcher uses the production `XboksSwitcher`, selection, theme
+and stylesheet in **real GNOME Shell 51**, with native `St` actors and live
+`Clutter.Clone` window previews. The selected window runs the actual XBOKS React
+renderer in Electron, natively fullscreen on the private compositor, using the
+same sample launcher bridge and cached public artwork as the gallery. Notes and
+Music are explicitly sample GTK windows. Their previews are live window content,
+not composited images of the Windows app.
+
+![XBOKS native task switcher — private GNOME Shell 51 and sample windows](xboks-task-switcher.png)
+
+The same native component after the private desktop preference changes to light.
+The colors change through the production theme adapter; the PNG is not recolored.
+
+![XBOKS native task switcher — private GNOME Shell 51 light preference](xboks-task-switcher-light.png)
+
+The capture uses an isolated headless Wayland compositor with its own Xwayland
+display, temporary HOME/XDG directories, and private session/system D-Bus. A
+temporary extension entry point opens the unchanged production switcher and adds
+the visible provenance label. It does not exercise the production mode-entry
+lease, startup/reboot path or physical controller. Only the private display is
+captured; no host desktop, account data, user windows or background applications
+are read. No extension or setting is changed in the user's desktop. The public
+images alone do not establish live desktop acceptance. The
+[capture provenance](native-switcher-provenance.json) records component and image
+SHA-256 hashes and the isolation boundaries.
 
 ## Capture provenance
 
@@ -133,7 +225,7 @@ or forbidden API calls.
 
 The widget and social images use `scripts/ui/social-system-smoke.mjs` with its
 `widgets` and default fixtures. Those runs passed 37 widget checks and 48
-social/system checks. The separate `remote` fixture passed 14 entry/host-control
-checks without contacting a console. Their launcher adapters perform no host or Xbox actions;
+social/system checks. The current `remote` fixture redirects to the native console fixture described
+above; its preceding web-host version passed 14 entry/host-control checks. Their launcher adapters perform no host or Xbox actions;
 network requests are restricted to their local fixture origin. The temporary
 capture reports remain under ignored `work/xboks-gallery-*` directories.

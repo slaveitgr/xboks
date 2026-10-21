@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { DownloadTask, Game, Settings } from '../shared/types.js';
 import { managedPaths, rebaseManagedPath, type ManagedPathMove } from './managed-paths.js';
 import { downloadLimitKiB } from '../shared/download-bandwidth.js';
+import {normalizeCloudLoginCountry} from './cloud-region.js';
 import { resolvePackageFile } from './windows-path.js';
 import { parsePackageXml } from './package-xml.js';
 import { manifestAttr as attr, manifestText as text, manifestElements, manifestAttribute } from './manifest-xml.js';
@@ -19,6 +20,7 @@ const legacyDefaultInstallRoot = path.join(os.homedir(), 'Games', 'Xodus Nexus')
 const defaultSettings: Settings = {
   installRoot: path.join(os.homedir(), 'Games', 'Xboks'),
   market: 'neutral',
+  cloudLoginCountry: 'auto',
   parallelDownloads: 4,
   downloadLimitMiB: 0,
   downloadSpeedUnit: 'bytes',
@@ -64,6 +66,7 @@ export class StateStore {
           } : task) : [],
         settings: Object.fromEntries(Object.entries({
           ...this.state.settings, ...parsed.settings, downloadLimitMiB,
+          cloudLoginCountry: normalizeCloudLoginCountry(parsed.settings?.cloudLoginCountry),
           ...(typeof parsed.settings?.runtimeRoot === 'string' ? { runtimeRoot: rebaseManagedPath(parsed.settings.runtimeRoot, this.options.pathMoves ?? []) } : {}),
           ...(typeof parsed.settings?.winePath === 'string' ? { winePath: rebaseManagedPath(parsed.settings.winePath, this.options.pathMoves ?? []) } : {}),
           // Rename only the former default for future installs. Existing game
@@ -99,6 +102,7 @@ export class StateStore {
   }
 
   async setSettings(patch: Partial<Settings>): Promise<Settings> {
+    if (patch.cloudLoginCountry !== undefined && normalizeCloudLoginCountry(patch.cloudLoginCountry) !== patch.cloudLoginCountry) throw Error('Invalid cloud country preference.');
     if (patch.downloadLimitMiB !== undefined) downloadLimitKiB(patch.downloadLimitMiB);
     if (patch.downloadSpeedUnit !== undefined && patch.downloadSpeedUnit !== 'bits' && patch.downloadSpeedUnit !== 'bytes') throw new Error('Invalid download speed display unit.');
     for (const key of ['createDesktopShortcut', 'launchOnLogin', 'launchInBackground', 'minimizeToTray'] as const) {

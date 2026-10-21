@@ -58,15 +58,15 @@ it('uses an absolute XDG_CONFIG_HOME and falls back for invalid relative paths',
   expect(desktopConfigRoot({ XDG_CONFIG_HOME: '/test/config' }, '/test/home')).toBe('/test/config');
   expect(desktopConfigRoot({ XDG_CONFIG_HOME: 'relative' }, '/test/home')).toBe('/test/home/.config');
 });
-it('prepares a tray before starting hidden, but shows ordinary and OS FSE launches', async () => {
+it('keeps a tray for hidden, ordinary and OS FSE launches without changing visibility preferences', async () => {
   const order: string[] = [];
   const launcher = { ensureTray: vi.fn(() => { order.push('tray'); }), show: vi.fn(async () => { order.push('visible'); }), background: vi.fn(async () => { order.push('hidden'); }), trayUnavailable: vi.fn() };
   await startDesktopLauncher(['--background'], { fullscreenExperience: false }, launcher);
   expect(order).toEqual(['tray', 'hidden']); order.length = 0;
   await startDesktopLauncher([], { fullscreenExperience: false }, launcher);
-  expect(order).toEqual(['visible']); order.length = 0;
+  expect(order).toEqual(['tray', 'visible']); order.length = 0;
   await startDesktopLauncher(['--background'], { fullscreenExperience: true }, launcher);
-  expect(order).toEqual(['visible']);
+  expect(order).toEqual(['tray', 'visible']);
 });
 it('falls back to a visible window when tray construction fails during background startup', async () => {
   const error = new Error('synthetic tray unavailable');
@@ -74,6 +74,12 @@ it('falls back to a visible window when tray construction fails during backgroun
   await startDesktopLauncher(['--background'], { fullscreenExperience: false }, launcher);
   expect(launcher.show).toHaveBeenCalledOnce(); expect(launcher.background).not.toHaveBeenCalled();
   expect(launcher.trayUnavailable).toHaveBeenCalledWith(error);
+});
+it('still opens an ordinary launch when its desktop has no tray implementation', async () => {
+  const launcher = { ensureTray: vi.fn(() => { throw Error('Unavailable tray host'); }), show: vi.fn(async () => {}), background: vi.fn(async () => {}), trayUnavailable: vi.fn() };
+  await startDesktopLauncher([], { fullscreenExperience: false }, launcher);
+  expect(launcher.show).toHaveBeenCalledOnce(); expect(launcher.background).not.toHaveBeenCalled();
+  expect(launcher.trayUnavailable).toHaveBeenCalledOnce();
 });
 it('probes a writable existing ancestor without creating any configuration directories', async () => {
   const root = await temporaryRoot();
@@ -139,12 +145,15 @@ it('removes a newly created autostart entry if tray construction fails, without 
   expect(update.persist).not.toHaveBeenCalled();
   expect(update.hasTray()).toBe(false);
 });
-it('reinstates an existing tray after a failed attempt to turn minimize-to-tray off', async () => {
+it('retains the resident tray when disabling close-to-tray, including a failed preference save', async () => {
   const root = await temporaryRoot();
   const current = { ...preferences, minimizeToTray: true }; const update = transaction(root, current);
   update.ensureTray(); update.persist.mockRejectedValueOnce(new Error('synthetic save failure'));
   await expect(applyDesktopSettings(current, { minimizeToTray: false }, update)).rejects.toThrow('synthetic save failure');
   expect(update.hasTray()).toBe(true);
+  expect(update.releaseTray).not.toHaveBeenCalled();
+  expect(await applyDesktopSettings(current, { minimizeToTray: false }, update)).toMatchObject({ minimizeToTray: false });
+  expect(update.hasTray()).toBe(true); expect(update.releaseTray).not.toHaveBeenCalled();
 });
 it('reads real battery capacity while ignoring power adapters and invalid device data', async () => {
   const root = await temporaryRoot();

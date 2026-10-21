@@ -41,12 +41,12 @@ async function verifyCompanionFile(root: string, name: string, expected: string,
   if (!unchanged(before, await fs.lstat(file))) throw Error('Companion file changed.');
   return { file, stat: before };
 }
-function hasSocialCommand(help: string): boolean {
+function hasCompanionCommand(help: string, command: 'social' | 'cloud-token'): boolean {
   let commands = false;
   for (const line of stripAnsi(help).split(/\r?\n/)) {
     if (/^Commands:\s*$/.test(line)) { commands = true; continue; }
     if (commands && /^\S/.test(line)) commands = false;
-    if (commands && /^ {2,}social(?:\s|$)/.test(line)) return true;
+    if (commands && new RegExp(`^ {2,}${command}(?:\\s|$)`).test(line)) return true;
   }
   return false;
 }
@@ -55,8 +55,8 @@ function hasSocialCommand(help: string): boolean {
  * The only process probe is its bounded top-level --help; never account/login/social.
  * Binary, license and corresponding-source bytes must match the manifest.
  * These hashes do not prove source completeness, publisher identity or live services. */
-export async function socialBackend(root: string, probe: SocialBackendHelpProbe = helpProbe): Promise<string | undefined> {
-  if (process.platform !== 'linux' || !path.isAbsolute(root)) return undefined;
+export async function socialBackend(root: string, probe: SocialBackendHelpProbe = helpProbe, requiredCommand: 'social' | 'cloud-token' = 'social'): Promise<string | undefined> {
+  if (process.platform !== 'linux' || !path.isAbsolute(root) || !['social', 'cloud-token'].includes(requiredCommand)) return undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const directory = await fs.lstat(root);
@@ -88,7 +88,7 @@ export async function socialBackend(root: string, probe: SocialBackendHelpProbe 
       probe(binary, ['--help'], { timeout: 5_000, maxBuffer: MAX_HELP }),
       new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error('Companion help probe timed out.')), 5_000); }),
     ]);
-    if (result.code !== 0 || Buffer.byteLength(result.stdout) > MAX_HELP || Buffer.byteLength(result.stderr ?? '') > MAX_HELP || !hasSocialCommand(result.stdout)) return undefined;
+    if (result.code !== 0 || Buffer.byteLength(result.stdout) > MAX_HELP || Buffer.byteLength(result.stderr ?? '') > MAX_HELP || !hasCompanionCommand(result.stdout, requiredCommand)) return undefined;
     for (const entry of verified) if (!unchanged(entry.stat, await fs.lstat(entry.file))) return undefined;
     if (!unchanged(manifestStat, await fs.lstat(manifestPath))) return undefined;
     return binary;
