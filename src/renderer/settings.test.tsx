@@ -15,11 +15,11 @@ function disclosure(html: string, opening: RegExp): string {
   throw new Error('Unclosed settings disclosure');
 }
 const diagnostics = (html: string) => disclosure(html,/class="[^"]*\bsettings-diagnostics\b/);
-const nexus = (html: string) => disclosure(html,/class="nexus-settings-extra"/);
+const nexus = (html: string) => disclosure(html,/class="engine-settings-extra"/);
 const account = (html: string) => disclosure(html,/id="account-session-controls"/);
 const openingTag = (html: string) => html.slice(0,html.indexOf('>')+1);
 
-describe('Settings diagnostics and Nexus disclosure integration', () => {
+describe('Settings diagnostics and Engine disclosure integration', () => {
   it('does not call an unpublished development build the latest published release', () => {
     const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} />);
     expect(html).toContain(`<h2>${demoSnapshot().launcherUpdate?.currentVersion}</h2>`);
@@ -46,7 +46,7 @@ describe('Settings diagnostics and Nexus disclosure integration', () => {
     expect(originalPane).not.toContain('Wine / Proton binary');
     expect(originalPane).not.toContain('Managed Proton compatibility runtime');
   });
-  it('shows an installed upstream runtime separately from an unpublished Nexus release', () => {
+  it('shows an installed upstream runtime separately from an unpublished Engine release', () => {
     const data = demoSnapshot();
     data.runtime.name = 'xodus-proton-7c0b4354'; data.runtime.nexusAvailable = false;
     data.runtime.nexusError = 'No xboks Engine runtime release has been published yet.';
@@ -66,7 +66,7 @@ describe('Settings diagnostics and Nexus disclosure integration', () => {
     const signInButton = [...session.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(match=>match[0].includes('Sign in again'))?.[0];
     expect(signInButton).toBeDefined(); expect(openingTag(signInButton!)).toContain('disabled=""');
   });
-  it('keeps account session controls separate from provider settings and Proton controls accessible under Nexus', () => {
+  it('keeps account session controls separate from provider settings and Proton controls accessible under Engine', () => {
     const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} initialSection="install" />);
     expect(html).toContain('role="dialog" aria-modal="true" aria-label="Settings"');
     expect(html).toContain('aria-orientation="vertical"'); expect(html).toContain('Install options');

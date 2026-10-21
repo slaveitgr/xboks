@@ -8,27 +8,32 @@ export function KeyringSetup({ disabled = false, compact = false }: { disabled?:
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const generation = useRef(0);
-  async function check(start = false) {
+  async function check(start = false, create = false) {
     const id = ++generation.current;
     setBusy(true); setFailed(false);
     try {
-      const result = await (start ? window.launcher.startKeyring() : window.launcher.checkKeyring());
+      const result = await (create ? window.launcher.createKeyringCollection() : start ? window.launcher.startKeyring() : window.launcher.checkKeyring());
       if (id === generation.current) setStatus(result);
     } catch {
       if (id === generation.current) setFailed(true);
     } finally { if (id === generation.current) setBusy(false); }
   }
   useEffect(() => { void check(); return () => { generation.current++; }; }, []);
+  useEffect(() => window.launcher.onKeyringStatus?.(result => {
+    generation.current++;
+    setStatus(result); setFailed(false); setBusy(false);
+  }), []);
   const message = failed
     ? 'Keyring status could not be checked. Open your desktop wallet settings and ensure the wallet is enabled and unlocked.'
     : status?.message ?? 'Checking the system wallet without reading saved credentials…';
   const actions = <div className="button-row">
-    {status?.canStart ? <button className="secondary" aria-label="Start keyring service" title="Start an installed service without changing wallet security settings." disabled={busy || disabled} onClick={() => void check(true)}>{compact ? 'Start service' : 'Start keyring service'}</button> : null}
+    {status?.state === 'needs-setup' && status.canCreate ? <button className="secondary" aria-label="Create wallet" title="Open the system wallet dialog. Choose your password there, not in xboks Engine." disabled={busy || disabled} onClick={() => void check(false, true)}>Create wallet</button> : null}
+    {status?.canStart || status?.canUnlock ? <button className="secondary" aria-label={status.canUnlock ? 'Unlock wallet' : 'Start keyring service'} title="Start or unlock the installed wallet using its own password window. Security settings are unchanged." disabled={busy || disabled} onClick={() => void check(true)}>{status.canUnlock ? 'Unlock wallet' : compact ? 'Start service' : 'Start keyring service'}</button> : null}
     <button className="secondary" aria-label="Check keyring" title="Check keyring" disabled={busy || disabled} onClick={() => void check()}><RefreshCw />{compact ? null : 'Check keyring'}</button>
   </div>;
   const icon = busy ? <LoaderCircle className="spin" /> : status?.state === 'ready' ? <Check /> : <CircleAlert />;
-  const safety = 'xboks Engine can start an installed service. It does not install a provider, enable a wallet you disabled, change its password or reset stored credentials.';
-  const gameModeHelp = 'Wallet setup and password prompts may not appear in Game Mode. Complete this step in Desktop Mode first, then return to Game Mode.';
+  const safety = 'Your wallet provider handles its password window. xboks Engine does not receive the password, enable a disabled wallet or reset stored credentials.';
+  const gameModeHelp = 'Use Start service or Unlock wallet for this session. Create wallet opens your provider’s setup dialog when no collection exists. If setup is unavailable here, complete it in Desktop Mode.';
   if (compact) {
     const problem = failed || Boolean(status && !['ready', 'stopped'].includes(status.state));
     const label = busy ? 'Checking…' : failed ? 'Unavailable' : status ? {

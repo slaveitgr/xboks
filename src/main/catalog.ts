@@ -37,6 +37,27 @@ interface StoreSearchResponse {
   productsList?: unknown;
   cursor?: unknown;
   hasMorePages?: unknown;
+  nextPageNumber?: unknown;
+}
+
+export type StoreCollection = 'all-pc' | 'toppaid' | 'addons';
+interface StoreCollectionPage { version: 1; collection: StoreCollection; market: string; page?: number; cursor?: string }
+const STORE_COLLECTIONS = new Set<StoreCollection>(['all-pc', 'toppaid', 'addons']);
+
+function collectionPage(collection: StoreCollection, market: string, cursor?: string): StoreCollectionPage {
+  if (!cursor) return { version: 1, collection, market, ...(collection === 'toppaid' ? { page: 1 } : {}) };
+  try {
+    if (cursor.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw Error();
+    const page = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as StoreCollectionPage;
+    if (!page || page.version !== 1 || page.collection !== collection || page.market !== market) throw Error();
+    if (collection === 'toppaid' ? !Number.isSafeInteger(page.page) || page.page! < 2 || page.page! > 100 || page.cursor !== undefined
+      : typeof page.cursor !== 'string' || !page.cursor || page.cursor.length > 2048 || !/^[A-Za-z0-9+/=_-]+$/.test(page.cursor) || page.page !== undefined) throw Error();
+    return page;
+  } catch { throw Error('The Store collection paging cursor is invalid.'); }
+}
+
+function encodeCollectionPage(page: StoreCollectionPage): string {
+  return Buffer.from(JSON.stringify(page)).toString('base64url');
 }
 
 interface DisplayCatalogResponse {
@@ -513,6 +534,52 @@ export class CatalogService {
     if (!response.ok) throw new Error(`Microsoft Store featured collection returned HTTP ${response.status}.`);
     const search = await response.json() as StoreSearchResponse & { title?: unknown };
     const value = await this.result(search, string(search.title) ?? 'Trending games', market, false);
+    this.cache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
+    return structuredClone(value);
+  }
+
+  /** Anonymous public Store galleries. These are service-ranked/filtered lists,
+   * not title searches renamed as collections. The Microsoft web client exposes
+   * GetComputedProductsList(TopPaid); wildcard search accepts games/addons. On
+   * 2026-10-21 the addons route returned Add-on rows whose DisplayCatalog type
+   * was Durable. Missing/malformed service data fails without fabricated rows. */
+  async collection(collection: StoreCollection, rawMarket: string, cursor?: string): Promise<CatalogSearchResult> {
+    if (!STORE_COLLECTIONS.has(collection)) throw Error('Unknown Store collection.');
+    const market = normalizeMarket(rawMarket), page = collectionPage(collection, market, cursor);
+    const cacheKey = `collection\u0000${market}\u0000${collection}\u0000${cursor ?? ''}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return structuredClone(cached.value);
+    const url = new URL(collection === 'toppaid' ? 'https://apps.microsoft.com/api/Reco/GetComputedProductsList' : 'https://apps.microsoft.com/api/products/search');
+    const params = collection === 'toppaid'
+      ? { listName: 'TopPaid', pgNo: String(page.page), noItems: '24', filteredCategories: 'AllProducts', mediaType: 'Games', gl: market, hl: 'en-us', exp: '0' }
+      : { query: '*', mediaType: collection === 'addons' ? 'addons' : 'games', age: 'all', price: 'all', category: 'all', subscription: 'all', gl: market, hl: 'en-us', ...(page.cursor ? { cursor: page.cursor } : {}) };
+    for (const [name, value] of Object.entries(params)) if (value !== undefined) url.searchParams.set(name, value);
+    const response = await this.fetcher(url, { headers: { Accept: 'application/json' }, credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) { await response.body?.cancel(); throw Error(`Microsoft Store collection returned HTTP ${response.status}.`); }
+    const payload = object(await boundedCatalogJson(response));
+    if (!payload || !Array.isArray(payload.productsList) || payload.productsList.length > 60) throw Error('Invalid Microsoft Store collection response.');
+    // The add-on department may be sparse. Never fill it with base games when
+    // the provider changes a filter or stops recognizing the department.
+    if (collection === 'addons' && payload.productsList.some(entry => {
+      const categories = object(entry)?.categories;
+      return !Array.isArray(categories) || !categories.some(category => typeof category === 'string' && /^add-ons?$/i.test(category));
+    })) throw Error('Microsoft Store did not return a verified add-on collection.');
+    const search = payload as StoreSearchResponse;
+    const query = collection === 'toppaid' ? 'Top paid games' : collection === 'addons' ? 'Add-ons' : 'All PC games';
+    const value = await this.result(search, query, market, false);
+    if (search.hasMorePages === true) {
+      if (collection === 'toppaid') {
+        const next = search.nextPageNumber;
+        if (!Number.isSafeInteger(next) || (next as number) <= page.page! || (next as number) > 100) throw Error('Microsoft Store collection pagination did not advance.');
+        value.cursor = encodeCollectionPage({ version: 1, collection, market, page: next as number });
+      } else {
+        const next = string(search.cursor);
+        if (!next || next === page.cursor || next.length > 2048 || !/^[A-Za-z0-9+/=_-]+$/.test(next)) throw Error('Microsoft Store collection pagination did not advance.');
+        value.cursor = encodeCollectionPage({ version: 1, collection, market, cursor: next });
+      }
+      value.hasMore = true;
+    }
+    if (this.cache.size >= 100) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
     return structuredClone(value);
   }

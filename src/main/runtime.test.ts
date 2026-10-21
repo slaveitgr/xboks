@@ -50,10 +50,13 @@ describe('owned engine runtime distribution', () => {
   it('reports unpublished owned releases honestly and bounds metadata', async () => {
     for (const value of [[], [{ tag_name: 'v0.3.12', assets: [] }]]) {
       const manager = new RuntimeManager('/tmp/unused', () => {}, () => false, (async () => new Response(JSON.stringify(value))) as typeof fetch);
-      expect((await manager.checkNexus()).nexusError).toContain('No xboks Engine runtime release has been published yet');
+      const status = await manager.checkNexus();
+      expect(status.nexusError).toContain('No xboks Engine runtime release has been published yet');
+      expect(status.releaseState).toBe('unpublished');
     }
     const manager = new RuntimeManager('/tmp/unused', () => {}, () => false, (async () => new Response(' '.repeat(2_000_001))) as typeof fetch);
-    expect((await manager.checkNexus()).nexusError).toContain('size limit');
+    const status = await manager.checkNexus();
+    expect(status.nexusError).toContain('size limit'); expect(status.releaseState).toBe('error');
     expect(() => runtimeCandidate({})).toThrow('Invalid');
   });
 

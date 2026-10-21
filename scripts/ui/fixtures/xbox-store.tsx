@@ -1,0 +1,97 @@
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { demoSnapshot } from '/src/shared/demo-data.ts';
+import { XboxStorePage, minecraftStoreProductId } from '/src/renderer/XboxStorePage.tsx';
+import { GamepadNavigation } from '/src/renderer/GamepadNavigation.tsx';
+import type { PadAction } from '/src/renderer/gamepad-navigation.ts';
+import type { CatalogProduct, CatalogSearchResult } from '/src/shared/types.ts';
+import '/src/renderer/styles.css';
+import '/src/renderer/xbox-mode.css';
+import '/src/renderer/xbox-shell.css';
+
+localStorage.setItem('xboks.interface-language.v1', 'en');
+Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => true });
+Object.defineProperty(navigator, 'getGamepads', { configurable: true, value: () => [] });
+const inputs = new Set<(value: PadAction) => void>();
+const data = demoSnapshot(); data.games = []; data.auth.stored = false;
+const artwork = '/__store-fallback-artwork.jpg';
+const products: CatalogProduct[] = Array.from({ length: 12 }, (_, index) => ({ productId: `9FIXTURE${String(index).padStart(4, '0')}`, title: `Fixture catalog game ${index + 1}`, publisher: 'Synthetic catalog provider', description: '', categories: [], posterUrl: artwork, purchasePrice: '$19.99', installability: 'unknown', supportNote: 'Fixture package unknown.' }));
+const result = (rows = products): CatalogSearchResult => ({ query: '', market: 'US', products: rows, hasMore: false, source: 'Microsoft Store', fetchedAt: new Date().toISOString() });
+let releaseFeatured: (() => void) | undefined, releaseSearch: (() => void) | undefined;
+let featureReads = 0, searchReads = 0, outerBacks = 0, deferSearch = false, featureError = false;
+const opened: CatalogProduct[] = [], collections: string[] = [];
+const bridge = {
+ getFeaturedCatalog: async () => { featureReads++; if (featureReads === 1) await new Promise<void>(resolve => { releaseFeatured = resolve; }); if (featureError) throw Error('Synthetic catalog failure'); return result(); },
+ searchCatalog: async (query: string) => { searchReads++; if (deferSearch) await new Promise<void>(resolve => { releaseSearch = resolve; }); return result(query === 'Minecraft' ? [{ ...products[0], productId: minecraftStoreProductId, title: 'Returned Minecraft edition' }] : products.slice(0, 2)); },
+ getCollection: async (name: string) => { collections.push(name); return result(products.slice(0, 4)); },
+};
+let updateQuery: (value: string) => void, updateIdentity: (signedIn: boolean) => void, updateActive: (value: boolean) => void;
+function Harness() {
+ const [query, setQuery] = useState(''), [signedIn, setSignedIn] = useState(false), [active, setActive] = useState(true); updateQuery = setQuery; updateIdentity = setSignedIn; updateActive = setActive;
+ const snapshot = { ...data, auth: { ...data.auth, stored: signedIn, username: signedIn ? 'fixture@example.test' : undefined } };
+ return <><div className="app-shell xbox-mode" style={{ background: 'linear-gradient(120deg,#1a3028,#292e37)' }}><aside className="sidebar" style={{ width: 68 }} /><section className="content-shell"><header className="topbar"><span style={{ marginLeft: 'auto', color: '#c0c4ca' }}>Isolated Store fixture</span></header><div className="page-scroll"><XboxStorePage active={active} data={snapshot} bridge={bridge} initialQuery={query} clearSearch={() => setQuery('')} fallbackArtwork={artwork} openProduct={product => opened.push(product)} />{!active ? <main className="page" data-details-fixture><button data-gamepad-initial>Product details fixture</button></main> : null}</div></section></div><GamepadNavigation activateOnFocus nativeControlsActive subscribeInput={callback => { inputs.add(callback); return () => inputs.delete(callback); }} back={() => outerBacks++} page={() => { throw Error('The Store must not change pages on focus.'); }} /></>;
+}
+createRoot(document.getElementById('root')!).render(<Harness />);
+const watermark = document.createElement('div'); watermark.textContent = 'STORE FIXTURE · Synthetic catalog/price/input · Official fallback image · No account or purchase'; Object.assign(watermark.style, { position: 'fixed', bottom: '12px', right: '16px', zIndex: '9999', background: '#132331', color: '#cce4f2', padding: '8px 12px', font: '13px sans-serif', pointerEvents: 'none' }); document.body.append(watermark);
+const checks: string[] = [], pause = () => new Promise(resolve => setTimeout(resolve, 100));
+const check = (value: unknown, label: string) => { if (!value) throw Error(label); checks.push(label); };
+const action = (id: string) => document.querySelector<HTMLButtonElement>(`[data-store-action="${id}"]`)!;
+const click = async (id: string) => { action(id).focus(); action(id).click(); await pause(); };
+const native = async (value: PadAction) => { for (const callback of inputs) callback(value); await pause(); };
+const capture = async (name: string) => { if (typeof (window as any).__captureFixture === 'function') await (window as any).__captureFixture(name); };
+const home = async () => { await native('back'); await pause(); };
+(window as any).runXboxStoreChecks = async () => {
+ await pause(); await pause();
+ check(document.querySelector('.xbox-store-loading-heroes')?.children.length === 3, 'pending catalog renders the original three loading slots');
+ check(featureReads === 1 && searchReads === 0 && opened.length === 0, 'opening the Store reads only public featured metadata');
+ releaseFeatured!(); await pause(); await document.fonts.ready;
+ check(document.querySelectorAll('[data-store-spotlight]').length === 1, 'loaded fallback renders exactly one Minecraft hero');
+ const hero = document.querySelector<HTMLButtonElement>('[data-store-spotlight]')!, rect = hero.getBoundingClientRect();
+ check(rect.x === 694 && rect.y === 52 && rect.width === 600 && rect.height === 400, `hero matches original geometry 694,52,600,400 (actual ${rect.x},${rect.y},${rect.width},${rect.height})`);
+ const nav = [...document.querySelectorAll<HTMLButtonElement>('[data-store-action]')].map(button => button.getBoundingClientRect());
+ check(nav.every((box, index) => box.x === 494 + index * 204 && box.y === 486 && box.width === 184 && box.height === 56), 'five centered shortcuts match the original 184 by 56 buttons and 20 pixel gaps');
+ const card = document.querySelector<HTMLElement>('.xbox-store-product')!.getBoundingClientRect();
+ check(card.x === 188 && card.y === 688 && card.width === 184 && card.height === 286, `source card matches original geometry 188,688,184,286 (actual ${card.x},${card.y},${card.width},${card.height})`);
+ check(getComputedStyle(document.querySelector('.page-scroll')!).overflowX === 'hidden', 'full-width spotlight cannot create a horizontal page scrollbar');
+ check(!document.querySelector('[data-store-spotlight]')?.textContent?.includes('Install'), 'hero has whole-tile details activation without an invented install CTA');
+ check(document.querySelectorAll('.xbox-store-product').length === 12, 'shelf displays exactly the returned products');
+ await capture('store-loaded-fallback');
+ document.querySelector<HTMLButtonElement>('.xbox-store-product button')!.focus(); await pause();
+ check(opened.length === 0, 'controller focus on a Store card never opens or installs it');
+ await native('accept'); check(opened.length === 1 && opened[0].productId === products[0].productId, 'native A on a card passes the actual returned product to details');
+ await click('all-pc'); check(collections.at(-1) === 'all-pc' && document.querySelectorAll('.xbox-store-gallery-grid .xbox-store-product').length === 4, 'All PC games calls its real collection capability');
+ const readsBeforeDetails = collections.length; updateActive(false); await pause();
+ check(document.querySelector<HTMLElement>('.xbox-store-page')?.hidden && getComputedStyle(document.querySelector('.content-shell')!).gridTemplateRows.startsWith('88px'), 'inactive Store is hidden and restores the ordinary product-details header layout');
+ await native('back'); check(outerBacks === 1 && document.querySelector('.xbox-store-gallery-heading')?.textContent?.includes('All PC games'), 'inactive Store does not intercept product-details Back or change the retained collection');
+ updateActive(true); await pause(); check(collections.length === readsBeforeDetails && document.querySelectorAll('.xbox-store-gallery-grid .xbox-store-product').length === 4, 'returning from details restores the same loaded collection without a new request'); outerBacks = 0;
+ await home(); check(Boolean(document.querySelector('[data-store-spotlight]')) && outerBacks === 0, 'native B returns from category gallery to Store without global navigation');
+ check(document.activeElement === action('all-pc'), 'Back restores the category trigger');
+ await click('toppaid'); check(collections.at(-1) === 'toppaid', 'Top paid calls the named collection rather than a text search'); await home();
+ await click('addons'); check(collections.at(-1) === 'addons', 'Add-ons calls its separate collection rather than a game search'); await home();
+ await click('wishlist'); check(document.querySelector('.xbox-store-message')?.textContent?.includes('Sign in'), 'signed-out wishlist asks for explicit sign-in');
+ updateIdentity(true); await pause(); check(document.querySelector('.xbox-store-message')?.textContent?.includes('unavailable'), 'signed-in wishlist stays explicitly unavailable without a cloud provider'); await home();
+ await click('redeem'); const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+ check(Boolean(dialog) && document.querySelector<HTMLElement>('.app-shell')?.inert, 'Redeem opens a scoped portal and makes the underlying Store inert');
+ check(document.activeElement?.hasAttribute('data-gamepad-cancel'), 'Redeem begins on safe Cancel');
+ const link = dialog.querySelector<HTMLAnchorElement>('a')!; check(link.href === 'https://redeem.microsoft.com/' && link.target === '_blank' && !dialog.querySelector('input'), 'redemption continues only through the explicit official Microsoft link');
+ await capture('store-redeem'); await native('back'); check(!document.querySelector('[role="dialog"]') && !document.querySelector<HTMLElement>('.app-shell')?.inert && document.activeElement === action('redeem') && outerBacks === 0, 'native B closes only Redeem and restores focus/inert state');
+ await click('redeem'); document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); await pause();
+ check(!document.querySelector('[role="dialog"]') && outerBacks === 0 && document.activeElement === action('redeem'), 'Escape cancels Redeem locally without falling through to outer navigation');
+ await click('redeem'); updateActive(false); await pause(); check(!document.querySelector('[role="dialog"]') && !document.querySelector<HTMLElement>('.app-shell')?.inert, 'deactivating Store closes Redeem and releases its inert state'); updateActive(true); await pause(); check(!document.querySelector('[role="dialog"]'), 'returning to Store never reopens the previous Redeem dialog');
+ deferSearch = true; const currentHero = document.querySelector<HTMLButtonElement>('[data-store-spotlight]')!; currentHero.focus(); currentHero.click(); currentHero.click(); await pause(); check(searchReads === 1 && opened.length === 1, 'Minecraft lookup serializes repeated activation');
+ await click('addons'); releaseSearch!(); deferSearch = false; await pause(); check(opened.length === 1, 'late hero lookup cannot open details after category navigation'); await home();
+ deferSearch = true; document.querySelector<HTMLButtonElement>('[data-store-spotlight]')!.click(); await pause(); updateActive(false); await pause(); releaseSearch!(); deferSearch = false; await pause(); check(opened.length === 1, 'inactive Store cancels a pending Minecraft activation before it can open details'); updateActive(true); await pause();
+ document.querySelector<HTMLButtonElement>('[data-store-spotlight]')!.click(); await pause(); check(opened.length === 2 && opened[1].title === 'Returned Minecraft edition', 'Minecraft uses the exact real catalog product when returned');
+ updateQuery('new query'); await pause(); check(document.querySelector('.xbox-store-gallery-heading')?.textContent?.includes('new query') && document.querySelectorAll('.xbox-store-gallery-grid .xbox-store-product').length === 2, 'global search renders actual search results in the Store gallery'); await home();
+ updateQuery('new query'); await pause(); check(document.querySelector('.xbox-store-gallery-heading')?.textContent?.includes('new query'), 'Back clears submitted search so the same global query can be submitted again'); await home();
+ const fallback = document.querySelector<HTMLImageElement>('.xbox-store-spotlight-tile > img')!; fallback.dispatchEvent(new Event('error')); await pause();
+ check(Boolean(document.querySelector('.xbox-store-art-error')) && Boolean(document.querySelector('.xbox-store-art-retry')), 'failed remote artwork exposes a readable fallback and explicit retry');
+ document.querySelector<HTMLButtonElement>('.xbox-store-art-retry')!.click(); await pause(); check(Boolean(document.querySelector('.xbox-store-spotlight-tile > img')) && !document.querySelector('.xbox-store-art-retry'), 'artwork retry restores the actual image request');
+ featureError = true; await click('all-pc'); await home(); check(Boolean(document.querySelector('[role="alert"]')) && Boolean(document.querySelector('[data-store-spotlight]')), 'catalog failure retains the source-backed hero and provides a finite retry state');
+ featureError = false; document.querySelector<HTMLButtonElement>('.xbox-store-message button')!.click(); await pause(); check(!document.querySelector('[role="alert"]') && document.querySelectorAll('.xbox-store-product').length === 12, 'catalog retry recovers real returned products');
+ localStorage.setItem('xboks.interface-language.v1', 'el'); window.dispatchEvent(new CustomEvent('xboks-interface-language', { detail: 'el' })); await pause();
+ check(action('all-pc').textContent === 'Όλα τα παιχνίδια υπολογιστή' && action('wishlist').textContent === 'Η λίστα επιθυμιών μου', 'Greek uses the captured original shortcut labels');
+ await capture('store-loaded-greek');
+ return { checks, passed: checks.length, geometry: { hero: rect.toJSON(), firstCard: card.toJSON() }, featureReads, searchReads, collections, realAccounts: false, realPurchases: false, physicalControllerVerified: false };
+};

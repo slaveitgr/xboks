@@ -2,15 +2,15 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { managedPaths, migrateManagedPaths, rebaseManagedPath } from './managed-paths.js';
+import { managedPathMigrationActive, managedPaths, migrateManagedPaths, rebaseManagedPath } from './managed-paths.js';
 
 const roots: string[] = [];
 async function fixture() {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-managed-migration-')); roots.push(home);
   const configHome = path.join(home, 'config'); const dataHome = path.join(home, 'data');
-  return { home, configHome, dataHome };
+  return { home, configHome, dataHome, isActive: async () => false };
 }
-async function put(file: string, value = 'unchanged') { await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 }); await fs.writeFile(file, value); }
+async function put(file: string, value = 'unchanged') { await fs.mkdir(path.dirname(file), { recursive: true, mode: 0o700 }); await fs.writeFile(file, value, { mode: 0o600 }); }
 afterEach(async () => { vi.restoreAllMocks(); for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
 
 describe('managed paths', () => {
@@ -46,6 +46,7 @@ describe('managed paths', () => {
 
   it('renames only managed runtime release basenames, preserves preview aliases and rebases nested paths', async () => {
     const options = await fixture(); const data = path.join(options.dataHome, 'xodus-nexus');
+    await put(path.join(options.configHome, 'xodus-nexus/launcher-state.json'));
     const releases = ['proton-xodus-11.0-fixture', 'xodus-proton-abcdef01', 'xodus-nexus-runtime-0.3.0', 'custom-proton'];
     for (const release of releases) await put(path.join(data, 'runtimes/releases', release, 'bin/wine'), release);
     const migration = await migrateManagedPaths(options);
@@ -136,9 +137,88 @@ describe('managed paths', () => {
   it('does not race a concurrent migration or delete its lock', async () => {
     const options = await fixture(); const legacy = path.join(options.configHome, 'xodus-nexus');
     await put(path.join(legacy, 'launcher-state.json')); const lock = path.join(options.configHome, '.xboks-path-migration.lock'); await put(lock, 'other-process');
-    const migration = await migrateManagedPaths(options);
-    expect(migration.profile).toBe(legacy); expect(migration.moves).toEqual([]); expect(migration.warnings).toHaveLength(1);
+    await expect(migrateManagedPaths(options)).rejects.toThrow('Managed paths are busy');
     expect(await fs.readFile(lock, 'utf8')).toBe('other-process');
+  });
+
+  it('finishes a mixed owned profile with historical 0775 data without changing file inodes or following saved links', async () => {
+    const options = await fixture(), paths = managedPaths(options), oldData = path.join(options.dataHome, 'xodus-nexus');
+    await put(path.join(paths.profile, 'launcher-state.json'), JSON.stringify({ settings: { runtimeRoot: path.join(oldData, 'runtimes') } }));
+    const save = path.join(oldData, 'compatdata/game/pfx/save'); await put(save, 'preserved save');
+    await fs.link(save, save + '-hardlink'); await fs.symlink('save', save + '-symlink');
+    await fs.chmod(oldData, 0o775); const before = await fs.stat(save);
+    const migration = await migrateManagedPaths(options);
+    expect(migration.warnings).toEqual([]); expect(migration.dataRoot).toBe(paths.dataRoot);
+    expect((await fs.stat(path.join(paths.dataRoot, 'compatdata/game/pfx/save'))).ino).toBe(before.ino);
+    expect((await fs.stat(save + '-hardlink')).ino).toBe(before.ino);
+    expect(await fs.readlink(save + '-symlink')).toBe('save'); expect(await fs.readFile(save, 'utf8')).toBe('preserved save');
+    const again = await migrateManagedPaths(options); expect(again.warnings).toEqual([]); expect(again.moves).toEqual(migration.moves);
+  });
+
+  it('does not claim shared data when separate canonical and Nexus profiles still reference it', async () => {
+    const options = await fixture(), paths = managedPaths(options), oldData = path.join(options.dataHome, 'xodus-nexus');
+    const state = JSON.stringify({ settings: { runtimeRoot: path.join(oldData, 'runtimes') } });
+    await put(path.join(paths.profile, 'launcher-state.json'), state);
+    await put(path.join(options.configHome, 'xodus-nexus/launcher-state.json'), state);
+    await put(path.join(oldData, 'compatdata/game/pfx/save'), 'shared save'); await fs.chmod(oldData, 0o775);
+    const migration = await migrateManagedPaths(options);
+    expect(migration.moves).toEqual([]); expect(migration.warnings.join()).toContain('exclusive ownership');
+    expect((await fs.lstat(oldData)).isSymbolicLink()).toBe(false);
+    await expect(fs.lstat(paths.dataRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it.each(['unrelated', 'dangling'])('preserves data when the old profile has an %s alias rather than our verified compatibility alias', async kind => {
+    const options = await fixture(), paths = managedPaths(options), oldData = path.join(options.dataHome, 'xodus-nexus');
+    await put(path.join(paths.profile, 'launcher-state.json'), JSON.stringify({ settings: { runtimeRoot: path.join(oldData, 'runtimes') } }));
+    const otherProfile = path.join(options.home, 'separate-nexus-profile');
+    if (kind === 'unrelated') await put(path.join(otherProfile, 'launcher-state.json'), 'separate Nexus bytes');
+    await fs.symlink(otherProfile, path.join(options.configHome, 'xodus-nexus'));
+    await put(path.join(oldData, 'compatdata/game/pfx/save'), 'shared save');
+    const migration = await migrateManagedPaths(options);
+    expect(migration.moves).toEqual([]); expect(migration.warnings.join()).toContain('exclusive ownership');
+    expect(await fs.readlink(path.join(options.configHome, 'xodus-nexus'))).toBe(otherProfile);
+    expect(await fs.readFile(path.join(oldData, 'compatdata/game/pfx/save'), 'utf8')).toBe('shared save');
+    await expect(fs.lstat(paths.dataRoot)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('retains an opt-in startup lease until the caller has acquired the Chromium singleton, then releases it once', async () => {
+    const options = await fixture(), lock = path.join(options.configHome, '.xboks-path-migration.lock');
+    const migration = await migrateManagedPaths({ ...options, retainStartupLock: true });
+    expect(migration.releaseStartupLock).toBeTypeOf('function');
+    await expect(migrateManagedPaths(options)).rejects.toThrow('Managed paths are busy');
+    await migration.releaseStartupLock!(); await migration.releaseStartupLock!();
+    await expect(fs.lstat(lock)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(migrateManagedPaths(options)).resolves.toMatchObject({ warnings: [] });
+  });
+
+  it('releases a retained startup lease when migration fails before returning to its caller', async () => {
+    const options = await fixture(); await put(path.join(options.configHome, 'xodus-nexus/launcher-state.json'));
+    vi.spyOn(fs, 'symlink').mockRejectedValueOnce(Error('synthetic alias failure'));
+    await expect(migrateManagedPaths({ ...options, retainStartupLock: true })).rejects.toThrow('Startup stopped');
+    await expect(fs.lstat(path.join(options.configHome, '.xboks-path-migration.lock'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it.each(['active', 'unknown'])('defers every data/backend mutation when game/service activity is %s', async state => {
+    const options = await fixture(), legacy = path.join(options.configHome, 'xodus-nexus');
+    await put(path.join(legacy, 'xodus-backends/current.json')); await put(path.join(options.dataHome, 'xodus-nexus/runtimes/current.json'));
+    const isActive = async () => { if (state === 'unknown') throw Error('metadata unavailable'); return true; };
+    const migration = await migrateManagedPaths({ ...options, isActive });
+    expect(migration.moves).toEqual([]); expect(migration.warnings.join()).toMatch(/active|activity/);
+    expect((await fs.lstat(legacy)).isSymbolicLink()).toBe(false);
+  });
+
+  it('recognizes only same-user Wine/Xodus process metadata and ignores its own process', async () => {
+    const options = await fixture(), proc = path.join(options.home, 'proc');
+    await put(path.join(proc, '123/comm'), 'xodus-service\n'); await fs.symlink('/synthetic/xodus-service', path.join(proc, '123/exe'));
+    expect(await managedPathMigrationActive(proc, process.getuid?.(), 999)).toBe(true);
+    expect(await managedPathMigrationActive(proc, process.getuid?.(), 123)).toBe(false);
+    expect(await managedPathMigrationActive(proc, (process.getuid?.() ?? 0) + 1, 999)).toBe(false);
+    await fs.writeFile(path.join(proc, '123/comm'), 'unrelated\n'); await fs.unlink(path.join(proc, '123/exe')); await fs.symlink('/synthetic/wine64-preloader', path.join(proc, '123/exe'));
+    expect(await managedPathMigrationActive(proc, process.getuid?.(), 999)).toBe(true);
+    await fs.writeFile(path.join(proc, '123/comm'), 'xboks-engine-se\n'); await fs.unlink(path.join(proc, '123/exe')); await fs.symlink('/synthetic/xboks-engine-service', path.join(proc, '123/exe'));
+    expect(await managedPathMigrationActive(proc, process.getuid?.(), 999)).toBe(true);
+    await fs.unlink(path.join(proc, '123/exe')); // comm can be truncated to 15 bytes on Linux.
+    expect(await managedPathMigrationActive(proc, process.getuid?.(), 999)).toBe(true);
   });
 
   it('rebases only exact roots and descendants with a separator', () => {

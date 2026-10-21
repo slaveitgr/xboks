@@ -22,7 +22,10 @@ describe('visible launcher before keyring/account access (#212)', () => {
   function initialFixture() {
     let complete!: (value: unknown) => void;
     const check = new Promise(resolve => { complete = resolve; });
-    const context = createContext({ keyringSupport: { check: () => check }, authState: { running: false, stored: null }, shutdownStarted: false, refreshAccount: vi.fn(async () => {}), emitSnapshot: vi.fn() });
+    const context = createContext({ keyringSupport: { check: () => check }, authState: { running: false, stored: null },
+      demoMode: false, quitting: false, shutdownStarted: false, accountRefreshKey: () => 'same-backend', initialWalletAttempted: false,
+      mainWindow: undefined, walletTarget: undefined, walletWindowCurrent: () => false,
+      refreshAccount: vi.fn(async () => {}), emitSnapshot: vi.fn() });
     const job = runInContext(refreshSource + '\nrefreshInitialAccount()', context) as Promise<void>;
     return { context, job, complete };
   }
@@ -76,7 +79,7 @@ describe('visible launcher before keyring/account access (#212)', () => {
     const source = readFileSync('src/main/index.ts', 'utf8');
     const tail = source.slice(source.indexOf('await syncManagedWinePath();', source.indexOf('app.whenReady()')));
     expect(tail).toContain('await showBeforeAccountCheck(');
-    expect(tail).toMatch(/if \(startupRequest.gameId\) \{\s*await refreshAccount\(false\);\s*receiveLaunchRequest/);
+    expect(tail).toMatch(/if \(startupRequest.gameId\) \{\s*await prepareSystemWallet\(\);\s*await refreshAccount\(false\);\s*receiveLaunchRequest/);
     expect(tail.indexOf('registerIpc();')).toBeLessThan(tail.indexOf('await showBeforeAccountCheck('));
   });
 });

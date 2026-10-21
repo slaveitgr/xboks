@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config libssl-dev protobuf-compiler libdbus-1-dev tar xz-utils
+            build-essential cmake pkg-config libssl-dev protobuf-compiler libdbus-1-dev dbus-daemon tar xz-utils
       - name: Build and test pinned source, package binaries and corresponding source
         env:
           XZ_OPT: '-T2'

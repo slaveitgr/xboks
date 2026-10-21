@@ -1,7 +1,7 @@
 diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
 --- a/crates/xodus-cli/src/main.rs
 +++ b/crates/xodus-cli/src/main.rs
-@@ -73,6 +73,13 @@
+@@ -91,6 +91,13 @@
          #[arg(long, default_value_t = false)]
          json: bool,
      },
@@ -15,7 +15,7 @@ diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
      #[command(about = "Read Xbox time played and last activity for one title without starting sign-in")]
      GameActivity {
          title_id: u32,
-@@ -188,7 +195,12 @@
+@@ -206,7 +213,12 @@
  
  #[tokio::main]
  async fn main() -> ExitCode {
@@ -29,15 +29,15 @@ diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
      let registry =
          tracing_subscriber::registry().with(tracing_subscriber::fmt::layer().with_writer(std::io::stderr).with_filter(filter));
  
-@@ -212,7 +224,6 @@
+@@ -230,7 +242,6 @@
          .connection_verbose(true)
          .build()
          .unwrap();
 -    let args = CliArgs::parse();
-     #[cfg(not(feature = "native-webview"))]
-     if args.external_webview_stdio {
-         webview::enable_stdio();
-@@ -229,7 +240,9 @@
+     #[cfg(target_os = "linux")]
+     if let SubCommand::KeyringSessionStop { provider_pid } = &args.command {
+         let state = xodus::keyring_session::stop_session_provider(*provider_pid);
+@@ -270,7 +281,9 @@
          xodus::tokens::store::TokenStoreError::from(error).report();
          return ExitCode::FAILURE;
      }
@@ -48,7 +48,7 @@ diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
  
      // Clep/SpLicense are pure local data transforms and Logout only removes
      // stored credentials - none of them need a device identity, so don't
-@@ -241,6 +254,7 @@
+@@ -282,6 +295,7 @@
          args.command,
          SubCommand::Account { .. }
              | SubCommand::Profile { .. }
@@ -56,7 +56,7 @@ diff --git a/crates/xodus-cli/src/main.rs b/crates/xodus-cli/src/main.rs
              | SubCommand::GameActivity { .. }
              | SubCommand::Achievements { .. }
              | SubCommand::Library { .. }
-@@ -306,6 +320,7 @@
+@@ -353,6 +367,7 @@
              }
          },
          SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
@@ -75,14 +75,14 @@ diff --git a/crates/xodus-cli/src/commands.rs b/crates/xodus-cli/src/commands.rs
 diff --git a/crates/xodus-cli/src/commands/profile.rs b/crates/xodus-cli/src/commands/profile.rs
 --- a/crates/xodus-cli/src/commands/profile.rs
 +++ b/crates/xodus-cli/src/commands/profile.rs
-@@ -52,6 +52,36 @@
+@@ -85,6 +85,36 @@
      let (account, device, user) = super::session::prepare(tokens, &client).await.map_err(|stage| {
          super::session::diagnostic(stage); stage
      })?;
 +    bearer_session(client,account,device,user).await
 +}
 +
-+// The companion must coexist with backends using the older keyring encoding.
++// Social commands read cached credentials without renewing the selected session.
 +// Read current cached credentials only: no device renewal, provisioning, login,
 +// migration, cache save or TokenManager mutation. Expiry remains an explicit gate.
 +pub(super) fn readonly_credentials(tokens: &TokenManager) -> Result<(String, xodus::models::secrets::LegacyToken, xodus::models::secrets::LegacyToken), &'static str> {
@@ -103,7 +103,7 @@ diff --git a/crates/xodus-cli/src/commands/profile.rs b/crates/xodus-cli/src/com
 +    let (account,device,user) = readonly_credentials(tokens)?;
 +    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
 +        .retry(reqwest::retry::never()).timeout(super::session::REQUEST_TIMEOUT)
-+        .user_agent("xboks-social-session/1").build().map_err(|_| "http-client")?;
++        .user_agent("xodus-nexus-social-session/1").build().map_err(|_| "http-client")?;
 +    bearer_session(client,account,device,user).await
 +}
 +// This exchange receives values, not a TokenManager: it cannot persist or renew
@@ -133,8 +133,8 @@ new file mode 100644
 +const INBOX: &str = "https://xblmessaging.xboxlive.com/network/Xbox/users/me/inbox";
 +const SEARCH: &str = "https://usersearch.xboxlive.com/suggest";
 +
-+// Defense in depth: even a future social helper cannot rewrite credentials in
-+// an encoding an independently selected older backend cannot read.
++// Defense in depth: even future social operations cannot rewrite credentials in
++// the selected Nexus account while reading friends or sending a message.
 +struct ReadOnlyBackend { inner: std::sync::Arc<dyn xodus::tokens::store::TokenBackend> }
 +impl xodus::tokens::store::TokenBackend for ReadOnlyBackend {
 +    fn get(&self,key:&str) -> Result<Option<Vec<u8>>,xodus::tokens::store::TokenStoreError> { self.inner.get(key) }
@@ -366,7 +366,7 @@ new file mode 100644
 +    // A POST whose outcome is unknown must never be silently replayed.
 +    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
 +        .retry(reqwest::retry::never()).timeout(Duration::from_secs(8))
-+        .user_agent("xboks-social/1").build().map_err(|_| "http-client")?;
++        .user_agent("xodus-nexus-social/1").build().map_err(|_| "http-client")?;
 +    let profile = get(&client,OWN_PROFILE,&auth,"2").send().await.map_err(|_| "profile-request")?;
 +    let own = self_xuid(&json_response(profile).await?)?;
 +    let mut result = json!({"schema":1,"status":"ready","account":account,"selfXuid":own,

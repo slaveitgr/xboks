@@ -11,8 +11,9 @@ import { backendSourceArchiveArgs } from '../backend-source-archive.mjs';
 test('self-profile details are pinned, allowlisted and keep membership and authentication separate', async () => {
   const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
   const detailsIndex = lock.patches.findIndex(patch => patch.file === 'xodus-profile-details.patch');
+  const profileIndex = lock.patches.findIndex(patch => patch.file === 'xodus-account-profile.patch');
   const socialIndex = lock.patches.findIndex(patch => patch.file === 'xodus-social.patch');
-  assert.ok(socialIndex >= 0 && detailsIndex > socialIndex);
+  assert.ok(profileIndex >= 0 && detailsIndex > profileIndex && socialIndex >= 0);
   const patch = await fs.readFile('assets/xodus-profile-details.patch', 'utf8');
   assert.equal((patch.match(/^diff --git /gm) ?? []).length, 1);
   assert.match(patch, /^diff --git a\/crates\/xodus-cli\/src\/commands\/profile\.rs b\/crates\/xodus-cli\/src\/commands\/profile\.rs$/m);
@@ -198,4 +199,86 @@ test('corresponding-source archive preserves nested target source directories', 
     assert.match(build, /command\('tar', backendSourceArchiveArgs\(/);
     assert.match(build, /copyFile\(path.join\(root, 'scripts\/backend-source-archive.mjs'\)/);
   } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('encrypted resume retains complete ciphertext pages and launch errors identify incomplete images (#248)', async () => {
+  const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
+  const resumeIndex = lock.patches.findIndex(p => p.file === 'xodus-encrypted-resume.patch');
+  const launchIndex = lock.patches.findIndex(p => p.file === 'xodus-launch-image-errors.patch');
+  assert.ok(resumeIndex >= 0 && launchIndex > resumeIndex);
+  const resume = await fs.readFile('assets/xodus-encrypted-resume.patch', 'utf8');
+  for (const name of ['streaming_resume_completed_encrypted_image_preserves_ciphertext_tail',
+    'streaming_resume_repairs_old_encrypted_tail_with_actual_range_download',
+    'streaming_repair_selection_preserves_unchanged_files_and_only_targets_current_package',
+    'streaming_encrypted_download_and_partial_resume_keep_exact_ciphertext_for_launch_decryption',
+    'streaming_plain_output_remains_unpadded_and_short_ciphertext_returns_error']) assert.ok(resume.includes(name), name);
+  assert.ok(resume.includes('content.stored_length()?'));
+  assert.ok(resume.includes('offset = content.length / page_size * page_size;'));
+  const launch = await fs.readFile('assets/xodus-launch-image-errors.patch', 'utf8');
+  for (const name of ['launch_image_preflight_rejects_incomplete_ciphertext_with_file_and_size_without_writing',
+    'launch_image_preflight_accepts_valid_plain_and_padded_images_without_changes',
+    'launch_images_keep_owned_descriptors_with_inheritance_enabled']) assert.ok(launch.includes(name), name);
+  assert.match(launch, /^-\s*\.unwrap\(\);$/m);
+  assert.match(launch, /^\+\s*Err\(error\) => \{/m);
+  assert.doesNotMatch(resume + launch, /diff --git a\/.*(?:tokens\/|login\.rs|license\.rs|package_plan\.rs)/);
+});
+
+test('first wallet creation is explicit, native-prompt only and preserves existing collections', async () => {
+  const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
+  const index = lock.patches.findIndex(p => p.file === 'xodus-keyring-create.patch');
+  assert.ok(index > lock.patches.findIndex(p => p.file === 'xodus-keyring-persistence.patch'));
+  const patch = await fs.readFile('assets/xodus-keyring-create.patch', 'utf8');
+  for (const text of ['KeyringCreate', 'CreateCollection', 'if !collections.is_empty()', 'current_owner != owner',
+    'keyring_create_never_replaces_existing_collections_or_creates_from_unlock',
+    'keyring_create_native_prompt_rechecks_default_and_lock_state',
+    'keyring_create_cancel_timeout_and_foreign_completion_are_bounded']) assert.ok(patch.includes(text),text);
+  assert.doesNotMatch(patch, /^\+.*(?:GetSecret|SearchItems|SetSecret|SetAlias|ensure_device_credentials\(|https:\/\/)/m);
+  const build = await fs.readFile('scripts/build-backend.mjs','utf8');
+  assert.ok(build.includes("'keyring_create_', '--', '--test-threads=1'"));
+  assert.ok(build.includes("'keyring-create'"));
+});
+
+test('wallet unlock is explicit, account-free and private-bus tested', async () => {
+  const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
+  assert.ok(lock.patches.some(p => p.file === 'xodus-keyring-unlock.patch'));
+  const patch = await fs.readFile('assets/xodus-keyring-unlock.patch', 'utf8');
+  for (const text of ['KeyringUnlock', 'keyring_unlock_private_bus_metadata_never_activates_or_reads_items',
+    'keyring_unlock_private_bus_ignores_completion_from_another_owner', 'keyring_unlock_private_bus_cancellation_and_timeout_dismiss_the_prompt',
+    'keyring_unlock_private_bus_prompt_connection_completion_and_lock_recheck', 'connection.remove_match(token)',
+    'keyring_unlock_prompt_never_tags_unrelated_or_unparented_windows',
+    'keyring_unlock_prompt_uses_only_the_verified_parent_app', 'keyring_unlock_prompt_reaper_id_requires_the_actual_launch_argument']) assert.ok(patch.includes(text),text);
+  assert.doesNotMatch(patch, /^\+.*(?:GetSecret|SearchItems|CreateCollection|SetSecret|ensure_device_credentials\(|https:\/\/)/m);
+  const build = await fs.readFile('scripts/build-backend.mjs', 'utf8');
+  assert.ok(build.includes("'keyring_unlock_', '--', '--test-threads=1'"));
+  assert.ok((await fs.readFile('.github/workflows/backend.yml','utf8')).includes('dbus-daemon'));
+});
+
+test('session keyring shutdown is limited to its verified xboks-owned provider and has no credential API', async () => {
+  const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
+  assert.ok(lock.patches.some(p => p.file === 'xodus-keyring-session-stop.patch'));
+  const patch = await fs.readFile('assets/xodus-keyring-session-stop.patch', 'utf8');
+  for (const text of ['KeyringSessionStop', 'GetConnectionUnixProcessID', 'GetConnectionUnixUser',
+    'xboks-keyring-', '/MainApplication', 'org.qtproject.Qt.QCoreApplication',
+    'keyring_session_stop_private_bus_never_quits_a_replacement_owner',
+    'keyring_session_stop_private_bus_rejects_foreign_pid_uid_and_cgroup',
+    'keyring_session_stop_private_bus_bounds_unresponsive_and_nonexiting_providers',
+    'keyring_session_stop_rejects_unmanaged_process_before_connecting_to_user_bus']) assert.ok(patch.includes(text), text);
+  assert.doesNotMatch(patch, /^\+.*(?:GetSecret|SearchItems|CreateCollection|SetSecret|closeAllWallets|ensure_device_credentials\(|https:\/\/)/m);
+  const build = await fs.readFile('scripts/build-backend.mjs', 'utf8');
+  assert.ok(build.includes("'keyring_session_', '--', '--test-threads=1'"));
+  assert.ok(build.includes("'keyring-session-stop'"));
+});
+
+test('optional KWallet persistence uses own watched session without locking or stopping other providers', async () => {
+  const lock=JSON.parse(await fs.readFile('assets/backend-source.lock.json','utf8'));
+  assert.ok(lock.patches.some(p=>p.file==='xodus-keyring-persistence.patch'));
+  const patch=await fs.readFile('assets/xodus-keyring-persistence.patch','utf8');
+  for(const name of ['genuine_ksecret','prompt_is_disabled','openAsync','message.set_no_reply(true)',
+    'keyring_persistence_private_bus_foreign_and_absent_provider_are_untouched',
+    'keyring_persistence_private_bus_no_creation_unlock_or_extra_authorization',
+    'keyring_persistence_private_bus_replacement_or_lock_race_releases_only_own_handle',
+    'keyring_persistence_private_bus_timeout_denial_and_foreign_signal_never_sync']) assert.ok(patch.includes(name),name);
+  assert.doesNotMatch(patch,/^\+.*(?:"GetSecret"|"SearchItems"|"Unlock"|"Lock"|"quit"|"CreateCollection"|"pamOpen"|closeAllWallets|FDO_APPID)/m);
+  const build=await fs.readFile('scripts/build-backend.mjs','utf8');
+  assert.ok(build.includes("'keyring_persistence_', '--', '--test-threads=1'"));
 });

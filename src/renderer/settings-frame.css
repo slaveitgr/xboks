@@ -187,6 +187,8 @@ html[data-original-xbox-ui] .settings-gamepass-fallback { position: absolute; wi
 .original-install-divider { border-top:1px solid #5b5d60; margin:24px 0 16px; }
 .original-install-settings .original-install-update-note { margin:0 8px 16px; }
 .original-install-unit { display:grid; gap:8px; color:#fff; font-size:16px; }
-.nexus-settings-extra { border-top:1px solid #5b5d60; margin-top:40px; }
-.nexus-settings-extra > summary,.original-account-session > summary { padding:14px 0; color:#b6b9bc; cursor:pointer; font-size:14px; }
-.original-account-session[hidden],.nexus-settings-extra[hidden] { display:none; }
+.engine-settings-extra { border-top:1px solid #5b5d60; margin-top:40px; }
+.engine-settings-extra > summary,.original-account-session > summary { padding:14px 0; color:#b6b9bc; cursor:pointer; font-size:14px; }
+.original-account-session[hidden],.engine-settings-extra[hidden] { display:none; }
+.engine-release-note { display:flex; align-items:flex-start; gap:10px; color:#b6b9bc; font-size:13px; line-height:1.5; margin:16px 0; }
+.engine-release-note > svg { width:18px; height:18px; flex-shrink:0; margin-top:1px; }

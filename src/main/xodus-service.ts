@@ -5,6 +5,7 @@ import { constants, promises as fs } from 'node:fs';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import path from 'node:path';
 import { backendDiagnostic, observeBackendChild } from './backend-diagnostics.js';
+import { CredentialErrorReader } from './credential-errors.js';
 
 export interface XodusServiceSession {
   socketPath: string;
@@ -139,6 +140,8 @@ export async function startXodusService(
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   observeBackendChild(child, 'service');
+  const credentialError = new CredentialErrorReader();
+  child.stderr.on('data', (bytes: Buffer) => credentialError.push(bytes));
   let stopped = false;
   let bridge: XodusBridge | undefined;
   let exitCode: number | null = null;
@@ -178,7 +181,7 @@ export async function startXodusService(
         onStatus('xboks Engine account service and private loopback bridge are ready.');
         return { socketPath, bridgePort: bridge.port, bridgeKey: bridge.key, stop };
       }
-      if (exitCode !== null) throw new Error(`xboks Engine account service exited with code ${exitCode}. Check the stored xboks Engine account and network connection.`);
+      if (exitCode !== null) throw new Error(credentialError.message ?? `xboks Engine account service exited with code ${exitCode}. Check the stored xboks Engine account and network connection.`);
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     backendDiagnostic({ operation: 'service', event: 'validation', stage: 'timeout' });

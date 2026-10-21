@@ -101,7 +101,10 @@ describe('prebuilt backend', () => {
       await fs.writeFile(path.join(managed, 'current.json'), old);
       const manager = new BackendManager(root, '', () => {}, () => scenario === 'busy-after-download' && downloading, fetcher);
       if (scenario === 'valid') {
+        vi.mocked(fetcher).mockRejectedValueOnce(new Error('Temporary release outage'));
+        expect((await manager.checkUpdate()).releaseState).toBe('error');
         await manager.update(() => {});
+        expect(manager.current.releaseState).toBe('available'); expect(manager.current.releaseError).toBeUndefined();
         const pointer = JSON.parse(await fs.readFile(path.join(managed, 'current.json'), 'utf8'));
         expect(pointer.delivery).toBe('release');
         expect(pointer.recipeSha256).toBe(backendRecipeSha256);
@@ -133,9 +136,26 @@ describe('prebuilt backend', () => {
       const manager = new BackendManager(root, '', () => {}, () => false, fetcher);
       const status = await manager.checkUpdate();
       expect(status.releaseAvailable).toBe(false);
+      expect(status.releaseState).toBe('unpublished');
       expect(status.blockReason).toBe('No compatible xboks Engine backend release has been published yet.');
       await expect(manager.update(() => {})).rejects.toThrow('No compatible');
       await expect(fs.stat(path.join(root, 'engine/current.json'))).rejects.toThrow();
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  });
+
+  it.each(['unpublished', 'error'] as const)('keeps an installed engine usable when update discovery is %s', async state => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-release-health-'));
+    try {
+      const cli = path.join(root, 'target/release/xodus-cli');
+      await fs.mkdir(path.dirname(cli), { recursive: true }); await fs.writeFile(cli, elf(), { mode: 0o755 });
+      const fetcher = vi.fn(async () => state === 'unpublished' ? new Response('[]') : new Response('unavailable', { status: 503 })) as unknown as typeof fetch;
+      const manager = new BackendManager(root, root, () => {}, () => false, fetcher);
+      const before = await manager.refresh(); expect(before.available).toBe(true);
+      const after = await manager.checkUpdate();
+      expect(after.available).toBe(true); expect(after.capabilities).toEqual(before.capabilities);
+      expect(after.binaryPath).toBe(before.binaryPath); expect(after.blockReason).toBeUndefined();
+      expect(after.releaseState).toBe(state); expect(after.releaseError).toBeTruthy();
+      expect(after.releaseAvailable).toBe(false); expect(after.updateAvailable).toBe(false);
     } finally { await fs.rm(root, { recursive: true, force: true }); }
   });
 

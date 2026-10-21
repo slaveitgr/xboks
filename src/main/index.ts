@@ -26,7 +26,7 @@ import { socialBackend } from './social-backend.js';
 import { VoiceCapturePermissions, voiceDocumentAllowed } from './voice-capture.js';
 import type { GuideSystemAction } from '../shared/guide-system.js';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import type { AppSnapshot, AuthStatus, DesktopSettingsStatus, DownloadTask, Game, GameLaunchOptions, GameOperation, GameUpdate, InstallRequest, Settings } from '../shared/types.js';
+import type { AppSnapshot, AuthStatus, DesktopSettingsStatus, DownloadTask, Game, GameLaunchOptions, GameOperation, GameUpdate, InstallRequest, KeyringStatus, Settings } from '../shared/types.js';
 import { downloadFailure, safeProductId } from '../shared/utils.js';
 import { downloadLimitArgs, downloadLimitKiB } from '../shared/download-bandwidth.js';
 import { DownloadBandwidthControls, isBandwidthOnlyPatch } from './download-bandwidth.js';
@@ -79,6 +79,8 @@ import { gameSteamPortrait, nexusSteamArtwork } from './steam-artwork.js';
 import { addLiveSteamShortcut } from './steam-live.js';
 import { DownloadCompletionNotifications } from './download-notifications.js';
 import { KeyringSupport } from './keyring.js';
+import { WalletUnlocker } from './keyring-unlock.js';
+import { startSessionKeyring } from './keyring-session.js';
 import { launcherExecutablePath, showBeforeAccountCheck } from './launcher-startup.js';
 import { GnomeExperienceClient } from './experience-client.js';
 import { FullscreenExperience } from './fullscreen-experience.js';
@@ -237,6 +239,7 @@ function socialBackendBinary(): Promise<string | undefined> {
 }
 function guidePowerActivity(): string | undefined {
   if (shutdownStarted) return 'The launcher is closing.';
+  if (keyringSupport.busy) return 'Wait for the wallet operation to finish.';
   if (authState.running || authJob) return 'Finish signing in before changing the system power state.';
   if (gameProcesses.size || operations.size || preparingLaunch || gameOperation && ['preparing', 'running', 'stopping'].includes(gameOperation.status)) return 'Stop the running game before changing the system power state.';
   if (gameRemovalInProgress) return 'Wait for game removal to finish before changing the system power state.';
@@ -320,7 +323,52 @@ async function setNativeFullscreen(enabled: boolean): Promise<void> {
     try { win.setFullScreen(enabled); } catch (error) { cleanup(); reject(error); }
   });
 }
-const keyringSupport = new KeyringSupport();
+const walletUnlocker = new WalletUnlocker();
+let walletTarget: BrowserWindow | undefined;
+let initialWalletAttempted = false;
+function walletWindowCurrent(target: BrowserWindow | null | undefined): target is BrowserWindow {
+  return Boolean(target && target === mainWindow && !target.isDestroyed() && target.isVisible() && !demoMode && !quitting && !shutdownStarted);
+}
+async function nativeWalletOperation(command: 'create' | 'unlock'): Promise<string> {
+  const target = walletTarget;
+  if (!walletWindowCurrent(target)) return 'cancelled';
+  const capability = command === 'create' ? 'keyring-create' : 'keyring-unlock';
+  if (!backend?.current.capabilities.commands.includes(capability)) return 'unavailable';
+  const handle = target.getNativeWindowHandle(), cancel = () => walletUnlocker.cancel();
+  target.once('closed', cancel);
+  try {
+    const result = await walletUnlocker[command](requireBackend('commands'), handle.length >= 4 ? String(handle.readUInt32LE()) : '');
+    return walletWindowCurrent(target) ? result : 'cancelled';
+  } finally { target.removeListener('closed', cancel); }
+}
+const keyringSupport = new KeyringSupport(process.env, undefined, process.platform, undefined, {
+  canCreate: () => Boolean(backend?.current.capabilities.commands.includes('keyring-create')),
+  create: () => nativeWalletOperation('create'),
+  canUnlock: () => Boolean(backend?.current.capabilities.commands.includes('keyring-unlock')),
+  unlock: () => nativeWalletOperation('unlock'),
+  startProvider: (provider, environment, owned) => {
+    if (!walletWindowCurrent(walletTarget)) return Promise.reject(Error('The wallet request was cancelled.'));
+    const target = walletTarget;
+    return startSessionKeyring(provider, environment, async () => !walletWindowCurrent(target) || await owned(),
+      backend?.current.capabilities.commands.includes('keyring-session-stop') ? backend.current.binaryPath : undefined);
+  },
+});
+async function runWalletRequest(target: BrowserWindow, operation: () => Promise<KeyringStatus>): Promise<KeyringStatus> {
+  if (walletTarget || keyringSupport.busy) throw Error('Wait for the wallet operation to finish.');
+  if (!walletWindowCurrent(target)) throw Error('The wallet request was cancelled.');
+  walletTarget = target;
+  try {
+    const result = await operation();
+    if (!walletWindowCurrent(target)) throw Error('The wallet request was cancelled.');
+    target.webContents.send('keyring-state', result);
+    return result;
+  } finally { if (walletTarget === target) walletTarget = undefined; }
+}
+function walletRequestWindow(event: Electron.IpcMainInvokeEvent): BrowserWindow {
+  const target = mainWindow;
+  if (!walletWindowCurrent(target) || event.sender !== target.webContents || !target.isFocused()) throw Error('Wallet setup must be requested from the focused launcher.');
+  return target;
+}
 const demoArtwork = new Map<string, DemoArtwork>();
 let launcherUpdater: LauncherUpdater;
 const gameUpdates: Record<string, GameUpdate> = {};
@@ -382,7 +430,7 @@ try {
   // Migration must precede Electron's instance lock and profile initialization.
   // Demo captures never inspect or migrate the user's real managed directories.
   if (!demoMode) {
-    pathMigration = await migrateManagedPaths({ profile: selectedProfile, explicitProfile });
+    pathMigration = await migrateManagedPaths({ profile: selectedProfile, explicitProfile, retainStartupLock: true });
     app.setPath('userData', pathMigration.profile);
     if (startupRequest.profile) startupRequest.profile = pathMigration.profile;
     for (const warning of pathMigration.warnings) console.warn(warning);
@@ -395,7 +443,11 @@ if (process.platform === 'linux') {
   } catch (error) { console.warn('Launcher fallback font unavailable:', (error as Error).message); }
 }
 // Electron's lock is scoped to userData, so independent profiles stay isolated.
-const primaryInstance = demoMode || app.requestSingleInstanceLock(shortcutInstanceData(startupRequest, Boolean(startupError)));
+async function claimLauncherInstance(): Promise<boolean> {
+  try { return !startupError && (demoMode || app.requestSingleInstanceLock(shortcutInstanceData(startupRequest, false))); }
+  finally { await pathMigration?.releaseStartupLock?.(); }
+}
+const primaryInstance = await claimLauncherInstance().catch(error => { startupError = error as Error; return false; });
 if (primaryInstance && process.platform === 'linux') {
   // systemd's mixed kill mode first asks this process to perform the same
   // bounded cleanup as an explicit Quit, before its stop deadline expires.
@@ -550,6 +602,7 @@ function requireBackend(command: keyof typeof backend.current.capabilities): str
 }
 
 function ensureIdle(mode?: 'install' | 'launch' | 'remove'): void {
+  if (keyringSupport.busy || walletTarget) throw Error('Wait for the wallet operation to finish.');
   if (authState.running) throw Error('A sign-in operation is already in progress.');
   if (shutdownStarted) throw Error('The launcher is closing.');
   if (downloadCancellations.size) throw Error('A download is being cancelled. Wait for its cleanup to finish.');
@@ -636,17 +689,52 @@ async function refreshAccount(emit = true, afterAuth = false): Promise<AuthStatu
 }
 
 async function refreshInitialAccount(): Promise<void> {
+  if (demoMode || quitting || shutdownStarted) return;
   const initialAuthState = authState;
-  const keyring = await keyringSupport.check();
+  const initialBackendKey = accountRefreshKey();
+  const stillCurrent = () => !quitting && !shutdownStarted && authState === initialAuthState && !authState.running && initialBackendKey === accountRefreshKey();
+  let keyring = await keyringSupport.check();
   // Never overwrite a sign-in/refresh that the user started while metadata
   // was being checked, even if that newer operation has already completed.
-  if (shutdownStarted || authState !== initialAuthState || authState.running) return;
+  if (!stillCurrent()) return;
+  const target = mainWindow;
+  if (keyring.gameMode && keyring.state !== 'unavailable' && !initialWalletAttempted && !keyringSupport.busy && !walletTarget &&
+      walletWindowCurrent(target) && target.isFocused() && backend.current.available && backend.current.capabilities.commands.includes('keyring-unlock')) {
+    initialWalletAttempted = true;
+    keyring = await runWalletRequest(target, () => keyringSupport.startForStartup());
+    if (!stillCurrent()) return;
+    if (keyring.state !== 'ready') {
+      authState = { ...authState, stored: null, note: keyring.message }; emitSnapshot(); return;
+    }
+  }
   if (keyring.gameMode && ['locked', 'stopped', 'disabled', 'missing', 'needs-setup'].includes(keyring.state)) {
     authState = { ...authState, stored: null, note: keyring.message };
     emitSnapshot();
     return;
   }
   await refreshAccount();
+}
+
+async function prepareSystemWallet(): Promise<void> {
+  if (demoMode || quitting || shutdownStarted) { if (quitting || shutdownStarted) throw Error('The launcher is closing.'); return; }
+  const status = await keyringSupport.check();
+  if (quitting || shutdownStarted) throw Error('The launcher is closing.');
+  if (!status.gameMode || status.state === 'ready' || status.state === 'unavailable') return;
+  const directShortcut = shortcutOnly, original = mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+  const revealed = !original?.isVisible();
+  const valid = () => !quitting && !shutdownStarted && (!original || mainWindow === original && !original.isDestroyed());
+  if (revealed) {
+    await showLauncher(valid);
+    shortcutOnly = directShortcut;
+  }
+  const target = mainWindow;
+  if (!walletWindowCurrent(target) || !valid()) throw Error('The wallet request was cancelled.');
+  try {
+    const result = await runWalletRequest(target, () => keyringSupport.start());
+    if (result.state !== 'ready') throw Error(result.message);
+  } finally {
+    if (directShortcut && revealed && shortcutOnly && walletWindowCurrent(target)) target.hide();
+  }
 }
 
 async function runAuth(command: 'login' | 'logout'): Promise<void> {
@@ -664,6 +752,7 @@ async function runAuth(command: 'login' | 'logout'): Promise<void> {
     if (command === 'login' && !backend.current.capabilities.externalAuth) {
       throw Error('Update the xboks Engine in Settings before signing in with this launcher.');
     }
+    if (command === 'login') await prepareSystemWallet();
     const view = fallbackAuthViewFactory(request => authViewFactory(mainWindow ?? undefined, undefined, request), () => browserAuthViewFactory());
     if (shutdownStarted) throw Error('The launcher is closing.');
     await accountProfile.select(undefined);
@@ -698,7 +787,7 @@ function requestAuth(command: 'login' | 'logout'): Promise<void> {
 async function startInstall(request: InstallRequest, updateGame?: Game): Promise<string> {
   ensureIdle(updateGame ? undefined : 'install');
   preparingInstall = true;
-  try { return await prepareInstall(request, updateGame); }
+  try { await prepareSystemWallet(); return await prepareInstall(request, updateGame); }
   finally { preparingInstall = false; }
 }
 
@@ -1130,6 +1219,7 @@ async function prepareGameLaunch(id: string): Promise<void> {
   let releaseDisplay = () => {};
   try {
     if (game.launchTools?.dualSenseCompatibility) writeLaunchLog('DualSense compatibility mode enabled for this game (054c:0ce6).');
+    await prepareSystemWallet();
     const legacyPrefixRoot = path.join(dataRoot, 'prefixes', game.id);
     const compatibilityDataPath = path.join(dataRoot, 'compatdata', game.id);
     const steamRoot = path.join(app.getPath('home'), '.steam', 'root');
@@ -1399,6 +1489,7 @@ function registerDemoIpc(catalogMarket: () => string): void {
   ipcMain.handle('account-refresh', () => snapshot().auth);
   ipcMain.handle('keyring-check', () => ({ state: 'ready', gameMode: false, canStart: false, message: 'Sample system wallet is running and unlocked. No real keyring is accessed.' }));
   ipcMain.handle('keyring-start', () => ({ state: 'ready', gameMode: false, canStart: false, message: 'Demo mode does not start real services.' }));
+  ipcMain.handle('keyring-create', () => ({ state: 'ready', gameMode: false, canStart: false, message: 'Demo mode does not create real wallets.' }));
   ipcMain.handle('check-launcher-update', () => snapshot().launcherUpdate);
   ipcMain.handle('install-launcher-update', () => {});
   ipcMain.handle('restart-launcher', () => {});
@@ -1412,6 +1503,7 @@ function registerDemoIpc(catalogMarket: () => string): void {
   ipcMain.handle('logout', () => {});
   ipcMain.handle('catalog-search', (_event, query: string, cursor?: string) => catalog.search(query, catalogMarket(), cursor));
   ipcMain.handle('catalog-featured', () => catalog.featured(catalogMarket()));
+  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
   ipcMain.handle('catalog-details', (_event, productId: string) => {
     if (typeof productId !== 'string' || !/^[A-Z0-9]{12}$/i.test(productId)) throw Error('Invalid product ID.');
     return catalog.gameDetails(productId.toUpperCase(), catalogMarket());
@@ -1695,11 +1787,17 @@ function registerIpc(): void {
   });
   ipcMain.handle('account-refresh', () => refreshAccount());
   ipcMain.handle('keyring-check', () => keyringSupport.check());
-  ipcMain.handle('keyring-start', async () => {
+  ipcMain.handle('keyring-start', async event => {
+    const target = walletRequestWindow(event);
     ensureIdle();
-    const result = await keyringSupport.start();
+    const result = await runWalletRequest(target, () => keyringSupport.start());
     if (result.state === 'ready') void refreshAccount().catch(() => { /* Explicit refresh remains available. */ });
     return result;
+  });
+  ipcMain.handle('keyring-create', async event => {
+    const target = walletRequestWindow(event);
+    ensureIdle();
+    return runWalletRequest(target, () => keyringSupport.createCollection());
   });
   ipcMain.handle('check-launcher-update', async () => { await checkLauncherUpdate(); emitSnapshot(); return snapshot().launcherUpdate; });
   ipcMain.handle('install-launcher-update', async () => { ensureIdle(); if (authState.running) throw new Error('Wait for sign-in to finish.'); await launcherUpdater.install(); });
@@ -1746,6 +1844,7 @@ function registerIpc(): void {
   });
   ipcMain.handle('read-backend-diagnostic-log', () => backendDiagnostics.read());
   ipcMain.handle('catalog-featured', () => catalog.featured(catalogMarket()));
+  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
   ipcMain.handle('catalog-details', (_event, productId: string) => {
     if (typeof productId !== 'string' || !/^[A-Z0-9]{12}$/i.test(productId)) throw Error('Invalid product ID.');
     return catalog.gameDetails(productId.toUpperCase(), catalogMarket());
@@ -2323,8 +2422,8 @@ app.whenReady().then(async () => {
       });
     } catch { /* Keep an unavailable imported entry visible. */ }
   }
-  runtime = new RuntimeManager(store.settings.runtimeRoot, emitLog, () => downloadCancellations.size > 0 || operations.size > 0 || installQueue.size > 0 || preparingInstall || backend?.current.updating === true);
-  backend = new BackendManager(app.getPath('userData'), store.settings.externalXodusRoot, emitLog, () => downloadCancellations.size > 0 || operations.size > 0 || installQueue.size > 0 || preparingInstall || runtime?.current.updating === true);
+  runtime = new RuntimeManager(store.settings.runtimeRoot, emitLog, () => keyringSupport.busy || Boolean(walletTarget) || downloadCancellations.size > 0 || operations.size > 0 || installQueue.size > 0 || preparingInstall || backend?.current.updating === true);
+  backend = new BackendManager(app.getPath('userData'), store.settings.externalXodusRoot, emitLog, () => keyringSupport.busy || Boolean(walletTarget) || downloadCancellations.size > 0 || operations.size > 0 || installQueue.size > 0 || preparingInstall || runtime?.current.updating === true);
   await backend.refresh();
   await runtime.refresh();
   void backend.checkUpdate().then(async () => {
@@ -2355,6 +2454,7 @@ app.whenReady().then(async () => {
     console.warn('Xbox mode startup could not be safely consumed; keeping desktop mode.'); return false;
   });
   if (startupRequest.gameId) {
+    await prepareSystemWallet();
     await refreshAccount(false);
     receiveLaunchRequest(startupRequest.gameId);
   } else if (startupXboxMode) {
@@ -2398,6 +2498,7 @@ app.on('will-quit', () => { disposeGameBarController(); settingsTray?.destroy();
 
 app.on('before-quit', (event) => {
   quitting = true;
+  walletUnlocker.cancel();
   disposeGameBarController();
   fullscreenExperience.dispose();
   voiceCapture.release();
@@ -2412,10 +2513,11 @@ app.on('before-quit', (event) => {
   guidePower.clear();
   accountProfile?.cancel();
   accountRefresh.invalidate();
-  if (shutdownStarted || (!pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
+  if (shutdownStarted || (!walletUnlocker.busy && !keyringSupport.busy && !walletTarget && !pendingSettingsUpdates && !backendDiagnostics?.pendingWrites && !authJob && !preparingInstall && downloadCancellations.size === 0 && installQueue.size === 0 && operations.size === 0 && serviceSessions.size === 0 && !checkingGameUpdates && !launcherUpdater?.state.updating)) return;
   event.preventDefault();
   shutdownStarted = true;
   void (async () => {
+    await walletUnlocker.stop();
     // Finish preference persistence/rollback before destroying the tray or terminating the process.
     await settingsUpdates;
     gameUpdateController?.abort();

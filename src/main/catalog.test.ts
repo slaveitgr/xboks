@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CatalogService, parseCatalogProducts, parseHandheldCompatibility } from './catalog.js';
+import { CatalogService, parseCatalogProducts, parseHandheldCompatibility, type StoreCollection } from './catalog.js';
 
 const search = {
   productsList: [{
@@ -36,6 +36,85 @@ const catalog = {
     DisplaySkuAvailabilities: [{ Sku: { Properties: { Packages: [] } } }],
   }],
 };
+
+describe('anonymous Store collections', () => {
+  const rows = { productsList: [{ productId: '9AAAAAAAAAAA', title: 'Returned PC game', isGame: true, categories: ['Action'], priceInfo: { displayPrice: '$14.99' } }], hasMorePages: false };
+  function provider(pages: unknown[] = [rows]) {
+    const requests: { url: URL; init?: RequestInit }[] = [];
+    const fetcher = (async (input: URL | RequestInfo, init?: RequestInit) => {
+      const url = new URL(String(input)); requests.push({ url, init });
+      const payload = url.hostname === 'displaycatalog.mp.microsoft.com' ? { Products: [] } : pages.shift();
+      return new Response(JSON.stringify(payload), { headers: { 'Content-Type': 'application/json' } });
+    }) as typeof fetch;
+    return { service: new CatalogService(fetcher), requests };
+  }
+  it.each(['all-pc', 'addons'] as const)('uses the real %s wildcard department without changing ordinary search rules', async kind => {
+    const p = provider([{ ...rows, productsList: rows.productsList.map(row => ({ ...row, categories: [kind === 'addons' ? 'Add-on' : 'Action'] })) }]);
+    const result = await p.service.collection(kind, 'el-GR');
+    const { url, init } = p.requests[0];
+    expect(url.origin + url.pathname).toBe('https://apps.microsoft.com/api/products/search');
+    expect(Object.fromEntries(url.searchParams)).toMatchObject({ query: '*', mediaType: kind === 'addons' ? 'addons' : 'games', gl: 'GR', category: 'all' });
+    expect(init).toMatchObject({ credentials: 'omit', redirect: 'error', headers: { Accept: 'application/json' } });
+    expect(result.products[0]).toMatchObject({ title: 'Returned PC game', purchasePrice: '$14.99', installability: 'unknown' });
+    expect(result.products[0].includedWith).toBeUndefined(); await expect(p.service.search('*', 'US')).rejects.toThrow('at least two');
+  });
+  it('uses actual server ranking for Top paid and its returned page number', async () => {
+    const p = provider([{ ...rows, hasMorePages: true, nextPageNumber: 2 }, rows]);
+    const first = await p.service.collection('toppaid', 'US'); expect(first.hasMore).toBe(true); expect(first.cursor).toBeTruthy();
+    expect(Object.fromEntries(p.requests[0].url.searchParams)).toMatchObject({ listName: 'TopPaid', pgNo: '1', noItems: '24', mediaType: 'Games' });
+    const last = await p.service.collection('toppaid', 'US', first.cursor);
+    expect(p.requests.filter(request => request.url.hostname === 'apps.microsoft.com')[1].url.searchParams.get('pgNo')).toBe('2');
+    expect(last.hasMore).toBe(false); expect(last.cursor).toBeUndefined();
+  });
+  it.each(['all-pc', 'addons'] as const)('passes only the original opaque %s cursor to the official endpoint', async kind => {
+    const row = { ...rows.productsList[0], categories: ['Add-on'] };
+    const p = provider([{ productsList: [row], cursor: 'original+/=cursor', hasMorePages: true }, { productsList: [], hasMorePages: false }]);
+    const first = await p.service.collection(kind, 'US'); await p.service.collection(kind, 'US', first.cursor);
+    const urls = p.requests.filter(request => request.url.hostname === 'apps.microsoft.com').map(request => request.url);
+    expect(urls[1].searchParams.get('cursor')).toBe('original+/=cursor'); expect(first.cursor!.length).toBeLessThan(4096);
+  });
+  it('binds pagination to the exact collection and market before any network request', async () => {
+    const p = provider([{ ...rows, hasMorePages: true, cursor: 'source_cursor' }]); const first = await p.service.collection('all-pc', 'US'); const count = p.requests.length;
+    await expect(p.service.collection('addons', 'US', first.cursor)).rejects.toThrow('cursor is invalid');
+    await expect(p.service.collection('all-pc', 'GR', first.cursor)).rejects.toThrow('cursor is invalid'); expect(p.requests).toHaveLength(count);
+  });
+  it.each(['not-a-token', 'A'.repeat(4097), Buffer.from(JSON.stringify({ version: 1, collection: 'toppaid', market: 'US', page: 101 })).toString('base64url')])('rejects malformed or excessive cursor %s', async cursor => {
+    const p = provider(); await expect(p.service.collection('toppaid', 'US', cursor)).rejects.toThrow('cursor is invalid'); expect(p.requests).toHaveLength(0);
+  });
+  it('rejects unknown collections instead of mapping them to a normal search', async () => {
+    const p = provider(); await expect(p.service.collection('personalized' as StoreCollection, 'US')).rejects.toThrow('Unknown Store collection'); expect(p.requests).toHaveLength(0);
+  });
+  it('does not turn a base-game fallback into an add-on collection', async () => {
+    const p = provider(); await expect(p.service.collection('addons', 'US')).rejects.toThrow('verified add-on'); expect(p.requests).toHaveLength(1);
+  });
+  it.each([{}, { productsList: null }, { productsList: Array.from({ length: 61 }, () => rows.productsList[0]) }])('rejects malformed or excessive collection data', async response => {
+    const p = provider([response]); await expect(p.service.collection('all-pc', 'US')).rejects.toThrow('Invalid Microsoft Store collection');
+  });
+  it.each([{ ...rows, hasMorePages: true }, { ...rows, hasMorePages: true, nextPageNumber: 1 }, { ...rows, hasMorePages: true, nextPageNumber: 101 }])('rejects nonadvancing Top paid pagination', async response => {
+    const p = provider([response]); await expect(p.service.collection('toppaid', 'US')).rejects.toThrow('pagination did not advance');
+  });
+  it('rejects repeated wildcard cursors on subsequent pages', async () => {
+    const response = { ...rows, hasMorePages: true, cursor: 'same' }, p = provider([response, response]);
+    const first = await p.service.collection('all-pc', 'US'); await expect(p.service.collection('all-pc', 'US', first.cursor)).rejects.toThrow('pagination did not advance');
+  });
+  it('caches immutable page copies independently by kind and market', async () => {
+    const p = provider([rows, rows, rows]); const first = await p.service.collection('all-pc', 'US'); first.products[0].title = 'Mutated caller';
+    expect((await p.service.collection('all-pc', 'US')).products[0].title).toBe('Returned PC game'); expect(p.requests.filter(request => request.url.hostname === 'apps.microsoft.com')).toHaveLength(1);
+    await p.service.collection('toppaid', 'US'); await p.service.collection('all-pc', 'GR'); expect(p.requests.filter(request => request.url.hostname === 'apps.microsoft.com')).toHaveLength(3);
+  });
+  it('bounds declared and streamed response bytes and does not enrich a failed response', async () => {
+    let details = 0;
+    for (const declared of [true, false]) {
+      const service = new CatalogService((async input => { if (String(input).includes('displaycatalog')) details++; return new Response(' '.repeat(2 * 1024 * 1024 + 1), { headers: declared ? { 'content-length': String(2 * 1024 * 1024 + 1) } : {} }); }) as typeof fetch);
+      await expect(service.collection('all-pc', 'US')).rejects.toThrow('response limit');
+    }
+    expect(details).toBe(0);
+  });
+  it('propagates HTTP failures without silently using trending or stale cached data', async () => {
+    const service = new CatalogService((async () => new Response('unavailable', { status: 503 })) as typeof fetch);
+    await expect(service.collection('toppaid', 'US')).rejects.toThrow('HTTP 503');
+  });
+});
 
 describe('Microsoft Store catalog parsing', () => {
   it('separates purchase price, subscription availability, and Xodus package support', () => {

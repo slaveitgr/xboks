@@ -62,6 +62,8 @@ export interface BackendStatus {
   delivery?: 'release' | 'local';
   releaseAvailable?: boolean;
   releaseVersion?: string;
+  releaseState?: 'available' | 'unpublished' | 'error';
+  releaseError?: string;
   phase?: string;
 }
 
@@ -84,6 +86,7 @@ export interface RuntimeStatus {
   nexusVersion?: string;
   nexusChecking?: boolean;
   nexusError?: string;
+  releaseState?: 'available' | 'unpublished' | 'error';
   prerequisites: { gh: boolean; authenticated: boolean; tar: boolean; sha512sum: boolean };
   phase?: string;
   error?: string;
@@ -219,6 +222,8 @@ export interface GameUpdate {
 export interface DiagnosticLog { name: string; content: string; truncated: boolean }
 
 export interface KeyringStatus {
+  canCreate?: boolean;
+  canUnlock?: boolean;
   state: 'ready' | 'locked' | 'stopped' | 'disabled' | 'missing' | 'needs-setup' | 'unavailable';
   gameMode: boolean;
   canStart: boolean;
@@ -456,6 +461,8 @@ export interface LauncherApi {
   refreshAccount(): Promise<AuthStatus>;
   checkKeyring(): Promise<KeyringStatus>;
   startKeyring(): Promise<KeyringStatus>;
+  createKeyringCollection(): Promise<KeyringStatus>;
+  onKeyringStatus(callback: (status: KeyringStatus) => void): () => void;
   checkLauncherUpdate(): Promise<LauncherUpdate | undefined>;
   installLauncherUpdate(): Promise<void>;
   restartLauncher(): Promise<void>;
@@ -469,6 +476,7 @@ export interface LauncherApi {
   logout(): Promise<void>;
   searchCatalog(query: string, cursor?: string): Promise<CatalogSearchResult>;
   getFeaturedCatalog(): Promise<CatalogSearchResult>;
+  getStoreCollection(collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string): Promise<CatalogSearchResult>;
   getCatalogDetails(productId: string): Promise<GameStoreDetails | undefined>;
   getAccountLibrary(kind: AccountLibraryPage['kind'], cursor?: string, refresh?: boolean): Promise<AccountLibraryPage>;
   startInstall(request: InstallRequest): Promise<string>;

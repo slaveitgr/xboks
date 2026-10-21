@@ -159,6 +159,8 @@ export class BackendManager {
       this.artifact = await discoverBackend(this.fetcher);
       const pointer = await this.readPointer();
       this.status.releaseAvailable = true;
+      this.status.releaseState = 'available';
+      this.status.releaseError = undefined;
       this.status.releaseVersion = this.artifact.manifest.version;
       this.status.updateAvailable = !this.status.available || pointer?.delivery !== 'release' ||
         !pointer?.version || compareVersions(pointer.version, this.artifact.manifest.version) < 0;
@@ -166,10 +168,13 @@ export class BackendManager {
     } catch (error) {
       this.artifact = undefined;
       this.status.releaseAvailable = false;
+      this.status.releaseVersion = undefined;
       this.status.updateAvailable = false;
       const message = (error as Error).message;
-      this.status.blockReason = message.startsWith('No compatible xboks Engine backend release')
+      this.status.releaseState = message.startsWith('No compatible xboks Engine backend release') ? 'unpublished' : 'error';
+      this.status.releaseError = message.startsWith('No compatible xboks Engine backend release')
         ? message : `Backend release check failed: ${message}`;
+      if (!this.status.available) this.status.blockReason = this.status.releaseError;
     } finally { this.status.checking = false; }
     return this.current;
   }
@@ -201,7 +206,8 @@ export class BackendManager {
       try { await fs.writeFile(temporary, JSON.stringify(pointer, null, 2)); await fs.rename(temporary, this.pointerFile); }
       finally { await fs.rm(temporary, { force: true }); }
       await this.refresh();
-      Object.assign(this.status, { releaseAvailable: true, releaseVersion: manifest.version, updateAvailable: false, phase: 'Backend is ready.' });
+      Object.assign(this.status, { releaseAvailable: true, releaseVersion: manifest.version, releaseState: 'available', releaseError: undefined,
+        updateAvailable: false, phase: 'Backend is ready.' });
     } catch (error) {
       this.status.blockReason = (error as Error).message;
       this.status.phase = 'Backend update failed; the previous backend was kept.';

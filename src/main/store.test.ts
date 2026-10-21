@@ -25,7 +25,7 @@ describe('managed runtime path migration', () => {
     const gamePath = path.join(oldData, 'unusual-imported-game'); const destination = path.join(oldData, 'custom-download');
     const persisted = JSON.stringify({ settings: { runtimeRoot: path.join(oldData, 'runtimes'), winePath, externalXodusRoot: '/mnt/custom-backend' }, games: [{ id: 'g', path: gamePath }], downloads: [{ id: 'd', status: 'paused', destination, checkpoint: 'unchanged' }] });
     await writeFile(path.join(profile, 'launcher-state.json'), persisted);
-    const migration = await migrateManagedPaths({ home, configHome, dataHome });
+    const migration = await migrateManagedPaths({ home, configHome, dataHome, isActive: async () => false });
     expect(migration.moves).toHaveLength(2);
     const store = new StateStore(migration.profile, { pathMoves: migration.moves, home, dataHome }); await store.load();
     expect(store.settings.runtimeRoot).toBe(migration.runtimeRoot);
@@ -36,6 +36,25 @@ describe('managed runtime path migration', () => {
     await store.setSettings({ runtimeRoot: '/mnt/custom-runtimes', winePath: '/mnt/custom-runtimes/bin/wine' });
     const reopened = new StateStore(migration.profile, { pathMoves: migration.moves, home, dataHome }); await reopened.load();
     expect(reopened.settings.runtimeRoot).toBe('/mnt/custom-runtimes'); expect(reopened.settings.winePath).toBe('/mnt/custom-runtimes/bin/wine');
+  });
+  it('finishes an already canonical private profile selecting historical group-writable managed data and persists both roots together', async () => {
+    const home = await mkdtemp(path.join(tmpdir(), 'xboks-mixed-profile-')); created.push(home);
+    const configHome = path.join(home, 'config'), dataHome = path.join(home, 'data'), paths = managedPaths({ home, configHome, dataHome });
+    const legacyData = path.join(dataHome, 'xodus-nexus'), release = path.join(legacyData, 'runtimes/releases/xodus-nexus-runtime-fixture');
+    await mkdir(paths.profile, { recursive: true, mode: 0o700 }); await mkdir(path.join(release, 'files/bin'), { recursive: true, mode: 0o775 });
+    const winePath = path.join(release, 'files/bin/wine'); await writeFile(winePath, 'synthetic wine');
+    await fileSystem.chmod(legacyData, 0o775);
+    const stateFile = path.join(paths.profile, 'launcher-state.json');
+    await writeFile(stateFile, JSON.stringify({ settings: { runtimeRoot: path.join(legacyData, 'runtimes'), winePath }, games: [], downloads: [] }), { mode: 0o600 });
+    const migration = await migrateManagedPaths({ home, configHome, dataHome, isActive: async () => false });
+    expect(migration.warnings).toEqual([]);
+    const store = new StateStore(paths.profile, { home, dataHome, pathMoves: migration.moves, defaultRuntimeRoot: migration.runtimeRoot }); await store.load();
+    expect(store.settings.runtimeRoot).toBe(paths.runtimeRoot);
+    expect(store.settings.winePath).toBe(path.join(paths.runtimeRoot, 'releases/xboks-engine-runtime-fixture/files/bin/wine'));
+    await store.save();
+    const reopened = new StateStore(paths.profile, { home, dataHome }); await reopened.load();
+    expect(reopened.settings.runtimeRoot).toBe(store.settings.runtimeRoot); expect(reopened.settings.winePath).toBe(store.settings.winePath);
+    expect(await readFile(winePath, 'utf8')).toBe('synthetic wine');
   });
 });
 

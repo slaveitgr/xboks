@@ -38,6 +38,8 @@ import { GameDetails } from './GameDetails';
 import { CatalogDetails } from './CatalogDetails';
 import { DownloadCancelDialog } from './DownloadCancelDialog';
 import { KeyringSetup } from './KeyringSetup';
+import { EngineReleaseNotice } from './EngineReleaseNotice';
+import { XboxStorePage } from './XboxStorePage';
 import { useReferenceLocale } from './ReferenceLocale';
 import { installedCatalogGame, queuedCatalogProduct } from './catalog-navigation';
 import { downloadMenuItems } from './queue-menu';
@@ -270,110 +272,33 @@ export function StoreProductCard({ product, selected, select }: {
   </article>;
 }
 
-function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct, back, openGame }: { initialProduct?: CatalogProduct; openProduct?: (product: CatalogProduct) => void; back?: () => void; openGame?: (id: string) => void; data: AppSnapshot; toast: (value: Toast) => void; go: (page: Page) => void; initialQuery: string }) {
+function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct, back, openGame, clearSearch }: { initialProduct?: CatalogProduct; openProduct?: (product: CatalogProduct) => void; back?: () => void; openGame?: (id: string) => void; clearSearch?: () => void; data: AppSnapshot; toast: (value: Toast) => void; go: (page: Page) => void; initialQuery: string }) {
   const startPackageInstall = usePackageInstall();
-  const [catalog, setCatalog] = useState<CatalogSearchResult>();
-  const [featured, setFeatured] = useState<CatalogSearchResult>();
-  const [featuredLoading, setFeaturedLoading] = useState(true);
-  const [featuredError, setFeaturedError] = useState<string>();
   const [selected, setSelected] = useState<CatalogProduct | undefined>(initialProduct);
-  useEffect(() => { setSelected(initialProduct); if (initialProduct) setDestination(installDestination(initialProduct)); }, [initialProduct]);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [manualProductId, setManualProductId] = useState('');
-  const [manualTitle, setManualTitle] = useState('');
-  const [destination, setDestination] = useState(data.settings.installRoot);
   const [busy, setBusy] = useState<string>();
-  useEffect(() => { if (!selected) setDestination(data.settings.installRoot); }, [data.settings.installRoot, selected]);
-  useEffect(() => {
-    if (initialQuery.trim().length < 2) return;
-    let cancelled = false;
-    window.launcher.searchCatalog(initialQuery).then((result) => {
-      if (!cancelled) { setCatalog(result); setSelected(undefined); }
-    }).catch((error) => { if (!cancelled) toast({ kind: 'error', message: errorMessage(error) }); });
-    return () => { cancelled = true; };
-  }, [initialQuery]);
-  useEffect(() => {
-    let cancelled = false;
-    window.launcher.getFeaturedCatalog()
-      .then((result) => { if (!cancelled) setFeatured(result); })
-      .catch((error) => { if (!cancelled) setFeaturedError(errorMessage(error)); })
-      .finally(() => { if (!cancelled) setFeaturedLoading(false); });
-    return () => { cancelled = true; };
-  }, []);
-
-  function installDestination(product: CatalogProduct): string {
+  useEffect(() => { setSelected(initialProduct); }, [initialProduct]);
+  useEffect(() => { if (initialQuery.trim().length >= 2) setSelected(undefined); }, [initialQuery]);
+  function selectProduct(product: CatalogProduct) { openProduct?.(product); setSelected(product); }
+  async function install(product: CatalogProduct) {
     const folder = product.title.normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 80) || product.productId;
-    return `${data.settings.installRoot.replace(/\/+$/, '')}/${folder}`;
-  }
-
-  function selectProduct(product: CatalogProduct) {
-    openProduct?.(product);
-    setSelected(product);
-    setDestination(installDestination(product));
-  }
-
-  async function loadMore() {
-    if (!catalog?.cursor) return;
-    setLoadingMore(true);
-    try {
-      const next = await window.launcher.searchCatalog(catalog.query, catalog.cursor);
-      setCatalog({ ...next, products: [...catalog.products, ...next.products] });
-    } catch (error) { toast({ kind: 'error', message: errorMessage(error) }); }
-    finally { setLoadingMore(false); }
-  }
-
-  async function install(product: CatalogProduct, target = installDestination(product)) {
+    const destination = `${data.settings.installRoot.replace(/\/+$/, '')}/${folder}`;
     setBusy(product.productId);
     try {
-      if (!await startPackageInstall({ productId: product.installProductId ?? product.productId, title: product.title, destination: target }, { productId: product.installProductId ?? product.productId, posterUrl: product.posterUrl })) return;
-      toast({ kind: 'success', message: `xboks Engine is checking the license and installing ${product.title}.` });
-      go('downloads');
+      if (!await startPackageInstall({ productId: product.installProductId ?? product.productId, title: product.title, destination }, { productId: product.installProductId ?? product.productId, posterUrl: product.posterUrl })) return;
+      toast({ kind: 'success', message: `xboks Engine is checking the license and installing ${product.title}.` }); go('downloads');
     } catch (error) { toast({ kind: 'error', message: errorMessage(error) }); }
     finally { setBusy(undefined); }
   }
-
-  async function manualInstall(event: FormEvent) {
-    event.preventDefault(); setBusy('manual');
-    try {
-      if (!await startPackageInstall({ productId: manualProductId, title: manualTitle, destination })) return;
-      toast({ kind: 'success', message: 'xboks Engine streaming started.' }); go('downloads');
-    } catch (error) { toast({ kind: 'error', message: errorMessage(error) }); }
-    finally { setBusy(undefined); }
-  }
-
-  async function chooseDestination() {
-    const selected = await window.launcher.chooseDirectory(destination);
-    if (selected) setDestination(selected);
-  }
-
-  const installedIds = new Set(data.games.flatMap((game) => game.storeId?.toUpperCase() ?? []));
-  const isInstalled = (product: CatalogProduct) => installedIds.has(product.productId) || Boolean(product.installProductId && installedIds.has(product.installProductId));
-  const queuedIds = new Set(data.downloads.filter(task => ['running', 'queued', 'paused'].includes(task.status)).map(task => task.productId.toUpperCase()));
-  const isQueued = (product: CatalogProduct) => queuedIds.has(product.productId) || Boolean(product.installProductId && queuedIds.has(product.installProductId));
-  const productGrid = (products: CatalogProduct[]) => <div className="catalog-grid" data-gamepad-grid>{products.map((product) => {
-    const installed = isInstalled(product);
-    return <StoreProductCard key={product.productId} product={product} selected={selected?.productId === product.productId}
-      disabled={product.installability !== 'supported' || Boolean(busy) || !data.backend.capabilities.streaming || installed || isQueued(product)}
-      label={installed ? 'Installed' : isQueued(product) ? 'In Install Queue' : busy === product.productId ? 'Preparing…' : 'Install'}
-      select={selectProduct} install={install} />;
-  })}</div>;
-  if (selected) return <CatalogDetails product={selected} back={back ?? (() => setSelected(undefined))}
+  const installed = selected ? installedCatalogGame(selected, data.games) : undefined;
+  const operation = selected ? data.downloads.find(task => task.productId.toUpperCase() === selected.productId.toUpperCase() || task.productId.toUpperCase() === selected.installProductId?.toUpperCase()) : undefined;
+  return <><XboxStorePage active={!selected} data={data} initialQuery={initialQuery} clearSearch={clearSearch} openProduct={selectProduct}
+    openLibrary={() => go('library')} openAccount={() => go('settings')} toast={toast} />
+  {selected ? <CatalogDetails product={selected} back={back ?? (() => setSelected(undefined))}
     install={() => void install(selected)} busy={busy === selected.productId}
-    installed={isInstalled(selected)} queued={isQueued(selected)}
-    operation={data.downloads.find(task => task.productId.toUpperCase() === selected.productId.toUpperCase() || task.productId.toUpperCase() === selected.installProductId?.toUpperCase())} openQueue={() => go('downloads')}
+    installed={Boolean(installed)} queued={Boolean(operation && ['running', 'queued', 'paused'].includes(operation.status))}
+    operation={operation} openQueue={() => go('downloads')}
     canInstall={selected.installability === 'supported' && data.backend.capabilities.streaming}
-    openInstalled={() => { const game = installedCatalogGame(selected, data.games); if (game && openGame) openGame(game.id); else go('library'); }} />;
-  return <main className="page store-page">
-    <header className="page-header"><div><h1>Store</h1></div><span className="catalog-source"><StatusDot />Microsoft Store</span></header>
-    {!catalog ? <section className="featured-catalog"><SectionTitle title="Featured" />{featuredLoading ? <div className="catalog-loading"><LoaderCircle className="spin" /><span>Loading live Store collection…</span></div> : featured?.products.length ? <><div className="featured-rail">{featured.products.slice(0, 3).map((product) => <button className="featured-tile" key={product.productId} onClick={() => selectProduct(product)}>{product.heroUrl || product.posterUrl ? <img src={product.heroUrl ?? product.posterUrl} alt="" /> : <div className="featured-tile-placeholder"><Gamepad2 /></div>}<span className="featured-tile-copy"><GameTitle title={product.title} /><small>{product.publisher ?? 'Microsoft Store'} · {product.installability === 'supported' ? 'PC package verified' : 'Check package support'}</small></span></button>)}</div><SectionTitle title="Trending PC games" />{productGrid(featured.products.slice(3))}</> : <div className="catalog-empty"><Store /><h2>Featured games are temporarily unavailable</h2><p>{featuredError ?? 'Search still works with live Microsoft Store data.'}</p></div>}</section> : null}
-
-
-
-    {catalog ? <><SectionTitle title={`Results for “${catalog.query}”`} />{productGrid(catalog.products)}{catalog.products.length === 0 ? <div className="empty-state compact"><div><Search /></div><h2>No games found</h2><p>Try a different title or a Microsoft Store Product ID.</p></div> : null}{catalog.hasMore ? <div className="load-more"><button className="secondary" disabled={loadingMore} onClick={loadMore}>{loadingMore ? <LoaderCircle className="spin" /> : <Plus />}Load more results</button></div> : null}</> : null}
-
-    <SectionTitle title="Install by Product ID" />
-    <form className="manual-install" onSubmit={manualInstall}><label>Product ID<input value={manualProductId} onChange={(event) => setManualProductId(event.target.value)} placeholder="For example: 9N4PT8HGCDHQ" required /></label><label>Queue name <em>Optional</em><input value={manualTitle} onChange={(event) => setManualTitle(event.target.value)} /></label><label>Install location<div className="input-action"><input value={destination} onChange={(event) => setDestination(event.target.value)} required /><button type="button" onClick={chooseDestination}><FolderOpen /></button></div></label><button className="secondary" disabled={Boolean(busy) || !data.backend.capabilities.streaming}>{busy === 'manual' ? <LoaderCircle className="spin" /> : <Terminal />}Install unlisted ID</button></form>
-  </main>;
+    openInstalled={() => { if (installed && openGame) openGame(installed.id); else go('library'); }} /> : null}</>;
 }
 
 interface GameMenuActionsProps {
@@ -1049,22 +974,23 @@ export function SettingsPage({ data, toast, close = () => {}, initialSection = '
     </details>
 
     {section === 'install' ? <InstallSettings data={data} disabled={Boolean(busy)} working={value => setBusy(value ? 'install-preferences' : undefined)} /> : null}
-    <details className="nexus-settings-extra" hidden={section !== 'install'}><summary>{locale.text('xboks Engine / Proton settings', 'Ρυθμίσεις xboks Engine / Proton')}</summary>
+    <details className="engine-settings-extra" hidden={section !== 'install'}><summary>{locale.text('xboks Engine / Proton settings', 'Ρυθμίσεις xboks Engine / Proton')}</summary>
     <section className="settings-card" hidden={section !== 'install'}>
-      <div className="settings-heading"><div className="settings-icon"><Terminal /></div><div><h2>xboks Engine</h2><p>{data.backend.version ? `xboks Engine ${data.backend.version}` : data.backend.available ? `Backend CLI ${data.backend.capabilities.version ?? 'unknown version'}` : 'Install the prebuilt xboks Engine'}</p></div><span className={`status-label ${data.backend.available ? 'ready' : 'off'}`}><StatusDot tone={data.backend.available ? 'green' : 'red'} />{data.backend.available ? 'VALIDATED' : 'OFFLINE'}</span></div>
+      <div className="settings-heading"><div className="settings-icon"><Terminal /></div><div><h2>xboks Engine</h2><p>{data.backend.version ? `xboks Engine ${data.backend.version}` : data.backend.available ? `Backend CLI ${data.backend.capabilities.version ?? 'unknown version'}` : 'Install the prebuilt xboks Engine'}</p></div><span className={`status-label ${data.backend.available ? 'ready' : 'off'}`}><StatusDot tone={data.backend.available ? 'green' : 'red'} />{data.backend.available ? locale.text('READY', 'ΕΤΟΙΜΟ') : locale.text('NOT INSTALLED', 'ΔΕΝ ΕΧΕΙ ΕΓΚΑΤΑΣΤΑΘΕΙ')}</span></div>
       {data.backend.blockReason ? <div className="alert amber"><CircleAlert /><span>{data.backend.blockReason}</span></div> : null}
+      <EngineReleaseNotice state={data.backend.releaseState} error={data.backend.releaseError !== data.backend.blockReason ? data.backend.releaseError : undefined} installed={data.backend.available} />
       {data.backend.phase ? <p className="runtime-phase">{data.backend.phase}</p> : null}
-      <div className="backend-diagnostic-action"><BackendLogButton toast={toast} /><p className="fine-print">Local operation results and safe error codes. No passwords, tokens or account contents are recorded.</p></div>
-      <div className="button-row end"><button className="secondary" disabled={Boolean(busy) || data.backend.checking || data.backend.updating} onClick={() => invoke('backend-check', () => window.launcher.checkBackendUpdate())}>{busy === 'backend-check' || data.backend.checking ? <LoaderCircle className="spin" /> : <RefreshCw />}Check for updates</button>{data.backend.releaseAvailable && data.backend.updateAvailable ? <button className="primary" disabled={Boolean(busy) || data.backend.updating || data.backend.checking} onClick={() => invoke('backend-update', () => window.launcher.updateBackend(), 'xboks Engine was verified, installed and activated.')}>{busy === 'backend-update' || data.backend.updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}{data.backend.available ? 'Update backend' : 'Install backend'}</button> : null}</div>
+      <div className="backend-diagnostic-action"><BackendLogButton toast={toast} /><p className="fine-print">{locale.text("Local operation results and safe error codes. No passwords, tokens or account contents are recorded.", "Τοπικά αποτελέσματα λειτουργιών και ασφαλείς κωδικοί σφαλμάτων. Δεν καταγράφονται κωδικοί πρόσβασης, tokens ή περιεχόμενο λογαριασμού.")}</p></div>
+      <div className="button-row end"><button className="secondary" disabled={Boolean(busy) || data.backend.checking || data.backend.updating} onClick={() => invoke('backend-check', () => window.launcher.checkBackendUpdate())}>{busy === 'backend-check' || data.backend.checking ? <LoaderCircle className="spin" /> : <RefreshCw />}{locale.text("Check for updates", "Έλεγχος για ενημερώσεις")}</button>{data.backend.releaseAvailable && data.backend.updateAvailable ? <button className="primary" disabled={Boolean(busy) || data.backend.updating || data.backend.checking} onClick={() => invoke('backend-update', () => window.launcher.updateBackend(), 'xboks Engine was verified, installed and activated.')}>{busy === 'backend-update' || data.backend.updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}{data.backend.available ? locale.text('Update Engine', 'Ενημέρωση Engine') : locale.text('Install Engine', 'Εγκατάσταση Engine')}</button> : null}</div>
     </section>
 
     <section className="settings-card" hidden={section !== 'install'}>
-      <div className="settings-heading"><div className="settings-icon"><Gamepad2 /></div><div><h2>xboks Engine runtime</h2><p>Managed Proton compatibility runtime for Windows PC games.</p><p>{data.runtime.installed ? `Active: ${runtimeInfo.title} · ${runtimeInfo.version}` : 'No runtime selected'}</p></div><span className={`status-label ${data.runtime.installed && runtimeInfo.source === 'xboks Engine runtime' ? 'ready' : 'unknown'}`}><StatusDot tone={data.runtime.installed && runtimeInfo.source === 'xboks Engine runtime' ? 'green' : 'amber'} />{!data.runtime.installed ? 'MISSING' : runtimeInfo.source === 'xboks Engine runtime' ? 'READY' : 'OTHER RUNTIME'}</span></div>
-      {data.runtime.nexusError ? <div className="alert amber"><CircleAlert /><span>{data.runtime.nexusError}</span></div> : null}
+      <div className="settings-heading"><div className="settings-icon"><Gamepad2 /></div><div><h2>xboks Engine runtime</h2><p>{locale.text("Managed Proton compatibility runtime for Windows PC games.", "Runtime συμβατότητας Proton για παιχνίδια Windows PC.")}</p><p>{data.runtime.installed ? `Active: ${runtimeInfo.title} · ${runtimeInfo.version}` : 'No runtime selected'}</p></div><span className={`status-label ${data.runtime.installed && runtimeInfo.source === 'xboks Engine runtime' ? 'ready' : 'unknown'}`}><StatusDot tone={data.runtime.installed && runtimeInfo.source === 'xboks Engine runtime' ? 'green' : 'amber'} />{!data.runtime.installed ? 'MISSING' : runtimeInfo.source === 'xboks Engine runtime' ? 'READY' : 'OTHER RUNTIME'}</span></div>
+      <EngineReleaseNotice state={data.runtime.releaseState} error={data.runtime.nexusError} installed={data.runtime.installed} runtime />
       {data.runtime.error ? <div className="alert amber"><CircleAlert /><span>{data.runtime.error}</span></div> : null}{data.runtime.phase ? <div className="runtime-phase"><LoaderCircle className={data.runtime.updating ? 'spin' : ''} /><span>{data.runtime.phase}</span></div> : null}
-      {!runtimeArchiveTools ? <p className="fine-print">Install tar and sha512sum to install runtime archives.</p> : null}
+      {!runtimeArchiveTools ? <p className="fine-print">{locale.text("Install tar and sha512sum to install runtime archives.", "Εγκαταστήστε tar και sha512sum για την εγκατάσταση runtime.")}</p> : null}
       <div className="button-row end">
-        <button className="secondary" disabled={Boolean(busy) || data.runtime.nexusChecking} onClick={() => invoke('runtime-check', () => window.launcher.checkNexusRuntime())}>{busy === 'runtime-check' || data.runtime.nexusChecking ? <LoaderCircle className="spin" /> : <RefreshCw />}Check for updates</button>
+        <button className="secondary" disabled={Boolean(busy) || data.runtime.nexusChecking} onClick={() => invoke('runtime-check', () => window.launcher.checkNexusRuntime())}>{busy === 'runtime-check' || data.runtime.nexusChecking ? <LoaderCircle className="spin" /> : <RefreshCw />}{locale.text("Check for updates", "Έλεγχος για ενημερώσεις")}</button>
         {nexusRuntimeUpdateAvailable(data.runtime) ? <button className="primary" disabled={Boolean(busy) || data.runtime.updating || !runtimeArchiveTools} onClick={() => invoke('runtime-install-nexus', () => window.launcher.installNexusRuntime(), 'xboks Engine runtime was verified, installed, and selected.')}>{busy === 'runtime-install-nexus' || data.runtime.updating ? <LoaderCircle className="spin" /> : <ArrowDownToLine />}Install xboks Engine runtime{data.runtime.nexusVersion ? ` ${data.runtime.nexusVersion.replace(/^runtime-/, '')}` : ''}</button> : null}
       </div>
       {data.runtime.updating || runtimeLogs.length > 0 ? <pre className="build-log">{runtimeLogs.join('\n') || 'Waiting for output…'}</pre> : null}
@@ -1072,19 +998,19 @@ export function SettingsPage({ data, toast, close = () => {}, initialSection = '
 
     <div className="settings-storage" hidden={section !== 'install'}>
       <section className="settings-card compact">
-        <div className="settings-heading"><div className="settings-icon"><Download /></div><div><h2>Downloads</h2><p>Limit the combined game download speed across all parallel streams.</p></div></div>
-        <div className="form-grid"><label>Download speed limit (MiB/s)<input type="number" min="0" max="1024" step="0.1" value={form.downloadLimitMiB ?? 0} onChange={event => setForm({...form, downloadLimitMiB:Number(event.target.value)})} /></label></div>
-        <div className="save-row"><span>0 = unlimited. Applies to active and future game downloads.</span><button className="primary" disabled={Boolean(busy) || Boolean((form.downloadLimitMiB ?? 0) > 0 && !data.backend.capabilities.streamingBandwidthLimit)} onClick={() => invoke('save-bandwidth', () => window.launcher.updateSettings({downloadLimitMiB:form.downloadLimitMiB ?? 0}), 'Download speed limit saved.')}>{busy === 'save-bandwidth' ? <LoaderCircle className="spin" /> : <Check />}Save download limit</button></div>
+        <div className="settings-heading"><div className="settings-icon"><Download /></div><div><h2>{locale.text("Downloads", "Λήψεις")}</h2><p>{locale.text("Limit the combined game download speed across all parallel streams.", "Περιορίστε τη συνολική ταχύτητα λήψης παιχνιδιών.")}</p></div></div>
+        <div className="form-grid"><label>{locale.text("Download speed limit (MiB/s)", "Όριο ταχύτητας λήψης (MiB/s)")}<input type="number" min="0" max="1024" step="0.1" value={form.downloadLimitMiB ?? 0} onChange={event => setForm({...form, downloadLimitMiB:Number(event.target.value)})} /></label></div>
+        <div className="save-row"><span>{locale.text("0 = unlimited. Applies to active and future game downloads.", "0 = χωρίς όριο. Ισχύει για τις τρέχουσες και τις επόμενες λήψεις.")}</span><button className="primary" disabled={Boolean(busy) || Boolean((form.downloadLimitMiB ?? 0) > 0 && !data.backend.capabilities.streamingBandwidthLimit)} onClick={() => invoke('save-bandwidth', () => window.launcher.updateSettings({downloadLimitMiB:form.downloadLimitMiB ?? 0}), 'Download speed limit saved.')}>{busy === 'save-bandwidth' ? <LoaderCircle className="spin" /> : <Check />}{locale.text("Save download limit", "Αποθήκευση ορίου λήψης")}</button></div>
       </section>
-      <section className="settings-card compact"><div className="settings-heading"><div className="settings-icon"><HardDrive /></div><div><h2>Storage and launch paths</h2><p>The external engine source is never modified.</p></div></div><div className="form-grid"><label>Default game location<div className="input-action"><input value={form.installRoot} onChange={(event) => setForm({ ...form, installRoot: event.target.value })} /><button onClick={() => pick('install')}><FolderOpen /></button></div></label><label>Market<input value={form.market} onChange={(event) => setForm({ ...form, market: event.target.value })} /></label><label>Parallel streams<input type="number" min="1" max="16" value={form.parallelDownloads} onChange={(event) => setForm({ ...form, parallelDownloads: Number(event.target.value) })} /></label><label>External engine source<div className="input-action"><input value={form.externalXodusRoot} onChange={(event) => setForm({ ...form, externalXodusRoot: event.target.value })} /><button onClick={() => pick('backend')}><FolderOpen /></button></div></label><label>Versioned runtime directory<div className="input-action"><input value={form.runtimeRoot} onChange={(event) => setForm({ ...form, runtimeRoot: event.target.value })} /><button onClick={() => pick('runtime')}><FolderOpen /></button></div></label><label>Wine / Proton binary<div className="input-action"><input value={form.winePath} onChange={(event) => setForm({ ...form, winePath: event.target.value })} placeholder="Selected automatically by the runtime manager" /><button onClick={() => pick('wine')}><FolderOpen /></button></div></label></div><div className="save-row"><span>Settings are stored locally in Electron userData.</span><button className="primary" disabled={busy === 'save'} onClick={() => invoke('save', () => window.launcher.updateSettings(form), 'Settings saved.')}>{busy === 'save' ? <LoaderCircle className="spin" /> : <Check />}Save</button></div></section>
+      <section className="settings-card compact"><div className="settings-heading"><div className="settings-icon"><HardDrive /></div><div><h2>{locale.text("Storage and launch paths", "Αποθήκευση και εκκίνηση")}</h2><p>{locale.text("Choose where games are stored and which runtime they use.", "Ορίστε πού αποθηκεύονται τα παιχνίδια και ποιο runtime χρησιμοποιούν.")}</p></div></div><div className="form-grid"><label>{locale.text("Default game location", "Προεπιλεγμένη θέση παιχνιδιών")}<div className="input-action"><input value={form.installRoot} onChange={(event) => setForm({ ...form, installRoot: event.target.value })} /><button onClick={() => pick('install')}><FolderOpen /></button></div></label><label>{locale.text("Market", "Αγορά")}<input value={form.market} onChange={(event) => setForm({ ...form, market: event.target.value })} /></label><label>{locale.text("Parallel streams", "Παράλληλες λήψεις")}<input type="number" min="1" max="16" value={form.parallelDownloads} onChange={(event) => setForm({ ...form, parallelDownloads: Number(event.target.value) })} /></label><label>{locale.text("External engine source", "Φάκελος πηγαίου κώδικα Engine")}<div className="input-action"><input value={form.externalXodusRoot} onChange={(event) => setForm({ ...form, externalXodusRoot: event.target.value })} /><button onClick={() => pick('backend')}><FolderOpen /></button></div></label><label>{locale.text("Versioned runtime directory", "Φάκελος εκδόσεων runtime")}<div className="input-action"><input value={form.runtimeRoot} onChange={(event) => setForm({ ...form, runtimeRoot: event.target.value })} /><button onClick={() => pick('runtime')}><FolderOpen /></button></div></label><label>{locale.text("Wine / Proton binary", "Εκτελέσιμο Wine / Proton")}<div className="input-action"><input value={form.winePath} onChange={(event) => setForm({ ...form, winePath: event.target.value })} placeholder={locale.text('Selected automatically with the runtime', 'Επιλέγεται αυτόματα με το runtime')} /><button onClick={() => pick('wine')}><FolderOpen /></button></div></label></div><div className="save-row"><span>{locale.text("Changes apply on this computer.", "Οι αλλαγές ισχύουν σε αυτόν τον υπολογιστή.")}</span><button className="primary" disabled={busy === 'save'} onClick={() => invoke('save', () => window.launcher.updateSettings(form), 'Settings saved.')}>{busy === 'save' ? <LoaderCircle className="spin" /> : <Check />}{locale.text("Save", "Αποθήκευση")}</button></div></section>
     </div>
     <details className="settings-card settings-diagnostics" hidden={section !== 'install'}>
-      <summary><Settings2 /><span>Advanced / Diagnostics</span><ChevronRight /></summary>
+      <summary><Settings2 /><span>{locale.text("Advanced / Diagnostics", "Για προχωρημένους / Διαγνωστικά")}</span><ChevronRight /></summary>
       <div className="diagnostics-content">
-        <section><h3>Game logging</h3><div className="toggle-row"><label className="toggle"><input type="checkbox" checked={form.verboseLogs} onChange={(event) => setForm({ ...form, verboseLogs: event.target.checked })} /><span>Verbose game logs</span></label><p>Writes full Wine, vkd3d-proton and xboks Engine diagnostics to the per-game log file and stops coalescing repeated lines. Slower and much larger logs; use temporarily when diagnosing a crash.</p></div><div className="button-row"><button className="secondary" disabled={Boolean(busy)} onClick={() => invoke('save-diagnostics', () => window.launcher.updateSettings({ verboseLogs: form.verboseLogs }), 'Logging settings saved.')}>Save diagnostics</button></div></section>
-        <section><h3>Backend details</h3><p className="diagnostic-path mono">{data.backend.binaryPath ?? 'No backend selected'}</p><div className="meta-grid"><div><span>SOURCE</span><strong>{data.backend.source === 'external' ? 'External installation · read-only' : data.backend.delivery === 'release' ? 'xboks Engine release' : data.backend.source === 'managed' ? 'Local versioned build' : '—'}</strong></div><div><span>COMMIT</span><strong className="mono">{data.backend.commit?.slice(0, 12) ?? '—'}</strong></div></div><div className="button-row"><button className="secondary" disabled={Boolean(busy) || data.backend.updating || data.backend.checking} onClick={() => invoke('backend-rebuild', () => window.launcher.rebuildBackend(), 'Pinned backend source was built and activated.')}><Github />Build backend from source</button></div>{data.backend.updating || logs.length > 0 ? <pre className="build-log">{logs.join('\n') || 'Waiting for backend output…'}</pre> : null}</section>
-        <section><h3>Runtime details</h3><p className="diagnostic-path mono">{data.runtime.winePath ?? 'No runtime selected'}</p><div className="meta-grid"><div><span>SOURCE</span><strong>{runtimeInfo.source}</strong></div><div><span>BUILD</span><strong className="mono">{data.runtime.commit ?? '—'}</strong></div></div></section>
-        <section><h3>Build dependencies</h3><div className="dependency-grid"><ToggleStatus ok={data.backend.prerequisites.git} label="Git" /><ToggleStatus ok={data.backend.prerequisites.cargo} label="Cargo" /><ToggleStatus ok={data.backend.prerequisites.rustc} label="Rust 1.99" /><ToggleStatus ok={data.backend.prerequisites.protoc} label="protoc" /></div><p className="fine-print">Building xboks Engine also requires a C/C++ toolchain, CMake, OpenSSL 3 and D-Bus development packages.</p></section>
+        <section><h3>{locale.text("Game logging", "Καταγραφή παιχνιδιών")}</h3><div className="toggle-row"><label className="toggle"><input type="checkbox" checked={form.verboseLogs} onChange={(event) => setForm({ ...form, verboseLogs: event.target.checked })} /><span>{locale.text("Verbose game logs", "Αναλυτική καταγραφή παιχνιδιών")}</span></label><p>Writes full Wine, vkd3d-proton and xboks Engine diagnostics to the per-game log file and stops coalescing repeated lines. Slower and much larger logs; use temporarily when diagnosing a crash.</p></div><div className="button-row"><button className="secondary" disabled={Boolean(busy)} onClick={() => invoke('save-diagnostics', () => window.launcher.updateSettings({ verboseLogs: form.verboseLogs }), 'Logging settings saved.')}>{locale.text("Save diagnostics", "Αποθήκευση διαγνωστικών")}</button></div></section>
+        <section><h3>{locale.text("Backend details", "Πληροφορίες Engine")}</h3><p className="diagnostic-path mono">{data.backend.binaryPath ?? 'No backend selected'}</p><div className="meta-grid"><div><span>SOURCE</span><strong>{data.backend.source === 'external' ? 'External installation · read-only' : data.backend.delivery === 'release' ? 'xboks Engine release' : data.backend.source === 'managed' ? 'Local versioned build' : '—'}</strong></div><div><span>COMMIT</span><strong className="mono">{data.backend.commit?.slice(0, 12) ?? '—'}</strong></div></div><div className="button-row"><button className="secondary" disabled={Boolean(busy) || data.backend.updating || data.backend.checking} onClick={() => invoke('backend-rebuild', () => window.launcher.rebuildBackend(), 'Pinned backend source was built and activated.')}><Github />{locale.text("Build backend from source", "Μεταγλώττιση Engine από πηγαίο κώδικα")}</button></div>{data.backend.updating || logs.length > 0 ? <pre className="build-log">{logs.join('\n') || 'Waiting for backend output…'}</pre> : null}</section>
+        <section><h3>{locale.text("Runtime details", "Πληροφορίες runtime")}</h3><p className="diagnostic-path mono">{data.runtime.winePath ?? 'No runtime selected'}</p><div className="meta-grid"><div><span>SOURCE</span><strong>{runtimeInfo.source}</strong></div><div><span>BUILD</span><strong className="mono">{data.runtime.commit ?? '—'}</strong></div></div></section>
+        <section><h3>{locale.text("Build dependencies", "Εξαρτήσεις μεταγλώττισης")}</h3><div className="dependency-grid"><ToggleStatus ok={data.backend.prerequisites.git} label="Git" /><ToggleStatus ok={data.backend.prerequisites.cargo} label="Cargo" /><ToggleStatus ok={data.backend.prerequisites.rustc} label="Rust 1.99" /><ToggleStatus ok={data.backend.prerequisites.protoc} label="protoc" /></div><p className="fine-print">Building xboks Engine also requires a C/C++ toolchain, CMake, OpenSSL 3 and D-Bus development packages.</p></section>
       </div>
     </details>
     </details>
@@ -1299,7 +1225,7 @@ export default function App() {
     document.querySelector('.page-scroll')?.scrollTo({ top: 0 });
   }
   function openCatalogProduct(product: CatalogProduct) {
-    rememberLocation(); setShellPanel(undefined); setSubmittedSearch('');
+    rememberLocation(); setShellPanel(undefined); if (contentPage !== 'store') setSubmittedSearch('');
     setCatalogProduct(product); setPage('store');
     document.querySelector('.page-scroll')?.scrollTo({ top: 0 });
   }
@@ -1328,13 +1254,18 @@ export default function App() {
       frame = requestAnimationFrame(() => {
         if (scroll) scroll.scrollTop = returnPoint.scrollTop;
         const target = returnPoint.focusSelector ? document.querySelector<HTMLElement>(returnPoint.focusSelector) : undefined;
-        if (target) { target.focus({ preventScroll: true }); finish(); }
+        // Retained galleries exist while their details page is still visible.
+        // Wait for the actual destination to become available before settling.
+        if (target && !target.closest('[hidden],[inert]') && !target.matches(':disabled') && target.getClientRects().length
+            && getComputedStyle(target).visibility !== 'hidden') {
+          target.focus({ preventScroll: true }); if (document.activeElement === target) finish();
+        }
         else if (!returnPoint.focusSelector) finish();
       });
     };
     const observer = new MutationObserver(restore);
     const deadline = setTimeout(finish, 2500);
-    if (scroll) observer.observe(scroll, { childList: true, subtree: true });
+    if (scroll) observer.observe(scroll, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'inert', 'class', 'style'] });
     restore();
     return () => { finish(); cancelAnimationFrame(frame); };
   }, [returnPoint]);
@@ -1346,7 +1277,7 @@ export default function App() {
 
     <section className={`content-shell${contentPage === 'home' ? ' home-shell' : ''}`} style={contentPage === 'home' && (data.games[0]?.heroUrl || data.games[0]?.coverUrl) ? { '--shell-art': `url(${JSON.stringify(data.games[0].heroUrl ?? data.games[0].coverUrl)})` } as React.CSSProperties : undefined}>
       <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">xboks · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><ShellHeaderControls sessionFullscreen={data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true} integrationAvailable={data.fullscreenExperience?.available} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} /></header>
-      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudGamingPage/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => setShellPanel('friends')}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
+      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudGamingPage/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => setShellPanel('friends')}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
       const game = data.games.find(game => game.id === task.gameId || game.storeId === task.productId);
       if (game) { setLibraryView('games'); openLibraryGame(game.id); }
       else { const product = queuedCatalogProduct(task); if (product) openCatalogProduct(product); else setToast({ kind: 'error', message: 'This queue entry has no Product ID.' }); }

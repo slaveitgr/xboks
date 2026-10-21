@@ -4,7 +4,20 @@ import { createConnection, createServer } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { once } from 'node:events';
-import { selectedWinePath, startXodusBridge, storeContentRuntime } from './xodus-service.js';
+import { selectedWinePath, startXodusBridge, startXodusService, storeContentRuntime } from './xodus-service.js';
+
+it.each(['credential', 'unknown', 'stdout'])('reports only safe service %s errors and cleans its private session directory', async mode => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-service-error-'));
+  try {
+    const marker = mode === 'unknown' ? 'NEXUS_CREDENTIAL_ERROR_V1 private-secret\n' : 'NEXUS_CREDENTIAL_ERROR_V1 keyring-unavailable\n';
+    const body = `#!/usr/bin/env node\nprocess.stderr.write('private-account-token\\n');\nprocess.${mode === 'stdout' ? 'stdout' : 'stderr'}.write(${JSON.stringify(marker)});\nprocess.exitCode=1;\n`;
+    await fs.writeFile(path.join(root, 'xboks-engine-service'), body, { mode: 0o700 });
+    const error = await startXodusService(path.join(root, 'xboks-engine-backend'), path.join(root, 'profile'), () => {}).then(() => '', error => error.message as string);
+    expect(error).toContain(mode === 'credential' ? 'system keyring could not be accessed' : 'xboks Engine account service exited with code 1');
+    expect(error).not.toMatch(/private-account|private-secret/);
+    expect(await fs.readdir(path.join(root, 'profile/service-sessions'))).toEqual([]);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
 
 it('requires all genuine Store/content/bridge runtime capabilities, not just an installed Wine binary', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-content-runtime-'));

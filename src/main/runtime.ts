@@ -212,10 +212,12 @@ export class RuntimeManager {
         }
       } finally { await reader.cancel(); }
       this.nexusArtifact = runtimeCandidate(JSON.parse(Buffer.concat(parts).toString()));
-      Object.assign(this.status, { nexusAvailable: true, nexusName: this.nexusArtifact.name, nexusVersion: this.nexusArtifact.version, nexusError: undefined });
+      Object.assign(this.status, { nexusAvailable: true, nexusName: this.nexusArtifact.name, nexusVersion: this.nexusArtifact.version, nexusError: undefined, releaseState: 'available' });
     } catch (error) {
       this.nexusArtifact = undefined;
-      Object.assign(this.status, { nexusAvailable: false, nexusName: undefined, nexusVersion: undefined, nexusError: (error as Error).message });
+      const message = (error as Error).message;
+      Object.assign(this.status, { nexusAvailable: false, nexusName: undefined, nexusVersion: undefined, nexusError: message,
+        releaseState: message.startsWith('No xboks Engine runtime release has been published') ? 'unpublished' : 'error' });
     } finally { this.status.nexusChecking = false; }
     return this.current;
   }

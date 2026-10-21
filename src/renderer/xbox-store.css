@@ -1,0 +1,76 @@
+/* Store layout measured from the supplied Xbox client. Marketing and account
+   claims appear only when the catalog supplies them. */
+.xbox-mode .content-shell:has(.xbox-store-page:not([hidden])) { position: relative; grid-template-rows: 0 minmax(0, 1fr); }
+.xbox-mode .content-shell:has(.xbox-store-page:not([hidden])) > .page-scroll { grid-row: 2; }
+.xbox-mode .page-scroll:has(.xbox-store-page:not([hidden])) { overflow-x: hidden; }
+.xbox-mode .content-shell:has(.xbox-store-page:not([hidden])) > .topbar { position: absolute; inset: 0 0 auto; height: 88px; width: 100%; z-index: 10; background: transparent; }
+.xbox-mode .page.xbox-store-page, .page.xbox-store-page { max-width: none; padding: 52px clamp(24px, 6.25vw, 120px) 80px; padding-right: calc(clamp(24px, 6.25vw, 120px) - 4px); color: #fff; }
+.xbox-store-page > .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.xbox-store-spotlight { position: relative; height: 400px; margin: 0 calc(-1 * clamp(24px, 6.25vw, 120px)); display: flex; justify-content: center; overflow: hidden; }
+.xbox-store-spotlight-tile { position: relative; flex: 0 0 600px; width: 600px; height: 400px; padding: 0; overflow: hidden; background: #25282b; border: 0; border-radius: 4px; text-align: left; cursor: pointer; color: #fff; }
+.xbox-store-spotlight-tile > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.xbox-store-spotlight-copy { position: absolute; inset: auto 0 0; display: grid; gap: 8px; padding: 108px 32px 32px; background: linear-gradient(transparent, #111f 92%); }
+.xbox-store-spotlight-copy > strong { font-size: 32px; font-weight: 700; line-height: 38px; }
+.xbox-store-spotlight-copy > span { font-size: 16px; line-height: 20px; }
+.xbox-store-spotlight-tile:disabled { cursor: progress; }
+.xbox-store-loading-heroes { display: flex; flex: 0 0 auto; gap: 20px; width: 1840px; height: 400px; }
+.xbox-store-loading-heroes > span { flex: 0 0 600px; border-radius: 4px; background: #2b2d30; }
+.xbox-store-shortcuts { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 20px; margin: 34px 0 0; }
+.xbox-store-shortcuts > button { display: flex; align-items: center; justify-content: center; width: 184px; min-height: 56px; padding: 8px 14px; border: 1px solid #737d8d; border-radius: 8px; background: linear-gradient(#2c2f34, #3c414a); color: #fff; font-size: 14px; line-height: 20px; cursor: pointer; }
+.xbox-store-shortcuts > button:hover { background: linear-gradient(#323840, #4c5761); }
+.xbox-store-shortcuts > button[aria-pressed="true"] { border-color: #b7c4d3; }
+.xbox-store-listing { margin-top: 72px; }
+.xbox-store-shelf { margin: 0 0 64px; }
+.xbox-store-shelf > header { margin: 0 0 23px; }
+.xbox-store-shelf > header > button { display: flex; align-items: center; gap: 16px; border: 0; padding: 0; background: transparent; color: inherit; cursor: pointer; }
+.xbox-store-shelf h2 { margin: 0; font-size: 26px; line-height: 31px; font-weight: 650; }
+.xbox-store-shelf > header > button > .xbox-icon { width: 16px; height: 16px; }
+.xbox-store-shelf > header > p { margin: 0; font-size: 16px; line-height: 20px; color: #b5b5b5; }
+.xbox-store-shelf-body { position: relative; }
+.xbox-store-shelf-rail { display: grid; grid-auto-flow: column; grid-auto-columns: 184px; gap: 20px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 4px; margin: -4px; }
+.xbox-store-shelf-rail::-webkit-scrollbar { display: none; }
+.xbox-store-product { min-width: 0; width: 184px; height: 286px; border-radius: 8px; background: #25282b; }
+.xbox-store-product > button { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: inherit; overflow: hidden; background: transparent; color: #fff; text-align: left; cursor: pointer; }
+.xbox-store-product > button:hover { background: #393f47; }
+.xbox-store-product-art { position: relative; display: flex; align-items: center; justify-content: center; width: 184px; height: 184px; background: #2c3034; }
+.xbox-store-product-art > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.xbox-store-product-art > .xbox-icon { width: 52px; height: 52px; color: #8a929a; }
+.xbox-store-inclusion { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; line-height: 13px; padding: 1px 3px; background: #111c; }
+.xbox-store-product-copy { display: flex; flex-direction: column; align-items: flex-start; gap: 0; height: 102px; padding: 8px; }
+.xbox-store-product-copy > strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; line-height: 20px; font-weight: 700; }
+.xbox-store-publisher { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b5b5b5; font-size: 14px; line-height: 20px; }
+.xbox-store-price { margin-top: 8px; font-size: 14px; line-height: 20px; }
+.xbox-store-installed { margin-top: auto; color: #b5b5b5; font-size: 12px; line-height: 16px; }
+.xbox-store-shelf-body > button { position: absolute; top: 116px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 8px; background: #25282b; color: white; cursor: pointer; }
+.xbox-store-rail-next { right: -28px; }
+.xbox-store-rail-previous { left: -28px; }
+.xbox-store-shelf-body > button .xbox-icon { width: 24px; height: 24px; }
+.xbox-store-gallery-heading { display: flex; align-items: center; gap: 16px; margin: 50px 0 28px; }
+.xbox-store-gallery-heading > button { display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; padding: 6px; border: 0; border-radius: 6px; background: #30343a; color: inherit; cursor: pointer; }
+.xbox-store-gallery-heading h2 { margin: 0; font-size: 28px; line-height: 36px; }
+.xbox-store-gallery .xbox-store-shortcuts { margin-top: 0; }
+.xbox-store-gallery .xbox-store-listing { margin-top: 48px; }
+.xbox-store-gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, 184px); gap: 28px 20px; }
+.xbox-store-message { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; min-height: 200px; padding: 32px 16px; text-align: center; }
+.xbox-store-message > .xbox-icon { width: 48px; height: 48px; }
+.xbox-store-message h3 { font-size: 20px; line-height: 28px; margin: 0; }
+.xbox-store-message p { max-width: 640px; margin: 0; color: #b5b5b5; }
+.xbox-store-message button, .xbox-store-message a, .xbox-store-load-more > button, .xbox-store-browse-all > button, .xbox-store-library-link { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 7px 20px; border: 1px solid #707b8c; border-radius: 8px; background: #3c424b; color: #fff; text-decoration: none; cursor: pointer; font-size: 14px; }
+.xbox-store-load-more, .xbox-store-browse-all { display: flex; justify-content: center; margin: 48px 0 0; }
+.xbox-store-browse-all > button { width: 230px; min-height: 32px; padding: 4px 16px; }
+.xbox-store-loading-products { display: grid; grid-template-columns: repeat(auto-fill, 184px); gap: 28px 20px; }
+.xbox-store-loading-products > span { height: 286px; border-radius: 8px; background: #2b2d30; }
+.xbox-store-art-error { display: flex; align-items: center; justify-content: center; gap: 12px; flex-direction: column; height: 100%; padding-bottom: 80px; color: #c4cad1; }
+.xbox-store-art-error > .xbox-icon { width: 48px; height: 48px; }
+.xbox-store-art-retry { position: absolute; top: 12px; right: max(12px, calc((100% - 600px) / 2 + 12px)); z-index: 2; display: flex; align-items: center; gap: 8px; border: 1px solid #77818d; border-radius: 6px; padding: 6px 10px; background: #25282b; color: white; cursor: pointer; }
+.xbox-store-page button:focus-visible, .xbox-store-page a:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+.xbox-store-dialog-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px; background: #000b; }
+.xbox-store-redeem-dialog { position: relative; width: 480px; max-width: 100%; padding: 32px; border: 1px solid #49515d; border-radius: 10px; background: #24272c; color: white; text-align: center; }
+.xbox-store-dialog-close { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; display: flex; padding: 4px; align-items: center; justify-content: center; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.xbox-store-redeem-dialog > .xbox-icon { width: 56px; height: 56px; }
+.xbox-store-redeem-dialog h2 { font-size: 24px; margin: 20px 0 16px; }
+.xbox-store-redeem-dialog p { font-size: 16px; line-height: 24px; color: #c0c2c6; margin: 0 0 28px; }
+.xbox-store-redeem-dialog > div { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.xbox-store-redeem-dialog > div > button, .xbox-store-redeem-dialog > div > a { min-height: 40px; padding: 9px 14px; border: 1px solid #7d8795; border-radius: 7px; background: #3c424b; color: inherit; text-decoration: none; cursor: pointer; }
+@media (max-width: 1200px) { .xbox-store-shortcuts { gap: 12px; } .xbox-store-shortcuts > button { width: 160px; } }
+@media (max-width: 760px) { .xbox-mode .page.xbox-store-page, .page.xbox-store-page { padding-top: 92px; } .xbox-store-spotlight, .xbox-store-spotlight-tile, .xbox-store-loading-heroes { height: 340px; } .xbox-store-spotlight-tile { flex-basis: min(600px, calc(100vw - 100px)); width: min(600px, calc(100vw - 100px)); } .xbox-store-spotlight-copy { padding: 80px 20px 24px; } .xbox-store-spotlight-copy > strong { font-size: 28px; } .xbox-store-shortcuts > button { width: 145px; } .xbox-store-listing { margin-top: 48px; } }

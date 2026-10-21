@@ -5,6 +5,14 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.22 — 2026-10-21
+
+- Rebuild Store navigation from the original client/package evidence: centered Minecraft editorial fallback, five category shortcuts, measured game shelves, real public PC/Top paid/Add-ons galleries, pagination and product-specific details. Cloud wishlist remains unavailable until its authenticated provider is connected; code redemption opens Microsoft's official account flow.
+- Separate installed Engine/runtime readiness from update-channel status. An unpublished update is informational; actual fetch/verification errors remain visible. Localize Engine storage/download controls and remove internal storage implementation text from settings.
+- Integrate the six newer upstream backend patches and native wallet lifecycle: provider detection, explicit collection creation/unlock, bounded cancellation, owned session cleanup, credential persistence, encrypted-image resume and launch errors. Preserve xboks identities and required private compatibility protocols.
+- Harden owned path migration with atomic no-replace publication, profile leases, unrelated-installation preservation and an offline selected-runtime/prefix copy helper. Existing games, custom paths and separate Nexus data are preserved.
+- Keep the existing pinned runtime code: the newest upstream delta changes its release status only. Offline/native tests do not establish individual game compatibility or live account acceptance.
+
 ## 0.3.21 — 2026-10-21
 
 - Add Cloud gaming between Library and Store, using an isolated official Xbox web view with separate sign-in, origin-limited navigation and trusted Back/Home/Retry/Close controls. Rendering the destination does not start a stream, sign in or imply entitlement. Demo mode blocks the native page; real Linux browser/game acceptance remains unverified.

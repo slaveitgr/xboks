@@ -102,6 +102,12 @@ const api: LauncherApi = {
   refreshAccount: () => ipcRenderer.invoke('account-refresh'),
   checkKeyring: () => ipcRenderer.invoke('keyring-check'),
   startKeyring: () => ipcRenderer.invoke('keyring-start'),
+  createKeyringCollection: () => ipcRenderer.invoke('keyring-create'),
+  onKeyringStatus: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, value: Parameters<typeof callback>[0]) => callback(value);
+    ipcRenderer.on('keyring-state', listener);
+    return () => ipcRenderer.removeListener('keyring-state', listener);
+  },
   checkLauncherUpdate: () => ipcRenderer.invoke('check-launcher-update'),
   installLauncherUpdate: () => ipcRenderer.invoke('install-launcher-update'),
   restartLauncher: () => ipcRenderer.invoke('restart-launcher'),
@@ -115,6 +121,7 @@ const api: LauncherApi = {
   logout: () => ipcRenderer.invoke('logout'),
   searchCatalog: (query: string, cursor?: string) => ipcRenderer.invoke('catalog-search', query, cursor),
   getFeaturedCatalog: () => ipcRenderer.invoke('catalog-featured'),
+  getStoreCollection: (collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string) => ipcRenderer.invoke('catalog-collection', collection, cursor),
   getCatalogDetails: (productId: string) => ipcRenderer.invoke('catalog-details', productId),
   getAccountLibrary: (kind, cursor, refresh) => ipcRenderer.invoke('account-library', kind, cursor, refresh),
   startInstall: (request: InstallRequest) => ipcRenderer.invoke('start-install', request),
