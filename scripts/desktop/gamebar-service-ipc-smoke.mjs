@@ -94,6 +94,19 @@ async function run(){
   check(await evaluate(main,"document.activeElement===document.querySelector('.xbox-mode-entry')"),'Remain returns to the actual header trigger without entering fullscreen');
   await evaluate(main,'window.launcher.setRemotePlayObscured(true)');await evaluate(main,'window.launcher.setRemotePlayObscured(false)');
   check(NativeWindow.getAllWindows().length===1,'Remote Play demo calls create no extra native windows');
+  await evaluate(main,"document.querySelector('.account-summary').click()");
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.shell-account-menu'))"),'account menu');
+  await evaluate(main,"Array.from(document.querySelectorAll('.shell-account-menu button')).find(b=>b.textContent.includes('View profile')).click()");
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.profile-page'))"),'in-app profile route');
+  check(await evaluate(main,"document.querySelector('.profile-page').textContent.includes('Gamerscore is unavailable')"),'profile route keeps an absent provider score unknown');
+  await evaluate(main,'window.launcher.refreshXboxProfile()');
+  check(!main.isFullScreen(),'demo profile refresh does not invoke mode or host account actions');
+  await evaluate(main,"Array.from(document.querySelectorAll('.sidebar nav button')).find(b=>b.textContent.includes('Cloud gaming')).click()");
+  await wait(()=>evaluate(main,"Boolean(document.querySelector('.cloud-gaming-page'))"),'Cloud gaming route');
+  await evaluate(main,"document.querySelector('.cloud-gaming-page button').click()");
+  await wait(()=>evaluate(main,"document.querySelector('.cloud-gaming-page [role=alert]')?.textContent.includes('could not open')"),'demo cloud refusal');
+  check(NativeWindow.getAllWindows().length===1&&main.contentView.children.length===0,'demo Cloud entry opens no native page, sign-in or stream');
+  check(JSON.stringify(await evaluate(main,'window.launcher.getCloudGamingState()'))===JSON.stringify({open:false,phase:'closed',canGoBack:false}),'cloud state is closed before any explicit allowed native open');
   await evaluate(main,'window.desktopGuide.toggle()');let guide;
   await wait(()=>{guide=NativeWindow.getAllWindows().find(window=>window.webContents.getURL().endsWith('#desktop-guide'));return guide&&!guide.webContents.isLoading();},'lazy Guide');
   check(NativeWindow.getAllWindows().length===2,'Guide is created lazily only after an explicit toggle');
@@ -103,6 +116,8 @@ async function run(){
   for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
     check(await blocked(guide.webContents,call,'disabled in demo mode'),`demo Guide refuses ${call} without host actions`);
   check(await blocked(guide.webContents,'window.desktopGuide.requestXboxModeEntry()','disabled in demo mode'),'demo Guide entry request refuses host mode actions');
+  for(const call of['window.launcher.openCloudGaming()',"window.launcher.controlCloudGaming('retry')",'window.launcher.setCloudGamingObscured(true)','window.launcher.refreshXboxProfile()'])
+    check(await blocked(guide.webContents,call,call.includes('setCloud')?'Invalid Cloud gaming':call.includes('refreshXbox')?'from the launcher':'from the launcher'),`Guide rejects ${call}`);
   const {BrowserWindow:HiddenWindow}=await import(pathToFileURL(facade).href);
   const document=join(profile,'untrusted.html');await fs.writeFile(document,'<!doctype html><title>Untrusted IPC fixture</title>');
   const rogue=new HiddenWindow({webPreferences:{preload:join(root,'dist-electron/preload/index.cjs'),sandbox:true,contextIsolation:true,nodeIntegration:false}});await rogue.loadFile(document);
@@ -110,6 +125,8 @@ async function run(){
   for(const call of['window.launcher.getXboxModeRestartStatus()','window.launcher.prepareXboxModeRestart()',"window.launcher.restartIntoXboxMode('synthetic-token')"])
     check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
   check(await blocked(rogue.webContents,'window.desktopGuide.requestXboxModeEntry()','Invalid launcher window'),'unregistered window cannot request Game Bar Xbox mode handoff');
+  for(const call of['window.launcher.openCloudGaming()','window.launcher.getCloudGamingState()',"window.launcher.controlCloudGaming('close')",'window.launcher.setCloudGamingObscured(true)','window.launcher.refreshXboxProfile()'])
+    check(await blocked(rogue.webContents,call,'Invalid launcher window'),`unregistered window rejects ${call}`);
   rogue.destroy();
   const mainId=main.id;main.close();await pause(50);
   check(!main.isDestroyed()&&NativeWindow.fromId(mainId)===main,'normal launcher Close hides instead of destroying the resident service window');

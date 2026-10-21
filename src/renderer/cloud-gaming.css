@@ -1,0 +1,30 @@
+.cloud-gaming-page { padding:32px; max-width:1160px; margin:0 auto; }
+.cloud-gaming-intro { padding:44px; border:1px solid #4d6150; border-radius:12px; background:linear-gradient(125deg,#12351d,#17211a 60%,#1b201d); color:#f4f8f4; }
+.cloud-gaming-eyebrow { font-size:12px; letter-spacing:.16em; color:#addeb6; margin:20px 0 8px; }
+.cloud-gaming-intro h1 { font-size:clamp(28px,4vw,46px); margin:0 0 16px; line-height:1.1; }
+.cloud-gaming-intro > p:not(.cloud-gaming-eyebrow) { max-width:720px; line-height:1.6; color:#d7e0d8; }
+.cloud-gaming-intro button { margin-top:16px; }
+.cloud-gaming-details { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px; margin-top:28px; }
+.cloud-gaming-details h2 { font-size:17px; }
+.cloud-gaming-details p { line-height:1.6; opacity:.8; }
+.cloud-gaming-host { position:fixed; inset:0; z-index:450; background:#101410; color:#f6f8f6; font-family:'Xbox Segoe Text','Segoe UI',system-ui,sans-serif; }
+.cloud-gaming-toolbar { height:var(--cloud-gaming-toolbar-height,64px); display:flex; align-items:center; gap:12px; padding:0 20px; box-sizing:border-box; border-bottom:1px solid #3c4b3e; }
+.cloud-gaming-toolbar > div { flex:1; min-width:0; }
+.cloud-gaming-toolbar h1 { font-size:17px; font-weight:600; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cloud-gaming-toolbar h1 span { color:#bbc7bd; font-size:12px; font-weight:400; margin-left:14px; }
+.cloud-gaming-toolbar p { margin:4px 0 0; font-size:12px; color:#b9c5bb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cloud-gaming-toolbar button,.cloud-gaming-state button { min-height:36px; min-width:36px; border:1px solid #59685d; background:#29362d; color:inherit; padding:8px; border-radius:6px; display:inline-flex; gap:10px; align-items:center; justify-content:center; cursor:pointer; }
+.cloud-gaming-host button:disabled { opacity:.4; cursor:default; }
+.cloud-gaming-host button:hover:not(:disabled) { background:#3c5042; }
+.cloud-gaming-host button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.cloud-gaming-state { position:absolute; inset:var(--cloud-gaming-toolbar-height,64px) 24px 24px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+.cloud-gaming-state h2 { font-size:24px; margin:20px 0 6px; }
+.cloud-gaming-state p { color:#c0cbc2; max-width:560px; line-height:1.5; }
+.cloud-gaming-state > div:not(.cloud-gaming-loading) { display:flex; gap:16px; margin-top:18px; }
+.cloud-gaming-loading { width:40px; height:40px; border:3px solid #445c4c; border-top-color:#b5edc3; border-radius:50%; animation:cloud-gaming-spin 1s linear infinite; }
+@keyframes cloud-gaming-spin { to {transform:rotate(360deg);} }
+body:has(.cloud-gaming-host) .gamepad-hints { display:none; }
+body:has(.guide-overlay) .cloud-gaming-host { visibility:hidden; }
+@media(max-width:850px) { .cloud-gaming-page { padding:20px; } .cloud-gaming-intro { padding:28px; } .cloud-gaming-details { grid-template-columns:1fr; gap:8px; } .cloud-gaming-toolbar h1 span { display:none; } }
+@media(prefers-reduced-motion:reduce) { .cloud-gaming-loading { animation:none; } }
+body[data-stream-obscured] .cloud-gaming-host, body[data-stream-obscured] .remote-play-host { visibility: hidden; }

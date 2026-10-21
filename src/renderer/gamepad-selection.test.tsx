@@ -4,11 +4,11 @@ import { demoAccountLibrary, demoSnapshot } from '../shared/demo-data';
 import { LibraryPage, Sidebar, LibraryProductCard, StoreProductCard } from './App';
 const queuedProduct = demoAccountLibrary('all', new Map()).products.find(p => p.productId === '9NPKGVXPFRSX')!;
 
-it('only the four main sidebar pages select automatically, not recents/settings/queue/account', () => {
+it('only the five main sidebar pages select automatically, not recents/settings/queue/account', () => {
   const html = renderToStaticMarkup(<Sidebar data={demoSnapshot()} page="home" go={() => {}} />);
   const auto = [...html.matchAll(/<button\b[^>]*data-gamepad-auto-select=""[^>]*>[\s\S]*?<\/button>/g)].map(match => match[0]);
-  expect(auto).toHaveLength(4);
-  for (const name of ['Home', 'Game Pass', 'My Library', 'Store']) expect(auto.some(button => button.includes(`<span>${name}</span>`))).toBe(true);
+  expect(auto).toHaveLength(5);
+  for (const name of ['Home', 'Game Pass', 'My Library', 'Cloud gaming', 'Store']) expect(auto.some(button => button.includes(`<span>${name}</span>`))).toBe(true);
   for (const name of ['Settings', 'Most recent', 'queue-summary', 'account-summary']) expect(auto.some(button => button.includes(name))).toBe(false);
 });
 

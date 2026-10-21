@@ -35,6 +35,8 @@ function icon(name: string, fallback: LucideIcon, glyph?: string, font: 'mdl2' |
 }
 export const Home = icon('Home', Lucide.Home);
 export const Library = icon('Library', Lucide.Library, '\uE8F1');
+export const Cloud = icon('Cloud', Lucide.Cloud);
+export const CloudSolid = icon('CloudSolid', Lucide.Cloud);
 export const Store = icon('Store', Lucide.Store);
 export const Users = icon('XboxSocial', Lucide.Users, '\uE939', 'xbox');
 export const Bell = icon('Ringer', Lucide.Bell);

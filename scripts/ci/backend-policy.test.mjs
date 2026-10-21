@@ -8,6 +8,21 @@ import path from 'node:path';
 import os from 'node:os';
 import { backendSourceArchiveArgs } from '../backend-source-archive.mjs';
 
+test('self-profile details are pinned, allowlisted and keep membership and authentication separate', async () => {
+  const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
+  const detailsIndex = lock.patches.findIndex(patch => patch.file === 'xodus-profile-details.patch');
+  const socialIndex = lock.patches.findIndex(patch => patch.file === 'xodus-social.patch');
+  assert.ok(socialIndex >= 0 && detailsIndex > socialIndex);
+  const patch = await fs.readFile('assets/xodus-profile-details.patch', 'utf8');
+  assert.equal((patch.match(/^diff --git /gm) ?? []).length, 1);
+  assert.match(patch, /^diff --git a\/crates\/xodus-cli\/src\/commands\/profile\.rs b\/crates\/xodus-cli\/src\/commands\/profile\.rs$/m);
+  for (const text of ['profile_details_only_exposes_bounded_provider_fields_including_actual_zero_score',
+    'profile_details_missing_or_malformed_optional_data_never_invents_values', 'optional_profile_text',
+    'Gamerscore,Bio,Location', 'text.parse::<u32>()', 'settings.len() <= 64']) assert.ok(patch.includes(text), text);
+  assert.doesNotMatch(patch, /^\+.*(?:tokens\.(?:get_|set_|save_|remove_)|request_xsts_token|exchange_user_token|\.delete_credential\()/m);
+  assert.doesNotMatch(patch, /^\+.*result\["subscription"\]\s*=/m);
+});
+
 test('auth response consistency and coherent credential persistence are pinned and account-free tested', async () => {
   const lock = JSON.parse(await fs.readFile('assets/backend-source.lock.json', 'utf8'));
   assert.ok(lock.patches.some(p => p.file === 'xodus-auth-consistency.patch'));

@@ -58,7 +58,7 @@ it('loads a genuine profile result, reuses only its account cache offline, and c
   try {
     const profile = new AccountProfile(root, () => {}, value => value, async () => result());
     await profile.select('one@example.test', '/fake/backend'); await profile.settled();
-    expect(profile.value).toEqual({ gamertag: 'ExampleGamer', avatarDataUrl: avatar });
+    expect(profile.value).toEqual({ gamertag: 'ExampleGamer', avatarDataUrl: avatar, checkedAt: expect.any(String) });
     const file = path.join(root, 'xbox-profile.json');
     expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
     expect(await fs.readFile(file, 'utf8')).not.toContain('one@example.test');
@@ -67,6 +67,90 @@ it('loads a genuine profile result, reuses only its account cache offline, and c
     expect(offline.value?.gamertag).toBe('ExampleGamer');
     await offline.select(undefined); expect(offline.value).toBeUndefined();
     await expect(fs.stat(file)).rejects.toThrow();
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+it('publishes and privately caches only actual provider details and their successful fetch time', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-profile-details-'));
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  try {
+    const details = { gamerscore: 0, bio: 'A genuine\nprovider biography', location: 'Example location', realName: 'Example Name',
+      modernGamertag: 'Example', uniqueModernGamertag: 'Example#1234', modernGamertagSuffix: '1234', tenureLevel: 7, accountTier: 'Gold' };
+    const profile = new AccountProfile(root, () => {}, value => value, async () => JSON.stringify({ ...JSON.parse(result()), ...details,
+      accessToken: 'synthetic-private-token', followers: 999 }), () => now);
+    await profile.select('one@example.test', '/fake/backend'); await profile.settled();
+    expect(profile.value).toMatchObject({ ...details, checkedAt: new Date(now).toISOString() });
+    expect(profile.matchesAccount('one@example.test')).toBe(true);
+    for (const account of [undefined, '', ' ', 'two@example.test', 'ONE@example.test']) expect(profile.matchesAccount(account)).toBe(false);
+    expect(profile.source).toBe('live'); expect(profile.refreshing).toBe(false); expect(profile.error).toBeUndefined();
+    expect(profile.value?.subscription).toBeUndefined();
+    const cache = await fs.readFile(path.join(root, 'xbox-profile.json'), 'utf8');
+    expect(cache).not.toMatch(/synthetic-private-token|one@example.test|followers/);
+    const offline = new AccountProfile(root, () => {}, value => value, async () => { throw Error('private backend text'); }, () => now + 60_000);
+    await offline.select('one@example.test', '/fake/backend'); await offline.settled();
+    expect(offline.value).toMatchObject({ ...details, checkedAt: new Date(now).toISOString() });
+    expect(offline.source).toBe('cache'); expect(offline.error).toBe('Xbox profile is temporarily unavailable.');
+    await offline.select('two@example.test');
+    expect(offline.value).toBeUndefined(); expect(offline.source).toBeUndefined(); expect(offline.error).toBeUndefined();
+    expect(offline.matchesAccount('one@example.test')).toBe(false); expect(offline.matchesAccount('two@example.test')).toBe(true);
+    await offline.select(undefined); expect(offline.matchesAccount('two@example.test')).toBe(false); expect(offline.matchesAccount(undefined)).toBe(false);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+it('shares explicit refreshes, reports their lifetime and preserves stale same-account data after failure', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-profile-status-'));
+  let now = Date.parse('2026-10-21T12:00:00Z'), reads = 0, changes = 0;
+  let finish!: (text: string) => void, fail!: (error: Error) => void;
+  try {
+    const profile = new AccountProfile(root, () => { changes++; }, value => value, async () => {
+      reads++; return new Promise((resolve, reject) => { finish = resolve; fail = reject; });
+    }, () => now);
+    await profile.select('one@example.test', '/fake/backend');
+    expect(profile.refreshing).toBe(true); expect(changes).toBeGreaterThan(0);
+    finish(JSON.stringify({ ...JSON.parse(result()), gamerscore: 123 })); await profile.settled();
+    const checkedAt = profile.value?.checkedAt;
+    await profile.select('one@example.test', '/fake/backend'); expect(reads).toBe(1);
+    now += 60_000; const before = changes;
+    await profile.select('one@example.test', '/fake/backend', true);
+    await profile.select('one@example.test', '/fake/backend', true);
+    expect(reads).toBe(2); expect(profile.refreshing).toBe(true); expect(changes).toBeGreaterThan(before);
+    fail(Error('synthetic private provider payload')); await profile.settled();
+    expect(profile.refreshing).toBe(false); expect(profile.source).toBe('cache');
+    expect(profile.value).toMatchObject({ gamerscore: 123, checkedAt });
+    expect(profile.error).toBe('Xbox profile is temporarily unavailable.');
+    expect(profile.error).not.toContain('private');
+    await profile.select(undefined); expect(profile.error).toBeUndefined(); expect(profile.source).toBeUndefined();
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+it('keeps old cache data compatible without inventing an age, score or subscription', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-profile-old-cache-'));
+  try {
+    const profile = new AccountProfile(root, () => {}, value => value, async () => result());
+    await profile.select('one@example.test', '/fake/backend'); await profile.settled();
+    const file = path.join(root, 'xbox-profile.json'), cached = JSON.parse(await fs.readFile(file, 'utf8'));
+    delete cached.checkedAt;
+    await fs.writeFile(file, JSON.stringify({ ...cached, gamerscore: 'invalid', bio: 'bad\0value', subscription: { status: 'active', productIds: [] } }));
+    const offline = new AccountProfile(root, () => {}, value => value);
+    await offline.select('one@example.test');
+    expect(offline.value).toMatchObject({ gamertag: 'ExampleGamer' }); expect(offline.source).toBe('cache');
+    for (const field of ['checkedAt', 'gamerscore', 'bio', 'subscription'] as const) expect(offline.value?.[field]).toBeUndefined();
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+it('removes old optional details when a later valid provider response no longer returns them', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-profile-redacted-'));
+  let rich = true;
+  try {
+    const profile = new AccountProfile(root, () => {}, value => value, async () => JSON.stringify({ ...JSON.parse(result()),
+      ...(rich ? { gamerscore: 123, bio: 'Previous biography', location: 'Previous place' } : {}) }));
+    await profile.select('one@example.test', '/fake/backend'); await profile.settled();
+    expect(profile.value?.bio).toBe('Previous biography');
+    rich = false;
+    await profile.select('one@example.test', '/fake/backend', true); await profile.settled();
+    expect(profile.value?.gamertag).toBe('ExampleGamer'); expect(profile.source).toBe('live');
+    for (const field of ['bio', 'location', 'gamerscore'] as const) expect(profile.value?.[field]).toBeUndefined();
+    expect(await fs.readFile(path.join(root, 'xbox-profile.json'), 'utf8')).not.toMatch(/Previous biography|Previous place|gamerscore/);
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 

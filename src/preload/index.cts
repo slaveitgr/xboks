@@ -56,6 +56,16 @@ const api: LauncherApi = {
   searchXboxPeople: query => ipcRenderer.invoke('xbox-social-search', query),
   sendXboxMessage: (peer, text) => ipcRenderer.invoke('xbox-social-send', peer, text),
   quitLauncher: () => ipcRenderer.invoke('quit-launcher'),
+  refreshXboxProfile: () => ipcRenderer.invoke('xbox-profile-refresh'),
+  openCloudGaming: () => ipcRenderer.invoke('cloud-gaming-open'),
+  getCloudGamingState: () => ipcRenderer.invoke('cloud-gaming-state'),
+  onCloudGamingState: callback => {
+    const listener = (_event: Electron.IpcRendererEvent, state: import('../shared/cloud-gaming.js').CloudGamingState) => callback(state);
+    ipcRenderer.on('cloud-gaming-state', listener);
+    return () => ipcRenderer.removeListener('cloud-gaming-state', listener);
+  },
+  controlCloudGaming: command => ipcRenderer.invoke('cloud-gaming-control', command),
+  setCloudGamingObscured: obscured => ipcRenderer.invoke('cloud-gaming-obscured', obscured),
   getLibraryProviders: () => ipcRenderer.invoke('library-providers'),
   getBatteryPercentage: () => ipcRenderer.invoke('battery-percentage'),
   openRemotePlay: () => ipcRenderer.invoke('remote-play-open'),

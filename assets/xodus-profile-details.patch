@@ -1,0 +1,113 @@
+diff --git a/crates/xodus-cli/src/commands/profile.rs b/crates/xodus-cli/src/commands/profile.rs
+--- a/crates/xodus-cli/src/commands/profile.rs
++++ b/crates/xodus-cli/src/commands/profile.rs
+@@ -4,7 +4,9 @@
+ use serde_json::{Value, json};
+ use xodus::{models::{live::ExchangeUserTokenOutcome, secrets::Token, soap}, tokens::TokenManager};
+ 
+-const PROFILE: &str = "https://profile.xboxlive.com/users/me/profile/settings?settings=Gamertag,PublicGamerpic";
++// Optional fields are displayed only when returned; a legacy account tier is
++// never evidence of a current Game Pass subscription.
++const PROFILE: &str = "https://profile.xboxlive.com/users/me/profile/settings?settings=Gamertag,PublicGamerpic,Gamerscore,Bio,Location,RealName,GameDisplayName,AppDisplayName,TenureLevel,AccountTier,ModernGamertag,ModernGamertagSuffix,UniqueModernGamertag";
+ const MAX_IMAGE: usize = 2 * 1024 * 1024;
+ 
+ pub(super) async fn bounded(mut response: reqwest::Response, limit: usize) -> Result<Vec<u8>, &'static str> {
+@@ -36,6 +38,37 @@
+     let gamertag = setting("Gamertag").map(str::trim).filter(|name| !name.is_empty()
+         && name.len() <= 256 && !name.chars().any(char::is_control)).ok_or("gamertag")?;
+     Ok((gamertag.to_owned(), setting("PublicGamerpic").and_then(picture_url)))
++}
++
++fn optional_profile_text(value: &str, limit: usize, multiline: bool) -> Option<&str> {
++    if value.len() > limit || value.chars().any(|c| c.is_control() && !(multiline && ['\n', '\r', '\t'].contains(&c))) { return None; }
++    let value = value.trim();
++    (!value.is_empty()).then_some(value)
++}
++
++// The settings returned by this self-profile request are the only source of
++// these fields. Do not serialize raw provider objects, IDs or inferred totals.
++fn profile_details(value: &Value) -> Value {
++    let mut result = json!({});
++    let Some(users) = value["profileUsers"].as_array().filter(|users| users.len() == 1) else { return result; };
++    let Some(settings) = users[0]["settings"].as_array().filter(|settings| settings.len() <= 64) else { return result; };
++    let setting = |name: &str| settings.iter().find(|item| item["id"] == name).and_then(|item| item["value"].as_str());
++    for (source, target, limit, multiline) in [
++        ("Bio", "bio", 4096, true), ("Location", "location", 256, false), ("RealName", "realName", 256, false),
++        ("GameDisplayName", "gameDisplayName", 256, false), ("AppDisplayName", "appDisplayName", 256, false),
++        ("AccountTier", "accountTier", 64, false), ("ModernGamertag", "modernGamertag", 256, false),
++        ("UniqueModernGamertag", "uniqueModernGamertag", 256, false),
++    ] {
++        if let Some(text) = setting(source).and_then(|value| optional_profile_text(value, limit, multiline)) { result[target] = json!(text); }
++    }
++    for (source, target) in [("Gamerscore", "gamerscore"), ("TenureLevel", "tenureLevel")] {
++        if let Some(number) = setting(source).filter(|text| !text.is_empty() && text.len() <= 10 && text.bytes().all(|c| c.is_ascii_digit()))
++            .and_then(|text| text.parse::<u32>().ok()) { result[target] = json!(number); }
++    }
++    if let Some(suffix) = setting("ModernGamertagSuffix").filter(|text| !text.is_empty() && text.len() <= 16 && text.bytes().all(|c| c.is_ascii_digit())) {
++        result["modernGamertagSuffix"] = json!(suffix);
++    }
++    result
+ }
+ 
+ fn image_data(bytes: &[u8]) -> Option<String> {
+@@ -105,9 +138,10 @@
+ async fn profile(tokens: &TokenManager) -> Result<Value, &'static str> {
+     let (client, authorization, account) = xbox_session(tokens).await?;
+     let response = client.get(PROFILE).header("Authorization", authorization)
+-        .header("x-xbl-contract-version", "2").send().await.map_err(|_| "profile-request")?;
++        .header("x-xbl-contract-version", "3").send().await.map_err(|_| "profile-request")?;
+     let body = bounded(response, 128 * 1024).await?;
+-    let (gamertag, picture) = fields(&serde_json::from_slice(&body).map_err(|_| "profile-json")?)?;
++    let provider: Value = serde_json::from_slice(&body).map_err(|_| "profile-json")?;
++    let (gamertag, picture) = fields(&provider)?;
+     // Fresh request, no Authorization/Signature or redirects to the image CDN.
+     let image = if let Some(url) = picture {
+         match client.get(url).send().await {
+@@ -116,7 +150,10 @@
+         }
+     } else { None };
+     if tokens.get_user().map_err(|_| "account-changed")?.username != account { return Err("account-changed"); }
+-    Ok(json!({ "schema": 1, "account": account, "gamertag": gamertag, "gamerpicDataUrl": image }))
++    let mut result = profile_details(&provider);
++    result["schema"] = json!(1); result["account"] = json!(account);
++    result["gamertag"] = json!(gamertag); result["gamerpicDataUrl"] = json!(image);
++    Ok(result)
+ }
+ 
+ pub async fn run(tokens: &TokenManager, json_output: bool) -> ExitCode {
+@@ -158,4 +195,34 @@
+         assert!(picture_url("https://user:secret@gamerpic.xboxlive.com/a").is_none());
+         assert!(image_data(b"<svg/>").is_none());
+     }
+-}
++
++    #[test]
++    fn profile_details_only_exposes_bounded_provider_fields_including_actual_zero_score() {
++        let value = json!({"profileUsers":[{"id":"private-id", "settings":[
++            {"id":"Gamerscore","value":"0"}, {"id":"TenureLevel","value":"7"},
++            {"id":"Bio","value":"First line\nSecond line"}, {"id":"Location","value":"Example location"},
++            {"id":"RealName","value":"Example Name"}, {"id":"ModernGamertag","value":"Example"},
++            {"id":"UniqueModernGamertag","value":"Example#1234"}, {"id":"ModernGamertagSuffix","value":"1234"},
++            {"id":"AccountTier","value":"Gold"}, {"id":"UnknownField","value":"private-value"}]}]});
++        let details = profile_details(&value);
++        assert_eq!(details["gamerscore"], 0); assert_eq!(details["tenureLevel"], 7);
++        assert_eq!(details["bio"], "First line\nSecond line"); assert_eq!(details["location"], "Example location");
++        assert_eq!(details["realName"], "Example Name"); assert_eq!(details["modernGamertagSuffix"], "1234");
++        assert_eq!(details["accountTier"], "Gold"); assert!(details.get("subscription").is_none());
++        assert!(!details.to_string().contains("private"));
++    }
++
++    #[test]
++    fn profile_details_missing_or_malformed_optional_data_never_invents_values() {
++        let value = json!({"profileUsers":[{"settings":[
++            {"id":"Gamerscore","value":"-1"}, {"id":"TenureLevel","value":"4294967296"},
++            {"id":"Bio","value":"bad\u{0000}value"}, {"id":"Location","value":"bad\nplace"},
++            {"id":"RealName","value":"x".repeat(257)}, {"id":"ModernGamertagSuffix","value":"not-numeric"}]}]});
++        assert_eq!(profile_details(&value), json!({}));
++        assert_eq!(profile_details(&json!({"profileUsers":[{"settings":[]}]})), json!({}));
++        assert_eq!(profile_details(&json!({"profileUsers":[{},{}]})), json!({}));
++        for score in ["+1", "1e3", "1.5", "4294967296"] {
++            assert!(profile_details(&json!({"profileUsers":[{"settings":[{"id":"Gamerscore","value":score}]}]})).get("gamerscore").is_none());
++        }
++    }
++}

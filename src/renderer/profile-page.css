@@ -1,0 +1,25 @@
+.profile-page { padding-top: 30px; }
+.profile-hero { background: linear-gradient(125deg,#183c31,#1f272b 65%,#202326); padding: 38px 40px 30px; border-radius: 8px; }
+.profile-identity { display: flex; align-items: center; gap: 28px; min-width: 0; }
+.profile-gamerpic { width: 148px; height: 148px; flex: 0 0 148px; border-radius: 50%; overflow: hidden; background: #30383b; display: grid; place-items: center; }
+.profile-gamerpic > img { width: 100%; height: 100%; object-fit: cover; }
+.profile-gamerpic > .xbox-icon { width: 96px; height: 96px; font-size: 96px; }
+.profile-identity h1 { margin: 0 0 8px; font-size: 36px; line-height: 1.2; overflow-wrap: anywhere; }
+.profile-modern-tag { margin: 0 0 10px; color: #d5d8d7; }
+.profile-gamerscore { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font-size: 16px; }
+.profile-gamerscore > span:last-child { color: #c5cbc9; font-size: 14px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.profile-actions button, .profile-empty button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 42px; border: 1px solid #76808c; border-radius: 6px; padding: 8px 18px; background: #3a4049; color: white; }
+.profile-actions .xbox-icon { width: 20px; height: 20px; font-size: 20px; }
+.profile-content { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 24px; margin: 24px 0; }
+.profile-content > section { padding: 24px; border-radius: 8px; background: #25282a; min-width: 0; overflow-wrap: anywhere; }
+.profile-content h2 { font-size: 22px; margin: 0 0 20px; }
+.profile-about dl { margin: 0; display: grid; gap: 18px; }
+.profile-about dt { color: #aaa; font-size: 13px; margin-bottom: 4px; }
+.profile-about dd { margin: 0; }
+.profile-biography { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.profile-muted { color: #b2b6b8; line-height: 1.5; }
+.profile-error { color: #ffd2cc; }
+.profile-empty { display: grid; justify-items: center; padding: 60px 20px; gap: 20px; text-align: center; }
+.profile-empty > .xbox-icon { width: 72px; height: 72px; font-size: 72px; }
+@media(max-width:900px) { .profile-hero { padding: 24px; }.profile-gamerpic { width: 100px; height: 100px; flex-basis: 100px; }.profile-identity { gap: 20px; }.profile-identity h1 { font-size: 28px; }.profile-content { grid-template-columns: 1fr; } }

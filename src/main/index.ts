@@ -8,6 +8,7 @@ import { readStoreIdentity } from '../shared/account-identities.js';
 import { scanLibraryProviders } from './library-providers.js';
 import { applyDesktopSettings, backgroundStartupRequested, batteryPercentage, desktopConfigRoot, desktopSession, inspectDesktopSettings, startDesktopLauncher } from './desktop-settings.js';
 import { RemotePlay } from './remote-play.js';
+import { CloudGaming } from './cloud-gaming.js';
 import { GameBarResidency, gameBarServiceEnabled } from './gamebar-residency.js';
 import { GameBarController, controllerSessionActive } from './gamebar-controller.js';
 import { DesktopGuide } from './desktop-guide.js';
@@ -101,8 +102,15 @@ let mainWindow: BrowserWindow | null = null;
 const remotePlay = new RemotePlay({ changed: state => {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('remote-play-state', state);
 }, toggleFullscreen: owner => fullscreenExperience.setWindow(!owner.isFullScreen()) });
+const cloudGaming = new CloudGaming({ changed: state => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('cloud-gaming-state', state);
+}, toggleFullscreen: owner => fullscreenExperience.setWindow(!owner.isFullScreen()) });
 let remotePlayGuideObscured = false, remotePlayInlineObscured = false;
-const updateRemotePlayVisibility = () => remotePlay.setObscured(remotePlayGuideObscured || remotePlayInlineObscured);
+let cloudGamingInlineObscured = false;
+const updateRemotePlayVisibility = () => {
+  remotePlay.setObscured(remotePlayGuideObscured || remotePlayInlineObscured);
+  cloudGaming.setObscured(remotePlayGuideObscured || cloudGamingInlineObscured);
+};
 const gameBarResidency = new GameBarResidency(process.argv);
 let serviceAccountDeferred = process.argv.includes('--gamebar-service');
 let settingsTray: Tray | undefined;
@@ -460,6 +468,8 @@ function receiveLaunchRequest(id?: string): void {
 function snapshot(): AppSnapshot {
   if (demoMode) return { ...demoSnapshot({ launcher: app.getVersion(), backend: backendLock.version,
     backendCommit: backendLock.commit, backendCompatibility: backendLock.compatibility }, demoArtwork), desktopSettings: structuredClone(desktopSettingsStatus), fullscreenExperience: fullscreenExperience.current };
+  const profileCurrent = authState.stored === true && !authState.running && accountProfile?.matchesAccount(authState.username);
+  const profile = profileCurrent ? accountProfile.value : undefined;
   return {
     backend: backend.current,
     runtime: runtime.current,
@@ -467,7 +477,9 @@ function snapshot(): AppSnapshot {
     downloads: structuredClone(store.downloads.map(task => downloadCancellations.has(task.id)
       ? { ...task, cancelling: true, canPause: false, phase: 'Cancelling download and checking files…' } : task)),
     settings: structuredClone(store.settings),
-    auth: structuredClone({ ...authState, gamertag: accountProfile?.value?.gamertag, avatarDataUrl: accountProfile?.value?.avatarDataUrl, subscription: accountProfile?.value?.subscription }),
+    auth: structuredClone({ ...authState, gamertag: profile?.gamertag, avatarDataUrl: profile?.avatarDataUrl, subscription: profile?.subscription,
+      profile, profileSource: profileCurrent ? accountProfile.source : undefined, profileRefreshing: profileCurrent ? accountProfile.refreshing : false,
+      profileError: profileCurrent ? accountProfile.error : undefined }),
     launcherUpdate: structuredClone(launcherUpdater.state),
     gameUpdates: structuredClone(gameUpdates),
     downloadProgressSupported: Boolean(backend.current.capabilities.streamingProgressJson),
@@ -1519,6 +1531,38 @@ function registerIpc(): void {
     if (event.sender !== mainWindow?.webContents) throw Error('Invalid launcher window.');
     app.quit();
   });
+  ipcMain.handle('xbox-profile-refresh', async event => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents) throw Error('Open your profile from the launcher.');
+    if (demoMode) return;
+    const account = authState.stored === true && !authState.running ? authState.username : undefined;
+    const binary = backend.current.capabilities.profile ? backend.current.binaryPath : undefined;
+    if (!account || !binary || shutdownStarted) throw Error('The Xbox profile provider is unavailable.');
+    await accountProfile.select(account, binary, true);
+    await accountProfile.settled();
+    if (shutdownStarted || authState.running || authState.stored !== true || authState.username !== account || backend.current.binaryPath !== binary)
+      throw Error('The Xbox account or backend changed. Try again.');
+    emitSnapshot();
+    if (accountProfile.error) throw Error('The Xbox profile could not be refreshed.');
+  });
+  ipcMain.handle('cloud-gaming-open', event => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents) throw Error('Cloud gaming must be opened from the launcher.');
+    if (demoMode || shutdownStarted) throw Error('Cloud gaming is disabled in demo mode or during shutdown.');
+    remotePlay.destroy();
+    const opened = cloudGaming.open(mainWindow!); updateRemotePlayVisibility(); return opened;
+  });
+  ipcMain.handle('cloud-gaming-state', event => { systemSender(event); return cloudGaming.state; });
+  ipcMain.handle('cloud-gaming-control', (event, action: import('../shared/cloud-gaming.js').CloudGamingCommand) => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents || demoMode || shutdownStarted) throw Error('Cloud gaming must be controlled from the launcher.');
+    return cloudGaming.control(action);
+  });
+  ipcMain.handle('cloud-gaming-obscured', (event, obscured: unknown) => {
+    systemSender(event);
+    if (event.sender !== mainWindow?.webContents || typeof obscured !== 'boolean') throw Error('Invalid Cloud gaming view state.');
+    cloudGamingInlineObscured = obscured; updateRemotePlayVisibility();
+  });
   ipcMain.handle('library-providers', () => demoMode ? [] : scanLibraryProviders());
   ipcMain.handle('battery-percentage', () => batteryPercentage());
   ipcMain.handle('battery-status', () => batteryPowerStatus());
@@ -1526,6 +1570,7 @@ function registerIpc(): void {
     systemSender(event);
     if (event.sender !== mainWindow?.webContents) throw new Error('Remote Play must be opened from the launcher.');
     if (demoMode) throw Error('Console Remote Play is disabled in demo mode.');
+    cloudGaming.destroy();
     const opened = remotePlay.open(mainWindow!); updateRemotePlayVisibility(); return opened;
   });
   ipcMain.handle('remote-play-state', event => { systemSender(event); return remotePlay.state; });
@@ -2118,7 +2163,7 @@ async function createWindow(background = false): Promise<void> {
     mainWindow.on('close', event => {
       if (mainWindow) saveWindowState(mainWindow);
       if (gameBarResidency.keepsRunning(quitting)) {
-        event.preventDefault(); remotePlay.destroy();
+        event.preventDefault(); remotePlay.destroy(); cloudGaming.destroy();
         const window = mainWindow;
         if (window?.isFullScreen() && fullscreenExperience.current.source !== 'session') {
           void fullscreenExperience.setWindow(false).catch(() => fullscreenExperience.dispose()).finally(() => { if (window && !window.isDestroyed()) window.hide(); });
@@ -2358,6 +2403,7 @@ app.on('before-quit', (event) => {
   voiceCapture.release();
   spotify.dispose();
   remotePlay.destroy();
+  cloudGaming.destroy();
   desktopGuide.destroy();
   installQueue.stop();
   installQueue.stop();

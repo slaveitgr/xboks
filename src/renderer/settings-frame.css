@@ -88,7 +88,7 @@ html[data-reduce-motion] *, html[data-reduce-motion] *::before, html[data-reduce
 .original-subscription dd { margin: 0; font-size: 14px; }
 .original-subscription dd .original-setting-link { font-size: 14px; }
 @media(min-width: 900px) {
-  html:not([data-compact-mode]) .xbox-mode.app-shell { grid-template-columns: 264px minmax(0,1fr); }
+  html:not([data-compact-mode]) .xbox-mode.app-shell { grid-template-columns: 260px minmax(0,1fr); }
   html:not([data-compact-mode]) .xbox-mode .sidebar .nav-item { width: 100%; justify-content: flex-start; gap: 14px; padding: 0 14px; }
   html:not([data-compact-mode]) .xbox-mode .sidebar .nav-item > span:not(.xbox-icon) { display: inline; }
   html:not([data-compact-mode]) .xbox-mode .account-summary { width: 100%; justify-content: flex-start; gap: 12px; padding: 0 10px; }

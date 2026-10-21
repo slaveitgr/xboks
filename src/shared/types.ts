@@ -1,4 +1,4 @@
-export type Page = 'home' | 'gamepass' | 'store' | 'library' | 'downloads' | 'settings';
+export type Page = 'home' | 'gamepass' | 'store' | 'library' | 'cloud' | 'profile' | 'downloads' | 'settings';
 
 export interface BackendCapabilities {
   commands: string[];
@@ -28,6 +28,10 @@ export interface AuthStatus {
   gamertag?: string;
   avatarDataUrl?: string;
   subscription?: GamePassSubscription;
+  profile?: import('./xbox-profile.js').XboxSelfProfile;
+  profileSource?: 'live' | 'cache';
+  profileRefreshing?: boolean;
+  profileError?: string;
   storeAccount?: import('./account-identities.js').StoreAccountIdentity;
   lastResult?: 'success' | 'failed';
   lastAction?: 'login' | 'logout';
@@ -414,6 +418,12 @@ export interface LauncherApi {
   searchXboxPeople(query: string): Promise<import('./xbox-social.js').XboxSocialResult>;
   sendXboxMessage(peerXuid: string, text: string): Promise<import('./xbox-social.js').XboxSocialResult>;
   quitLauncher(): Promise<void>;
+  refreshXboxProfile(): Promise<void>;
+  openCloudGaming(): Promise<void>;
+  getCloudGamingState(): Promise<import('./cloud-gaming.js').CloudGamingState>;
+  onCloudGamingState(callback: (state: import('./cloud-gaming.js').CloudGamingState) => void): () => void;
+  controlCloudGaming(command: import('./cloud-gaming.js').CloudGamingCommand): Promise<import('./cloud-gaming.js').CloudGamingState>;
+  setCloudGamingObscured(obscured: boolean): Promise<void>;
   openRemotePlay(): Promise<void>;
   getRemotePlayState(): Promise<import('./remote-play.js').RemotePlayState>;
   onRemotePlayState(callback: (state: import('./remote-play.js').RemotePlayState) => void): () => void;

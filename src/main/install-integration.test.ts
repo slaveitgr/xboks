@@ -70,7 +70,7 @@ vi.mock('./backend.js', () => ({ LINUX_RUN_PATCH: 'test-patch', BackendManager: 
   setExternalRoot() {} } }));
 vi.mock('./runtime.js', () => ({ RuntimeManager: class { get current() { return h.runtime; } async refresh() {} async checkNexus() {} setRoot() {} } }));
 vi.mock('./catalog.js', () => ({ CatalogService: class { async artwork() { return new Map(); } posters = h.posters; } }));
-vi.mock('./account-profile.js', () => ({ AccountProfile: class { async select() {} cancel() {} } }));
+vi.mock('./account-profile.js', () => ({ AccountProfile: class { matchesAccount() { return false; } async select() {} async settled() {} cancel() {} } }));
 vi.mock('./launcher-update.js', () => ({ LauncherUpdater: class { state = {}; async initialize() {} async check() {} cancel() {} } }));
 vi.mock('./launcher-fonts.js', () => ({ adoptLauncherFonts: () => undefined, externalFontEnvironment: (env: unknown) => env }));
 // Deletion is restricted to disposable fixture directories, never real games.

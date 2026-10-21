@@ -5,6 +5,14 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.21 — 2026-10-21
+
+- Add Cloud gaming between Library and Store, using an isolated official Xbox web view with separate sign-in, origin-limited navigation and trusted Back/Home/Retry/Close controls. Rendering the destination does not start a stream, sign in or imply entitlement. Demo mode blocks the native page; real Linux browser/game acceptance remains unverified.
+- Enable View profile as an in-app current-account page with provider-returned identity, avatar, verified subscription and optional score/biography/location. Cache/source and refresh errors remain explicit; unknown statistics never become zeros. Bind profile snapshots and async completions to the selected account.
+- Use the actual locally extracted membership glyphs with text fallback and the original Ultimate/Premium/Essential/PC priority. Expanded navigation shows gamertag and membership; compact navigation retains avatar-only layout and an accessible membership label. No original Microsoft assets are added to Git.
+- Append a validated backend profile-details patch. Existing backends remain compatible and return fewer fields; installing the launcher alone does not rebuild or replace the selected backend.
+- Document the original `/xcloud` and `/social/profile` routes, market gates, sidebar states and badge resources in the [sanitized reference](docs/analysis/reference/profile-cloud-navigation.md).
+
 ## 0.3.20 — 2026-10-21
 
 - Follow the GNOME desktop light/dark preference in the native task switcher. Keep the white reference surface for light/default, and use the black radial background, dark cards, white labels and cyan selection from the dark reference. Apply changes while open without replacing native icons/previews or losing selection. Extension v4 requires a fresh GNOME login; protocol capability remains 3.

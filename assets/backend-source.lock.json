@@ -40,6 +40,7 @@
     { "file": "xodus-streaming-handoff.patch", "sha256": "3be60b5dbca7fae0cb97e18e64665662620b9527c4c1340acfb4c2e2d497e648" },
     { "file": "xodus-store-ticket.patch", "sha256": "5302a699a06208c9b51809eea31261a2a53facce1af3177611ecfc050abb4eb5" },
     { "file": "xodus-keyring-encoding.patch", "sha256": "fa6a0d4ce87f39fdb74950248f1dfd6ccecc4724c76773f5cbf84a8a003729b8" },
-    { "file": "xodus-social.patch", "sha256": "599a07038d998d099d013153ce11d7a7dec319b258c287886863fefed9011cb9" }
+    { "file": "xodus-social.patch", "sha256": "599a07038d998d099d013153ce11d7a7dec319b258c287886863fefed9011cb9" },
+    { "file": "xodus-profile-details.patch", "sha256": "ea27bb132ff36a04e4fb8598ec46426a3bcd07580e93d24fbe3e1c8f39bea008" }
   ]
 }
