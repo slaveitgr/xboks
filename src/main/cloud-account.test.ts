@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { CloudAccountService, cloudIceCandidates, cloudServiceOrigin, parseCloudTitles } from './cloud-account';
+import { CloudAccountService, cloudIceCandidates, cloudServiceOrigin, parseCloudTitles, cloudProviderSessionId } from './cloud-account';
 const ACCOUNT = 'fixture@example.invalid', PRODUCT = '9N26X2PMTWBT', SECOND = '9NBLGGH4R315';
 const NOW = Date.parse('2026-10-22T00:00:00Z'), ORIGIN = 'https://uks.core.gssv-play-prod.xboxlive.com';
 const credential = () => JSON.stringify({ schema: 1, account: ACCOUNT, token: 'private-fixture-xsts', expiresAt: '2026-10-22T01:00:00Z' });
@@ -7,6 +7,7 @@ const title = (productId = PRODUCT) => ({ titleId: `TITLE_${productId}`, details
 const login = (baseUri = ORIGIN) => ({ gsToken: 'private-fixture-gs-token', durationInSeconds: 3600, offeringSettings: { regions: [{ name: 'UK South', baseUri, isDefault: true }] } });
 type Call = { url: string; options: RequestInit };
 function fixture(handler?: (url: string, options: RequestInit) => unknown | Promise<unknown>) {
+  let now = NOW;
   const calls: Call[] = [], changed = vi.fn(), reader = vi.fn(async () => credential());
   const fetcher = vi.fn(async (url: any, options: RequestInit = {}) => {
     calls.push({ url: String(url), options });
@@ -21,9 +22,10 @@ function fixture(handler?: (url: string, options: RequestInit) => unknown | Prom
     }
     return result instanceof Response ? result : new Response(JSON.stringify(result), { status: 200, headers: { 'Content-Type': 'application/json' } });
   });
-  const service = new CloudAccountService({ reader, fetcher: fetcher as typeof fetch, now: () => NOW, changed });
+  const transferReader = vi.fn(async (): Promise<string> => {throw Error('Proof unavailable.');});
+  const service = new CloudAccountService({ reader, transferReader, fetcher: fetcher as typeof fetch, now: () => now, changed });
   service.select(ACCOUNT, '/fixture/xboks-engine');
-  return { service, calls, changed, reader, fetcher };
+  return { service, calls, changed, reader, transferReader, fetcher, advance: (milliseconds: number) => {now += milliseconds;} };
 }
 afterEach(() => vi.restoreAllMocks());
 it('permits only authenticated HTTPS cloud region origins without path, credentials or lookalike hosts', () => {
@@ -94,6 +96,17 @@ it('starts only the exact selected catalog title and exports a local capability 
   await expect(f.service.start(SECOND)).rejects.toThrow('Close the current');
   await f.service.stop(result.id); expect(f.calls.at(-1)?.options.method).toBe('DELETE'); expect(f.service.state).toEqual({ phase: 'closed' });
 });
+it.each(['v5/sessions/cloud/provider-private-session', '/sessions/cloud/provider-private-session', '/v5/sessions/cloud/provider-private-session'])('accepts canonical Play sessionPath without inventing a required sessionId field: %s', async sessionPath => {
+  const f = fixture(url => url.endsWith('/play') ? {sessionPath} : undefined), state = await f.service.start(PRODUCT);
+  expect(state.phase).toBe('ready'); expect(f.calls.some(row => row.url.endsWith('/provider-private-session/state'))).toBe(true);
+  expect(JSON.stringify(state)).not.toContain('provider-private'); await f.service.stop(state.id);
+});
+it('rejects mismatched session IDs, arbitrary origins, paths, traversal and wrong stream types', () => {
+  for (const sessionPath of ['https://evil.invalid/sessions/cloud/owned', '/sessions/home/owned', '/sessions/cloud/../other', '/sessions/cloud/..', '/sessions/cloud/owned?token=secret', '/sessions/cloud/owned#fragment', '/sessions/cloud/a%2fb', '/sessions/cloud/a/extra']) expect(cloudProviderSessionId({sessionPath})).toBeUndefined();
+  expect(cloudProviderSessionId({sessionPath: '/sessions/cloud/owned', sessionId: 'different'})).toBeUndefined();
+  expect(cloudProviderSessionId({sessionPath: '/sessions/cloud/owned', sessionId: 'owned'})).toBe('owned');
+  expect(cloudProviderSessionId({sessionPath: '/sessions/home/owned'}, 'home')).toBe('owned');
+});
 it('does not accept another local session capability for state, SDP, ICE or stopping', async () => {
   const f = fixture(), result = await f.service.start(PRODUCT), before = f.calls.length;
   await expect(f.service.getSessionState('wrong')).rejects.toThrow(); await expect(f.service.exchangeSdp('wrong', 'v=0\r\n')).rejects.toThrow();
@@ -141,7 +154,32 @@ it.each([{type: 'offer'}, {messageType: 'offer'}, {type: 'answer', messageType: 
     ? {exchangeResponse: JSON.stringify({...discriminator, sdp: 'v=0\r\nanswer-fixture'})} : undefined);
   const state = await f.service.start(PRODUCT);
   await expect(f.service.exchangeSdp(state.id!, 'v=0\r\nfixture')).rejects.toThrow('Invalid cloud session answer');
-  await f.service.stop(state.id);
+  expect(f.service.state).toMatchObject({phase: 'error', errorStage: 'sdp-receive'}); expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(true);
+});
+it('waits for HTTP200 empty signaling exchanges before parsing the answer', async () => {
+  vi.useFakeTimers();
+  try {
+    let polls = 0;
+    const f = fixture((url, options) => url.endsWith('/sdp') && options.method !== 'POST' ? ++polls < 3 ? {} : {exchangeResponse: JSON.stringify({sdp: 'v=0\r\nanswer-fixture'})} : undefined);
+    const state = await f.service.start(PRODUCT), answer = f.service.exchangeSdp(state.id!, 'v=0\r\nfixture');
+    await vi.advanceTimersByTimeAsync(1100); expect(await answer).toBe('v=0\r\nanswer-fixture'); expect(polls).toBe(3);
+    expect(f.service.diagnostics.some(row => row.stage === 'sdp-receive' && row.outcome === 'pending' && row.httpStatus === 200)).toBe(true);
+    await f.service.stop(state.id);
+  } finally {vi.useRealTimers();}
+});
+it('bounds signaling readiness and releases only its owned session after a timeout', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = fixture((url, options) => url.endsWith('/ice') && options.method !== 'POST' ? new Response(null, {status: 204}) : undefined), state = await f.service.start(PRODUCT);
+    const rejected = expect(f.service.exchangeIce(state.id!, [])).rejects.toThrow('Cloud connection negotiation failed.');
+    await vi.advanceTimersByTimeAsync(21000); await rejected;
+    expect(f.service.state).toMatchObject({phase: 'error', errorStage: 'ice-receive'}); expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(true);
+  } finally {vi.useRealTimers();}
+});
+it('cleans up a provider session after terminal state transport failures', async () => {
+  const f = fixture(url => url.endsWith('/state') ? new Response('private-provider', {status: 503}) : undefined);
+  const state = await f.service.start(PRODUCT); expect(state).toMatchObject({phase: 'error', errorStage: 'state', httpStatus: 503});
+  expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(true); expect(JSON.stringify(state)).not.toContain('private-provider'); f.service.select();
 });
 it('rejects oversized or malformed offers and ICE before transmitting them', async () => {
   const f = fixture(), state = await f.service.start(PRODUCT), before = f.calls.length;
@@ -183,6 +221,39 @@ it('stops unsupported purpose-ticket handshakes instead of reusing credentials o
   const state = await f.service.start(PRODUCT); expect(state.phase).toBe('error'); expect(state.error).toBe('transfer-token-required');
   expect(f.calls.some(c => c.options.method === 'DELETE')).toBe(true); expect(f.calls.some(c => c.url.endsWith('/connect'))).toBe(false);
   expect(f.service.state.id).toBeUndefined(); f.service.select();
+});
+it('exchanges exactly one fresh same-account purpose proof only when the provider requests transfer', async () => {
+  let connected = false;
+  const f = fixture(url => {if (url.endsWith('/connect')) {connected = true; return {};} if (url.endsWith('/state')) return {state: connected ? 'Provisioned' : 'ReadyToConnect'};});
+  f.transferReader.mockResolvedValue(JSON.stringify({schema: 1, account: ACCOUNT, kind: 'loginprooftoken', token: 'private-transfer-fixture', issuedAt: new Date(NOW).toISOString()}));
+  await f.service.catalog(); expect(f.transferReader).not.toHaveBeenCalled(); const starting = await f.service.start(PRODUCT); expect(starting.phase).toBe('provisioning');
+  expect((await f.service.getSessionState(starting.id)).phase).toBe('ready'); expect(f.transferReader).toHaveBeenCalledOnce();
+  const connect = f.calls.find(row => row.url.endsWith('/connect'))!; expect(connect.url).toBe(`${ORIGIN}/v5/sessions/cloud/provider-private-session/connect`);
+  expect(JSON.parse(connect.options.body as string)).toEqual({userToken: 'private-transfer-fixture'});
+  expect(JSON.stringify(f.changed.mock.calls)).not.toMatch(/private-transfer|private-fixture/); await f.service.stop(starting.id);
+});
+it('rejects wrong-account transfer proofs before sending them and does not loop or reuse another credential', async () => {
+  const f = fixture(url => url.endsWith('/state') ? {state: 'ReadyToConnect'} : undefined);
+  f.transferReader.mockResolvedValue(JSON.stringify({schema: 1, account: 'different@example.invalid', kind: 'loginprooftoken', token: 'private-transfer-fixture', issuedAt: new Date(NOW).toISOString()}));
+  expect(await f.service.start(PRODUCT)).toMatchObject({phase: 'error', error: 'transfer-token-required', errorStage: 'transfer-credential'});
+  expect(f.calls.some(row => row.url.endsWith('/connect'))).toBe(false); expect(f.calls.some(row => row.options.method === 'DELETE')).toBe(true); f.service.select();
+});
+it('bounds a transferred session that stays ReadyToConnect without issuing another one-use proof', async () => {
+  const f = fixture(url => url.endsWith('/state') ? {state: 'ReadyToConnect'} : undefined);
+  f.transferReader.mockResolvedValue(JSON.stringify({schema: 1, account: ACCOUNT, kind: 'loginprooftoken', token: 'private-transfer-fixture', issuedAt: new Date(NOW).toISOString()}));
+  const state = await f.service.start(PRODUCT); await f.service.getSessionState(state.id); expect(f.transferReader).toHaveBeenCalledOnce();
+  f.advance(31_000); expect(await f.service.getSessionState(state.id)).toMatchObject({phase: 'error', error: 'timeout', errorStage: 'connect'}); f.service.select();
+});
+it('does not send a late purpose proof after cancellation or an account change', async () => {
+  for (const changeAccount of [false, true]) {
+    let complete!: (raw: string) => void;
+    const f = fixture(url => url.endsWith('/state') ? {state: 'ReadyToConnect'} : undefined);
+    f.transferReader.mockImplementation(() => new Promise(resolve => {complete = resolve;})); const pending = f.service.start(PRODUCT);
+    await vi.waitFor(() => expect(complete).toBeTypeOf('function'));
+    if (changeAccount) f.service.select('different@example.invalid', '/fixture/xboks-engine'); else await f.service.stop(f.service.state.id);
+    complete(JSON.stringify({schema: 1, account: ACCOUNT, kind: 'loginprooftoken', token: 'private-purpose-proof', issuedAt: new Date(NOW).toISOString()})); await pending;
+    expect(f.calls.some(row => row.url.endsWith('/connect'))).toBe(false); expect(f.service.state.phase).toBe('closed'); f.service.select();
+  }
 });
 it('does not publish an old handshake failure after switching accounts during remote cleanup', async () => {
   let deleted!: (value: unknown) => void;

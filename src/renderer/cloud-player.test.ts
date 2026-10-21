@@ -2,7 +2,7 @@ import {EventEmitter} from 'node:events';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import type Player from 'xbox-xcloud-player';
 import PlayerPacket from 'xbox-xcloud-player/dist/Channel/Input/Packet';
-import {CloudInputDriver, cloudGamepadFrame, connectCloudPlayer, type CloudPlayerFactory} from './cloud-player';
+import {CloudInputDriver, CloudPlayerError, cloudGamepadFrame, connectCloudPlayer, type CloudPlayerFactory} from './cloud-player';
 
 function pad(values: Record<number, number> = {}, axes = [0, 0, 0, 0], mapping = 'standard'): Gamepad {
   return {connected: true, index: 2, mapping, axes,
@@ -64,6 +64,8 @@ describe('cloud controller transport', () => {
 
 class Peer extends EventTarget {
   iceGatheringState: RTCIceGatheringState = 'complete';
+  createOffer = vi.fn(async (_options?: RTCOfferOptions) => ({type: 'offer' as const, sdp: 'local-offer'}));
+  setLocalDescription = vi.fn(async (_description: RTCSessionDescriptionInit) => {});
   setRemoteDescription = vi.fn(async (_description: RTCSessionDescriptionInit) => {});
   addIceCandidate = vi.fn(async (_candidate: RTCIceCandidateInit) => {});
 }
@@ -77,7 +79,7 @@ function fixture() {
     getChannelProcessor: () => ({sendTransaction}),
     bind: vi.fn(() => driver.setApplication(player as unknown as Player)),
     close: vi.fn(() => driver.stop()),
-    createOffer: vi.fn(async () => ({type: 'offer' as const, sdp: 'local-offer'})),
+    createOffer: vi.fn(() => {throw Error('The unawaited upstream offer helper must not be used.');}),
     getIceCandidates: vi.fn(() => [{candidate: 'local-candidate', sdpMid: '0', sdpMLineIndex: 0}]),
   };
   const factory: CloudPlayerFactory = vi.fn(async (_container, config) => {
@@ -87,9 +89,9 @@ function fixture() {
     exchangeCloudSdp: vi.fn(async (_id: string, _sdp: string) => 'remote-answer'),
     exchangeCloudIce: vi.fn(async (_id: string, _candidates: unknown) => [{candidate: 'a=end-of-candidates', sdpMid: '0', sdpMLineIndex: 0}]),
   };
-  const changed = vi.fn(), message = vi.fn();
-  const options = {container: 'owned-player', id: 'local-capability', signal: controller.signal, bridge, changed, message, factory};
-  return {events, peer, player, bridge, factory, controller, options, changed, message, sendTransaction, getDriver: () => driver};
+  const changed = vi.fn(), message = vi.fn(), diagnostic = vi.fn();
+  const options = {container: 'owned-player', id: 'local-capability', signal: controller.signal, bridge, changed, message, diagnostic, factory};
+  return {events, peer, player, bridge, factory, controller, options, changed, message, diagnostic, sendTransaction, getDriver: () => driver};
 }
 function showMessage(f: ReturnType<typeof fixture>, id = 'dialog-1') {
   f.events.emit('message', {id, target: '/streaming/systemUi/messages/ShowMessageDialog', content: JSON.stringify({
@@ -102,6 +104,7 @@ describe('cloud peer lifecycle and session isolation', () => {
   it('exchanges only SDP/ICE with the locally owned session and tears down once', async () => {
     const f = fixture(), handle = await connectCloudPlayer(f.options);
     expect(f.player.bind).toHaveBeenCalledOnce();
+    expect(f.player.createOffer).not.toHaveBeenCalled(); expect(f.peer.setLocalDescription).toHaveBeenCalledWith({type: 'offer', sdp: 'local-offer'});
     expect(f.bridge.exchangeCloudSdp).toHaveBeenCalledWith('local-capability', 'local-offer');
     expect(f.peer.setRemoteDescription).toHaveBeenCalledWith({type: 'answer', sdp: 'remote-answer'});
     expect(f.bridge.exchangeCloudIce).toHaveBeenCalledWith('local-capability', [{candidate: 'local-candidate', sdpMid: '0', sdpMLineIndex: 0}]);
@@ -112,7 +115,7 @@ describe('cloud peer lifecycle and session isolation', () => {
   it('configures bounded controller input with keyboard conversion and automatic system UI disabled', async () => {
     const f = fixture(), handle = await connectCloudPlayer(f.options);
     const config = vi.mocked(f.factory).mock.calls[0][1];
-    expect(config).toMatchObject({ui_systemui: [], input_legacykeyboard: true, input_mousekeyboard: false, input_touch: false,
+    expect(config).toMatchObject({ui_systemui: [19], input_legacykeyboard: true, input_mousekeyboard: false, input_touch: false,
       input_mousekeyboard_config: {_keymapping: {}}});
     expect(config?.input_driver).toBeInstanceOf(CloudInputDriver); handle.close();
   });
@@ -139,8 +142,8 @@ describe('cloud peer lifecycle and session isolation', () => {
   });
   it('cancels a pending offer without sending SDP and clears all local deadlines', async () => {
     vi.useFakeTimers(); const f = fixture(), offer = deferred<RTCSessionDescriptionInit>();
-    f.player.createOffer.mockImplementation(() => offer.promise as Promise<{type: 'offer'; sdp: string}>);
-    const pending = connectCloudPlayer(f.options); await vi.waitFor(() => expect(f.player.createOffer).toHaveBeenCalled());
+    f.peer.createOffer.mockImplementation(() => offer.promise as Promise<{type: 'offer'; sdp: string}>);
+    const pending = connectCloudPlayer(f.options); await vi.waitFor(() => expect(f.peer.createOffer).toHaveBeenCalled());
     f.controller.abort(); await expect(pending).rejects.toThrow();
     expect(f.bridge.exchangeCloudSdp).not.toHaveBeenCalled(); expect(f.player.close).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
   });
@@ -172,7 +175,7 @@ describe('cloud peer lifecycle and session isolation', () => {
     f.events.emit('message', {type: 'SenderCancel', id: 'first'}); expect(f.getDriver().requestStates()[0].A).toBe(0);
     second.respond(2); second.respond(2);
     expect(f.sendTransaction).toHaveBeenCalledOnce();
-    expect(f.sendTransaction).toHaveBeenCalledWith('second', JSON.stringify({Result: 2})); handle.close();
+    expect(f.sendTransaction).toHaveBeenCalledWith('second', {Result: 2}); handle.close();
   });
   it('cancels pending signaling promptly and does not apply a late SDP answer', async () => {
     vi.useFakeTimers(); const f = fixture(), answer = deferred<string>(); f.bridge.exchangeCloudSdp.mockReturnValue(answer.promise);
@@ -182,8 +185,8 @@ describe('cloud peer lifecycle and session isolation', () => {
     expect(f.events.listenerCount('message')).toBe(0); expect(vi.getTimerCount()).toBe(0);
   });
   it('stops pending negotiation after a server disconnect instead of submitting its late offer', async () => {
-    vi.useFakeTimers(); const f = fixture(), offer = deferred<{type: 'offer'; sdp: string}>(); f.player.createOffer.mockReturnValue(offer.promise);
-    const pending = connectCloudPlayer(f.options); await vi.waitFor(() => expect(f.player.createOffer).toHaveBeenCalled());
+    vi.useFakeTimers(); const f = fixture(), offer = deferred<{type: 'offer'; sdp: string}>(); f.peer.createOffer.mockReturnValue(offer.promise);
+    const pending = connectCloudPlayer(f.options); await vi.waitFor(() => expect(f.peer.createOffer).toHaveBeenCalled());
     f.events.emit('message', {target: '/streaming/sessionLifetimeManagement/serverInitiatedDisconnect'});
     await expect(pending).rejects.toThrow(); offer.resolve({type: 'offer', sdp: 'late-offer'}); await Promise.resolve();
     expect(f.bridge.exchangeCloudSdp).not.toHaveBeenCalled(); expect(f.changed).toHaveBeenLastCalledWith('disconnected');
@@ -191,9 +194,79 @@ describe('cloud peer lifecycle and session isolation', () => {
   });
   it('drops all subscriptions and input on a partial signaling failure', async () => {
     const f = fixture(); f.bridge.exchangeCloudSdp.mockRejectedValue(Error('private transport failure'));
-    await expect(connectCloudPlayer(f.options)).rejects.toThrow('Cloud video could not connect.');
+    await expect(connectCloudPlayer(f.options)).rejects.toThrow('Cloud video could not connect (exchange-sdp: failed).');
     expect(f.changed).toHaveBeenLastCalledWith('error'); expect(f.player.close).toHaveBeenCalledOnce();
     expect(f.getDriver().requestStates()[0].A).toBe(0);
     expect(f.events.listenerCount('message')).toBe(0); expect(f.events.listenerCount('connectionstate')).toBe(0);
   });
+  it('waits for local SDP to be applied before transmitting the offer and preserves the pinned stereo preference', async () => {
+    const f = fixture(), applied = deferred<void>(); f.peer.setLocalDescription.mockReturnValue(applied.promise);
+    f.peer.createOffer.mockResolvedValue({type: 'offer', sdp: 'v=0\r\na=fmtp:111 useinbandfec=1\r\n'});
+    const pending = connectCloudPlayer(f.options); await vi.waitFor(() => expect(f.peer.setLocalDescription).toHaveBeenCalled());
+    expect(f.bridge.exchangeCloudSdp).not.toHaveBeenCalled(); expect(f.peer.setRemoteDescription).not.toHaveBeenCalled();
+    applied.resolve(); const handle = await pending;
+    expect(f.bridge.exchangeCloudSdp).toHaveBeenCalledWith('local-capability', 'v=0\r\na=fmtp:111 useinbandfec=1; stereo=1\r\n'); handle.close();
+  });
+  it.each(['create-offer', 'local-description', 'exchange-sdp', 'apply-answer', 'exchange-ice', 'apply-ice'] as const)('reports a safe exact %s failure without exposing exception contents', async stage => {
+    const f = fixture(), privateError = Error('credential=private-fixture SDP and network-address fixture');
+    if (stage === 'create-offer') f.peer.createOffer.mockRejectedValue(privateError);
+    else if (stage === 'local-description') f.peer.setLocalDescription.mockRejectedValue(privateError);
+    else if (stage === 'exchange-sdp') f.bridge.exchangeCloudSdp.mockRejectedValue(privateError);
+    else if (stage === 'apply-answer') f.peer.setRemoteDescription.mockRejectedValue(privateError);
+    else if (stage === 'exchange-ice') f.bridge.exchangeCloudIce.mockRejectedValue(privateError);
+    else f.peer.addIceCandidate.mockRejectedValue(privateError);
+    const result = await connectCloudPlayer(f.options).catch(error => error);
+    expect(result).toBeInstanceOf(CloudPlayerError); expect(result).toMatchObject({stage, code: 'failed'});
+    expect(String(result)).not.toMatch(/private-fixture|credential=|network-address/); expect(f.diagnostic).toHaveBeenLastCalledWith(stage);
+    expect(f.player.close).toHaveBeenCalledOnce(); expect(f.changed).toHaveBeenLastCalledWith('error');
+    if (['create-offer', 'local-description'].includes(stage)) expect(f.bridge.exchangeCloudSdp).not.toHaveBeenCalled();
+  });
+  it('bounds an unresponsive local-description operation and retains its safe stage', async () => {
+    vi.useFakeTimers(); const f = fixture(); f.peer.setLocalDescription.mockReturnValue(new Promise(() => {}));
+    const result = connectCloudPlayer(f.options).catch(error => error);
+    await vi.waitFor(() => expect(f.peer.setLocalDescription).toHaveBeenCalled()); await vi.advanceTimersByTimeAsync(15001);
+    expect(await result).toMatchObject({stage: 'local-description', code: 'timeout'}); expect(f.bridge.exchangeCloudSdp).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('accepts an implemented single-command server dialog without inventing absent button labels', async () => {
+    const f = fixture(), handle = await connectCloudPlayer(f.options);
+    f.events.emit('message', {id: 'one-button', target: '/streaming/systemUi/messages/ShowMessageDialog', content: JSON.stringify({TitleText: 'Continue', ContentText: 'A service prompt', CommandLabel1: 'OK'})});
+    const dialog = f.message.mock.calls.at(-1)![0]; expect(dialog.buttons).toEqual(['OK', '', '']); dialog.respond(0);
+    expect(f.sendTransaction).toHaveBeenCalledWith('one-button', {Result: 0}); handle.close();
+  });
+});
+
+it('replays the pinned player channels, handshake, transaction and actual input encoder through the default package factory', async () => {
+  vi.useFakeTimers(); vi.spyOn(console, 'log').mockImplementation(() => {}); vi.stubGlobal('window', new EventTarget());
+  const peers: RuntimePeer[] = [];
+  class Channel extends EventTarget {readyState = 'open'; send = vi.fn();}
+  class RuntimePeer extends Peer {
+    channels = new Map<string, {channel: Channel; config: RTCDataChannelInit}>();
+    transceivers: {kind: string; options: RTCRtpTransceiverInit}[] = [];
+    close = vi.fn();
+    constructor(public config: RTCConfiguration) {super(); peers.push(this);}
+    createDataChannel(name: string, config: RTCDataChannelInit) {const channel = new Channel(); this.channels.set(name, {channel, config}); return channel;}
+    addTransceiver(kind: string, options: RTCRtpTransceiverInit) {this.transceivers.push({kind, options});}
+  }
+  vi.stubGlobal('RTCPeerConnection', RuntimePeer);
+  const f = fixture(), {factory: _fixtureFactory, ...options} = f.options, handle = await connectCloudPlayer(options), peer = peers[0];
+  expect([...peer.channels].map(([name, row]) => [name, row.config.protocol])).toEqual([
+    ['input', '1.0'], ['chat', 'chatV1'], ['control', 'controlV1'], ['message', 'messageV1'],
+  ]);
+  expect(peer.transceivers).toEqual([{kind: 'audio', options: {direction: 'sendrecv'}}, {kind: 'video', options: {direction: 'recvonly'}}]);
+  const messages = peer.channels.get('message')!.channel, input = peer.channels.get('input')!.channel;
+  for (const {channel} of peer.channels.values()) channel.dispatchEvent(new Event('open'));
+  messages.dispatchEvent(new MessageEvent('message', {data: JSON.stringify({type: 'HandshakeAck'})}));
+  const decoded = () => messages.send.mock.calls.map(([bytes]) => JSON.parse(new TextDecoder().decode(bytes)));
+  const configuration = decoded().find(row => row.target === '/streaming/systemUi/configuration');
+  expect(JSON.parse(configuration.content).systemUis).toEqual([19]);
+  messages.dispatchEvent(new MessageEvent('message', {data: JSON.stringify({id: 'real-dialog', type: 'Transaction',
+    target: '/streaming/systemUi/messages/ShowMessageDialog', content: JSON.stringify({TitleText: 'Service', ContentText: 'Continue?', CommandLabel1: 'Yes'})})}));
+  f.message.mock.calls.at(-1)![0].respond(0);
+  const completed = decoded().find(row => row.type === 'TransactionComplete');
+  expect(completed.id).toBe('real-dialog'); expect(JSON.parse(completed.content)).toEqual({Result: 0});
+  const packetView = (bytes: Uint8Array) => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  handle.pause(false); vi.advanceTimersByTime(17);
+  const frame = packetView(input.send.mock.calls.at(-1)![0]); expect(frame.getUint16(0, true) & 2).toBe(2); expect(frame.getUint16(16, true) & 16).toBe(16);
+  handle.pause(true); vi.advanceTimersByTime(17); const neutral = packetView(input.send.mock.calls.at(-1)![0]); expect(neutral.getUint16(16, true)).toBe(0);
+  handle.close(); expect(peer.close).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
 });

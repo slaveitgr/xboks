@@ -1,16 +1,58 @@
 import {useEffect, useRef, useState} from 'react';
 import type {CloudProduct, CloudStreamApi} from '../shared/cloud-library';
 import type {CloudSessionState} from '../shared/cloud-stream';
+import type {DiagnosticLog} from '../shared/types';
 import {Cloud, Gamepad2, Maximize, Play, Volume2, VolumeX, X} from './XboxIcons';
-import {connectCloudPlayer, type CloudPlayerHandle} from './cloud-player';
+import {CLOUD_PLAYER_STAGES, CloudPlayerError, connectCloudPlayer, type CloudPlayerHandle, type CloudPlayerStage} from './cloud-player';
 import {useReferenceLocale} from './ReferenceLocale';
 import {useBackHandler} from './GamepadNavigation';
 import {claimStreamInput, releaseStreamInput, useStreamObscured} from './stream-input';
 import {LoaderCircle} from 'lucide-react';
 import './cloud-stream.css';
 
-type Bridge = Partial<CloudStreamApi> & {setWindowFullscreen?: (enabled: boolean) => Promise<unknown>};
+type Bridge = Partial<CloudStreamApi> & {setWindowFullscreen?: (enabled: boolean) => Promise<unknown>; readBackendDiagnosticLog?: () => Promise<DiagnosticLog>};
 const closed: CloudSessionState = {phase: 'closed'};
+export interface CloudVideoStatus {
+  connection: 'connecting' | 'connected' | 'disconnected' | 'error';
+  stage?: CloudPlayerStage;
+  failure?: {stage: CloudPlayerStage; code: CloudPlayerError['code']};
+}
+/** A session owns its callbacks and late player; replacing it resets diagnostics. */
+export function ownCloudVideo(options: {
+  id: string; bridge: Pick<CloudStreamApi, 'exchangeCloudSdp' | 'exchangeCloudIce'>;
+  changed: (state: CloudVideoStatus) => void;
+  message: Parameters<typeof connectCloudPlayer>[0]['message'];
+  ready: (handle: CloudPlayerHandle) => void;
+  connect?: typeof connectCloudPlayer;
+}) {
+  const controller = new AbortController(); let active = true, handle: CloudPlayerHandle | undefined;
+  let status: CloudVideoStatus = {connection: 'connecting'};
+  const publish = (patch: Partial<CloudVideoStatus>) => {if (active) {status = {...status, ...patch}; options.changed(status);}};
+  options.changed(status);
+  const pending = (options.connect ?? connectCloudPlayer)({container: 'xboks-cloud-video', id: options.id, bridge: options.bridge, signal: controller.signal,
+    changed: connection => publish({connection}), diagnostic: stage => publish({stage}),
+    message: value => {if (active) options.message(value);},
+  }).then(created => {
+    if (!active) {created.close(); return;} handle = created; options.ready(created);
+  }).catch(error => {
+    if (!active || controller.signal.aborted || error instanceof CloudPlayerError && error.code === 'cancelled') return;
+    const stage = error instanceof CloudPlayerError && CLOUD_PLAYER_STAGES.includes(error.stage) ? error.stage : status.stage ?? 'load-player';
+    publish({connection: 'error', failure: {stage, code: error instanceof CloudPlayerError && error.code === 'timeout' ? 'timeout' : 'failed'}});
+  });
+  return {pending, close() {if (!active) return; active = false; controller.abort(); handle?.close(); handle = undefined;}};
+}
+const serviceStages: NonNullable<CloudSessionState['errorStage']>[] = ['credential','transfer-credential','connect','login','catalog','recent','play','state','sdp-send','sdp-receive','ice-send','ice-receive','keepalive','stop'];
+export function CloudFailureDetails({state, transport}: {state: CloudSessionState; transport: CloudVideoStatus}) {
+  const {text: t} = useReferenceLocale();
+  const renderer = transport.failure;
+  const service = state.errorStage && serviceStages.includes(state.errorStage) ? state.errorStage : undefined;
+  const status = Number.isInteger(state.httpStatus) && state.httpStatus! >= 100 && state.httpStatus! <= 599 ? state.httpStatus : undefined;
+  if (!renderer && !service) return null;
+  return <details className="cloud-stream-diagnostic"><summary>{t('Connection details', 'Λεπτομέρειες σύνδεσης')}</summary>
+    {service ? <p>{t('Cloud service stage', 'Στάδιο υπηρεσίας cloud')}: <code>{service}</code>{status ? <> · HTTP {status}</> : null}</p> : null}
+    {renderer ? <p>{t('Player stage', 'Στάδιο αναπαραγωγής')}: <code>{renderer.stage}</code> · <code>{renderer.code}</code></p> : null}
+  </details>;
+}
 export function observeCloudSession(bridge: Bridge | undefined, changed: (state: CloudSessionState) => void) {
   let active = true, revision = 0;
   const dispose = bridge?.onCloudStreamState?.(value => {if (active) {revision++; changed(value);}}), before = revision;
@@ -19,7 +61,9 @@ export function observeCloudSession(bridge: Bridge | undefined, changed: (state:
 }
 export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefined : window.launcher}: {bridge?: Bridge}) {
   const {text: t} = useReferenceLocale();
-  const [state, setState] = useState(closed), [connection, setConnection] = useState('connecting'), [video, setVideo] = useState(false);
+  const [state, setState] = useState(closed), [transport, setTransport] = useState<CloudVideoStatus>({connection: 'connecting'}), [video, setVideo] = useState(false);
+  const connection = transport.connection;
+  const [diagnosticLog, setDiagnosticLog] = useState<DiagnosticLog>(), [readingLog, setReadingLog] = useState(false), [logFailed, setLogFailed] = useState(false);
   const [menu, setMenu] = useState(false), [muted, setMuted] = useState(false), [product, setProduct] = useState<CloudProduct>();
   const [message, setMessage] = useState<Parameters<Parameters<typeof connectCloudPlayer>[0]['message']>[0]>();
   const root = useRef<HTMLDivElement>(null), player = useRef<CloudPlayerHandle>(), stopping = useRef(false), previous = useRef<HTMLElement | null>(null);
@@ -27,6 +71,8 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
   const inputOwner = useRef(Symbol('cloud-stream'));
   const obscured = useStreamObscured(state.phase !== 'closed');
   const showControlsRef = useRef(true);
+  const setConnection = (value: CloudVideoStatus['connection']) => setTransport(previous => ({...previous, connection: value}));
+  useEffect(() => {setTransport({connection: 'connecting'}); setDiagnosticLog(undefined); setReadingLog(false); setLogFailed(false);}, [state.id, state.productId]);
   useEffect(() => observeCloudSession(bridge, value => {revision.current++; stateRef.current = value; setState(value);}), [bridge]);
   useEffect(() => {
     if (!state.productId || !bridge?.getCloudProducts) {setProduct(undefined); return;}
@@ -46,14 +92,16 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
   }, [state.id, state.phase, bridge]);
   useEffect(() => {
     if (state.phase !== 'ready' || !state.id || !bridge?.exchangeCloudSdp || !bridge.exchangeCloudIce) return;
-    const controller = new AbortController(); setConnection('connecting'); setVideo(false); setMenu(false); setMuted(false);
+    setVideo(false); setMenu(false); setMuted(false);
     const container = document.getElementById('xboks-cloud-video');
-    const played = () => setVideo(true);
-    const observer = new MutationObserver(() => {container?.querySelector('video')?.addEventListener('playing', played, {once: true});});
+    let active = true; const watched = new Set<HTMLVideoElement>();
+    const played = (event: Event) => {if (active && container?.contains(event.currentTarget as Node)) setVideo(true);};
+    const watch = () => {for (const video of container?.querySelectorAll('video') ?? []) if (!watched.has(video)) {watched.add(video); video.addEventListener('playing', played, {once: true});}};
+    const observer = new MutationObserver(watch); watch();
     if (container) observer.observe(container, {childList: true, subtree: true});
-    void connectCloudPlayer({container: 'xboks-cloud-video', id: state.id, bridge: bridge as CloudStreamApi, signal: controller.signal,
-      changed: value => {if (!controller.signal.aborted) setConnection(value);}, message: value => {if (!controller.signal.aborted) setMessage(value);}}).then(handle => {if (!controller.signal.aborted) {player.current = handle; handle.pause(showControlsRef.current);} else handle.close();}).catch(() => {});
-    return () => {controller.abort(); observer.disconnect(); container?.querySelector('video')?.removeEventListener('playing', played); player.current?.close(); player.current = undefined; setMessage(undefined);};
+    const owned = ownCloudVideo({id: state.id, bridge: bridge as CloudStreamApi, changed: setTransport, message: setMessage,
+      ready: handle => {player.current = handle; handle.pause(showControlsRef.current);}});
+    return () => {active = false; owned.close(); observer.disconnect(); watched.forEach(video => video.removeEventListener('playing', played)); watched.clear(); player.current = undefined; setMessage(undefined);};
   }, [state.id, state.phase === 'ready', bridge]);
   const showControls = menu || Boolean(message) || !video || connection !== 'connected';
   showControlsRef.current = showControls || obscured;
@@ -77,6 +125,13 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
     try {await bridge.stopCloudStream(id); if (before === revision.current && stateRef.current.id === id) setState(closed);} catch {if (stateRef.current.id === id) setConnection('error');}
     finally {stopping.current = false;}
   }
+  async function readDiagnostics() {
+    if (!bridge?.readBackendDiagnosticLog || readingLog) return;
+    const before = revision.current; setReadingLog(true); setLogFailed(false);
+    try {const log = await bridge.readBackendDiagnosticLog(); if (before === revision.current) setDiagnosticLog(log);}
+    catch {if (before === revision.current) setLogFailed(true);}
+    finally {if (before === revision.current) setReadingLog(false);}
+  }
   useBackHandler(() => {
     if (message) return true;
     if (menu) setMenu(false);
@@ -91,6 +146,11 @@ export function CloudStreamHost({bridge = typeof window === 'undefined' ? undefi
     <div className="cloud-stream-video" id="xboks-cloud-video"/>
     {(!video || failure) && !message ? <section className="cloud-stream-loading" style={product?.heroUrl ? {backgroundImage: `linear-gradient(#0b1114bb,#0b1114ee),url(${JSON.stringify(product.heroUrl)})`} : undefined}>
       <Cloud size={45}/><h1>{product?.title ?? t('Xbox Cloud Gaming', 'Xbox Cloud Gaming')}</h1>{failure ? <><h2>{t('Your cloud game could not connect', 'Το παιχνίδι cloud δεν συνδέθηκε')}</h2><p>{state.error === 'region-not-supported' ? t('Xbox Cloud Gaming is not available in your current country.', 'Το Xbox Cloud Gaming δεν είναι διαθέσιμο στην τρέχουσα χώρα σας.') : state.error === 'transfer-token-required' ? t('This game requires an additional session transfer that is not supported yet.', 'Αυτό το παιχνίδι απαιτεί πρόσθετη μεταφορά συνεδρίας που δεν υποστηρίζεται ακόμη.') : state.error === 'signed-out' ? t('Sign in to XBOKS, then try again.', 'Συνδεθείτε στο XBOKS και δοκιμάστε ξανά.') : t('Check your connection, cloud availability and game access, then return to the catalog to try again.', 'Ελέγξτε τη σύνδεση, τη διαθεσιμότητα cloud και την πρόσβαση στο παιχνίδι. Επιστρέψτε στον κατάλογο για νέα προσπάθεια.')}</p></> : <><LoaderCircle className="spin"/><h2>{phase}</h2>{state.waitSeconds !== undefined ? <p>{t('Estimated wait', 'Εκτιμώμενη αναμονή')}: {Math.ceil(state.waitSeconds / 60)} {t('min', 'λεπτά')}</p> : null}<p>{t('Using your signed-in XBOKS account', 'Με τον συνδεδεμένο λογαριασμό XBOKS')}</p></>}
+      {failure ? <><CloudFailureDetails state={state} transport={transport}/>
+        {bridge?.readBackendDiagnosticLog ? <button onClick={() => void readDiagnostics()} disabled={readingLog}>{t('Read diagnostic log', 'Ανάγνωση διαγνωστικού αρχείου')}</button> : null}
+        {logFailed ? <p role="alert">{t('The diagnostic log could not be read.', 'Δεν ήταν δυνατή η ανάγνωση του διαγνωστικού αρχείου.')}</p> : null}
+        {diagnosticLog ? <details className="cloud-stream-diagnostic" open><summary>{t('Diagnostic log', 'Διαγνωστικό αρχείο')}</summary><pre>{diagnosticLog.content}</pre></details> : null}
+      </> : null}
       <button data-gamepad-cancel onClick={() => void stop()}><X/>{t('Return to cloud games', 'Επιστροφή στα παιχνίδια cloud')}</button>
     </section> : null}
     <nav className={`cloud-stream-toolbar${showControls ? ' visible' : ''}`} aria-label={t('Cloud session controls', 'Στοιχεία ελέγχου συνεδρίας cloud')}>

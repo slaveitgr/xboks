@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { externalLauncherEnvironment } from './launcher-environment.js';
 import { cloudLoginHeaders, normalizeCloudLoginCountry, type CloudLoginCountry } from './cloud-region.js';
+import {CLOUD_PROVIDER_CODES, safeCloudDiagnostic, type CloudDiagnosticEvent, type CloudDiagnosticStage} from './cloud-diagnostics.js';
+import {cloudTransferProof, readCloudTransferCredential, type CloudTransferReader} from './cloud-transfer.js';
 import type { CloudAccountCatalog, CloudIceCandidate, CloudSessionState, CloudStreamTitle } from '../shared/cloud-stream.js';
 
 const LOGIN = 'https://xgpuweb.gssv-play-prod.xboxlive.com/v2/login/user';
@@ -47,6 +49,18 @@ export function parseCloudTitles(value: unknown): CloudStreamTitle[] {
   return result;
 }
 
+/** v5 Play normally returns sessionPath; sessionId is an optional compatibility field. */
+export function cloudProviderSessionId(value: unknown, type: 'cloud' | 'home' = 'cloud'): string | undefined {
+  const response = record(value), id = response.sessionId;
+  if (response.sessionPath !== undefined) {
+    if (typeof response.sessionPath !== 'string' || response.sessionPath.length > 320) return;
+    const match = new RegExp(`^/?(?:v5/)?sessions/${type}/([A-Za-z0-9._-]{1,256})$`).exec(response.sessionPath);
+    if (!match || !providerId(match[1]) || ['.', '..'].includes(match[1]) || (id !== undefined && id !== match[1])) return;
+    return match[1];
+  }
+  return providerId(id) && !['.', '..'].includes(id) ? id : undefined;
+}
+
 export function cloudIceCandidates(value: unknown): CloudIceCandidate[] {
   if (!Array.isArray(value) || value.length > 256) throw Error('Invalid cloud ICE candidates.');
   return value.map(entry => {
@@ -73,9 +87,9 @@ async function jsonBody(response: Response, limit = MAX_JSON): Promise<unknown> 
     return size ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
 }
-class CloudHttpError extends Error { constructor(readonly status: number, readonly providerCode?: 'InvalidCountry') { super('Cloud service request failed.'); } }
+class CloudHttpError extends Error { constructor(readonly status: number, readonly providerCode?: CloudDiagnosticEvent['providerCode']) { super('Cloud service request failed.'); } }
 interface Offering { origin: string; token: string; until: number }
-interface ActiveSession { id: string; provider: string; productId: string; offering: Offering; generation: number; created: number }
+interface ActiveSession { id: string; provider: string; productId: string; offering: Offering; generation: number; created: number; transferAt?: number }
 
 /** Same-account SSO and signaling. Neither bearer credentials nor service URLs cross the launcher boundary. */
 export class CloudAccountService {
@@ -95,9 +109,20 @@ export class CloudAccountService {
   private pollSession?: ActiveSession;
   private keepalive?: ReturnType<typeof setInterval>;
   private value: CloudSessionState = { phase: 'closed' };
-  constructor(private options: { changed?: (state: CloudSessionState) => void; reader?: CloudCredentialReader; fetcher?: typeof fetch; now?: () => number } = {}) {}
+  private history: CloudDiagnosticEvent[] = [];
+  constructor(private options: { changed?: (state: CloudSessionState) => void; diagnostic?: (event: CloudDiagnosticEvent) => void; reader?: CloudCredentialReader; transferReader?: CloudTransferReader; fetcher?: typeof fetch; now?: () => number } = {}) {}
   private now() { return this.options.now?.() ?? Date.now(); }
   get state(): CloudSessionState { return { ...this.value }; }
+  get diagnostics(): CloudDiagnosticEvent[] {return this.history.map(row => ({...row}));}
+  private diagnostic(value: CloudDiagnosticEvent): void {
+    const safe = safeCloudDiagnostic(value); if (!safe) return;
+    this.history.push(safe); if (this.history.length > 64) this.history.shift();
+    try {this.options.diagnostic?.({...safe});} catch { /* Diagnostic storage cannot prevent service cleanup. */ }
+  }
+  private failureDetails(): Pick<CloudSessionState, 'errorStage' | 'httpStatus'> {
+    const event = [...this.history].reverse().find(row => !['ok', 'pending'].includes(row.outcome) && !['keepalive', 'stop'].includes(row.stage));
+    return event ? {errorStage: event.stage, ...(event.httpStatus === undefined ? {} : {httpStatus: event.httpStatus})} : {};
+  }
   private publish(value: CloudSessionState) { this.value = { ...value }; this.options.changed?.(this.state); return this.state; }
   select(account?: string, binary?: string, locale = 'en-US', rawCountry: unknown = 'auto'): void {
     const country = normalizeCloudLoginCountry(rawCountry);
@@ -107,6 +132,7 @@ export class CloudAccountService {
     const old = this.active;
     this.generation++; this.launchRevision++; this.controller.abort(); this.controller = new AbortController();
     this.active = undefined; this.offering = undefined; this.authentication = undefined; this.catalogJob = undefined; this.cached = undefined;
+    this.history = [];
     this.starting = false; this.pollSession = undefined; clearInterval(this.keepalive); this.keepalive = undefined;
     this.account = account; this.binary = binary;
     this.publish({ phase: 'closed' });
@@ -115,16 +141,26 @@ export class CloudAccountService {
   private valid(generation: number) { if (generation !== this.generation || this.controller.signal.aborted) throw Error('Cloud account changed.'); }
   private async request(url: string, options: { method?: string; body?: unknown; token?: string; signal?: AbortSignal; headers?: Record<string, string> } = {}): Promise<{ status: number; value: unknown }> {
     // Only callers constructing paths from a verified offering or the fixed login endpoint can reach this method.
-    const response = await (this.options.fetcher ?? fetch)(url, { method: options.method ?? 'GET', redirect: 'error', credentials: 'omit',
+    const stage: CloudDiagnosticStage = url.includes('/login/user') ? 'login' : url.includes('/titles/mru?') ? 'recent' : url.endsWith('/titles') ? 'catalog'
+      : url.endsWith('/play') ? 'play' : url.endsWith('/state') ? 'state' : url.endsWith('/connect') ? 'connect' : url.endsWith('/keepalive') ? 'keepalive'
+      : url.endsWith('/sdp') ? (options.method === 'POST' ? 'sdp-send' : 'sdp-receive') : url.endsWith('/ice') ? (options.method === 'POST' ? 'ice-send' : 'ice-receive') : 'stop';
+    let response: Response;
+    try {response = await (this.options.fetcher ?? fetch)(url, { method: options.method ?? 'GET', redirect: 'error', credentials: 'omit',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}), ...options.headers },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      signal: AbortSignal.any([options.signal ?? this.controller.signal, AbortSignal.timeout(20_000)]) });
+      signal: AbortSignal.any([options.signal ?? this.controller.signal, AbortSignal.timeout(20_000)]) });}
+    catch {this.diagnostic({stage, outcome: 'network-error'}); throw Error('Cloud service could not be reached.');}
     if (!response.ok) {
-      let code: 'InvalidCountry' | undefined;
-      try { if (record(await jsonBody(response, 64 * 1024)).code === 'InvalidCountry') code = 'InvalidCountry'; } catch { /* Ignore all unrecognized provider content. */ }
+      let code: CloudDiagnosticEvent['providerCode'];
+      try {const value = record(await jsonBody(response, 64 * 1024)); const candidate = value.code ?? record(value.error).code ?? record(value.errorDetails).code;
+        if ((CLOUD_PROVIDER_CODES as readonly unknown[]).includes(candidate)) code = candidate;} catch { /* Ignore all unrecognized provider content. */ }
+      this.diagnostic({stage, outcome: 'http-error', httpStatus: response.status, ...(code ? {providerCode: code} : {})});
       throw new CloudHttpError(response.status, code);
     }
-    return { status: response.status, value: await jsonBody(response) };
+    let value: unknown;
+    try {value = await jsonBody(response);} catch {this.diagnostic({stage, outcome: 'invalid-response', httpStatus: response.status}); throw Error('Cloud response is invalid.');}
+    this.diagnostic({stage, outcome: 'ok', httpStatus: response.status});
+    return { status: response.status, value };
   }
   private async login(): Promise<Offering> {
     if (!this.account || !this.binary) throw Error('Cloud account is unavailable.');
@@ -132,11 +168,14 @@ export class CloudAccountService {
     if (this.authentication) return this.authentication;
     const account = this.account, binary = this.binary, generation = this.generation;
     const job = (async () => {
-      const raw = await (this.options.reader ?? readCredential)(binary, this.controller.signal); this.valid(generation);
+      let raw: string;
+      try {raw = await (this.options.reader ?? readCredential)(binary, this.controller.signal); this.valid(generation);}
+      catch {this.diagnostic({stage: 'credential', outcome: 'unsupported'}); throw Error('Cloud account credentials are unavailable.');}
       if (Buffer.byteLength(raw) > 128 * 1024) throw Error('Cloud credential response is invalid.');
       const credential = record(JSON.parse(raw));
       if (credential.schema !== 1 || credential.account !== account || !text(credential.token, 100_000)
         || !text(credential.expiresAt, 64) || !Number.isFinite(Date.parse(credential.expiresAt)) || Date.parse(credential.expiresAt) < this.now() + 30_000) throw Error('Cloud credential response is invalid.');
+      this.diagnostic({stage: 'credential', outcome: 'ok'});
       let value: unknown;
       try { ({ value } = await this.request(LOGIN, { method: 'POST', body: { token: credential.token, offeringId: 'xgpuweb' }, headers: cloudLoginHeaders(this.country, LOGIN) })); }
       catch (error) {
@@ -203,7 +242,7 @@ export class CloudAccountService {
       const catalog = await this.catalog(); current();
       if (catalog.reasonCode === 'region-not-supported') return this.publish({ phase: 'error', id, productId, error: 'region-not-supported' });
       const title = catalog.titles.find(t => t.productId === productId);
-      if (catalog.status !== 'ready' || !title || title.hasEntitlement === false) throw Error('Cloud title is unavailable.');
+      if (catalog.status !== 'ready' || !title || title.hasEntitlement === false) {this.diagnostic({stage: 'catalog', outcome: 'invalid-response'}); throw Error('Cloud title is unavailable.');}
       const offering = await this.login(); current();
       const { value } = await this.request(`${offering.origin}/v5/sessions/cloud/play`, { token: offering.token, method: 'POST', body: {
         titleId: title.titleId, systemUpdateGroup: '', clientSessionId: id, serverId: '', fallbackRegionNames: [],
@@ -211,15 +250,15 @@ export class CloudAccountService {
           useIceConnection: false, timezoneOffsetMinutes: -new Date(this.now()).getTimezoneOffset(), sdkType: 'web', osName: 'linux' },
       }, headers: { 'X-MS-Device-Info': JSON.stringify({ appInfo: { env: { clientAppId: 'XBOKS', clientAppType: 'web', httpEnvironment: 'prod' } },
         dev: { hw: { make: 'Generic', model: 'Linux PC', sdktype: 'web' }, os: { name: 'Linux', platform: 'desktop' } } }) } });
-      const provider = record(value).sessionId;
-      if (!providerId(provider)) throw Error('Cloud session response is invalid.');
+      const provider = cloudProviderSessionId(value);
+      if (!provider) {this.diagnostic({stage: 'play', outcome: 'invalid-response'}); throw Error('Cloud session response is invalid.');}
       const active: ActiveSession = { id, provider, productId, offering, generation, created: this.now() };
       if (generation !== this.generation || revision !== this.launchRevision) { void this.deleteSession(active); throw Error('Cloud launch canceled.'); }
       this.active = active;
       this.keepalive = setInterval(() => { if (this.active === active) void this.request(`${offering.origin}/v5/sessions/cloud/${provider}/keepalive`, { token: offering.token, method: 'POST', body: {} }).catch(() => {}); }, 20_000);
       this.keepalive.unref();
       this.publish({ phase: 'provisioning', id, productId }); return this.getSessionState(id);
-    } catch { if (generation === this.generation && revision === this.launchRevision) return this.publish({ phase: 'error', id, productId, error: 'service' }); return this.state; }
+    } catch { if (generation === this.generation && revision === this.launchRevision) return this.publish({ phase: 'error', id, productId, error: 'service', ...this.failureDetails() }); return this.state; }
     finally { if (generation === this.generation && revision === this.launchRevision) this.starting = false; }
   }
   async getSessionState(id?: string): Promise<CloudSessionState> {
@@ -231,32 +270,53 @@ export class CloudAccountService {
       if (this.now() - active.created > 15 * 60_000 && this.value.phase !== 'ready') { return this.failSession(active, 'timeout'); }
       const { value } = await this.request(`${active.offering.origin}/v5/sessions/cloud/${active.provider}/state`, { token: active.offering.token });
       this.session(id); const result = record(value);
-      // The provider's transfer handshake requires its own purpose-scoped ticket.
-      // A gssv XSTS or refresh credential must never be substituted for that token.
-      if (result.state === 'ReadyToConnect') { return this.failSession(active, 'transfer-token-required'); }
+      const stateEvent = safeCloudDiagnostic({stage: 'state', outcome: 'ok', serviceState: result.state});
+      if (stateEvent?.serviceState) this.diagnostic(stateEvent);
+      if (result.state === 'ReadyToConnect') {
+        if (active.transferAt !== undefined) {
+          if (this.now() - active.transferAt > 30_000) {this.diagnostic({stage: 'connect', outcome: 'timeout'}); return this.failSession(active, 'timeout');}
+          return this.publish({phase: 'provisioning', id, productId: active.productId});
+        }
+        let proof: string;
+        try {const raw = await (this.options.transferReader ?? readCloudTransferCredential)(this.binary!, this.controller.signal); this.session(id); proof = cloudTransferProof(raw, this.account!, this.now());}
+        catch {if (this.active !== active) return this.state; this.diagnostic({stage: 'transfer-credential', outcome: 'unsupported'}); return this.failSession(active, 'transfer-token-required');}
+        this.diagnostic({stage: 'transfer-credential', outcome: 'ok'});
+        await this.request(`${active.offering.origin}/v5/sessions/cloud/${active.provider}/connect`, {method: 'POST', token: active.offering.token, body: {userToken: proof}});
+        this.session(id); active.transferAt = this.now();
+        return this.publish({phase: 'provisioning', id, productId: active.productId});
+      }
       if (result.state === 'Provisioned') return this.publish({ phase: 'ready', id, productId: active.productId });
       if (['Failed', 'Terminated', 'Canceled', 'Disconnected', 'Error'].includes(result.state)) { return this.failSession(active, 'service'); }
       const seconds = result.estimatedWaitTimeSeconds ?? record(result.waitTime).estimatedTotalWaitTimeInSeconds;
       return this.publish({ phase: result.state === 'Queued' || result.state === 'WaitingForResources' ? 'queued' : 'provisioning', id, productId: active.productId,
         ...(Number.isFinite(seconds) && seconds >= 0 && seconds <= 86400 ? { waitSeconds: seconds } : {}) });
-    } catch { if (this.active === active) return this.publish({ phase: 'error', id, productId: active.productId, error: 'service' }); return this.state; }
+    } catch { if (this.active === active) return this.failSession(active, 'service'); return this.state; }
     finally { if (this.pollSession === active) this.pollSession = undefined; }
   }
   private async failSession(active: ActiveSession, error: CloudSessionState['error']): Promise<CloudSessionState> {
+    const details = this.failureDetails();
     await this.stop(active.id);
     if (active.generation !== this.generation || this.value.phase !== 'closed') return this.state;
-    return this.publish({ phase: 'error', error });
+    return this.publish({ phase: 'error', error, ...details });
   }
   private async exchange(active: ActiveSession, endpoint: 'sdp' | 'ice', body: unknown): Promise<unknown> {
+    try {return await this.exchangeTransaction(active, endpoint, body);}
+    catch {if (this.active === active) await this.failSession(active, 'service'); throw Error('Cloud connection negotiation failed.');}
+  }
+  private async exchangeTransaction(active: ActiveSession, endpoint: 'sdp' | 'ice', body: unknown): Promise<unknown> {
     const url = `${active.offering.origin}/v5/sessions/cloud/${active.provider}/${endpoint}`;
     await this.request(url, { token: active.offering.token, method: 'POST', body }); this.session(active.id);
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (let attempt = 0; attempt < 40; attempt++) {
       const { status, value } = await this.request(url, { token: active.offering.token }); this.session(active.id);
       if (status !== 204) {
         const response = record(value).exchangeResponse;
-        if (typeof response !== 'string' || response.length > 512_000) throw Error('Cloud exchange response is invalid.');
-        return JSON.parse(response);
+        if (response !== undefined && response !== null && response !== '') {
+          if (typeof response !== 'string' || response.length > 512_000) {this.diagnostic({stage: `${endpoint}-receive`, outcome: 'invalid-response'}); throw Error('Cloud exchange response is invalid.');}
+          try {return JSON.parse(response);} catch {this.diagnostic({stage: `${endpoint}-receive`, outcome: 'invalid-response'}); throw Error('Cloud exchange response is invalid.');}
+        }
+        if (Object.keys(record(record(value).errorDetails)).length) {this.diagnostic({stage: `${endpoint}-receive`, outcome: 'invalid-response'}); throw Error('Cloud exchange was rejected.');}
       }
+      this.diagnostic({stage: `${endpoint}-receive`, outcome: 'pending', httpStatus: status});
       await new Promise<void>((resolve, reject) => {
         const signal = this.controller.signal;
         const timer = setTimeout(() => { signal.removeEventListener('abort', stop); resolve(); }, 500);
@@ -264,6 +324,7 @@ export class CloudAccountService {
         signal.addEventListener('abort', stop, { once: true }); if (signal.aborted) stop();
       });
     }
+    this.diagnostic({stage: `${endpoint}-receive`, outcome: 'timeout'});
     throw Error('Cloud exchange timed out.');
   }
   async exchangeSdp(id: string, offer: string): Promise<string> {
@@ -273,13 +334,16 @@ export class CloudAccountService {
       configuration: { chatConfiguration: { bytesPerSample: 2, expectedClipDurationMs: 20, format: { codec: 'opus', container: 'webm' }, numChannels: 1, sampleFrequencyHz: 24000 },
         chat: { minVersion: 1, maxVersion: 1 }, control: { minVersion: 1, maxVersion: 3 }, input: { minVersion: 1, maxVersion: 8 }, message: { minVersion: 1, maxVersion: 1 } } }));
     if ((result.type !== undefined && result.type !== 'answer') || (result.messageType !== undefined && result.messageType !== 'answer')
-      || typeof result.sdp !== 'string' || !result.sdp.startsWith('v=0') || result.sdp.length > 256_000 || result.sdp.includes('\0')) throw Error('Invalid cloud session answer.');
+      || typeof result.sdp !== 'string' || !result.sdp.startsWith('v=0') || result.sdp.length > 256_000 || result.sdp.includes('\0')) {
+      this.diagnostic({stage: 'sdp-receive', outcome: 'invalid-response'}); if (this.active === active) await this.failSession(active, 'service'); throw Error('Invalid cloud session answer.');
+    }
     return result.sdp;
   }
   async exchangeIce(id: string, candidates: CloudIceCandidate[]): Promise<CloudIceCandidate[]> {
     const active = this.session(id);
     if (this.value.phase !== 'ready') throw Error('Cloud session is not ready.');
-    return cloudIceCandidates(await this.exchange(active, 'ice', { messageType: 'iceCandidate', candidate: cloudIceCandidates(candidates) }));
+    const result = await this.exchange(active, 'ice', { messageType: 'iceCandidate', candidate: cloudIceCandidates(candidates) });
+    try {return cloudIceCandidates(result);} catch {this.diagnostic({stage: 'ice-receive', outcome: 'invalid-response'}); if (this.active === active) await this.failSession(active, 'service'); throw Error('Invalid cloud ICE response.');}
   }
   private async deleteSession(active: ActiveSession): Promise<void> {
     try { await this.request(`${active.offering.origin}/v5/sessions/cloud/${active.provider}`, { token: active.offering.token, method: 'DELETE', signal: AbortSignal.timeout(5_000) }); } catch { /* Best-effort service cleanup, never log private responses. */ }

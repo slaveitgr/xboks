@@ -1,0 +1,111 @@
+{
+  "capturedAt": "2026-10-21T22:58:18.194Z",
+  "runner": "scripts/ui/cloud-layout-app-smoke.mjs",
+  "entryPoint": "src/renderer/main.tsx (actual StrictMode App and default providers/effects)",
+  "checksPassed": 32,
+  "generatedArtworkFallbackChecksPassed": 32,
+  "browserErrors": [],
+  "blockedRequests": [],
+  "captureSize": {
+    "width": 1920,
+    "height": 1080
+  },
+  "verifiedFixtureBehavior": [
+    "expanded260px sidebar/content/detail boundary",
+    "compact68px and responsive60px sidebar/detail boundary",
+    "64px/88px real header boundary",
+    "compact and expanded Fullscreen Experience renderer effects",
+    "cloud-only live topbar search and Enter, with no Store search or local suggestions",
+    "two-character250ms search debounce, full cloud membership hydrated before filtering/pagination",
+    "late Forza Horizon5 entry beyond the first60 results",
+    "maximum three concurrent metadata batches, at most60 IDs per batch, typing coalesces pending reads",
+    "progress and no premature empty results",
+    "editing/clearing query dismisses stale detail without changing route",
+    "exact cloud product and verified primary-product mapping preserved",
+    "actual CatalogDetails direct/mapped cloud action, no-entitlement hiding and stale-account result guard",
+    "same-turn double activation serialized and exact English/Greek cloud-play labels",
+    "installed GameDetails cloud action chooses exact product without a local game launch",
+    "A-to-B-to-A account changes require a new entitlement snapshot while both account reads remain pending"
+  ],
+  "publicArtwork": {
+    "metadataSource": "Anonymous public DisplayCatalog records for9NKX70BBCDRN and9NNX1VVR3KNQ plus previously cached GamePass metadata; no provider requests during capture",
+    "baseProductId": "9NNX1VVR3KNQ",
+    "editionProductId": "9NKX70BBCDRN",
+    "newCachedImages": [
+      {
+        "productId": "9NNX1VVR3KNQ",
+        "purpose": "BoxArt",
+        "url": "https://store-images.s-microsoft.com/image/apps.28758.13734397844529069.202e3fc9-37d6-4853-a58b-fabe504b71e8.4335e940-f927-4be4-af08-8e689a17bd7a?w=400&q=80",
+        "bytes": 39690
+      },
+      {
+        "productId": "9NNX1VVR3KNQ",
+        "purpose": "SuperHeroArt",
+        "url": "https://store-images.s-microsoft.com/image/apps.33953.13734397844529069.202e3fc9-37d6-4853-a58b-fabe504b71e8.f2095594-0eab-4b96-92fd-f01b9cf9346f?w=1400&q=80",
+        "bytes": 248018
+      }
+    ],
+    "previousCachedArtwork": "cloud-ui-provenance.json"
+  },
+  "synthetic": [
+    "account identity, subscription badge and cloud entitlements",
+    "140-title catalog membership/order;125 generated product records exercise metadata coverage",
+    "public Store bundle relationship and returned account capability as controlled adapter responses",
+    "metadata latency and deferred account/start responses",
+    "three explicit startCloudStream calls acknowledged only by an inert fixture adapter",
+    "controller events and fullscreen/battery status",
+    "installed game states, play time, download queue and primary-game wrapper metadata"
+  ],
+  "notValidated": [
+    "real signed-in account cloud catalog/SSO",
+    "real Microsoft entitlements or Store ownership",
+    "real Cloud/Console stream or server session creation",
+    "SDP/ICE exchange, decoded video, latency, physical controller/microphone",
+    "GNOME shell/session fullscreen policy or power state",
+    "original Windows runtime behavior or full pixel parity"
+  ],
+  "captureBoundary": [
+    "temporary HOME/XDG/browser profile",
+    "disconnected system/session D-Bus; headless owned Electron display",
+    "local-fixture-origin-only browser network boundary",
+    "no host account, keyring, game install/launch, console wake or system setting action",
+    "watermark explicitly identifies sample account/membership/input and no real Xbox/host action"
+  ],
+  "sourceSha256": {
+    "src/renderer/main.tsx": "0de3dc6e637c6bba0b8bd59027276541890bb2d9705c6f2dc257fcc98b02592a",
+    "src/renderer/App.tsx": "28108632984b00add31709fdfba490e9cf1783288d58961a9ce26ee3434f2300",
+    "src/renderer/CloudLibrary.tsx": "d006ba316d0b34ed1a751f53309612fd303945826e4ca1c5f672fb2d22f576ce",
+    "src/renderer/cloud-library.css": "09271ac512af484696b5581a6e3c4f0b3f682a143a293b922bc23545da26ce90",
+    "src/renderer/xbox-mode.css": "0dd470b7748db5e841b22932c1c5e30aa4ea12a675a1d84dc1024102e421f131",
+    "src/renderer/settings-frame.css": "e945dc71ea979b08c0f8935b7cd77908199a7d3190a9553385aed07fd7f66648",
+    "src/renderer/CloudPlayAction.tsx": "1b05dcaaa911b6b7b44f4057274a07afdfe8ea967fa7016bea1722f2e740865f",
+    "src/renderer/cloud-play-action.css": "9b665afa0e186a29be994fe75c37496e998aa9bc9243b7bcf1bbca25813e30ca",
+    "src/renderer/cloud-product-loader.ts": "9bdc5c20ac78f8b5112b3f3949ca1e2d731edc20261eabfe7e8de8ff9d5e952a",
+    "src/renderer/CatalogDetails.tsx": "276d567177f6b63e0fe2eab7e113d3646bb43899a259f575fdeeafc4f9fee097",
+    "src/renderer/GameDetails.tsx": "dc77e5a4fb526ac942e76dd06cfe064e37dfc54421be5ca77e12c82e6a1c6cec",
+    "scripts/ui/cloud-layout-app-smoke.mjs": "def051eb3368476e7a2cf395b0e22f3dc954367565f07b00f76d02f65fd37349"
+  },
+  "images": {
+    "xboks-cloud-search-expanded.png": {
+      "sha256": "feb33fd71adbc260b20f57bd9ef92df5b253611f7b37a8879bcb7fa48a91c56c",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-detail-expanded.png": {
+      "sha256": "5061a9d36afa9eafab5e61f28f2d9798051bbf9055a0d275e44e468a2d38bf4c",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-detail-compact.png": {
+      "sha256": "a35ea2578468388db4eff406bdf1d55bec635b486677a96c3364c8961951e666",
+      "width": 1920,
+      "height": 1080
+    },
+    "xboks-cloud-detail-fullscreen.png": {
+      "sha256": "e9722fb06bb30987aeed32fc248d905e76d78b6cce3941d9e0ddb72f0ef865f8",
+      "width": 1920,
+      "height": 1080
+    }
+  },
+  "sourceVersion": "0.3.25"
+}

@@ -37,7 +37,24 @@ export class CloudInputDriver {
 }
 export interface CloudPlayerHandle {close(): void; pause(paused: boolean): void; guide(): void; mute(muted: boolean): void}
 export type CloudPlayerFactory = (container: string, config: ConstructorParameters<typeof Player>[1]) => Promise<Player>;
-const factory: CloudPlayerFactory = async (container, config) => {const module = await import('xbox-xcloud-player'); return new module.default(container, config);};
+const factory: CloudPlayerFactory = async (container, config) => {
+  const module = await import('xbox-xcloud-player');
+  // The pinned package is CommonJS. Native import and browser bundling expose
+  // different default-export nesting; neither path may construct the module object.
+  const imported = module.default as unknown as typeof Player | {default: typeof Player};
+  const Constructor = typeof imported === 'function' ? imported : imported.default;
+  if (typeof Constructor !== 'function') throw Error('Cloud player is unavailable.');
+  return new Constructor(container, config);
+};
+export const CLOUD_PLAYER_STAGES = ['load-player', 'bind-peer', 'create-offer', 'local-description', 'exchange-sdp', 'apply-answer',
+  'gather-ice', 'exchange-ice', 'apply-ice', 'await-connection', 'connected'] as const;
+export type CloudPlayerStage = typeof CLOUD_PLAYER_STAGES[number];
+export class CloudPlayerError extends Error {
+  constructor(public readonly stage: CloudPlayerStage, public readonly code: 'failed' | 'timeout' | 'cancelled') {
+    super(`Cloud video could not connect (${stage}: ${code}).`); this.name = 'CloudPlayerError';
+  }
+}
+class CloudDeadlineError extends Error {}
 
 /** Own every deadline and abort listener, including promises whose producer
  * cannot itself be interrupted. Late completion never reopens a closed player. */
@@ -49,7 +66,7 @@ function bounded<T>(job: PromiseLike<T>, signal: AbortSignal, milliseconds: numb
       if (success) resolve(value as T); else reject(value);
     };
     const aborted = () => finish(false, Error('Cloud player cancelled.'));
-    const timer = setTimeout(() => finish(false, Error('Cloud operation timed out.')), milliseconds);
+    const timer = setTimeout(() => finish(false, new CloudDeadlineError('Cloud operation timed out.')), milliseconds);
     signal.addEventListener('abort', aborted, {once: true});
     if (signal.aborted) aborted();
     Promise.resolve(job).then(value => finish(true, value), error => finish(false, error));
@@ -61,10 +78,13 @@ export async function connectCloudPlayer(options: {
   container: string; id: string; bridge: Pick<CloudStreamApi, 'exchangeCloudSdp' | 'exchangeCloudIce'>;
   signal: AbortSignal; changed: (state: 'connecting' | 'connected' | 'disconnected' | 'error') => void;
   message: (value: {title: string; text: string; buttons: string[]; respond: (index: number) => void} | undefined) => void;
+  diagnostic?: (stage: CloudPlayerStage) => void;
   factory?: CloudPlayerFactory;
 }): Promise<CloudPlayerHandle> {
   const driver = new CloudInputDriver(), lifecycle = new AbortController(), signal = lifecycle.signal;
-  let player: Player | undefined, disposed = false, externalPaused = true, terminalReported = false;
+  let player: Player | undefined, disposed = false, externalPaused = true, terminalReported = false, connected = false;
+  let stage: CloudPlayerStage = 'load-player';
+  const entering = (value: CloudPlayerStage) => {stage = value; options.diagnostic?.(value);};
   let dialog: {id: string; consumed: boolean} | undefined;
   const subscriptions: (() => void)[] = [];
   const inputGate = () => driver.setPaused(externalPaused || Boolean(dialog));
@@ -76,7 +96,8 @@ export async function connectCloudPlayer(options: {
   };
   options.signal.throwIfAborted(); options.signal.addEventListener('abort', close, {once: true});
   try {
-    const created = (options.factory ?? factory)(options.container, {ui_systemui: [], input_driver: driver, input_legacykeyboard: true,
+    entering('load-player');
+    const created = (options.factory ?? factory)(options.container, {ui_systemui: [19], input_driver: driver, input_legacykeyboard: true,
       input_mousekeyboard: false, input_touch: false, input_mousekeyboard_config: {_keymapping: {}} as never}).then(candidate => {
       if (disposed) {try {candidate.close();} catch {} throw Error('Cloud player cancelled.');}
       return candidate;
@@ -87,7 +108,7 @@ export async function connectCloudPlayer(options: {
     const events = client.getEventBus();
     const connectionState = (event: {state?: string}) => {
       if (disposed) return;
-      if (event.state === 'connected') options.changed('connected');
+      if (event.state === 'connected') {connected = true; options.diagnostic?.('connected'); options.changed('connected');}
       else if (['disconnected','failed','closed','closing'].includes(event.state ?? '')) {terminalReported = true; close(); options.changed('disconnected');}
     };
     const serviceMessage = (event: {id?: string; type?: string; target?: string; content?: string}) => {
@@ -97,14 +118,14 @@ export async function connectCloudPlayer(options: {
         if (dialog?.id === event.id) {dialog = undefined; inputGate(); options.message(undefined);} return;
       }
       if (event.target !== '/streaming/systemUi/messages/ShowMessageDialog' || typeof event.id !== 'string' || event.id.length > 256 || typeof event.content !== 'string' || event.content.length > 20000) return;
-      try {const value = JSON.parse(event.content), labels = [value.CommandLabel1,value.CommandLabel2,value.CommandLabel3];
-        if (typeof value.TitleText !== 'string' || typeof value.ContentText !== 'string' || labels.some(label => typeof label !== 'string')) return;
+      try {const value = JSON.parse(event.content), labels = [value.CommandLabel1,value.CommandLabel2,value.CommandLabel3].map(label => label == null ? '' : label);
+        if (typeof value.TitleText !== 'string' || typeof value.ContentText !== 'string' || labels.some(label => typeof label !== 'string') || !labels.some(Boolean)) return;
         const current = {id: event.id, consumed: false}; dialog = current; inputGate();
         options.message({title: value.TitleText.slice(0, 512), text: value.ContentText.slice(0, 10000), buttons: labels.map(label => label.slice(0, 512)),
           respond(index) {
             if (disposed || dialog !== current || current.consumed || !Number.isInteger(index) || index < 0 || index > 2 || !labels[index]) return;
             current.consumed = true; dialog = undefined;
-            try {client.getChannelProcessor('message')?.sendTransaction(current.id, JSON.stringify({Result: index}));}
+            try {client.getChannelProcessor('message')?.sendTransaction(current.id, {Result: index});}
             catch {terminalReported = true; close(); options.changed('error'); return;}
             inputGate(); options.message(undefined);
           }});
@@ -112,14 +133,22 @@ export async function connectCloudPlayer(options: {
     };
     events.on('connectionstate', connectionState); events.on('message', serviceMessage);
     subscriptions.push(() => events.removeListener('connectionstate', connectionState), () => events.removeListener('message', serviceMessage));
-    client.bind(); options.changed('connecting');
-    const offer = await bounded(client.createOffer(), signal, 15000) as RTCSessionDescriptionInit;
+    entering('bind-peer'); client.bind(); options.changed('connecting');
+    const peer = client._webrtcClient; if (!peer) throw Error('Cloud peer is unavailable.');
+    // The pinned helper resolves before setLocalDescription and loses rejected
+    // createOffer promises. Own both operations so failure and cancellation are
+    // observable before a service answer is applied to this peer.
+    entering('create-offer');
+    const offer = await bounded(peer.createOffer({offerToReceiveAudio: true, offerToReceiveVideo: true}), signal, 15000);
     signal.throwIfAborted(); if (!offer.sdp) throw Error('No cloud offer.');
+    offer.sdp = offer.sdp.replace('useinbandfec=1', 'useinbandfec=1; stereo=1');
+    entering('local-description'); await bounded(peer.setLocalDescription(offer), signal, 15000); signal.throwIfAborted();
+    entering('exchange-sdp');
     const answer = await bounded(options.bridge.exchangeCloudSdp(options.id, offer.sdp), signal, 35000); signal.throwIfAborted();
-    await bounded(client._webrtcClient!.setRemoteDescription({type: 'answer', sdp: answer}), signal, 10000);
+    entering('apply-answer'); await bounded(peer.setRemoteDescription({type: 'answer', sdp: answer}), signal, 10000);
     // The upstream helper does not await gathering; send the full bounded candidate set.
+    entering('gather-ice');
     await new Promise<void>((resolve, reject) => {
-      const peer = client._webrtcClient!;
       let done = false;
       const finish = (error?: Error) => {
         if (done) return; done = true; clearTimeout(timer); peer.removeEventListener('icegatheringstatechange', gathered); signal.removeEventListener('abort', aborted);
@@ -132,14 +161,20 @@ export async function connectCloudPlayer(options: {
     });
     signal.throwIfAborted();
     const candidates = client.getIceCandidates().map(candidate => ({candidate: candidate.candidate, sdpMid: candidate.sdpMid, sdpMLineIndex: candidate.sdpMLineIndex}));
+    entering('exchange-ice');
     const remote = await bounded(options.bridge.exchangeCloudIce(options.id, candidates), signal, 35000); signal.throwIfAborted();
+    entering('apply-ice');
     for (const candidate of remote) {
       signal.throwIfAborted();
-      await bounded(client._webrtcClient!.addIceCandidate({...candidate, candidate: candidate.candidate === 'a=end-of-candidates' ? '' : candidate.candidate}), signal, 10000);
+      await bounded(peer.addIceCandidate({...candidate, candidate: candidate.candidate === 'a=end-of-candidates' ? '' : candidate.candidate}), signal, 10000);
     }
     if (disposed) throw Error('Cloud player closed.');
+    entering(connected ? 'connected' : 'await-connection');
     return {close, pause: value => {externalPaused = value; inputGate();}, guide: () => driver.pressButton(0, 'Nexus'), mute: value => {
       document.getElementById(options.container)?.querySelectorAll<HTMLMediaElement>('audio,video').forEach(media => {media.muted = value;});
     }};
-  } catch {close(); if (!options.signal.aborted && !terminalReported) options.changed('error'); throw Error('Cloud video could not connect.');}
+  } catch (error) {
+    const code = signal.aborted ? 'cancelled' : error instanceof CloudDeadlineError ? 'timeout' : 'failed';
+    close(); if (!options.signal.aborted && !terminalReported) options.changed('error'); throw new CloudPlayerError(stage, code);
+  }
 }

@@ -298,7 +298,7 @@ function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct,
   const operation = selected ? data.downloads.find(task => task.productId.toUpperCase() === selected.productId.toUpperCase() || task.productId.toUpperCase() === selected.installProductId?.toUpperCase()) : undefined;
   return <><XboxStorePage active={!selected} data={data} initialQuery={initialQuery} clearSearch={clearSearch} openProduct={selectProduct}
     openLibrary={() => go('library')} openAccount={() => go('settings')} toast={toast} />
-  {selected ? <CatalogDetails product={selected} back={back ?? (() => setSelected(undefined))}
+  {selected ? <CatalogDetails key={selected.productId} product={selected} data={data} back={back ?? (() => setSelected(undefined))}
     install={() => void install(selected)} busy={busy === selected.productId}
     installed={Boolean(installed)} queued={Boolean(operation && ['running', 'queued', 'paused'].includes(operation.status))}
     operation={operation} openQueue={() => go('downloads')}
@@ -1098,13 +1098,13 @@ export function GlobalSearch({ games, page, query, change, submit, select }: {
   useEffect(() => setOpen(false), [page]);
   const term = query.trim().toLowerCase();
   const results = term ? games.filter(game => `${game.title} ${game.storeId ?? ''}`.toLowerCase().includes(term)) : [];
-  const visible = open && page !== 'store' && results.length > 0;
+  const visible = open && page !== 'store' && page !== 'cloud' && results.length > 0;
   return <div className="search-box" onFocus={() => setOpen(true)} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
   }}><Search /><input value={query} onChange={event => { change(event.target.value); setOpen(true); }} onKeyDown={event => {
     if (event.key === 'Escape') setOpen(false);
     if (event.key === 'Enter' && term.length >= 2) { setOpen(false); submit(query.trim()); }
-  }} aria-expanded={visible} aria-controls={visible ? 'global-search-results' : undefined} placeholder={text('Search for games, add-ons and more', 'Αναζήτηση για παιχνίδια, πρόσθετα και άλλα')} />
+  }} aria-expanded={visible} aria-controls={visible ? 'global-search-results' : undefined} placeholder={page === 'cloud' ? text('Search cloud games', 'Αναζήτηση παιχνιδιών cloud') : text('Search for games, add-ons and more', 'Αναζήτηση για παιχνίδια, πρόσθετα και άλλα')} />
     {query ? <button aria-label="Clear search" onClick={() => { change(''); setOpen(false); }}><X /></button> : null}
     {visible ? <div className="search-results" id="global-search-results">{results.map(game => <button key={game.id} onClick={() => { setOpen(false); change(''); select(game.id); }}><Cover game={game} /><span><GameTitle title={game.title} /><small>{game.storeId ?? game.path}</small></span></button>)}</div> : null}
   </div>;
@@ -1123,6 +1123,7 @@ export default function App() {
   const [dismissedLaunch, setDismissedLaunch] = useState<string>();
   const [toast, setToast] = useState<Toast>();
   const [search, setSearch] = useState('');
+  const [cloudSearch, setCloudSearch] = useState('');
   const [libraryView, setLibraryView] = useState<LibraryView>('games');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('account');
   const [shellPanel, setShellPanel] = useState<ShellPanel>();
@@ -1213,7 +1214,7 @@ export default function App() {
     const game = active?.getAttribute('data-gamepad-detail-target');
     const operation = active?.closest<HTMLElement>('[data-queue-options]')?.dataset.queueOptions;
     return { page: page === 'settings' ? previousPage.current : page, product: contentPage === 'store' ? catalogProduct : undefined,
-      query: contentPage === 'store' ? submittedSearch : '', game: contentPage === 'library' ? librarySelection : undefined, view: libraryView,
+      query: contentPage === 'store' ? submittedSearch : contentPage === 'cloud' ? cloudSearch : '', game: contentPage === 'library' ? librarySelection : undefined, view: libraryView,
       scrollTop: document.querySelector('.page-scroll')?.scrollTop ?? 0,
       focusSelector: productSelector ?? (game ? `[data-gamepad-detail-target="${CSS.escape(game)}"]` : operation ? `[data-queue-options="${CSS.escape(operation)}"]` : undefined) };
   }
@@ -1228,6 +1229,7 @@ export default function App() {
     if (next !== contentPage || catalogProduct || librarySelection) rememberLocation();
     setCatalogProduct(undefined); setLibrarySelection(undefined);
     if (next === 'store') setSubmittedSearch('');
+    if (next === 'cloud') setCloudSearch('');
     setPage(next);
     document.querySelector('.page-scroll')?.scrollTo({ top: 0 });
   }
@@ -1248,6 +1250,7 @@ export default function App() {
     }
     setHistory(items => items.slice(0, -1));
     setCatalogProduct(previous.product); setSubmittedSearch(previous.query);
+    if (previous.page === 'cloud') setCloudSearch(previous.query);
     setLibrarySelection(previous.game); setLibraryView(previous.view);
     setPage(previous.page); setReturnPoint(previous);
   }
@@ -1283,8 +1286,8 @@ export default function App() {
     <Sidebar data={data} page={page} go={navigate} openGame={openLibraryGame} onPanel={setShellPanel} />
 
     <section className={`content-shell${contentPage === 'home' ? ' home-shell' : ''}`} style={contentPage === 'home' && (data.games[0]?.heroUrl || data.games[0]?.coverUrl) ? { '--shell-art': `url(${JSON.stringify(data.games[0].heroUrl ?? data.games[0].coverUrl)})` } as React.CSSProperties : undefined}>
-      <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">XBOKS · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={page} query={search} change={setSearch} submit={value => { rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><ShellHeaderControls sessionFullscreen={data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true} integrationAvailable={data.fullscreenExperience?.available} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} /></header>
-      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => setShellPanel('friends')}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
+      <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">XBOKS · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={contentPage} query={contentPage === 'cloud' ? cloudSearch : search} change={value => contentPage === 'cloud' ? setCloudSearch(value) : setSearch(value)} submit={value => { if (contentPage === 'cloud') {setCloudSearch(value); return;} rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><ShellHeaderControls sessionFullscreen={data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true} integrationAvailable={data.fullscreenExperience?.available} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} /></header>
+      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage query={cloudSearch} onQueryChange={setCloudSearch} auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => setShellPanel('friends')}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
       const game = data.games.find(game => game.id === task.gameId || game.storeId === task.productId);
       if (game) { setLibraryView('games'); openLibraryGame(game.id); }
       else { const product = queuedCatalogProduct(task); if (product) openCatalogProduct(product); else setToast({ kind: 'error', message: 'This queue entry has no Product ID.' }); }

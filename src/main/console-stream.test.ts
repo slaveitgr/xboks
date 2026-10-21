@@ -9,6 +9,7 @@ const cleanups: (() => void)[] = [];
 function fixture(handler?: (url: string, options: RequestInit) => unknown | Promise<unknown>) {
   let now = NOW;
   const requests: {url: string; options: RequestInit}[] = [], changed = vi.fn(), reader = vi.fn(async () => credential());
+  const transferReader = vi.fn(async (): Promise<string> => {throw Error('Proof unavailable.');});
   const fetcher = vi.fn(async (url: any, options: RequestInit = {}) => {
     requests.push({url: String(url), options}); let result = handler ? await handler(String(url), options) : undefined;
     if (result === undefined) {
@@ -20,9 +21,9 @@ function fixture(handler?: (url: string, options: RequestInit) => unknown | Prom
     }
     return result instanceof Response ? result : new Response(JSON.stringify(result), {status: 200});
   });
-  const service = new ConsoleStreamService({reader, fetcher: fetcher as typeof fetch, now: () => now, changed});
+  const service = new ConsoleStreamService({reader, transferReader, fetcher: fetcher as typeof fetch, now: () => now, changed});
   service.select(ACCOUNT, '/fixture/xboks-engine'); cleanups.push(() => service.select());
-  return {service, requests, changed, reader, fetcher, advance: (milliseconds: number) => {now += milliseconds;},
+  return {service, requests, changed, reader, transferReader, fetcher, advance: (milliseconds: number) => {now += milliseconds;},
     selected: async () => (await service.list()).consoles[0].id,
     play: async () => service.start((await service.list()).consoles[0].id)};
 }
@@ -95,6 +96,11 @@ it('starts only an explicitly selected locally mapped console with a home sessio
   expect(JSON.stringify(f.changed.mock.calls)).not.toMatch(/provider-private|private-fixture|gsToken/);
   await expect(f.service.start(id)).rejects.toThrow('Close the current'); await f.service.stop(result.id);
 });
+it('accepts the real relative Play sessionPath without requiring its optional sessionId field', async () => {
+  const f = fixture(url => url.endsWith('/play') ? {sessionPath: 'v5/sessions/home/provider-private-session'} : undefined), state = await f.play();
+  expect(state.phase).toBe('ready'); expect(f.requests.some(row => row.url.endsWith('/provider-private-session/state'))).toBe(true);
+  expect(JSON.stringify(state)).not.toContain('provider-private'); await f.service.stop(state.id);
+});
 it('does not authorize arbitrary provider IDs, URLs or stale local IDs as a console selection', async () => {
   const f = fixture();
   for (const id of ['provider-private-console', 'https://attacker.invalid/console', '../../console']) await expect(f.service.start(id)).rejects.toThrow();
@@ -120,6 +126,15 @@ it('cleans up a provider session returned after local startup cancellation', asy
 it.each([{sdp: 'v=0\r\nfixture'}, {type: 'answer', sdp: 'v=0\r\nfixture'}, {messageType: 'answer', sdp: 'v=0\r\nfixture'}])('accepts the pinned console SDP response variants without requiring an invented marker: %j', async answer => {
   const f = fixture((url, options) => url.endsWith('/sdp') && options.method !== 'POST' ? {exchangeResponse: JSON.stringify(answer)} : undefined), state = await f.play();
   expect(await f.service.exchangeSdp(state.id!, 'v=0\r\nfixture-offer')).toBe('v=0\r\nfixture'); await f.service.stop(state.id);
+});
+it('waits for HTTP200 signaling responses whose answer is still pending', async () => {
+  vi.useFakeTimers();
+  try {
+    let polls = 0;
+    const f = fixture((url, options) => url.endsWith('/sdp') && options.method !== 'POST' ? ++polls < 3 ? {} : {exchangeResponse: JSON.stringify({sdp: 'v=0\r\nfixture'})} : undefined), state = await f.play();
+    const answer = f.service.exchangeSdp(state.id!, 'v=0\r\nfixture-offer'); await vi.advanceTimersByTimeAsync(1100);
+    expect(await answer).toBe('v=0\r\nfixture'); expect(polls).toBe(3); await f.service.stop(state.id);
+  } finally {vi.useRealTimers();}
 });
 it.each([{type: 'offer', sdp: 'v=0\r\nfixture'}, {type: 'answer', messageType: 'offer', sdp: 'v=0\r\nfixture'}, {sdp: 'not-an-answer'}])('rejects conflicting or malformed console SDP responses: %j', async answer => {
   const f = fixture((url, options) => url.endsWith('/sdp') && options.method !== 'POST' ? {exchangeResponse: JSON.stringify(answer)} : undefined), state = await f.play();
@@ -155,6 +170,15 @@ it('rejects malformed offers and ICE before transmitting caller-controlled data'
 it('stops ReadyToConnect sessions instead of sending another credential as an unsupported purpose ticket', async () => {
   const f = fixture(url => url.endsWith('/state') ? {state: 'ReadyToConnect'} : undefined), state = await f.play();
   expect(state).toEqual({phase: 'error', error: 'transfer-token-required'}); expect(f.requests.some(r => r.options.method === 'DELETE')).toBe(true); expect(f.requests.some(r => r.url.endsWith('/connect'))).toBe(false);
+});
+it('transfers only an explicitly owned console session with one fresh exact-purpose proof', async () => {
+  let connected = false;
+  const f = fixture(url => {if (url.endsWith('/connect')) {connected = true; return {};} if (url.endsWith('/state')) return {state: connected ? 'Provisioned' : 'ReadyToConnect'};});
+  f.transferReader.mockResolvedValue(JSON.stringify({schema: 1, account: ACCOUNT, kind: 'loginprooftoken', token: 'private-purpose-proof', issuedAt: new Date(NOW).toISOString()}));
+  const state = await f.play(); expect(state.phase).toBe('provisioning'); expect((await f.service.getSessionState(state.id)).phase).toBe('ready');
+  expect(f.transferReader).toHaveBeenCalledOnce(); const connect = f.requests.find(row => row.url.endsWith('/connect'))!;
+  expect(connect.url).toBe(`${HOME}/v5/sessions/home/provider-private-session/connect`); expect(JSON.parse(connect.options.body as string)).toEqual({userToken: 'private-purpose-proof'});
+  expect(JSON.stringify(f.changed.mock.calls)).not.toContain('private-purpose-proof'); await f.service.stop(state.id);
 });
 it('releases known sessions and keepalive on terminal state errors or transport failures', async () => {
   const f = fixture(url => url.endsWith('/state') ? new Response('private-provider-error', {status: 503}) : undefined), state = await f.play();

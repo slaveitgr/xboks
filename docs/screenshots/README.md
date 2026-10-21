@@ -76,7 +76,7 @@ connection was created.
 
 ![XBOKS cloud session queue — synthetic session response, no stream](xboks-cloud-session-queue.png)
 
-The isolated smoke run passed 51 checks: catalog failure/retry, loaded search,
+The isolated smoke run passed 51 checks: catalog failure/retry, cloud search,
 sort and input filters, controller selection, product details and Back focus,
 entitlement denial, explicit and serialized Play/stop, stale detail/stop results,
 signed-out account invalidation and subscription cleanup. Country settings are
@@ -88,6 +88,30 @@ HOME/XDG paths, disconnected D-Bus and a localhost-only browser network boundary
 These tests do not prove real single sign-on, account-token clearing, game access,
 physical controller behavior or end-to-end streaming. See the
 [cloud capture provenance](cloud-ui-provenance.json).
+
+The following captures load the complete production `main.tsx` and `App`, with
+its normal providers, appearance settings and fullscreen/header effects. They
+verify the expanded sidebar does not get covered by fixed Cloud details. The
+same shared layout dimensions also align the compact rail and narrow viewports.
+
+![XBOKS full App cloud search — expanded sidebar and sample account](xboks-cloud-search-expanded.png)
+
+![XBOKS full App cloud details — expanded sidebar and public Forza artwork](xboks-cloud-detail-expanded.png)
+
+![XBOKS full App cloud details — compact sidebar](xboks-cloud-detail-compact.png)
+
+![XBOKS full App cloud details — sample Fullscreen Experience state](xboks-cloud-detail-fullscreen.png)
+
+The full-App runner passes 32 checks with cached public artwork and again with
+its fresh-checkout generated-art fallback. Account changes back to an earlier identity also require a fresh access check. Search finds a matching title beyond
+the initial 60 entries, filters before pagination, debounces typing and shares a
+three-request metadata pool across route changes. It also exercises the real
+CatalogDetails and installed GameDetails Cloud actions: direct/mapped exact IDs,
+current-account entitlement, late-account results, English/Greek labels and
+serialized activation. Account rights, native fullscreen/battery state and three
+explicit streaming acknowledgements are inert fixture responses. No real
+account was read and no Xbox session or game was started. See the
+[full-App capture provenance](cloud-layout-provenance.json).
 
 ## Game Bar and social
 

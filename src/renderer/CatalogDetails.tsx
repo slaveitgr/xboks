@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import type { CatalogProduct, DownloadTask, GameStoreDetails } from '../shared/types';
+import type { AppSnapshot, CatalogProduct, DownloadTask, GameStoreDetails } from '../shared/types';
+import {CloudPlayAction} from './CloudPlayAction';
 import { ArrowLeft, Download, ExternalLink, Heart, Info, MoreHorizontal, RefreshCw } from './XboxIcons';
 import { Gallery } from './GameDetails';
 import { GamePassIcon } from './XboxShell';
@@ -9,10 +10,11 @@ import { ReferenceMenu } from './ReferenceMenu';
 import './catalog-details.css';
 import { HandheldCompatibilityEntry, HandheldCompatibilityDialog } from './HandheldCompatibility';
 
-export function CatalogDetails({ product, back, install, busy, installed, queued, canInstall, openInstalled, operation, openQueue }: {
+export function CatalogDetails({ product, back, install, busy, installed, queued, canInstall, openInstalled, operation, openQueue, data }: {
   product: CatalogProduct; back: () => void; install: () => void; busy: boolean;
   installed: boolean; queued: boolean; canInstall: boolean; openInstalled: () => void;
   operation?: DownloadTask; openQueue?: () => void;
+  data?: AppSnapshot;
 }) {
   const { text } = useReferenceLocale();
   const [details, setDetails] = useState<GameStoreDetails>();
@@ -63,6 +65,8 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
               onClick={installed ? openInstalled : hasProgress ? openQueue : install}>
               <Download /><span>{installed ? text('View in library', 'Προβολή στη βιβλιοθήκη') : hasProgress ? <>{currentOperation?.status === 'failed' ? text('Error', 'Σφάλμα') : text('Installing', 'Εγκατάσταση')}{currentOperation?.progress !== null ? ` ${Math.round(currentOperation?.progress ?? 0)}%` : ''}<small>{text('View progress', 'Προβολή προόδου')}</small></> : queued ? text('In Install Queue', 'Στην ουρά εγκατάστασης') : busy ? text('Preparing…', 'Προετοιμασία…') : text('Install', 'Εγκατάσταση')}</span>
             </button>
+            <CloudPlayAction productId={product.productId} primaryProductId={(details?.productId === product.productId ? details.primaryProductId : undefined) ?? product.primaryProductId}
+              auth={data?.auth} country={data?.settings.cloudLoginCountry} market={data?.settings.market} identity={data?.backend.binaryPath} disabled={busy}/>
             {product.purchasePrice ? <a className="secondary catalog-buy-link" href={storeUrl} target="_blank" rel="noreferrer">{product.purchasePrice}<ExternalLink /></a> : null}
             <button className="secondary catalog-wishlist" disabled title={text('Wishlist service is unavailable', 'Η υπηρεσία λίστας επιθυμιών δεν είναι διαθέσιμη')} aria-label={text('Add to wishlist', 'Προσθήκη στη λίστα επιθυμιών')}><Heart /></button>
             <button className="secondary" aria-label={text('Game options', 'Επιλογές παιχνιδιού')} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={event => setMenu(menu ? undefined : event.currentTarget)}><MoreHorizontal /></button>

@@ -9,6 +9,7 @@ import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu, referenceMenuPosition, referenceMenuTrigger, type ReferenceMenuAnchor, type ReferenceMenuItem } from './ReferenceMenu';
 import { useReferenceLocale } from './ReferenceLocale';
 import { HandheldCompatibilityEntry, HandheldCompatibilityDialog } from './HandheldCompatibility';
+import {CloudPlayAction} from './CloudPlayAction';
 
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
@@ -241,5 +242,7 @@ export function GameDetails(props: PageProps & { data: AppSnapshot }) {
     void window.launcher.getGameActivity(game.id, refresh).then(value => { if (request.current === id) setActivity(value); }).catch(() => { if (request.current === id) setActivity({ status: 'error' }); }).finally(() => { if (request.current === id) setActivityLoading(false); });
   }, [game.id, data.auth.username, data.auth.stored, data.auth.running, data.backend.binaryPath]);
   useEffect(() => { setActivity(undefined); loadActivity(); return () => { request.current++; }; }, [loadActivity]);
-  return <GameDetailsContent {...props} details={details} activity={activity} metadataLoading={metadataLoading} metadataError={metadataError} activityLoading={activityLoading} refresh={() => loadActivity(true)} achievements={<Achievements gameId={game.id} title={game.title} data={data} />} />;
+  return <GameDetailsContent {...props} play={<>{props.play}<CloudPlayAction productId={details?.productId ?? game.storeId} primaryProductId={details?.primaryProductId}
+    auth={data.auth} country={data.settings.cloudLoginCountry} market={data.settings.market} identity={data.backend.binaryPath}
+    disabled={Boolean(data.gameOperation && ['preparing', 'running'].includes(data.gameOperation.status))}/></>} details={details} activity={activity} metadataLoading={metadataLoading} metadataError={metadataError} activityLoading={activityLoading} refresh={() => loadActivity(true)} achievements={<Achievements gameId={game.id} title={game.title} data={data} />} />;
 }

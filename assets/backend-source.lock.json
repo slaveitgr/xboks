@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.3.0",
+  "version": "0.3.1",
   "repository": "https://github.com/xodus-gaming/xodus.git",
   "commit": "53ea781dcd073e31d7ea68e894134e9c959bff04",
   "rust": "1.99.0",
@@ -171,6 +171,10 @@
     {
       "file": "xodus-cloud-account.patch",
       "sha256": "58000775c7b3e6cb105041cb8235966cc3b87793b7cf410818107a7b30147dfd"
+    },
+    {
+      "file": "xodus-cloud-transfer.patch",
+      "sha256": "570bc0e3da95bec2bdb380c01fd6b3cbcff75deb986877cdf326e3015583d9cb"
     }
   ]
 }

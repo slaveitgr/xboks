@@ -11,6 +11,7 @@ import { RemotePlay } from './remote-play.js';
 import { CloudGaming } from './cloud-gaming.js';
 import { CloudCatalogService } from './cloud-catalog.js';
 import { CloudAccountService } from './cloud-account.js';
+import {readCloudTransferCredential} from './cloud-transfer.js';
 import { ConsoleStreamService } from './console-stream.js';
 import {normalizeCloudLoginCountry} from './cloud-region.js';
 import { GameBarResidency, gameBarServiceEnabled } from './gamebar-residency.js';
@@ -116,7 +117,7 @@ const cloudGaming = new CloudGaming({ changed: state => {
 }, toggleFullscreen: owner => fullscreenExperience.setWindow(!owner.isFullScreen()) });
 let cloudDisplayBlocker: number | undefined;
 const cloudCatalog = new CloudCatalogService();
-const cloudAccount = new CloudAccountService({changed: state => {
+const cloudAccount = new CloudAccountService({transferReader: cloudTransferCredential, diagnostic: event => backendDiagnostics?.record({operation: 'cloud-stream', event: 'diagnostic', cloud: event}), changed: state => {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
     try {mainWindow.webContents.send('cloud-stream-state', state);} catch { /* Renderer teardown cannot prevent session cleanup. */ }
   }
@@ -134,7 +135,7 @@ function stopCloudStreaming(id?: string): Promise<void> {
   return cloudStopJob = job;
 }
 let consoleDisplayBlocker: number | undefined;
-const consoleStream = new ConsoleStreamService({changed: state => {
+const consoleStream = new ConsoleStreamService({transferReader: cloudTransferCredential, changed: state => {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
     try {mainWindow.webContents.send('console-stream-state', state);} catch { /* Renderer teardown cannot prevent session cleanup. */ }
   }
@@ -278,11 +279,23 @@ const gameAchievements = new GameAchievementsReader();
 const xboxSocial = new XboxSocialService();
 let bundledSocialBackendJob: Promise<string | undefined> | undefined;
 let bundledCloudBackendJob: Promise<string | undefined> | undefined;
+let bundledCloudTransferBackendJob: Promise<string | undefined> | undefined;
 function cloudBackendBinary(): Promise<string | undefined> {
   if (backend?.current.capabilities.commands.includes('cloud-token')) return Promise.resolve(backend.current.binaryPath);
   const root = app.isPackaged ? path.join(process.resourcesPath, 'social-backend')
     : fileURLToPath(new URL('../../assets/social-backend', import.meta.url));
   return bundledCloudBackendJob ??= socialBackend(root, undefined, 'cloud-token');
+}
+function cloudTransferBackendBinary(): Promise<string | undefined> {
+  if (backend?.current.capabilities.commands.includes('cloud-transfer-token')) return Promise.resolve(backend.current.binaryPath);
+  const root = app.isPackaged ? path.join(process.resourcesPath, 'social-backend')
+    : fileURLToPath(new URL('../../assets/social-backend', import.meta.url));
+  return bundledCloudTransferBackendJob ??= socialBackend(root, undefined, 'cloud-transfer-token');
+}
+async function cloudTransferCredential(_selected: string, signal: AbortSignal): Promise<string> {
+  const binary = await cloudTransferBackendBinary(); signal.throwIfAborted();
+  if (!binary) throw Error('The private cloud transfer helper is unavailable.');
+  return readCloudTransferCredential(binary, signal);
 }
 let cloudAccountIdentity: string | undefined;
 let consoleAccountIdentity: string | undefined;

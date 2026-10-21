@@ -5,6 +5,17 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.25 — 2026-10-22
+
+- Fix Cloud game details covering the expanded desktop sidebar. Share sidebar/header dimensions across expanded, compact, narrow and Fullscreen Experience layouts.
+- Keep the global search in Cloud Gaming and search the full cloud catalog with bounded, coalesced metadata reads, progress and cancellation. Apply filters before paging.
+- Add the original **Play with Cloud / Αναπαραγωγή με το Cloud** action to Store and installed-game details. Require an explicit authenticated title entitlement; resolve Store editions only through verified primary-game metadata.
+- Accept the actual provider `sessionPath` returned by Cloud and Console Play, and wait for pending SDP/ICE responses instead of treating successful empty responses as completed negotiation.
+- Add a private exact-purpose Login Proof Token helper and complete the Cloud/Console `ReadyToConnect` handshake using the existing account. Keep proof credentials in the main process and consume them immediately without another sign-in or another client's cache.
+- Correct player constructor interoperability, await local SDP before applying the answer, and encode supported system-dialog replies once. Expose safe connection stages and private allowlisted service diagnostics.
+- Verify the production companion against Forza Horizon 5 with the existing account: accepted session transfer, SDP/ICE, connected WebRTC peer, 18 decoded video frames at 1920×1080 and received audio RTP. The bounded neutral-input test ended with owned-session deletion; physical controller gameplay, sustained playback, reconnect and other titles remain unverified.
+- Add full-application browser regression checks and expanded, compact and fullscreen Cloud detail captures, with explicit fixture provenance.
+
 ## 0.3.24 — 2026-10-22
 
 - Replace the default console website flow with an in-app account-bound console picker and home-streaming session/player using existing sign-in. Add private xhome offering/discovery, opaque console/session identities, bounded SDP/ICE, controller input and cleanup. Live One X video/audio/input remains unverified; standalone wake and purpose-ticket transfer remain explicitly unavailable.

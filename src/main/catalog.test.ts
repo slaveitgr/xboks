@@ -1,5 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { CatalogService, parseCatalogProducts, parseHandheldCompatibility, type StoreCollection } from './catalog.js';
+import { CatalogService, parseCatalogProducts, parseHandheldCompatibility, primaryGameProductId, type StoreCollection } from './catalog.js';
+
+describe('verified public Store edition relationships', () => {
+  const edition = '9NKX70BBCDRN', base = '9NNX1VVR3KNQ', addon = '9AAAAAAAAAAA';
+  const game = (id: string, references: {BigId:string;IsPrimary?:boolean}[] = [], ProductType = 'Game') => ({ProductId:id,ProductType,DisplaySkuAvailabilities:[{Sku:{Properties:{BundledSkus:references}}}]});
+  it('resolves the actual Forza Standard Edition primary game without inferring access', () => {
+    const details = new Map([[edition,game(edition,[{BigId:base,IsPrimary:true},{BigId:base,IsPrimary:true}])],[base,game(base)]]);
+    expect(primaryGameProductId(edition,details)).toBe(base);
+    expect(primaryGameProductId(base,details)).toBeUndefined();
+    const parsed = parseCatalogProducts({productsList:[{productId:edition,title:'Forza edition',isGame:true}]},{Products:[...details.values()]});
+    expect(parsed[0].primaryProductId).toBe(base); expect(parsed[0]).not.toHaveProperty('hasEntitlement');
+  });
+  it('rejects missing, ambiguous, cyclic and non-game targets', () => {
+    const details = new Map([[edition,game(edition,[{BigId:base},{BigId:addon}])],[base,game(base)],[addon,game(addon)]]);
+    expect(primaryGameProductId(edition,details)).toBeUndefined();
+    details.set(edition,game(edition,[{BigId:base,IsPrimary:true},{BigId:addon,IsPrimary:true}]));
+    expect(primaryGameProductId(edition,details)).toBeUndefined();
+    details.set(edition,game(edition,[{BigId:base,IsPrimary:true}])); details.set(base,game(base,[{BigId:edition}]));
+    expect(primaryGameProductId(edition,details)).toBeUndefined();
+    details.set(base,game(base,[],'Durable')); expect(primaryGameProductId(edition,details)).toBeUndefined();
+    details.delete(base); expect(primaryGameProductId(edition,details)).toBeUndefined();
+  });
+});
 
 const search = {
   productsList: [{

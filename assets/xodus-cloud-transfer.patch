@@ -1,0 +1,142 @@
+--- a/crates/xodus-cli/src/main.rs
++++ b/crates/xodus-cli/src/main.rs
+@@ -96,6 +96,11 @@
+         #[arg(long, required = true)]
+         json: bool,
+     },
++    #[command(about = "Issue an exact-purpose one-use cloud session transfer proof on a private stdout pipe")]
++    CloudTransferToken {
++        #[arg(long, required = true)]
++        json: bool,
++    },
+     #[command(about = "Read Xbox friends/chats or explicitly send a one-to-one message")]
+     Social {
+         #[arg(long, global = true)]
+@@ -221,7 +226,7 @@
+     let args = CliArgs::parse();
+     // Social search/message bodies and Xbox credentials must never enter a
+     // verbose transport trace, including when XODUS_LOG is inherited.
+-    let filter = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. }) {
++    let filter = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. } | SubCommand::CloudTransferToken { .. }) {
+         tracing_subscriber::EnvFilter::new("off")
+     } else { tracing_subscriber::EnvFilter::from_env("XODUS_LOG") };
+     let registry =
+@@ -286,7 +291,7 @@
+         xodus::tokens::store::TokenStoreError::from(error).report();
+         return ExitCode::FAILURE;
+     }
+-    let tokens = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. }) {
++    let tokens = if matches!(&args.command, SubCommand::Social { .. } | SubCommand::CloudToken { .. } | SubCommand::CloudTransferToken { .. }) {
+         commands::social::readonly_manager()
+     } else { TokenManager::with_keychain_and_memory() };
+ 
+@@ -300,7 +305,7 @@
+         args.command,
+         SubCommand::Account { .. }
+             | SubCommand::Profile { .. }
+-            | SubCommand::CloudToken { .. }
++            | SubCommand::CloudToken { .. } | SubCommand::CloudTransferToken { .. }
+             | SubCommand::Social { .. }
+             | SubCommand::GameActivity { .. }
+             | SubCommand::Achievements { .. }
+@@ -374,6 +379,7 @@
+         },
+         SubCommand::Profile { json } => commands::profile::run(&tokens, json).await,
+         SubCommand::CloudToken { json: _ } => commands::cloud::run(&tokens).await,
++        SubCommand::CloudTransferToken { json: _ } => commands::cloud_transfer::run(&tokens).await,
+         SubCommand::Social { command, json } => commands::social::run(&tokens, command, json).await,
+         SubCommand::GameActivity { title_id, json } => commands::game_activity::run(&tokens, title_id, json).await,
+         SubCommand::Achievements { title_id, json } => commands::achievements::run(&tokens, title_id, json).await,
+--- a/crates/xodus-cli/src/commands.rs
++++ b/crates/xodus-cli/src/commands.rs
+@@ -7,6 +7,7 @@
+ pub mod logout;
+ pub mod profile;
+ pub mod cloud;
++pub mod cloud_transfer;
+ pub mod game_activity;
+ pub mod achievements;
+ pub mod subscription;
+--- /dev/null
++++ b/crates/xodus-cli/src/commands/cloud_transfer.rs
+@@ -0,0 +1,80 @@
++//! Exact-purpose login proof, private stdout only; no login, renewal, provisioning or writes.
++use std::{process::ExitCode, time::Duration};
++use serde_json::{Value, json};
++use xodus::{tokens::TokenManager, models::{live::ExchangeUserTokenOutcome, soap}};
++const RELYING_PARTY: &str = "http://Passport.NET/purpose";
++const POLICY: &str = "PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN";
++const CLIENT_ID: &str = "000000004424DA1F";
++const TOKEN_TYPE: &str = "urn:passport:loginprooftoken";
++fn response(value: soap::RequestSecurityTokenResponse, account: &str, now: chrono::DateTime<chrono::Utc>) -> Result<Value, &'static str> {
++    if value.token_type != TOKEN_TYPE || value.applies_to.endpoint_reference.address != RELYING_PARTY
++        || value.requested_proof_token.is_some() || value.requested_security_token.encrypted_data.is_some() {
++        return Err("transfer-ticket-type");
++    }
++    // The exact-purpose response's SOAP lifetime can be zero. This proof is
++    // consumed once immediately; issuedAt bounds local receipt freshness and
++    // does not claim a reusable provider expiry. The service validates the proof.
++    for time in [&value.lifetime.created, &value.lifetime.expires] {
++        chrono::DateTime::parse_from_rfc3339(time).map_err(|_| "transfer-ticket-lifetime")?;
++    }
++    let token = value.requested_security_token.binary_security_token.ok_or("transfer-ticket-payload")?.value;
++    if token.is_empty() || token.len() > 100_000 || token.chars().any(char::is_control) { return Err("transfer-ticket-payload"); }
++    Ok(json!({"schema":1,"account":account,"kind":"loginprooftoken","token":token,"issuedAt":now.to_rfc3339_opts(chrono::SecondsFormat::Millis,true)}))
++}
++async fn credential(tokens: &TokenManager) -> Result<Value, &'static str> {
++    let (account, device, user) = super::profile::readonly_credentials(tokens)?;
++    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).retry(reqwest::retry::never())
++        .timeout(super::session::REQUEST_TIMEOUT).user_agent("XBOKS-cloud-transfer/1").build().map_err(|_| "http-client")?;
++    // OAuth service::<RP>::<policy> maps to this direct STS RP/policy. The
++    // TOKEN_BROKER policy is different and is rejected for this purpose scope.
++    let outcome = xodus::api::live::exchange_user_token(&client, user, account.clone(), device, None, Some("Silent".into()), CLIENT_ID.into(),
++        &[(RELYING_PARTY.into(), Some(soap::PolicyReference {uri: POLICY.into(), val: String::new()}))])
++        .await.map_err(|_| "transfer-request")?;
++    if super::session::rejection(&outcome).is_some() {return Err("transfer-refused");}
++    let issued = match outcome {
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponseCollection(mut collection)) if collection.security_tokens.len() == 1 => collection.security_tokens.remove(0),
++        ExchangeUserTokenOutcome::Issued(soap::BodyContent::RequestSecurityTokenResponse(value)) => *value,
++        _ => return Err("transfer-response"),
++    };
++    if tokens.get_user().map_err(|_| "account-changed")?.username != account {return Err("account-changed");}
++    response(issued, &account, chrono::Utc::now())
++}
++pub async fn run(tokens: &TokenManager) -> ExitCode {
++    match tokio::time::timeout(Duration::from_secs(30), credential(tokens)).await {
++        Ok(Ok(value)) => {println!("{value}"); ExitCode::SUCCESS},
++        Ok(Err(_)) => {eprintln!("XBOKS cloud transfer proof is unavailable; stored account is unchanged."); ExitCode::FAILURE},
++        Err(_) => {eprintln!("XBOKS cloud transfer proof timed out; stored account is unchanged."); ExitCode::FAILURE},
++    }
++}
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn issued() -> soap::RequestSecurityTokenResponse {
++        soap::RequestSecurityTokenResponse {
++            token_type: TOKEN_TYPE.into(), applies_to: soap::AppliesTo {endpoint_reference: soap::EndpointReference {address: RELYING_PARTY.into()}},
++            lifetime: soap::Timestamp {id: None, created: "2026-10-22T00:00:00Z".into(), expires: "2026-10-22T00:00:00Z".into()},
++            requested_security_token: soap::RequestedSecurityToken {encrypted_data: None, binary_security_token: Some(soap::BinarySecurityTokenRes {id: "fixture".into(), value: "synthetic-proof".into(), value_type: None})}, requested_proof_token: None,
++        }
++    }
++    #[test] fn transfer_proof_accepts_exact_type_rp_and_zero_lifetime_without_inventing_expiry() {
++        let now = chrono::DateTime::parse_from_rfc3339("2026-10-22T00:00:01Z").unwrap().with_timezone(&chrono::Utc);
++        let value = response(issued(), "fixture@example.invalid", now).unwrap();
++        assert_eq!(value["kind"], "loginprooftoken"); assert_eq!(value["token"], "synthetic-proof"); assert_eq!(value["issuedAt"], "2026-10-22T00:00:01.000Z"); assert!(value.get("expiresAt").is_none());
++    }
++    #[test] fn transfer_proof_rejects_other_token_types_and_relying_parties() {
++        for kind in ["urn:passport:compact", "urn:passport:legacy", "urn:passport:delegationcompact", "JWT"] {
++            let mut value = issued(); value.token_type = kind.into(); assert!(response(value, "fixture", chrono::Utc::now()).is_err());
++        }
++        let mut value = issued(); value.applies_to.endpoint_reference.address = "http://gssv.xboxlive.com/".into(); assert!(response(value, "fixture", chrono::Utc::now()).is_err());
++    }
++    #[test] fn transfer_proof_rejects_missing_oversized_control_or_malformed_payloads() {
++        let mut value = issued(); value.requested_security_token.binary_security_token = None; assert!(response(value, "fixture", chrono::Utc::now()).is_err());
++        for token in [String::new(), "secret\nvalue".into(), "x".repeat(100_001)] {let mut value = issued(); value.requested_security_token.binary_security_token.as_mut().unwrap().value = token; assert!(response(value, "fixture", chrono::Utc::now()).is_err());}
++        let mut value = issued(); value.lifetime.expires = "invalid".into(); assert!(response(value, "fixture", chrono::Utc::now()).is_err());
++    }
++    #[test] fn transfer_proof_entry_is_readonly_and_has_no_arbitrary_scope_option() {
++        let source = include_str!("cloud_transfer.rs").split("#[cfg(test)]").next().unwrap();
++        assert!(!source.contains(".save(")); assert!(!source.contains("ensure_device_credentials")); assert!(!source.contains("refresh_existing"));
++        assert!(source.contains("readonly_credentials(tokens)")); assert!(source.contains("PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN"));
++    }
++}

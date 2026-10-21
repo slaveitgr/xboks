@@ -1,0 +1,7 @@
+.cloud-play-action-wrap { display:inline-flex; flex-direction:column; gap:6px; align-self:stretch; }
+.cloud-play-action { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:48px; height:100%; min-width:170px; padding:10px 18px; border:1px solid #7a8795; border-radius:7px; background:#3d424a; color:#fff; font:inherit; font-weight:600; cursor:pointer; }
+.cloud-play-action:hover { background:#505660; }
+.cloud-play-action:focus-visible { outline:2px solid white; outline-offset:3px; }
+.cloud-play-action:disabled { opacity:.55; cursor:default; }
+.cloud-play-action svg { width:22px; height:22px; flex:none; }
+.cloud-play-action-wrap small { max-width:260px; font-size:12px; }

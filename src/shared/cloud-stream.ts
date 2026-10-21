@@ -28,5 +28,8 @@ export interface CloudSessionState {
   id?: string;
   productId?: string;
   error?: 'signed-out' | 'unsupported' | 'account-changed' | 'service' | 'timeout' | 'busy' | 'region-not-supported' | 'transfer-token-required';
+  /** Fixed failure stage and HTTP status only, never provider response content. */
+  errorStage?: 'credential' | 'transfer-credential' | 'connect' | 'login' | 'catalog' | 'recent' | 'play' | 'state' | 'sdp-send' | 'sdp-receive' | 'ice-send' | 'ice-receive' | 'keepalive' | 'stop';
+  httpStatus?: number;
   waitSeconds?: number;
 }

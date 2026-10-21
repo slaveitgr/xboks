@@ -37,7 +37,7 @@ The project is in active development and currently provides source; public binar
 | **Installation queue** | Package confirmation, installation location, progress, supported pause/resume, cancellation choices, and local diagnostics. |
 | **Launch tools** | Per-game arguments and locale; optional GameMode, MangoHud and Gamescope wrappers; controller compatibility options; desktop and Steam shortcuts. Optional tools are installed separately. |
 | **Accounts and social** | Microsoft sign-in, provider-reported profile/membership, friends, presence, player search, and one-to-one text conversations through a compatible social provider. |
-| **Cloud Gaming** | In-app Discover, recent games, popular, EA Play and **Stream your own game** collections; exact game details, controller navigation, filters and paging. Uses the current XBOKS account for cloud authentication and an experimental direct WebRTC player. |
+| **Cloud Gaming** | In-app Discover, recent games, popular, EA Play and **Stream your own game** collections; search across the cloud catalog, exact game details, controller navigation, filters and paging. Uses the current XBOKS account for cloud authentication and an experimental direct WebRTC player. |
 | **Console Remote Play** | Native account-bound console discovery and selection, an explicit Connect action, provisioning and an experimental in-app WebRTC player. Reuses the signed-in XBOKS account. |
 | **Settings and Engine** | English/Greek interface, library-provider pages, downloads/storage settings, runtime selection, update checks, and local diagnostic logs. |
 
@@ -76,7 +76,7 @@ The optional **GNOME Shell 51** extension adds Xbox/Desktop transitions and a na
 
 ### Cloud Gaming inside XBOKS
 
-Cloud navigation now stays in the application. Public catalog data provides artwork and descriptions; the authenticated cloud service provides available titles and recent play. A catalog entry alone never establishes ownership. Selecting a card opens its exact game details; only **Play** requests a streaming session. The launcher performs same-account cloud sign-in privately, without another browser login or passing credentials to the renderer.
+Cloud navigation now stays in the application. Public catalog data provides artwork and descriptions; the authenticated cloud service provides available titles and recent play. A catalog entry alone never establishes ownership. The global search box stays cloud-only on this page and searches the full cloud catalog, rather than only the first loaded cards. Typing is debounced, metadata reads are bounded, and filters apply before pagination. Selecting a card opens its exact game details; only **Play with Cloud** requests a streaming session. The launcher performs same-account cloud sign-in privately, without another browser login or passing credentials to the renderer.
 
 | Discover | Stream your own game |
 | --- | --- |
@@ -84,7 +84,19 @@ Cloud navigation now stays in the application. Public catalog data provides artw
 
 *Actual XBOKS components; account, access and session states in these screenshots are labeled samples. They do not show a live game stream.*
 
-**Cloud settings → Country for cloud sign-in** offers Automatic, Poland, United States, Brazil, Japan and South Korea. Automatic sends no override. The optional compatibility choice follows the login-only technique documented by Better xCloud; it does not create a VPN, route traffic through another country or provide a subscription. The existing-account catalog/MRU read has been verified with this option; end-to-end video/audio/gameplay still needs acceptance. End an active cloud session before changing the preference. The same setting is available under **Settings → Application**.
+**Play with Cloud** also appears beside installation or local play when the current cloud account explicitly confirms entitlement. Public Store metadata can link an edition to its base game. XBOKS uses that verified link and the current entitlement to select the correct cloud Product ID; names and subscription badges never grant access. Account changes invalidate previous checks and pending responses cannot restore an old account's action.
+
+| Full App: cloud search | Expanded sidebar and game details |
+| --- | --- |
+| ![Cloud-only search across the full XBOKS catalog](docs/screenshots/xboks-cloud-search-expanded.png) | ![XBOKS expanded sidebar and Cloud game details](docs/screenshots/xboks-cloud-detail-expanded.png) |
+
+[Compact sidebar](docs/screenshots/xboks-cloud-detail-compact.png) · [Fullscreen Experience](docs/screenshots/xboks-cloud-detail-fullscreen.png) · [Full-App capture provenance](docs/screenshots/cloud-layout-provenance.json)
+
+*These captures of the 0.3.25 candidate load the actual full application with cached public Forza artwork. Account rights, catalog membership and fullscreen/battery state are explicitly sampled. Sidebar and detail boundaries are checked in expanded, compact and narrow layouts; the images do not establish pixel parity or live streaming.*
+
+**Cloud settings → Country for cloud sign-in** offers Automatic, Poland, United States, Brazil, Japan and South Korea. Automatic sends no override. The optional compatibility choice follows the login-only technique documented by Better xCloud; it does not create a VPN, route traffic through another country or provide a subscription. Existing-account catalog/MRU reads and the limited live media check below have passed; sustained gameplay remains unverified. End an active cloud session before changing the preference. The same setting is available under **Settings → Application**.
+
+A limited live **Forza Horizon 5** probe used the production **XBOKS Engine 0.3.1** binary included in this candidate ([manifest](assets/social-backend/manifest.json)). WebRTC connected, **18 video frames decoded at 1920×1080**, and 796,521 video bytes plus 61,407 audio RTP bytes were received. The probe deleted its own server session successfully (HTTP 200) and exited cleanly. Only neutral input was sent. Audible audio, physical-controller input, long sessions, reconnection and other games remain unverified.
 
 ### Console Remote Play inside XBOKS
 
@@ -137,7 +149,7 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 - **Xbox party voice is not connected.** The microphone tools are local tests. A party roster or working microphone does not establish an Xbox voice session.
 - **Social coverage is partial.** Friends/inbox reads have been exercised; live delivery of outgoing text messages still needs acceptance. Group/system conversations and unsupported provider actions remain unavailable.
 - **Cloud wishlist is unavailable.** Store promotions do not imply ownership, a personal discount, or wishlist access. Redemption continues only after an explicit choice to open Microsoft's page.
-- **Cloud streaming is experimental.** Same-account authentication, catalog and MRU reads have been exercised. Session signaling, WebRTC media, controller input and cleanup are implemented and covered by isolated tests; live end-to-end gameplay is still unverified. A provider `ReadyToConnect` response requiring an additional transfer ticket is explicitly unsupported and closes cleanly. Account, region, subscription and game licensing remain provider decisions.
+- **Cloud streaming is experimental.** Same-account authentication, catalog/MRU reads and a bounded Forza Horizon 5 media probe with production XBOKS Engine 0.3.1 have passed. The probe decoded 18 frames at 1920×1080, received audio RTP data and cleaned up its own session. It used neutral input only; audible audio, physical-controller input, long sessions, reconnection and other games remain unverified. Unsupported provider stages stop cleanly. Account, region, subscription and game licensing remain provider decisions.
 - **Console Remote Play is experimental.** The console picker and direct player replace the default website flow, using a separate home-streaming offering for the existing account. Live Xbox One X video/audio/input acceptance is pending. A separate Wake button is unavailable until an appropriate remote-management adapter exists; Connect is a streaming attempt and can wake a configured console through provisioning. Unsupported transfer-ticket stages stop explicitly.
 - **Desktop integration is experimental.** External-game overlay placement/input on Wayland, window restoration across desktop variations, lock/resume, and the real reboot/login path need further live testing. Other GNOME major versions are unsupported.
 - **Capture and pinning are limited.** No external-game/video or retrospective capture; kept-open widgets close with Game Bar rather than remaining as independent desktop overlays.

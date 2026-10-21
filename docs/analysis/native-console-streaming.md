@@ -160,6 +160,10 @@ console-transfer access token. Greenlight obtains this as `lpt`, with scope
 `service::http://Passport.NET/purpose::PURPOSE_XBOX_CLOUD_CONSOLE_TRANSFER_TOKEN`.
 The original package's F65991:20–42 calls
 `authManager.getWamWebTokenSilently` with that purpose scope and `XblClientId`.
+The separate module initializer F66036 (bundle offset 18669370) loads literal
+`000000004424DA1F` at instruction 43 and exports it as `XblClientId` at 49. This
+matches the existing Engine account client identifier; no different application's
+OAuth client identity is needed to describe the original request.
 This proves a Windows account-broker operation, not a corresponding legacy STS
 or SOAP grant in the Linux Engine. Never substitute a refresh token, GSSV token
 or ordinary Xbox social token. Until a matching same-account exchange is

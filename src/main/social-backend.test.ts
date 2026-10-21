@@ -181,4 +181,13 @@ describe('cloud companion capability admission', () => {
   it('rejects an unsupported capability selector before file/probe access', async () => {
     const f = await fixture(); expect(await socialBackend(f.root, f.probe, 'cloud-token|social' as any)).toBeUndefined(); expect(f.probe).not.toHaveBeenCalled();
   });
+  it('admits a transfer-capable0.3.1 companion only with the exact command after all asset checks', async () => {
+    const f = await fixture('xboks-engine');
+    const manifest = JSON.parse(await fs.readFile(path.join(f.root, 'manifest.json'), 'utf8')); manifest.version = '0.3.1'; await fs.writeFile(path.join(f.root, 'manifest.json'), JSON.stringify(manifest));
+    expect(await socialBackend(f.root, f.probe, 'cloud-transfer-token')).toBeUndefined();
+    f.probe.mockResolvedValue({code: 0, stdout: help.replace('  social   Friends and chats', '  cloud-transfer-token   Private exact-purpose proof')});
+    expect(await socialBackend(f.root, f.probe, 'cloud-transfer-token')).toBe(f.binary);
+    f.probe.mockResolvedValue({code: 0, stdout: 'Commands:\n  cloud-transfer-tokenizer  Unsupported\n'});
+    expect(await socialBackend(f.root, f.probe, 'cloud-transfer-token')).toBeUndefined();
+  });
 });

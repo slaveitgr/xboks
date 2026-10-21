@@ -84,7 +84,8 @@ function fixture(options: { companion?: boolean; holdCredential?: boolean; holdD
     setTimeout: () => 0, clearTimeout() {},
     mainWindow: main, nativeWindows, backend, cloudAccount: account, cloudAccountIdentity: undefined, cloudStopJob: undefined,
     consoleStream, consoleAccountIdentity: undefined, consoleStopJob: undefined, streamingTransition: false,
-    bundledCloudBackendJob: undefined, socialBackend, authState: { stored: true, running: false, username: ACCOUNT },
+    bundledCloudBackendJob: undefined, bundledCloudTransferBackendJob: undefined, socialBackend,
+    readCloudTransferCredential: vi.fn(async () => 'fixture-private-transfer'), authState: { stored: true, running: false, username: ACCOUNT },
     store: { settings: { cloudLoginCountry: 'auto' }, downloads: [], save: vi.fn(async () => {}) }, currentMarket: () => 'US',
     demoMode: false, shutdownStarted: false, quitting: false, preparingLaunch: false,
     serviceSessions: new Map(), operations: new Map(), gameProcesses: new Map(), downloadCancellations: new Map(),
@@ -104,7 +105,7 @@ function fixture(options: { companion?: boolean; holdCredential?: boolean; holdD
     launcherUpdater: { state: { updating: false }, cancel: vi.fn() },
     ensureIdle: vi.fn(), prepareGameLaunch: vi.fn(async () => {}),
   });
-  const code = [functionSource('cloudBackendBinary'), functionSource('invalidateChangedCloudAccount'), functionSource('stopCloudStreaming'), functionSource('stopConsoleStreaming'), functionSource('launchGame'),
+  const code = [functionSource('cloudBackendBinary'), functionSource('cloudTransferBackendBinary'), functionSource('cloudTransferCredential'), functionSource('invalidateChangedCloudAccount'), functionSource('stopCloudStreaming'), functionSource('stopConsoleStreaming'), functionSource('launchGame'),
     declaration('systemSender', register.body!.statements), declaration('cloudSender', register.body!.statements), declaration('selectCloudAccount', register.body!.statements), declaration('selectConsoleAccount', register.body!.statements), ipcSource,
     `var onCloudChanged = ${changedCallback('cloudAccount')};`, `var onConsoleChanged = ${changedCallback('consoleStream')};`, streamLifetimeSource, quitRegistration.getText(ast)].join('\n');
   vm.runInContext(compile(code), context);
@@ -119,6 +120,29 @@ function fixture(options: { companion?: boolean; holdCredential?: boolean; holdD
     quit: () => { const quitEvent = { preventDefault: vi.fn() }; appEvents.get('before-quit')!(quitEvent); return quitEvent; },
   };
 }
+
+it('resolves only a verified purpose helper without replacing the selected game engine', async () => {
+  const h = fixture(), controller = new AbortController();
+  await expect(h.context.cloudTransferCredential('/fixture/old-engine', controller.signal)).resolves.toBe('fixture-private-transfer');
+  expect(h.socialBackend).toHaveBeenCalledWith('/fixture/resources/social-backend', undefined, 'cloud-transfer-token');
+  expect(h.context.readCloudTransferCredential).toHaveBeenCalledWith('/fixture/companion', controller.signal);
+  expect(h.context.backend.current.binaryPath).toBe('/fixture/xboks-engine');
+  expect(h.reader).not.toHaveBeenCalled(); expect(h.requests).toEqual([]);
+});
+it('uses a capable selected purpose helper and never spawns one after cancellation or missing verification', async () => {
+  const h = fixture(), controller = new AbortController();
+  h.context.backend.current.capabilities.commands.push('cloud-transfer-token');
+  await h.context.cloudTransferCredential('/fixture/old-engine', controller.signal);
+  expect(h.socialBackend).not.toHaveBeenCalled();
+  expect(h.context.readCloudTransferCredential).toHaveBeenCalledWith('/fixture/xboks-engine', controller.signal);
+  const waiting = fixture({companion:true}), abort = new AbortController();
+  const pending = waiting.context.cloudTransferCredential('/fixture/old-engine', abort.signal);
+  await vi.waitFor(() => expect(waiting.socialBackend).toHaveBeenCalledOnce()); abort.abort(); waiting.companion();
+  await expect(pending).rejects.toThrow(); expect(waiting.context.readCloudTransferCredential).not.toHaveBeenCalled();
+  const absent = fixture(); absent.socialBackend.mockResolvedValue(undefined as never);
+  await expect(absent.context.cloudTransferCredential('/fixture/old-engine', new AbortController().signal)).rejects.toThrow('unavailable');
+  expect(absent.context.readCloudTransferCredential).not.toHaveBeenCalled();
+});
 
 it('registers actual native stream handlers and denies another window or subframe before credential/network access', async () => {
   const h = fixture();

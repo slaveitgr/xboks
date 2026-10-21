@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-10-21T21:41:42.273Z",
+  "capturedAt": "2026-10-21T22:59:24.005Z",
   "fixture": "scripts/ui/fixtures/cloud-library.tsx",
   "runner": "scripts/ui/cloud-library-smoke.mjs",
   "productionComponents": [
@@ -11,7 +11,8 @@
     "GamepadNavigation",
     "CloudRegionSettings",
     "SettingsPage",
-    "ConfirmationProvider"
+    "ConfirmationProvider",
+    "CloudPlayAction"
   ],
   "checksPassed": 51,
   "publicArtwork": {
@@ -62,22 +63,22 @@
   ],
   "images": {
     "xboks-cloud-gaming.png": {
-      "sha256": "f9c48a1556a8f487a4cf85d1d5443ba1195234bd33bdcea1ad8b2a90022c7b7a",
+      "sha256": "299545817a052c05988832bfe4407d59119e3568728cfc7f4352abb4770187ed",
       "width": 1920,
       "height": 1080
     },
     "xboks-cloud-settings.png": {
-      "sha256": "e9b132aa9d8dd09b96e3e2c23f5fa5443a08a612cf31808170a114e5d4a3a8ed",
+      "sha256": "db6545a9c1aee1f0a3680bf88cb618e84b062571e989bffd5e1c7e66d6bacb86",
       "width": 1920,
       "height": 1080
     },
     "xboks-cloud-own-games.png": {
-      "sha256": "53755443b89c1413516d3ea6435e02e6a237befc63611053cfd72be9e2c13cf7",
+      "sha256": "f983e83af2e5f3d739fc872fa27fe1626d5e989b5a699dd659aa7af8937bb602",
       "width": 1920,
       "height": 1080
     },
     "xboks-cloud-game-details.png": {
-      "sha256": "2b937454a245f859a9ea280db33ac00bd36420e478fc8c3ed7bdfb6acae4ca99",
+      "sha256": "7651890990068de85e154147487a046e40a9d5c0ecc2d902d08cb91d0ff10c10",
       "width": 1920,
       "height": 1080
     },
@@ -86,5 +87,15 @@
       "width": 1920,
       "height": 1080
     }
-  }
+  },
+  "sourceSha256": {
+    "src/renderer/CloudLibrary.tsx": "d006ba316d0b34ed1a751f53309612fd303945826e4ca1c5f672fb2d22f576ce",
+    "src/renderer/cloud-library.css": "09271ac512af484696b5581a6e3c4f0b3f682a143a293b922bc23545da26ce90",
+    "src/renderer/CloudPlayAction.tsx": "1b05dcaaa911b6b7b44f4057274a07afdfe8ea967fa7016bea1722f2e740865f",
+    "src/renderer/cloud-play-action.css": "9b665afa0e186a29be994fe75c37496e998aa9bc9243b7bcf1bbca25813e30ca",
+    "src/renderer/cloud-product-loader.ts": "9bdc5c20ac78f8b5112b3f3949ca1e2d731edc20261eabfe7e8de8ff9d5e952a",
+    "scripts/ui/fixtures/cloud-library.tsx": "7774c19b6d47488806d7a99f4904d5f51599b8b8395e18c5c3516885019440aa",
+    "scripts/ui/cloud-library-smoke.mjs": "1bb690eab458ec29501cf14f7d24af2d29dfc84c2625d983e03ec2c805d47996"
+  },
+  "sourceVersion": "0.3.25"
 }

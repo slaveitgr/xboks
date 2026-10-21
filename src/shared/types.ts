@@ -317,6 +317,8 @@ export interface CatalogProduct {
   handheldCompatibility?: import('./handheld-compatibility.js').HandheldCompatibility;
   productId: string;
   installProductId?: string;
+  /** Verified public Store bundle relationship; grants no cloud access. */
+  primaryProductId?: string;
   title: string;
   description: string;
   publisher?: string;
@@ -337,6 +339,7 @@ export interface CatalogProduct {
 export interface GameStoreDetails {
   handheldCompatibility?: import('./handheld-compatibility.js').HandheldCompatibility;
   productId: string;
+  primaryProductId?: string;
   title: string;
   description: string;
   publisher?: string;

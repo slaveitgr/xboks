@@ -41,7 +41,7 @@ async function verifyCompanionFile(root: string, name: string, expected: string,
   if (!unchanged(before, await fs.lstat(file))) throw Error('Companion file changed.');
   return { file, stat: before };
 }
-function hasCompanionCommand(help: string, command: 'social' | 'cloud-token'): boolean {
+function hasCompanionCommand(help: string, command: 'social' | 'cloud-token' | 'cloud-transfer-token'): boolean {
   let commands = false;
   for (const line of stripAnsi(help).split(/\r?\n/)) {
     if (/^Commands:\s*$/.test(line)) { commands = true; continue; }
@@ -55,8 +55,8 @@ function hasCompanionCommand(help: string, command: 'social' | 'cloud-token'): b
  * The only process probe is its bounded top-level --help; never account/login/social.
  * Binary, license and corresponding-source bytes must match the manifest.
  * These hashes do not prove source completeness, publisher identity or live services. */
-export async function socialBackend(root: string, probe: SocialBackendHelpProbe = helpProbe, requiredCommand: 'social' | 'cloud-token' = 'social'): Promise<string | undefined> {
-  if (process.platform !== 'linux' || !path.isAbsolute(root) || !['social', 'cloud-token'].includes(requiredCommand)) return undefined;
+export async function socialBackend(root: string, probe: SocialBackendHelpProbe = helpProbe, requiredCommand: 'social' | 'cloud-token' | 'cloud-transfer-token' = 'social'): Promise<string | undefined> {
+  if (process.platform !== 'linux' || !path.isAbsolute(root) || !['social', 'cloud-token', 'cloud-transfer-token'].includes(requiredCommand)) return undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const directory = await fs.lstat(root);
@@ -74,7 +74,7 @@ export async function socialBackend(root: string, probe: SocialBackendHelpProbe 
       if (bytesRead > MAX_MANIFEST || !unchanged(manifestStat, await manifestHandle.stat())) return undefined;
       manifest = JSON.parse(buffer.subarray(0, bytesRead).toString('utf8'));
     } finally { await manifestHandle.close(); }
-    if (!manifest || manifest.schema !== 1 || manifest.version !== '0.3.0' || typeof manifest.binary !== 'string' ||
+    if (!manifest || manifest.schema !== 1 || !['0.3.0', '0.3.1'].includes(String(manifest.version)) || typeof manifest.binary !== 'string' ||
         !['xboks-engine', 'xodus-cli'].includes(manifest.binary) || !validDigest(manifest.sha256) ||
         manifest.license !== 'LICENSE' || !validDigest(manifest.licenseSha256) ||
         manifest.sourceArchive !== 'source.tar.xz' || !validDigest(manifest.sourceArchiveSha256)) return undefined;

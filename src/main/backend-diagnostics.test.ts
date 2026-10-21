@@ -6,6 +6,22 @@ import { spawn } from 'node:child_process';
 import { BackendDiagnostics, BackendDiagnosticReader, observeBackendChild, setBackendDiagnostics } from './backend-diagnostics.js';
 import { spawnTracked } from './process.js';
 
+it('persists only fixed cloud stages and HTTP outcomes, never session identifiers or response data', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-cloud-diagnostic-'));
+  try {
+    const log = new BackendDiagnostics(root);
+    log.record({operation:'cloud-stream',event:'diagnostic',cloud:{stage:'play',outcome:'ok',httpStatus:202,
+      serviceState:'Provisioning', sessionPath:'private-secret', token:'private-secret'} as never});
+    log.record({operation:'cloud-stream',event:'diagnostic',cloud:{stage:'private-secret',outcome:'ok'} as never});
+    log.record({operation:'cloud-stream',event:'diagnostic',cloud:{stage:'state',outcome:'http-error',httpStatus:403,providerCode:'private-secret'} as never});
+    const {content} = await log.read(), entries = content.trim().split('\n').map(line => JSON.parse(line));
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({operation:'cloud-stream',stage:'play',outcome:'ok',status:202,serviceState:'Provisioning'});
+    expect(entries[1]).toMatchObject({stage:'state',outcome:'http-error',status:403});
+    expect(content).not.toContain('private-secret');
+  } finally {await fs.rm(root,{recursive:true,force:true});}
+});
+
 it('accepts only a bounded ticket error code for profile/library and never stores fault text or URLs', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'nexus-ticket-diagnostic-'));
   try {

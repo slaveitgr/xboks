@@ -337,6 +337,23 @@ function packageSupport(productId: string, details: Map<string, Record<string, u
   };
 }
 
+/** A Store edition may point to its base game. Never alias by title or infer a license. */
+export function primaryGameProductId(productId: string, details: Map<string, Record<string, unknown>>): string | undefined {
+  const visited = new Set<string>();
+  let current = productId;
+  for (let depth = 0; depth <= 4; depth++) {
+    if (!/^[A-Z0-9]{12}$/.test(current) || visited.has(current)) return;
+    visited.add(current);
+    const product = details.get(current);
+    if (product?.ProductType !== 'Game') return;
+    const references = bundleReferences(product), primary = references.filter(reference => reference.primary);
+    if (!references.length) return current === productId ? undefined : current;
+    const candidate = primary.length === 1 ? primary[0] : references.length === 1 ? references[0] : undefined;
+    if (!candidate) return;
+    current = candidate.productId;
+  }
+}
+
 export function parseCatalogProducts(search: StoreSearchResponse, catalog: DisplayCatalogResponse): CatalogProduct[] {
   const detailMap = new Map<string, Record<string, unknown>>();
   const details = Array.isArray(catalog.Products) ? catalog.Products : [];
@@ -353,6 +370,7 @@ export function parseCatalogProducts(search: StoreSearchResponse, catalog: Displ
     const support = packageSupport(productId, detailMap);
     return [{
       productId,
+      primaryProductId: primaryGameProductId(productId, detailMap),
       title,
       description: string(product.description) ?? 'Microsoft Store did not provide a description.',
       publisher: string(product.publisherName),
@@ -393,7 +411,11 @@ export class CatalogService {
     const properties = object(product.Properties);
     const categories = (Array.isArray(properties?.Categories) ? properties.Categories : []).flatMap(value => string(value)?.slice(0, 80) ?? []).slice(0, 12);
     const marketProperties = Array.isArray(product.MarketProperties) ? object(product.MarketProperties[0]) : undefined;
-    const value: GameStoreDetails = { productId, title, description: (string(localized?.ProductDescription) ?? '').slice(0, 64_000),
+    const detailMap = new Map((Array.isArray(catalog.Products) ? catalog.Products : []).flatMap(entry => {
+      const row = object(entry), id = string(row?.ProductId)?.toUpperCase();
+      return row && id ? [[id, row] as const] : [];
+    }));
+    const value: GameStoreDetails = { productId, primaryProductId: primaryGameProductId(productId, detailMap), title, description: (string(localized?.ProductDescription) ?? '').slice(0, 64_000),
       publisher: string(localized?.PublisherName)?.slice(0, 512), heroUrl: displayImage(images.filter(image => object(image)), HERO_PURPOSES), categories, screenshots,
       releaseDate: string(marketProperties?.OriginalReleaseDate),
       handheldCompatibility: await this.handheldDetails(productId, market) };

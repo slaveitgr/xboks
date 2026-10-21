@@ -1,8 +1,9 @@
 import {execFile} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {externalLauncherEnvironment} from './launcher-environment.js';
-import {cloudIceCandidates, type CloudCredentialReader} from './cloud-account.js';
+import {cloudIceCandidates, cloudProviderSessionId, type CloudCredentialReader} from './cloud-account.js';
 import {consoleIceCandidates} from './console-ice.js';
+import {cloudTransferProof, readCloudTransferCredential, type CloudTransferReader} from './cloud-transfer.js';
 import type {ConsoleStreamDevice, ConsoleStreamIceCandidate, ConsoleStreamList, ConsoleStreamState, ConsoleWakeResult} from '../shared/console-stream.js';
 
 const LOGIN = 'https://xhome.gssv-play-prod.xboxlive.com/v2/login/user';
@@ -58,7 +59,7 @@ async function body(response: Response, limit = MAX_JSON): Promise<unknown> {
 const deviceInfo = () => JSON.stringify({appInfo: {env: {clientAppId: 'XBOKS', clientAppType: 'web', httpEnvironment: 'prod'}},
   dev: {hw: {make: 'Generic', model: 'Linux PC', sdktype: 'web'}, os: {name: 'Linux', platform: 'desktop'}}});
 interface Offering {origin: string; token: string; until: number}
-interface Active {id: string; provider: string; consoleId: string; offering: Offering; generation: number; created: number}
+interface Active {id: string; provider: string; consoleId: string; offering: Offering; generation: number; created: number; transferAt?: number}
 interface ConsoleEntry {provider: string; device: ConsoleStreamDevice}
 
 /** Native console discovery and session signaling, bound to the selected account. */
@@ -79,7 +80,7 @@ export class ConsoleStreamService {
   private poll?: Active;
   private keepalive?: ReturnType<typeof setInterval>;
   private current: ConsoleStreamState = {phase: 'closed'};
-  constructor(private options: {changed?: (state: ConsoleStreamState) => void; reader?: CloudCredentialReader; fetcher?: typeof fetch; now?: () => number} = {}) {}
+  constructor(private options: {changed?: (state: ConsoleStreamState) => void; reader?: CloudCredentialReader; transferReader?: CloudTransferReader; fetcher?: typeof fetch; now?: () => number} = {}) {}
   private now() {return this.options.now?.() ?? Date.now();}
   get state(): ConsoleStreamState {return {...this.current};}
   private publish(value: ConsoleStreamState) {this.current = {...value}; this.options.changed?.(this.state); return this.state;}
@@ -175,7 +176,7 @@ export class ConsoleStreamService {
         settings: {nanoVersion: 'V3;WebrtcTransport.dll', enableTextToSpeech: false, highContrast: 0, locale: this.locale, useIceConnection: false,
           timezoneOffsetMinutes: -new Date(this.now()).getTimezoneOffset(), sdkType: 'web', osName: 'linux'},
       }, headers: {'X-MS-Device-Info': deviceInfo()}});
-      const provider = object(value).sessionId; if (!providerId(provider)) throw Error('Console session response is invalid.');
+      const provider = cloudProviderSessionId(value, 'home'); if (!provider) throw Error('Console session response is invalid.');
       const active: Active = {id: sessionId, provider, consoleId: id, offering, generation, created: this.now()};
       if (generation !== this.generation || revision !== this.revision) {void this.remove(active); throw Error('Console launch canceled.');}
       this.active = active;
@@ -190,7 +191,14 @@ export class ConsoleStreamService {
       if (this.current.phase !== 'ready' && this.now() - active.created > 180_000) return this.fail(active, 'timeout');
       const {value} = await this.request(`${active.offering.origin}/v5/sessions/home/${active.provider}/state`, {token: active.offering.token}); this.session(id); const row = object(value);
       if (row.state === 'Provisioned') return this.publish({phase: 'ready', id, consoleId: active.consoleId});
-      if (row.state === 'ReadyToConnect') return this.fail(active, 'transfer-token-required');
+      if (row.state === 'ReadyToConnect') {
+        if (active.transferAt !== undefined) return this.now() - active.transferAt > 30_000 ? this.fail(active, 'timeout') : this.publish({phase: 'provisioning', id, consoleId: active.consoleId});
+        let proof: string;
+        try {const raw = await (this.options.transferReader ?? readCloudTransferCredential)(this.binary!, this.controller.signal); this.session(id); proof = cloudTransferProof(raw, this.account!, this.now());}
+        catch {return this.active === active ? this.fail(active, 'transfer-token-required') : this.state;}
+        await this.request(`${active.offering.origin}/v5/sessions/home/${active.provider}/connect`, {method: 'POST', token: active.offering.token, data: {userToken: proof}});
+        this.session(id); active.transferAt = this.now(); return this.publish({phase: 'provisioning', id, consoleId: active.consoleId});
+      }
       if (['Failed', 'Terminated', 'Canceled', 'Disconnected', 'Error'].includes(row.state)) return this.fail(active, 'service');
       return this.publish({phase: 'provisioning', id, consoleId: active.consoleId});
     } catch {return this.active === active ? this.fail(active, 'service') : this.state;}
@@ -206,9 +214,13 @@ export class ConsoleStreamService {
   private async exchangeTransaction(active: Active, endpoint: 'sdp' | 'ice', data: unknown): Promise<unknown> {
     const url = `${active.offering.origin}/v5/sessions/home/${active.provider}/${endpoint}`;
     await this.request(url, {token: active.offering.token, method: 'POST', data}); this.session(active.id);
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (let attempt = 0; attempt < 40; attempt++) {
       const {status, value} = await this.request(url, {token: active.offering.token}); this.session(active.id);
-      if (status !== 204) {const result = object(value).exchangeResponse; if (typeof result !== 'string' || result.length > 512_000) throw Error('Invalid console exchange response.'); return JSON.parse(result);}
+      if (status !== 204) {
+        const result = object(value).exchangeResponse;
+        if (result !== undefined && result !== null && result !== '') {if (typeof result !== 'string' || result.length > 512_000) throw Error('Invalid console exchange response.'); return JSON.parse(result);}
+        if (Object.keys(object(object(value).errorDetails)).length) throw Error('Console exchange was rejected.');
+      }
       await new Promise<void>((resolve, reject) => {
         const signal = this.controller.signal; const timer = setTimeout(() => {signal.removeEventListener('abort', cancel); resolve();}, 500);
         const cancel = () => {clearTimeout(timer); reject(Error('Console account changed.'));}; signal.addEventListener('abort', cancel, {once: true}); if (signal.aborted) cancel();
