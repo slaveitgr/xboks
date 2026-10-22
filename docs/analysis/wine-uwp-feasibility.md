@@ -57,6 +57,28 @@ No ISO download or build was initiated. The ISO's size alone understates the tem
 
 No part of this review proves Real Drive Simulator launches or plays. The upstream project provides concrete machinery that makes such a test worthwhile; the next step is a reproducible isolated candidate and real acceptance, rather than a claim that all UWP games work.
 
+## XBOKS source preparation
+
+A subsequent isolated preparation assembled the exact Wine 11.20 upstream
+commit above with 470 tracked regular overlay files, including 206 new files.
+Overlay hashes were recorded and rechecked. Reference host packaging scripts,
+Microsoft binaries and symlinks were not copied into that source tree.
+
+Autoconf generation and a fresh out-of-tree x64 configure both passed. The
+configured feature checks include PE C++17, GnuTLS/schannel, X11, OpenGL, Vulkan,
+ALSA, Fontconfig and Freetype. Required compiler/autoconf/GnuTLS development
+packages were extracted into a private tool directory; no system package
+installation or runtime replacement was performed. PulseAudio, GStreamer,
+FFmpeg, SDL2 and VA acceleration remain absent from this candidate's configured
+feature profile.
+
+This status is **configured, not built**. The configure checks do not establish
+that every modified Wine module compiles, that Windows components can be
+harvested and activated, or that this game renders and accepts input. A full
+build and actual UWP acceptance remain pending. In addition to the Windows
+image, Real Drive Simulator needs its [exact framework minimums and potentially
+a separate WebView2 runtime](real-drive-simulator-package.md).
+
 ## Runtime integration audit
 
 The current XBOKS runtime recipe pins Wine `b1dd32734a34472a28eb5be9922df06e07ac0834` and its own GDK/account bridge in [`runtime-patches.lock.json`](../../scripts/runtime-patches.lock.json). The reference overlay targets Wine 11.20 and replaces whole source files, including `ntdll`, `kernelbase`, `combase`, `win32u`, DXGI and DirectComposition. Copying those files over the existing runtime would combine two different Wine bases and replace already validated Engine behavior. A separate candidate runtime and launcher adapter is the appropriate boundary.

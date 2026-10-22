@@ -75,6 +75,30 @@ The x64 manifest establishes the activation model:
 
 Microsoft documents a class entry point other than the two reserved full/partial-trust entries as UWP `windowsApp` activation. See [Application activation attributes](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-application) and [Microsoft's packaged-process explanation](https://devblogs.microsoft.com/insidemsix/types-of-packaged-applications/). This package is a genuine UWP/.NET Native application, rather than a packaged full-trust Win32 game.
 
+The actual manifest requires these x64 Microsoft framework packages:
+
+| Framework | Minimum version |
+| --- | --- |
+| `Microsoft.UI.Xaml.2.8` | `8.2501.31001.0` |
+| `Microsoft.NET.Native.Framework.2.2` | `2.2.29512.0` |
+| `Microsoft.NET.Native.Runtime.2.2` | `2.2.28604.0` |
+| `Microsoft.VCLibs.140.00` | `14.0.33519.0` |
+| `Microsoft.VCLibs.140.00.UWPDesktop` | `14.0.33728.0` |
+
+The pinned wine-uwp harvest manifest requests all five families, but wildcard
+directory names do not establish the installed versions. Its installer source
+mentions an ISO VCLibs version of `14.0.30704`, below this game's requirements,
+and permits an older-version fallback. XBOKS must compare actual framework
+identities, publishers, architectures and versions instead. Missing or older
+frameworks need official dependency delivery.
+
+WebView2 is a separate runtime dependency: the game includes its SDK Core and
+Loader files, while the pinned harvest manifest contains no EdgeWebView browser
+runtime. The candidate's setup accepts a separately supplied WebView2 tree.
+Those SDK files alone are insufficient evidence that a WebView control can run;
+whether the game activates it must be checked during acceptance. See the
+[pinned runtime audit](wine-uwp-feasibility.md).
+
 Both inspected PE images target AMD64 and set `DllCharacteristics=0x9160`, including the `0x1000` AppContainer flag defined in Microsoft's [PE format specification](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format). The executable imports the application's DLL and `RHBinder__ShimExeMain`. The DLL imports `SharedLibrary.dll`, `mrt100_app.dll` and WinRT APIs including `RoGetActivationFactory`. Consequently, finding an `.exe` in the archive is insufficient evidence that direct Wine/Proton execution will support its activation, framework or UI requirements. No such execution was attempted in this static investigation.
 
 ## Verified official delivery path
@@ -94,4 +118,4 @@ The general message flow is specified by Microsoft's [MS-WUSP SyncUpdates docume
 
 This proves anonymous delivery of this exact clear bundle and a concrete way to build a separate standard-package resolver. It does not prove a Store license, offline entitlement, successful registration, framework compatibility, launch or gameplay. Signed CDN URLs, cookies, package binaries and extracted game files remain outside Git.
 
-The smallest useful implementation is a bounded, read-only MSIX/AppX inspector that identifies bundle architecture, validates package paths/limits, parses the manifest by namespace and distinguishes full-trust Win32 from UWP activation. Standard-package downloading/staging can then be added as a separate capability. Real Drive Simulator still needs runtime activation, .NET Native/XAML and dependency support before its Install/Play actions can be enabled truthfully; changing its metadata classification or extracting its executable does not supply those capabilities.
+The [implemented read-only inspector](msix-uwp-support.md) identifies bundle architecture, checks package paths/limits, parses the manifest by namespace and distinguishes full-trust Win32 from UWP activation. It successfully reads this actual bundle. Standard-package downloading/staging remains a separate capability to implement. Real Drive Simulator still needs runtime activation, .NET Native/XAML and dependency support before its Install/Play actions can be enabled truthfully; changing its metadata classification or extracting its executable does not supply those capabilities.
