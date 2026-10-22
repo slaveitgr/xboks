@@ -36,6 +36,8 @@ jobs:
         run: npm run build
       - run: npm run test:runtime-tools
       - run: npm run test:ci-tools
+      - name: Check offline MSIX inspection with synthetic packages
+        run: npm run test:msix
       - name: Check GNOME extension logic and staging without the host Shell
         run: node --test scripts/desktop/gnome-experience.test.mjs
       - name: Check reference decoders with synthetic packages only

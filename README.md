@@ -145,6 +145,7 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 
 ## Current limits
 
+- **MSIX/UWP installation is not enabled.** The current Engine installs Windows.Desktop MSIXVC games. The new offline inspector identifies ordinary APPX/MSIX packages, bundle architecture, activation and dependencies; it does not install or launch them. See [MSIX/UWP development](docs/analysis/msix-uwp-support.md).
 - **Game support is individual.** A catalog listing, license, successful download, or Windows handheld rating does not establish Linux compatibility. Package format, DRM, anti-cheat, runtime support, and the game can still prevent play.
 - **Xbox party voice is not connected.** The microphone tools are local tests. A party roster or working microphone does not establish an Xbox voice session.
 - **Social coverage is partial.** Friends/inbox reads have been exercised; live delivery of outgoing text messages still needs acceptance. Group/system conversations and unsupported provider actions remain unavailable.
@@ -158,6 +159,7 @@ Optional integrations use existing services: PipeWire/WirePlumber for audio, MPR
 ## Roadmap
 
 - Broader game-by-game install-to-launch validation and clearer compatibility reports.
+- A separate experimental MSIX/UWP runtime, evaluating the pinned [wine-uwp candidate](docs/analysis/wine-uwp-feasibility.md) with real package, activation and rendered-content tests before enabling Store installation.
 - Sustained cloud and Xbox One X video/audio/controller acceptance, broader transfer-handshake validation, and verified console remote-management controls.
 - Xbox party signaling and voice transport, followed by cross-device testing.
 - Additional service-backed Store, social, and account capabilities, including wishlist support.
@@ -196,6 +198,15 @@ npm run dist                # Build an AppImage under release/
 ```
 
 Packaging builds again and does not publish. Building the launcher does not build or validate every native Engine/runtime component. See the [Engine build guide](scripts/BACKEND.md), [shared runtime guide](scripts/SHARED_RUNTIME.md), and [contribution guide](CONTRIBUTING.md) for additional toolchains and validation.
+
+For offline package metadata inspection after building, with Python 3 installed:
+
+```sh
+npm run inspect:msix -- --package /path/to/game.msixbundle --arch x64
+npm run test:msix
+```
+
+This reads a local package without extraction, installation, registration, sign-in or execution. Signature presence is reported separately from signature validation.
 
 Use the [issue tracker](https://github.com/slaveitgr/xboks/issues) for reproducible problems and feature requests. Include application/Engine/runtime versions, distribution/desktop, affected game, and redacted diagnostics. Never post account tokens or private wallet data.
 

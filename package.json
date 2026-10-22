@@ -15,6 +15,8 @@
     "test": "vitest run",
     "test:runtime-tools": "node --test scripts/eac-trace-summary.test.mjs scripts/wine-exception-metadata.test.mjs scripts/assemble-shared-runtime.test.mjs scripts/build-runtime-dxvk.test.mjs scripts/verify-runtime-base.test.mjs scripts/runtime-compat/staging.test.mjs scripts/runtime-tests/build-store-probes.test.mjs scripts/runtime-tests/build-user-privilege-probe.test.mjs",
     "test:ci-tools": "node --test scripts/ci/*.test.mjs",
+    "inspect:msix": "node scripts/msix/inspect.mjs",
+    "test:msix": "node --test scripts/msix/inspect.test.mjs && python3 -m unittest discover -s scripts/msix -p 'test_*.py'",
     "build": "npm run clean && npm run typecheck && npm run test && vite build && tsc -p tsconfig.electron.json",
     "dist": "npm run build && electron-builder --linux AppImage --publish never",
     "dist:deb": "npm run build && electron-builder --linux deb --publish never",

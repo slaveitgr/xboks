@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add offline APPX/MSIX/bundle inspection with bounded ZIP64 and OPC names, architecture selection, namespace-aware activation/dependency reporting and explicit trust/compatibility limits. Record the actual Real Drive Simulator package and the pinned wine-uwp runtime candidate; UWP Store installation and launch remain disabled.
+- Add an account-free native UWP factory/lifecycle diagnostic probe for disposable prefixes. Its results diagnose missing activation support and do not establish game compatibility.
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
