@@ -23,7 +23,7 @@ export function GamepadNavigation({ back, page, activateOnFocus = false, subscri
     mode: setActive, back: () => callbacks.current.back(), page: delta => callbacks.current.page(delta), activateOnFocus,
     subscribeInput: subscribeInput ? dispatch => callbacks.current.subscribeInput!(dispatch) : undefined,
     nativeControlsActive: () => callbacks.current.nativeControlsActive,
-  }), [activateOnFocus, Boolean(subscribeInput)]);
+  }), [activateOnFocus, Boolean(subscribeInput), nativeControlsActive]);
   return active ? <div className="gamepad-hints" aria-label="Gamepad controls">
     <span>D-pad / L stick: Move</span><span>A: Select</span><span>B: Back</span><span>X: Options</span>
     <span>LB / RB: Pages</span><span>R stick: Scroll</span><span>Steam + X: Keyboard</span>

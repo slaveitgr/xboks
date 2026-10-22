@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import type { AppSnapshot, CatalogProduct, DownloadTask, GameStoreDetails } from '../shared/types';
 import {CloudPlayAction} from './CloudPlayAction';
 import { ArrowLeft, Download, ExternalLink, Heart, Info, MoreHorizontal, RefreshCw } from './XboxIcons';
@@ -26,6 +26,7 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
   const [menu, setMenu] = useState<HTMLElement>();
   const [handheld, setHandheld] = useState(false);
   const root = useRef<HTMLElement>(null);
+  const installSupportId = `catalog-install-support-${useId()}`;
   useBackHandler(() => { back(); return true; }, !menu && gallery === undefined && !handheld);
   useEffect(() => {
     let live = true;
@@ -49,6 +50,7 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
   const storeUrl = product.storeUrl ?? `https://www.microsoft.com/store/productId/${encodeURIComponent(product.productId)}`;
   const currentOperation = operation && !['complete', 'cancelled'].includes(operation.status) ? operation : undefined;
   const hasProgress = Boolean(currentOperation && openQueue);
+  const unsupportedInstallNote = !installed && !hasProgress && product.installability === 'unsupported' ? product.supportNote : undefined;
   const title = details?.title || product.title;
   return <main ref={root} className="catalog-details-page" data-gamepad-detail={product.productId} data-product-id={product.productId} aria-busy={loading} style={artwork ? { '--catalog-art': `url(${JSON.stringify(artwork)})` } as CSSProperties : undefined}>
     <button className="sr-only catalog-detail-back" data-gamepad-detail-back onClick={back} aria-label={text('Back to previous page', 'Επιστροφή στην προηγούμενη σελίδα')}><ArrowLeft />{text('Back', 'Πίσω')}</button>
@@ -62,6 +64,7 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
           {product.includedWith ? <span>{product.includedWith}</span> : null}
           <div className="catalog-detail-actions">
             <button className={`primary${currentOperation?.status === 'failed' ? ' catalog-install-error' : ''}`} disabled={busy || (!installed && !hasProgress && (queued || !canInstall))}
+              aria-describedby={unsupportedInstallNote ? installSupportId : undefined}
               onClick={installed ? openInstalled : hasProgress ? openQueue : install}>
               <Download /><span>{installed ? text('View in library', 'Προβολή στη βιβλιοθήκη') : hasProgress ? <>{currentOperation?.status === 'failed' ? text('Error', 'Σφάλμα') : text('Installing', 'Εγκατάσταση')}{currentOperation?.progress !== null ? ` ${Math.round(currentOperation?.progress ?? 0)}%` : ''}<small>{text('View progress', 'Προβολή προόδου')}</small></> : queued ? text('In Install Queue', 'Στην ουρά εγκατάστασης') : busy ? text('Preparing…', 'Προετοιμασία…') : text('Install', 'Εγκατάσταση')}</span>
             </button>
@@ -71,6 +74,7 @@ export function CatalogDetails({ product, back, install, busy, installed, queued
             <button className="secondary catalog-wishlist" disabled title={text('Wishlist service is unavailable', 'Η υπηρεσία λίστας επιθυμιών δεν είναι διαθέσιμη')} aria-label={text('Add to wishlist', 'Προσθήκη στη λίστα επιθυμιών')}><Heart /></button>
             <button className="secondary" aria-label={text('Game options', 'Επιλογές παιχνιδιού')} aria-haspopup="menu" aria-expanded={Boolean(menu)} onClick={event => setMenu(menu ? undefined : event.currentTarget)}><MoreHorizontal /></button>
           </div>
+          {unsupportedInstallNote ? <p id={installSupportId} className="catalog-detail-description" role="note">{unsupportedInstallNote}</p> : null}
         </div>
       </div>
       <div className="catalog-detail-media">

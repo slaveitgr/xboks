@@ -150,12 +150,18 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   const inputs = new Map<string, PadInput>();
   const returns = new WeakMap<Element, HTMLElement>();
   const sidebarReturns = new WeakMap<Element, HTMLElement>();
-  let active = false, stopped = false, frame = 0, previousTime = 0;
+  const deferredFrames = new Set<number>();
+  let active = false, stopped = false, frame = 0, nativeRepairFrame = 0, previousTime = 0;
   let scope: HTMLElement | Document = doc;
   let picker: HTMLElement | undefined;
   let keyboardFromPad = false;
   let pendingDetail: { id: string; origin: HTMLElement; deadline: number } | undefined;
   let detailReturn: { id: string; origin: HTMLElement } | undefined;
+  const deferFrame = (callback: FrameRequestCallback) => {
+    const id = win.requestAnimationFrame(time => {deferredFrames.delete(id); if (!stopped) callback(time);});
+    deferredFrames.add(id);
+  };
+  const cancelDeferredFrames = () => {for (const id of deferredFrames) win.cancelAnimationFrame(id); deferredFrames.clear();};
   const visible = (element: HTMLElement) => {
     if (!element.isConnected || element.closest('[hidden],[inert],[aria-hidden="true"]') || !element.getClientRects().length) return false;
     const style = win.getComputedStyle(element);
@@ -201,7 +207,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     // Action buttons, recents, settings and downloads always require A.
     // Library cards select on focus; opening their game page requires A.
     if (select && active && scope === doc && element.hasAttribute('data-gamepad-auto-select') && element.getAttribute('data-gamepad-auto-select') !== 'focus' && currentScope() === doc) element.click();
-    win.requestAnimationFrame(() => { if (!stopped && active && focused() === element && enabled(element)) reveal(element); });
+    deferFrame(() => { if (!stopped && active && focused() === element && enabled(element)) reveal(element); });
     mark();
   };
   const initial = (root: HTMLElement | Document) => candidates(root).find(element => element.hasAttribute('data-gamepad-initial'))
@@ -263,11 +269,23 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     }
     pointer();
   };
-  const blur = () => { pointer(); closePicker(false); };
+  const browserPollingAllowed = () => !stopped && !doc.hidden && doc.hasFocus() && !options.nativeControlsActive?.()
+    && doc.documentElement.dataset.cloudStreamInput !== 'active';
+  const stopPolling = () => {if (frame) win.cancelAnimationFrame(frame); frame = 0; previousTime = 0; inputs.forEach(input => input.reset());};
+  const schedulePolling = () => {if (!frame && browserPollingAllowed()) frame = win.requestAnimationFrame(tick);};
+  const repairNativeFocus = () => {
+    if (nativeRepairFrame || stopped || !active || doc.hidden || !options.nativeControlsActive?.() || doc.documentElement.dataset.cloudStreamInput === 'active') return;
+    nativeRepairFrame = win.requestAnimationFrame(() => {
+      nativeRepairFrame = 0;
+      if (!stopped && active && !doc.hidden && options.nativeControlsActive?.() && doc.documentElement.dataset.cloudStreamInput !== 'active') ensureFocus();
+    });
+  };
+  const blur = () => { stopPolling(); cancelDeferredFrames(); if (nativeRepairFrame) win.cancelAnimationFrame(nativeRepairFrame); nativeRepairFrame = 0; pointer(); closePicker(false); };
   const resume = () => {
     inputs.forEach(input => input.reset());
-    if (!options.activateOnFocus || doc.hidden || !doc.hasFocus()) return;
-    scope = currentScope(); setMode(true); focus(initial(scope));
+    if (doc.hidden || !doc.hasFocus() && !options.nativeControlsActive?.()) {stopPolling(); return;}
+    if (options.activateOnFocus && doc.hasFocus() && doc.documentElement.dataset.cloudStreamInput !== 'active') {scope = currentScope(); setMode(true); focus(initial(scope));}
+    schedulePolling(); repairNativeFocus();
   };
   const visibilityChanged = () => { if (doc.hidden) blur(); else resume(); };
 
@@ -338,7 +356,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     focused()?.blur();
     // React commits the new page asynchronously. Restore its active nav item
     // without selecting the old page again during fallback/return focus.
-    win.requestAnimationFrame(() => { if (!stopped && active && currentScope() === doc) focus(initial(doc)); });
+    deferFrame(() => { if (!stopped && active && currentScope() === doc) focus(initial(doc)); });
   };
   const back = () => {
     if (picker) { closePicker(true); return; }
@@ -379,7 +397,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
               const originScope = scope, key = direction === 'right' ? 'ArrowRight' : 'ArrowLeft';
               // React must render the new controlled value before existing
               // Guide/AudioSettings keyup handlers commit it to the backend.
-              win.requestAnimationFrame(() => {
+              deferFrame(() => {
                 if (stopped || doc.activeElement !== element || !enabled(element) || element.readOnly || currentScope() !== originScope || !originScope.contains(element)) return;
                 keyboardFromPad = true;
                 try { element.dispatchEvent(new KeyboardEvent('keyup', { key, code: key, bubbles: true })); }
@@ -486,9 +504,9 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
         if (tab) focus(tab);
         // A favorite on another toolbar page needs a second React commit.
         // Wait boundedly for that real selected tab instead of focusing Close.
-        else if (remaining > 0) win.requestAnimationFrame(() => selectedTab(remaining - 1));
+        else if (remaining > 0) deferFrame(() => selectedTab(remaining - 1));
       };
-      win.requestAnimationFrame(() => selectedTab(3));
+      deferFrame(() => selectedTab(3));
     } else if (scope === doc) {
       const sections = [...doc.querySelectorAll<HTMLElement>('[data-gamepad-section-tabs]')].find(visible);
       const tabs = sections ? [...sections.querySelectorAll<HTMLElement>('[role="tab"]')].filter(enabled) : [];
@@ -509,23 +527,15 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
     if (element) element.scrollTop += value * elapsed * 0.75;
   };
   const tick = (now: number) => {
+    frame = 0;
     if (stopped) return;
-    const elapsed = Math.min(40, Math.max(0, now - previousTime)); previousTime = now;
-    if (doc.documentElement.dataset.cloudStreamInput === 'active') {
-      if (active) blur(); inputs.forEach(input => input.reset());
-      frame = win.requestAnimationFrame(tick); return;
+    if (!browserPollingAllowed()) {
+      if (active && (doc.hidden || !doc.hasFocus() && !options.nativeControlsActive?.() || doc.documentElement.dataset.cloudStreamInput === 'active')) blur();
+      else stopPolling();
+      return;
     }
+    const elapsed = Math.min(40, Math.max(0, now - previousTime)); previousTime = now;
     try {
-      if (options.nativeControlsActive?.()) {
-        // Main admits these inputs only for its visible focused UI surface.
-        // Never also poll Chromium's copy of the same controller event.
-        inputs.forEach(input => input.reset());
-        if (doc.hidden) { if (active) blur(); }
-        else if (active) ensureFocus();
-      } else if (doc.hidden || !doc.hasFocus()) {
-        if (active) blur();
-        inputs.forEach(input => input.reset());
-      } else {
         const pads = [...(win.navigator.getGamepads?.() ?? [])].filter((pad): pad is Gamepad => Boolean(pad?.connected && pad.mapping === 'standard'));
         const present = new Set<string>();
         let handled = false;
@@ -542,15 +552,15 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
         for (const key of inputs.keys()) if (!present.has(key)) inputs.delete(key);
         if (!pads.length) { setMode(false); closePicker(false); }
         if (active) ensureFocus();
-      }
-    } catch { blur(); inputs.clear(); } // Unsupported browser/device must not break mouse UI.
-    frame = win.requestAnimationFrame(tick);
+    } catch { blur(); inputs.clear(); return; } // Retry only after a real focus/visibility handoff.
+    schedulePolling();
   };
   const experienceChanged = (event: Event) => {
     const enabled = (event as CustomEvent<boolean>).detail === true;
     inputs.forEach(input => input.reset());
     if (enabled) { setMode(true); scope = currentScope(); focus(initial(scope), false); ensureFocus(); }
     else setMode(false);
+    schedulePolling(); repairNativeFocus();
   };
   win.addEventListener('xboks-fullscreen-experience', experienceChanged);
   win.addEventListener('pointerdown', pointer, true);
@@ -560,17 +570,28 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   win.addEventListener('focus', resume);
   doc.addEventListener('visibilitychange', visibilityChanged);
   const unsubscribeInput = options.subscribeInput?.(value => {
-    if (stopped || doc.hidden || !options.nativeControlsActive?.() ||
+    if (stopped || doc.hidden || doc.documentElement.dataset.cloudStreamInput === 'active' || !options.nativeControlsActive?.() ||
         ![...directions, 'accept', 'back', 'options', 'previous-page', 'next-page'].includes(value)) return;
     // Unlike untrusted browser polling, this stream has already passed main's
     // native window-focus and session-lock guards. It does not depend on the
     // Chromium Gamepad mapping or its device-exposure activation heuristic.
-    setMode(true); action(value);
+    setMode(true); action(value); repairNativeFocus();
   });
+  const contextChanged = () => {
+    if (browserPollingAllowed()) schedulePolling();
+    else if (doc.hidden || !doc.hasFocus() && !options.nativeControlsActive?.() || doc.documentElement.dataset.cloudStreamInput === 'active') blur();
+    else stopPolling();
+    repairNativeFocus();
+  };
+  const streamObserver = typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(contextChanged);
+  streamObserver?.observe(doc.documentElement, {attributes: true, attributeFilter: ['data-cloud-stream-input']});
+  // Native events replace browser polling. Repair focus only after an action
+  // or a real DOM change, instead of scanning modal controls every frame.
+  const nativeObserver = options.nativeControlsActive?.() && typeof MutationObserver !== 'undefined' ? new MutationObserver(repairNativeFocus) : undefined;
+  nativeObserver?.observe(doc.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['hidden','inert','aria-hidden','aria-modal','disabled','aria-disabled','tabindex']});
   resume();
-  frame = win.requestAnimationFrame(tick);
   return () => {
-    stopped = true; unsubscribeInput?.(); win.cancelAnimationFrame(frame); closePicker(false); setMode(false); inputs.clear();
+    stopped = true; unsubscribeInput?.(); stopPolling(); cancelDeferredFrames(); if (nativeRepairFrame) win.cancelAnimationFrame(nativeRepairFrame); streamObserver?.disconnect(); nativeObserver?.disconnect(); closePicker(false); setMode(false); inputs.clear();
     win.removeEventListener('pointerdown', pointer, true);
     win.removeEventListener('pointermove', pointerMove, true);
     win.removeEventListener('keydown', keyboard, true);

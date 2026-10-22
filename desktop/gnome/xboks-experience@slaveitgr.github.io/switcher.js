@@ -28,13 +28,15 @@ export class XboksSwitcher {
     constructor({leave, xbox, changed, allowed = () => true}) {
         this._leave = leave; this._xbox = xbox; this._changed = changed; this._allowed = allowed;
         this._root = null; this._grab = null; this._theme = null; this._modifierMask = 0; this._signals = []; this._refreshSource = 0; this._clockSource = 0;
+        this._windowSignals = new Map(); this._clockLabel = null; this._renderState = null;
         this.selection = new SwitcherSelection();
         const locale = GLib.get_language_names?.()[0] ?? 'en';
         this._el = locale.toLowerCase().startsWith('el');
     }
     get visible() { return this._root !== null; }
     _text(en, el) { return this._el ? el : en; }
-    _connect(object, name, callback) { const id = object.connect(name, callback); this._signals.push([object, id]); }
+    _connect(object, name, callback, signals = this._signals) { const id = object.connect(name, callback); signals.push([object, id]); }
+    _disconnect(signals) { for (const [object, id] of signals.splice(0)) { try { object.disconnect(id); } catch { /* Native window disappeared. */ } } }
     toggle() { if (this.visible) this.hide(); else this.open(); return this.visible; }
     open() {
         if (this.visible || !this._allowed()) return this.visible;
@@ -87,7 +89,9 @@ export class XboksSwitcher {
             this._connect(Main.layoutManager, 'system-modal-opened', () => this.hide());
             this._connect(global.display, 'window-created', () => this._scheduleRefresh());
             this._connect(global.window_manager, 'destroy', () => this._scheduleRefresh());
-            this._clockSource = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => { this._render(); return GLib.SOURCE_CONTINUE; });
+            this._connect(Shell.WindowTracker.get_default(), 'tracked-windows-changed', () => this._scheduleRefresh());
+            this._watchWindows();
+            this._clockSource = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 30, () => { this._updateClock(); return GLib.SOURCE_CONTINUE; });
             this._render(); root.grab_key_focus(); this._changed(true);
         } catch (error) { this.hide(); throw error; }
         return true;
@@ -102,9 +106,10 @@ export class XboksSwitcher {
         if (this._modifierMask && !(global.get_pointer()[2] & this._modifierMask)) this.action('accept');
         return this.visible;
     }
+    _actor(entry) { try { return entry.window.get_compositor_private() ?? null; } catch { return null; } }
     _source(entry) {
         try {
-            const source = entry.window.get_compositor_private();
+            const source = this._actor(entry);
             const [width, height] = source?.get_size() ?? [0, 0];
             if (width > 0 && height > 0) return {source, width, height, aspect: width / height};
         } catch { /* A native window may disappear between inventory/render. */ }
@@ -114,9 +119,35 @@ export class XboksSwitcher {
         if (!this.visible || this._refreshSource) return;
         this._refreshSource = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
             this._refreshSource = 0;
-            if (this.visible) { this.selection.update(windowEntries()); this._render(); }
+            if (this.visible) { this.selection.update(windowEntries()); this._watchWindows(); this._render(); }
             return GLib.SOURCE_REMOVE;
         });
+    }
+    _watchWindows() {
+        const current = new Map(this.selection.entries.map(entry => [entry.window, entry]));
+        for (const [window, record] of this._windowSignals) {
+            const entry = current.get(window);
+            if (entry && this._actor(entry) === record.source) continue;
+            this._disconnect(record.signals); this._windowSignals.delete(window);
+        }
+        for (const entry of this.selection.entries) {
+            if (this._windowSignals.has(entry.window)) continue;
+            const record = {source: this._actor(entry), signals: []};
+            this._windowSignals.set(entry.window, record);
+            // Inventory/title/geometry updates are event-driven; the clock no
+            // longer needs to rebuild native previews to discover them.
+            try {
+                for (const signal of ['notify::title', 'notify::skip-taskbar', 'notify::mapped', 'unmanaged'])
+                    this._connect(entry.window, signal, () => this._scheduleRefresh(), record.signals);
+                if (record.source) for (const property of ['width', 'height'])
+                    this._connect(record.source, `notify::${property}`, () => this._scheduleRefresh(), record.signals);
+            } catch { /* A native window can close during signal setup. */ }
+        }
+    }
+    _updateClock() {
+        if (!this._clockLabel) return;
+        const text = GLib.DateTime.new_now_local().format('%X').replace(/:\d\d(?=\s|$)/, '');
+        if (this._clockLabel.text !== text) this._clockLabel.text = text;
     }
     _icon(entry, size) {
         try { return entry?.app?.create_icon_texture(size) ?? new St.Icon({icon_name: 'application-x-executable', icon_size: size}); }
@@ -135,7 +166,7 @@ export class XboksSwitcher {
         button.connect('clicked', callback); return button;
     }
     _place(actor, x, y, width, height) { actor.set_position(Math.round(x), Math.round(y)); actor.set_size(Math.round(width), Math.round(height)); return actor; }
-    _card(entry, x, y, geometry, selected) {
+    _card(entry, x, y, geometry, selected, preview = this._source(entry)) {
         const {width, height, inset, header: headerHeight, scale} = geometry;
         const box = new St.Widget({style_class: `xboks-window-card${selected ? ' selected' : ''}`, reactive: true,
             clip_to_allocation: true, layout_manager: new Clutter.FixedLayout()});
@@ -149,7 +180,7 @@ export class XboksSwitcher {
         const previewHeight = height - headerHeight - inset;
         const content = new St.Widget({layout_manager: new Clutter.FixedLayout(), clip_to_allocation: true});
         box.add_child(this._place(content, inset, headerHeight, width - inset * 2, previewHeight));
-        const {source, width: sourceWidth, height: sourceHeight} = this._source(entry);
+        const {source, width: sourceWidth, height: sourceHeight} = preview;
         if (source) {
             const factor = Math.min((width - inset * 2) / sourceWidth, previewHeight / sourceHeight);
             const clone = new Clutter.Clone({source, width: sourceWidth * factor, height: sourceHeight * factor});
@@ -157,7 +188,7 @@ export class XboksSwitcher {
                 (previewHeight - sourceHeight * factor) / 2, sourceWidth * factor, sourceHeight * factor));
         } else content.add_child(new St.Label({text: this._text('Preview unavailable', 'Η προεπισκόπηση δεν είναι διαθέσιμη')}));
         const select = this._windowSelect(selected ? this._text('Select window', 'Επιλογή παραθύρου') : entry.name,
-            () => { if (selected) this.action('accept'); else { this.selection.select(this.selection.entries.indexOf(entry)); this._render(); } });
+            () => { if (selected) this.action('accept'); else { this.selection.select(this.selection.entries.findIndex(candidate => candidate.id === entry.id && candidate.window === entry.window)); this._render(); } });
         box.add_child(this._place(select, inset, selected ? headerHeight : 0, width - inset * 2, selected ? previewHeight : height));
         if (selected) {
             // Reference controls fade over the preview; reserving footer space
@@ -185,12 +216,19 @@ export class XboksSwitcher {
     }
     _render() {
         if (!this._root) return;
-        for (const child of this._root.get_children()) child.destroy();
         const monitor = Main.layoutManager.focusMonitor ?? Main.layoutManager.primaryMonitor;
         const width = monitor.width, height = monitor.height;
-        this._root.set_position(monitor.x, monitor.y); this._root.set_size(width, height);
         const selected = this.selection.entries[this.selection.index];
-        const geometry = cardGeometry(width, height, this._source(selected).aspect), {scale, left, top} = geometry;
+        const before = this.selection.entries[this.selection.index - 1], after = this.selection.entries[this.selection.index + 1];
+        const previews = new Map([before, selected, after].filter(Boolean).map(entry => [entry, this._source(entry)]));
+        const state = [monitor.x, monitor.y, width, height, this.selection.index, this.selection.area, this.selection.mode, this.selection.entries.length,
+            ...this.selection.entries.flatMap(entry => [entry.id, entry.window, entry.app, entry.desktopId, entry.name, entry.title]),
+            ...[...previews].flatMap(([entry, preview]) => [entry.id, preview.source, preview.width, preview.height])];
+        if (this._renderState?.length === state.length && state.every((value, index) => value === this._renderState[index])) return;
+        this._clockLabel = null;
+        for (const child of this._root.get_children()) child.destroy();
+        this._root.set_position(monitor.x, monitor.y); this._root.set_size(width, height);
+        const geometry = cardGeometry(width, height, previews.get(selected)?.aspect), {scale, left, top} = geometry;
         const bar = new St.BoxLayout({style_class: 'xboks-app-bar', x_align: Clutter.ActorAlign.CENTER});
         const bumper = text => {
             const slot = new St.Widget({layout_manager: new Clutter.FixedLayout()}); slot.set_size(48 * scale, 72 * scale);
@@ -211,19 +249,18 @@ export class XboksSwitcher {
         this._root.add_child(this._place(bar, (width - barWidth) / 2, 10 * scale, barWidth, 74 * scale));
         // A real local clock is the only status source here. Network/audio
         // glyphs must not imply device state that this extension cannot read.
-        const now = GLib.DateTime.new_now_local(), clock = new St.Label({text: now.format('%X').replace(/:\d\d(?=\s|$)/, ''), style_class: 'xboks-switcher-clock'});
-        this._root.add_child(this._place(clock, width - 160 * scale, 26 * scale, 150 * scale, 42 * scale));
+        this._clockLabel = new St.Label({text: '', style_class: 'xboks-switcher-clock'}); this._updateClock();
+        this._root.add_child(this._place(this._clockLabel, width - 160 * scale, 26 * scale, 150 * scale, 42 * scale));
         if (selected) {
-            const before = this.selection.entries[this.selection.index - 1], after = this.selection.entries[this.selection.index + 1];
             if (before) {
-                const previous = cardGeometry(width, height, this._source(before).aspect, false);
-                this._card(before, left - 257 * scale - previous.width, previous.top, previous, false);
+                const previous = cardGeometry(width, height, previews.get(before).aspect, false);
+                this._card(before, left - 257 * scale - previous.width, previous.top, previous, false, previews.get(before));
             }
             if (after) {
-                const next = cardGeometry(width, height, this._source(after).aspect, false);
-                this._card(after, left + geometry.width + 257 * scale, next.top, next, false);
+                const next = cardGeometry(width, height, previews.get(after).aspect, false);
+                this._card(after, left + geometry.width + 257 * scale, next.top, next, false, previews.get(after));
             }
-            this._card(selected, left, top, geometry, true);
+            this._card(selected, left, top, geometry, true, previews.get(selected));
         } else this._root.add_child(this._place(new St.Label({text: this._text('No open application windows', 'Δεν υπάρχουν ανοιχτά παράθυρα εφαρμογών')}), width * 0.35, height / 2, width * 0.5, 50));
         const bottom = new St.BoxLayout({style_class: 'xboks-mode-bar'});
         bottom.add_child(new St.Widget({x_expand: true}));
@@ -231,6 +268,7 @@ export class XboksSwitcher {
         bottom.add_child(this._modeButton('desktop', this._text('Linux desktop', 'Επιφάνεια εργασίας Linux'), scale));
         bottom.add_child(new St.Widget({x_expand: true}));
         this._root.add_child(this._place(bottom, 8 * scale, height - 62 * scale, width - 16 * scale, 54 * scale));
+        this._renderState = state;
     }
     action(action) {
         if (!this._allowed()) { this.hide(); return false; }
@@ -254,10 +292,12 @@ export class XboksSwitcher {
     hide() {
         const root = this._root; if (!root) return;
         this._root = null; this._modifierMask = 0;
+        this._clockLabel = null; this._renderState = null;
         this._theme?.destroy(); this._theme = null;
         if (this._refreshSource) { GLib.Source.remove(this._refreshSource); this._refreshSource = 0; }
         if (this._clockSource) { GLib.Source.remove(this._clockSource); this._clockSource = 0; }
-        for (const [object, id] of this._signals.splice(0)) { try { object.disconnect(id); } catch { /* Native window disappeared. */ } }
+        for (const record of this._windowSignals.values()) this._disconnect(record.signals);
+        this._windowSignals.clear(); this._disconnect(this._signals);
         if (this._grab) { Main.popModal(this._grab); this._grab = null; }
         Main.layoutManager.removeChrome(root); root.destroy(); this._changed(false);
     }

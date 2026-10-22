@@ -1,0 +1,141 @@
+{
+  "Products": [
+    {
+      "ProductId": "9N4FM1CG341P",
+      "ProductType": "Game",
+      "ProductFamily": "Games",
+      "LocalizedProperties": [
+        {
+          "ProductTitle": "Real Drive Simulator",
+          "PublisherName": "Coton Studio"
+        }
+      ],
+      "Properties": {
+        "PackageFamilyName": "CotonStudio.RealDriveSimulator_krfr0nem5wa2m",
+        "PackageIdentityName": "CotonStudio.RealDriveSimulator"
+      },
+      "DisplaySkuAvailabilities": [
+        {
+          "Sku": {
+            "SkuId": "0010",
+            "Properties": {
+              "IsTrial": false,
+              "IsBundle": false,
+              "BundledSkus": [],
+              "Packages": [
+                {
+                  "ContentId": "1dd28d75-04b0-b6f7-eab8-2bd28341d9cb",
+                  "PackageFormat": "MsixBundle",
+                  "PackageFullName": "CotonStudio.RealDriveSimulator_1.0.0.0_neutral_~_krfr0nem5wa2m",
+                  "PackageFamilyName": "CotonStudio.RealDriveSimulator_krfr0nem5wa2m",
+                  "Architectures": [
+                    "x86",
+                    "x64",
+                    "arm64"
+                  ],
+                  "PlatformDependencies": [
+                    {
+                      "MaxTested": 2814751249596416,
+                      "MinVersion": 2814750931222528,
+                      "PlatformName": "Windows.Universal"
+                    }
+                  ],
+                  "MaxDownloadSizeInBytes": 21993732,
+                  "MaxInstallSizeInBytes": 30580736,
+                  "FrameworkDependencies": [
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 2262543558574080,
+                      "PackageIdentity": "Microsoft.UI.Xaml.2.8"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 562960477454336,
+                      "PackageIdentity": "Microsoft.NET.Native.Framework.2.2"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 562960417947648,
+                      "PackageIdentity": "Microsoft.NET.Native.Runtime.2.2"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 3940651870650368,
+                      "PackageIdentity": "Microsoft.VCLibs.140.00"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 3940651884347392,
+                      "PackageIdentity": "Microsoft.VCLibs.140.00.UWPDesktop"
+                    }
+                  ],
+                  "PackageDownloadUris": null
+                }
+              ]
+            }
+          }
+        },
+        {
+          "Sku": {
+            "SkuId": "0011",
+            "Properties": {
+              "IsTrial": true,
+              "IsBundle": false,
+              "BundledSkus": [],
+              "Packages": [
+                {
+                  "ContentId": "1dd28d75-04b0-b6f7-eab8-2bd28341d9cb",
+                  "PackageFormat": "MsixBundle",
+                  "PackageFullName": "CotonStudio.RealDriveSimulator_1.0.0.0_neutral_~_krfr0nem5wa2m",
+                  "PackageFamilyName": "CotonStudio.RealDriveSimulator_krfr0nem5wa2m",
+                  "Architectures": [
+                    "x86",
+                    "x64",
+                    "arm64"
+                  ],
+                  "PlatformDependencies": [
+                    {
+                      "MaxTested": 2814751249596416,
+                      "MinVersion": 2814750931222528,
+                      "PlatformName": "Windows.Universal"
+                    }
+                  ],
+                  "MaxDownloadSizeInBytes": 21993732,
+                  "MaxInstallSizeInBytes": 30580736,
+                  "FrameworkDependencies": [
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 2262543558574080,
+                      "PackageIdentity": "Microsoft.UI.Xaml.2.8"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 562960477454336,
+                      "PackageIdentity": "Microsoft.NET.Native.Framework.2.2"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 562960417947648,
+                      "PackageIdentity": "Microsoft.NET.Native.Runtime.2.2"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 3940651870650368,
+                      "PackageIdentity": "Microsoft.VCLibs.140.00"
+                    },
+                    {
+                      "MaxTested": 0,
+                      "MinVersion": 3940651884347392,
+                      "PackageIdentity": "Microsoft.VCLibs.140.00.UWPDesktop"
+                    }
+                  ],
+                  "PackageDownloadUris": null
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

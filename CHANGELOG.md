@@ -5,6 +5,15 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.27 — 2026-10-22
+
+- Suspend browser controller polling while hidden, unfocused, streaming or owned by native input; resume through focus, visibility and input-ownership events. Native navigation keeps event-driven focus recovery.
+- Avoid repeated GNOME lease notifications for unchanged state. Preserve command replies, switcher visibility, ownership changes and recovery.
+- Build one shared library snapshot for visible surfaces, skip hidden or covered Xbox-mode launcher updates, and send current state immediately on show/focus. Account invalidation continues without a UI recipient.
+- Update GNOME extension v5 so clock-only and unchanged switcher updates retain existing window previews. Real title, inventory and geometry changes still refresh them.
+- Recognize Windows.Universal app packages in the Store and show the unsupported-package reason beside Install. Real Drive Simulator is a Windows MSIX bundle; UWP/MSIX installation and launch remain unsupported by the current MSIXVC Engine.
+- Record callback and allocation comparisons separately from gaming performance. No FPS gain, reduced startup session, power-profile change or background-app termination is claimed.
+
 ## 0.3.26 — 2026-10-22
 
 - Fix the full Cloud/Console stream screens stopping their provisioning poll when a state push arrives before the matching IPC response. Continue polling the current pending session while rejecting stale responses and stopping cleanly at readiness, failure or cancellation.

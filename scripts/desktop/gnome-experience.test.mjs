@@ -262,6 +262,62 @@ test('actual native switcher creates live clones, switches existing windows, and
  f.switcher.destroy();assert.equal(f.modal,0);
 });
 
+test('native switcher clock updates retain the same actors, live clones, focus and selection',async()=>{
+ const f=await switcherFixture();f.switcher.open();
+ const root=f.switcher._root,children=[...root.children],clones=[...f.clones],clock=f.switcher._clockLabel;
+ const selected=f.switcher.selection.entries[f.switcher.selection.index],focused=root.children[0].children[1];focused.grab_key_focus();
+ f.clock('12:35:00');f.runIdle();
+ assert.equal(clock.text,'12:35');assert.equal(f.switcher._clockLabel,clock);assert.deepEqual(root.children,children);
+ assert.deepEqual(f.clones,clones);assert.ok(clones.every(clone=>clone.destroyCount===0));assert.equal(f.switcher.selection.entries[f.switcher.selection.index],selected);
+ assert.equal(focused.focused,true);assert.equal(focused.destroyed,false);assert.equal(f.modal,1);assert.equal(f.activated.length,0);
+ f.runIdle();assert.deepEqual(f.clones,clones,'an unchanged clock also avoids native actor work');
+ f.switcher.hide();assert.ok(clones.every(clone=>clone.destroyCount===1));assert.equal(f.timers.size,0);
+});
+
+test('no-op switcher movement and unchanged inventories do not recreate or destroy native previews',async()=>{
+ const f=await switcherFixture();f.switcher.open();
+ const root=f.switcher._root,initial=[...root.children],clones=[...f.clones];
+ f.switcher.action('up');f.switcher.action('up');
+ f.display.emit('window-created');f.tracker.emit('tracked-windows-changed');f.runIdle();
+ assert.deepEqual(root.children,initial);assert.deepEqual(f.clones,clones);assert.ok(clones.every(clone=>clone.destroyCount===0));
+ // A retained neighbor callback must resolve its stable window after inventory
+ // replacement; its old entry object is no longer in selection.entries.
+ const neighbor=root.children.find(actor=>actor.style_class==='xboks-window-card');
+ neighbor.children.find(actor=>actor.style_class?.includes('window-select')).emit('clicked');
+ assert.equal(f.switcher.selection.index,1);assert.ok(clones.every(clone=>clone.destroyCount===1));
+ f.switcher.action('down');const modes=[...root.children],modeClones=f.clones.length;
+ f.switcher.action('down');f.switcher.action('left');f.switcher.action('left');
+ assert.deepEqual(root.children,modes);assert.equal(f.clones.length,modeClones,'repeated selection of the current mode is a no-op');
+ f.switcher.action('right');assert.equal(f.switcher.selection.mode,'desktop');const rightClones=f.clones.length;
+ f.switcher.action('right');assert.equal(f.clones.length,rightClones);
+ f.switcher.hide();assert.ok(f.clones.every(clone=>clone.destroyCount===1));
+});
+
+test('native title, app and source-size signals refresh real changes while preserving switcher ownership',async()=>{
+ const f=await switcherFixture();f.switcher.open();const root=f.switcher._root,window=f.windows[0],source=window.get_compositor_private();
+ const initialClones=[...f.clones];window.title='Changed native title';window.emit('notify::title');f.runIdle();
+ assert.equal(f.switcher.selection.entries[0].title,'Changed native title');assert.ok(initialClones.every(clone=>clone.destroyCount===1));
+ const titles=actor=>[actor.text,...actor.children.flatMap(titles)].filter(Boolean);
+ assert.ok(titles(root).includes('Changed native title'));
+ const beforeSize=[...f.clones];source.set_size(1600,1000);assert.equal(f.timers.size,2,'width and height notifications coalesce into one refresh beside the clock');f.runIdle();
+ assert.ok(beforeSize.every(clone=>clone.destroyCount===1));assert.equal(f.switcher._renderState.includes(1600),true);
+ window.app.get_name=()=> 'Changed app';f.tracker.emit('tracked-windows-changed');f.runIdle();assert.equal(f.switcher.selection.entries[0].name,'Changed app');
+ const replacement=new f.Actor({width:1000,height:1000});window.get_compositor_private=()=>replacement;f.tracker.emit('tracked-windows-changed');f.runIdle();
+ assert.equal(source.signals.size,0);assert.equal(replacement.signals.size,2);assert.equal(f.clones.at(-1).source,replacement);
+ assert.equal(f.switcher._root,root);assert.equal(f.switcher.selection.index,0);assert.equal(f.modal,1);assert.equal(f.activated.length,0);
+ f.switcher.hide();assert.equal(window.signals.size,0);assert.equal(replacement.signals.size,0);assert.equal(f.tracker.signals.size,0);
+ assert.equal(f.timers.size,0);assert.ok(f.clones.every(clone=>clone.destroyCount===1));
+ window.emit('notify::title');replacement.set_size(800,600);f.tracker.emit('tracked-windows-changed');assert.equal(f.timers.size,0);
+});
+
+test('a zero-size native preview is watched until its first valid allocation and released when hidden',async()=>{
+ const f=await switcherFixture(),window=f.windows[0],source=new f.Actor({width:0,height:0});window.get_compositor_private=()=>source;
+ f.switcher.open();assert.equal(f.clones.length,1);assert.equal(source.signals.size,2);
+ source.set_size(1280,720);f.runIdle();assert.equal(f.clones.at(-1).source,source);assert.equal(f.clones.at(-1).destroyCount,0);
+ f.switcher.hide();assert.equal(source.signals.size,0);assert.equal(window.signals.size,0);assert.equal(f.timers.size,0);
+ assert.ok(f.clones.every(clone=>clone.destroyCount===1));
+});
+
 test('desktop theme updates native switcher colors in place and releases every subscription on hide/reopen',async()=>{
  const f=await switcherFixture({desktopPreference:'prefer-dark'});f.switcher.open();
  const root=f.switcher._root;f.switcher.action('next');
@@ -408,7 +464,7 @@ test('actual installed Shell51 typelibs provide the exact native controller/clon
     env: {...process.env, GI_TYPELIB_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell',
       LD_LIBRARY_PATH: '/usr/lib/x86_64-linux-gnu/mutter-51:/usr/lib/gnome-shell'}});
   const result = JSON.parse(stdout.trim()); assert.equal(result.status, 'passed'); assert.equal(result.nativeSessionChanged, false); assert.equal(result.fullscreenCapabilityQuery, false);
-  assert.equal(Object.keys(result.checks).length, 28); assert.ok(Object.values(result.checks).every(Boolean));
+  assert.equal(Object.keys(result.checks).length, 30); assert.ok(Object.values(result.checks).every(Boolean));
 });
 for (const legacyOnly of [false, true]) test(`actual GJS transport preserves ownership/EOF/SIGTERM and bus loss on isolated fake service: legacy signals=${legacyOnly}`, { skip: !hasGjs }, () => {
   const stdout = execFileSync('dbus-run-session', ['--', process.execPath, 'scripts/desktop/fixtures/experience-protocol.mjs', ...(legacyOnly ? ['--legacy-unix-signals'] : [])],

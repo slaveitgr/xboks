@@ -17,6 +17,8 @@ const checks = {
     modifierMasks: ['SHIFT_MASK', 'CONTROL_MASK', 'SUPER_MASK', 'MOD1_MASK']
         .every(key => typeof Clutter.ModifierType[key] === 'number'),
     liveClone: typeof Clutter.Clone === 'function',
+    nativePreviewGeometry: ['width', 'height'].every(name => Boolean(Clutter.Actor.find_property(name))),
+    nativeClockText: Boolean(St.Label.find_property('text')),
     fixedLayout: typeof Clutter.FixedLayout === 'function',
     shellModalMode: typeof Shell.ActionMode.ALL === 'number',
     appIcon: typeof Shell.App.prototype.create_icon_texture === 'function',

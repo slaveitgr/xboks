@@ -54,6 +54,7 @@ function fixture({ maximized = false, devServer = false } = {}) {
     demoMode: false, path, fileURLToPath, URL, __dirname: '/fixture/dist-electron/main',
     readWindowState: () => ({ x: 0, y: 0, width: 1000, height: 700, maximized }), restoredBoundsOnScreen: () => true,
     voiceCapture: { release: vi.fn() }, refreshDeferredServiceAccount,
+    launchReady: true, emitSnapshot: vi.fn(),
     // These operations remain inside callbacks that opening must only register.
     fullscreenExperience: { dispose: vi.fn() },
   });
@@ -88,6 +89,7 @@ describe('production launcher opening during Game Bar handoff', () => {
     expect(native.restore).toHaveBeenCalledOnce();expect(native.show).toHaveBeenCalledOnce();expect(native.focus).toHaveBeenCalledOnce();
     expect(native.maximize).toHaveBeenCalledOnce();expect(native.visible).toBe(true);
     expect(devServer?native.loadURL:native.loadFile).toHaveBeenCalledOnce();expect(f.refreshDeferredServiceAccount).toHaveBeenCalledOnce();
+    expect(f.context.emitSnapshot).toHaveBeenCalledOnce();
   });
   it('waits for an existing hidden creation without constructing or revealing another window',async()=>{
     const f=fixture({maximized:true});

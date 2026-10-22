@@ -1,6 +1,72 @@
 # Xbox mode performance implementation guide
 
-Reviewed against the xboks 0.3.20 implementation on 2026-10-21. This records current support and an implementation plan, not a benchmark or a claim of measured performance gains. The current GNOME extension provides a transition within an existing desktop; startup reduction and a minimal gaming login require additional work. See [Fullscreen Experience architecture](fullscreen-experience-linux.md) and [switcher/restart behavior](reference/xbox-shell-switcher.md).
+Reviewed against XBOKS 0.3.26 and the following unreleased performance changes on 2026-10-22. This records current support and an implementation plan, not a claim of measured game FPS gains. The GNOME extension provides a transition within an existing desktop; startup reduction and a minimal gaming login require additional work. See [Fullscreen Experience architecture](fullscreen-experience-linux.md) and [switcher/restart behavior](reference/xbox-shell-switcher.md).
+
+## Reducing launcher work during gaming
+
+The first pass reduces work owned by XBOKS while retaining the resident Game
+Bar, current downloads and session services. It changes no host power profile,
+autostart entry or third-party process state.
+
+- The GNOME bridge publishes a lease change only when availability, activity,
+  ownership or its bounded reason changes. Command-specific foreground,
+  capability and switcher replies still resolve independently. A synthetic
+  sequence of 51 replies and ten repeated state events reduces main lease
+  callbacks from 61 to one; all ten switcher visibility changes remain delivered.
+- Snapshot delivery builds one payload for the visible launcher and Game Bar.
+  Hidden, minimized or destroyed windows receive no library snapshot. During
+  integrated Xbox mode, a covered unfocused launcher also waits until focus
+  returns. The real show/focus callbacks send current state immediately. Account
+  invalidation still runs even when there is no UI recipient. In the actual
+  delivery-function fixture, 100 hidden updates build zero snapshots; two
+  visible surfaces share one build per update.
+- Renderer controller navigation stops queuing animation frames while hidden,
+  unfocused, owned by native controls or handed to a stream. The Guide-button
+  fallback also removes its polling interval when inactive. Focus, visibility
+  and ownership changes rearm input after the held controls return to neutral.
+  Native focus repair follows trusted input and relevant DOM changes rather
+  than checking the whole document every frame.
+- The shell switcher updates its clock label in place and retains window
+  clones when selection and inventory have not changed. Title, application,
+  source-size and inventory changes still refresh the open switcher. Closing
+  it disconnects its subscriptions, cancels its clock and destroys its clones.
+
+The following comparisons execute the actual source against deterministic,
+isolated fixtures, with commit `b1341e05a38e2a59be160b0ba1d5ddc43c67bb5c`
+as the baseline. They count work, not elapsed time or game performance.
+
+| Scenario | Baseline | Candidate 0.3.27 |
+| --- | --- | --- |
+| Ten seconds of hidden, unfocused or native-owned navigation | 600 animation-frame callbacks | 0 |
+| Ten seconds of inactive Guide-button fallback | 100 timer callbacks and gamepad reads | 0; no interval remains |
+| 51 shell replies and ten duplicate state events | 61 lease callbacks | 1; all ten switcher events preserved |
+| 100 snapshots with both surfaces hidden or launcher covered in Xbox mode | 200 snapshot builds and sends | 0; all 100 account-invalidations preserved |
+| 100 snapshots with both surfaces visible | 200 snapshot builds | 100; both surfaces still receive each update |
+| Clock tick or unchanged navigation in the open switcher | 2 replacement window clones | 0; existing clones retained |
+
+These are callback/allocation reductions, not frame-time benchmarks. Protocol
+regressions exercise unchanged replies, ownership changes and recovery. Native
+delivery regressions cover current data after show/focus, visible desktop
+windows, minimized/destroyed targets and coalesced pending updates. The normal
+Electron background throttling remains enabled; no timer, media or compositor
+throttle is disabled. [Electron background throttling](https://www.electronjs.org/docs/latest/api/structures/web-preferences).
+
+A six-second read-only sample of the running 0.3.26 Electron processes recorded
+0.67% CPU summed across those processes, where 100% means one logical CPU; GNOME
+Shell recorded 6.0%. A separate family sample including the observed helper
+descendants recorded 1.0% CPU; it overlapped candidate build activity. These are
+current-session diagnostics with different scopes, not a controlled idle
+benchmark or a before/after comparison. An adjacent desktop probe reported the Xbox-mode
+lease inactive and the existing power profile and CPU governor already set to
+`performance`. Some sandboxed renderers' proportional-memory counters were
+unreadable, so no complete PSS total or memory saving is claimed. No running
+application was stopped or reconfigured for the sample.
+
+Game FPS, power savings and memory savings still require the matched game
+measurements described at the end of this guide. The existing gamepad service
+must remain available for the global Xbox button. Session-active checks and
+resident-startup scans need their own follow-up measurements before changing
+their lifetimes.
 
 ## Reference behavior and current support
 
@@ -21,7 +87,7 @@ Microsoft associates background-process reduction with entering Xbox mode at sta
 
 The supplied Home/Library and settings screenshots confirm the existing launcher routes and the Game Bar entry added in 0.3.20. The dark Task View reference is implemented by extension v4’s desktop-theme observer; native visual and physical-input acceptance remains separate from isolated tests.
 
-The complete Microsoft behavior also requires explicit Win+Tab/Win+F11 routes, long-press Xbox selection, supported touch gestures, most-recent-window-per-app grouping and a black surround for apps that reject fullscreen. These are not implemented by the new theme or GameMode checkbox. Retain reversible ownership and exact shortcut restoration when adding them; never infer this coverage from Alt+Tab or a successful mode entry.
+The broader Microsoft behavior also includes explicit Win+Tab/Win+F11 routes, supported touch gestures, most-recent-window-per-app grouping and a black surround for apps that reject fullscreen. The current native controller service already routes a long Xbox-button hold to the shell switcher; the GNOME policy enforces fullscreen/unminimize and restores each window's owned state on exit. These presentation features do not establish startup or game-performance improvements. Retain reversible ownership and exact shortcut restoration when extending them; never infer complete shell coverage from Alt+Tab or successful mode entry.
 
 ## Stage 1: temporary per-game optimizations
 

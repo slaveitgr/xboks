@@ -12,10 +12,10 @@ afterEach(async () => { client?.dispose(); await fs.rm(root, { recursive: true, 
 function fixture(timeoutMs = 1000) {
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), exitCode: null as number | null,
     kill: vi.fn(() => { child.exitCode = 0; child.emit('close', 0); return true; }) });
-  const start = vi.fn(() => child as unknown as ChildProcessWithoutNullStreams), messages: any[] = [];
+  const start = vi.fn(() => child as unknown as ChildProcessWithoutNullStreams), messages: any[] = [], changed = vi.fn(), switcherChanged = vi.fn();
   child.stdin.on('data', bytes => { for (const line of String(bytes).trim().split('\n')) if (line) messages.push(JSON.parse(line)); });
-  client = new GnomeExperienceClient({ helper: path.join(root, 'helper.js'), environment: { XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' }, start, timeoutMs });
-  return { child, start, messages, reply: (value: unknown) => child.stdout.write(JSON.stringify(value) + '\n') };
+  client = new GnomeExperienceClient({ helper: path.join(root, 'helper.js'), environment: { XDG_CURRENT_DESKTOP: 'ubuntu:GNOME' }, start, timeoutMs, changed, switcherChanged });
+  return { child, start, messages, changed, switcherChanged, reply: (value: unknown) => child.stdout.write(JSON.stringify(value) + '\n') };
 }
 it('holds one helper connection across state/enter/leave and matches replies by id', async () => {
   const f = fixture();
@@ -90,4 +90,38 @@ it('unsupported new methods do not disconnect an existing mode lease', async () 
   f.reply({ id: f.messages.at(-1).id, ok: false, active: true, owned: true, error: 'unsupported' }); await failed;
   expect(client.current).toMatchObject({ available: true, active: true, owned: true });
   expect(f.child.kill).not.toHaveBeenCalled();
+});
+it('deduplicates lease notifications without losing repeated foreground, capability, focus or switcher replies', async () => {
+  const f = fixture(), entered = client.request('enter'), lease = {active: true, owned: true};
+  f.reply({id: f.messages.at(-1).id, ok: true, ...lease}); await entered;
+  for (let index = 0; index < 10; index++) {
+    const state = client.request('state'); f.reply({id: f.messages.at(-1).id, ok: true, ...lease});
+    expect(await state).toEqual({available: true, ...lease});
+    const app = {desktopId: 'org.example.Editor.desktop', name: 'Editor', title: `Document ${index}`};
+    const foreground = client.foregroundApp(); f.reply({id: f.messages.at(-1).id, ok: true, ...lease, app}); expect(await foreground).toEqual(app);
+    const version = index % 3 + 1, capabilities = client.capabilities(); f.reply({id: f.messages.at(-1).id, ok: true, ...lease, version}); expect(await capabilities).toBe(version);
+    const focused = client.focusGuide(); f.reply({id: f.messages.at(-1).id, ok: true, ...lease}); expect(await focused).toBe(true);
+    const visible = index % 2 === 0, switcher = client.switcher('next'); f.reply({id: f.messages.at(-1).id, ok: true, ...lease, visible}); expect(await switcher).toBe(visible);
+    f.reply({event: 'state', ...lease});
+  }
+  // Previously all 51 replies plus 10 duplicate state events notified main.
+  expect(f.messages).toHaveLength(51); expect(f.changed).toHaveBeenCalledOnce();
+  expect(f.changed).toHaveBeenCalledWith({available: true, ...lease}); expect(f.switcherChanged).toHaveBeenCalledTimes(10);
+  expect(f.start).toHaveBeenCalledOnce(); expect(f.child.kill).not.toHaveBeenCalled();
+});
+it('still publishes real availability, activity, ownership, reason and recovery changes', async () => {
+  const f = fixture(), initial = client.request('state');
+  f.reply({id: f.messages.at(-1).id, ok: true, active: false, owned: false}); await initial;
+  f.reply({event: 'state', active: false, owned: false}); expect(f.changed).toHaveBeenCalledTimes(1);
+  f.reply({event: 'state', active: true, owned: false}); expect(f.changed).toHaveBeenCalledTimes(2);
+  f.reply({event: 'state', active: true, owned: true}); expect(f.changed).toHaveBeenCalledTimes(3);
+  f.reply({event: 'state', active: false, owned: false}); expect(f.changed).toHaveBeenCalledTimes(4);
+  f.reply({event: 'unavailable'}); f.reply({event: 'unavailable'}); expect(f.changed).toHaveBeenCalledTimes(5);
+  const absent = client.request('state'), rejected = expect(absent).rejects.toThrow('GNOME could not change');
+  f.reply({id: f.messages.at(-1).id, ok: false, active: false, owned: false, error: 'unavailable'}); await rejected;
+  expect(f.changed).toHaveBeenCalledTimes(5); expect(client.current.reason).toContain('not installed or enabled');
+  f.reply({event: 'state', active: false, owned: false}); expect(f.changed).toHaveBeenCalledTimes(6); expect(client.current.reason).toBeUndefined();
+  f.reply({event: 'unavailable'}); expect(f.changed).toHaveBeenCalledTimes(7);
+  client.dispose(); expect(f.changed).toHaveBeenCalledTimes(8); expect(client.current.reason).toContain('disconnected');
+  client.dispose(); expect(f.changed).toHaveBeenCalledTimes(8);
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CatalogService, parseCatalogProducts, parseHandheldCompatibility, primaryGameProductId, type StoreCollection } from './catalog.js';
+import realDriveSimulator from './__fixtures__/real-drive-simulator.catalog.json';
 
 describe('verified public Store edition relationships', () => {
   const edition = '9NKX70BBCDRN', base = '9NNX1VVR3KNQ', addon = '9AAAAAAAAAAA';
@@ -139,6 +140,46 @@ describe('anonymous Store collections', () => {
 });
 
 describe('Microsoft Store catalog parsing', () => {
+  it('identifies the real Windows Universal MSIX bundle instead of suggesting a console-only product', () => {
+    // Selected, unchanged fields from the anonymous Microsoft DisplayCatalog GR response.
+    const [product] = parseCatalogProducts({ productsList: [{ productId: '9N4FM1CG341P', title: 'Real Drive Simulator', isGame: true }] }, realDriveSimulator);
+    expect(product).toMatchObject({
+      productId: '9N4FM1CG341P',
+      installability: 'unsupported',
+      packageFormat: 'MSIXBUNDLE',
+      supportNote: 'Microsoft lists a Windows.Universal package (MSIXBUNDLE). XBOKS Engine currently supports only Windows.Desktop MSIXVC installation and launch. UWP/MSIX app packages are not supported yet.',
+    });
+    expect(product.installProductId).toBeUndefined();
+    expect(product.supportNote).not.toMatch(/console-only|add-on/);
+  });
+
+  it('does not enable Windows Universal MSIXVC merely because its format is supported on Desktop', () => {
+    const [product] = parseCatalogProducts(search, { Products: [{ ProductId: '9GAME123', DisplaySkuAvailabilities: [{ Sku: { Properties: { Packages: [{
+      PackageFormat: 'MSIXVC', PlatformDependencies: [{ PlatformName: 'Windows.Universal' }],
+    }] } } }] }] });
+    expect(product).toMatchObject({ installability: 'unsupported', packageFormat: 'MSIXVC' });
+    expect(product.supportNote).toContain('Windows.Universal');
+    expect(product.supportNote).toContain('This platform/package combination is not supported yet.');
+    expect(product.supportNote).not.toMatch(/console-only|UWP\/MSIX app packages/);
+  });
+
+  it('keeps a verified Desktop MSIXVC package installable when a Universal package also exists', () => {
+    const [product] = parseCatalogProducts(search, { Products: [{ ProductId: '9GAME123', DisplaySkuAvailabilities: [{ Sku: { Properties: { Packages: [
+      { PackageFormat: 'MsixBundle', PlatformDependencies: [{ PlatformName: 'Windows.Universal' }] },
+      { PackageFormat: 'MSIXVC', PlatformDependencies: [{ PlatformName: 'Windows.Desktop' }] },
+    ] } } }] }] });
+    expect(product).toMatchObject({ installability: 'supported', packageFormat: 'MSIXVC' });
+  });
+
+  it('does not infer Windows Universal package support from a console package', () => {
+    const [product] = parseCatalogProducts(search, { Products: [{ ProductId: '9GAME123', DisplaySkuAvailabilities: [{ Sku: { Properties: { Packages: [{
+      PackageFormat: 'MSIXVC', PlatformDependencies: [{ PlatformName: 'Xbox.One' }],
+    }] } } }] }] });
+    expect(product.installability).toBe('unsupported');
+    expect(product.supportNote).not.toContain('Windows.Universal');
+    expect(product.packageFormat).toBeUndefined();
+  });
+
   it('separates purchase price, subscription availability, and Xodus package support', () => {
     const products = parseCatalogProducts(search, catalog);
     expect(products[0]).toMatchObject({

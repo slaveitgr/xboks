@@ -33,7 +33,11 @@ export class GnomeExperienceClient implements ExperienceBridge {
   get current(): ExperienceLease { return { ...this.value }; }
   get switcherVisible(): boolean { return this.visible; }
   private switcherState(visible: boolean): void { if (visible !== this.visible) { this.visible = visible; this.options.switcherChanged?.(visible); } }
-  private publish(value: ExperienceLease): void { this.value = value; this.options.changed?.(this.current); }
+  private publish(value: ExperienceLease): void {
+    if (value.available === this.value.available && value.active === this.value.active &&
+        value.owned === this.value.owned && value.reason === this.value.reason) return;
+    this.value = {...value}; this.options.changed?.(this.current);
+  }
   private fail(reason: string): void {
     this.switcherState(false);
     for (const request of this.pending.values()) { clearTimeout(request.timer); request.reject(Error(reason)); }

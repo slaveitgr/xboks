@@ -663,8 +663,17 @@ function emitSnapshot(): void {
   invalidateChangedCloudAccount();
   if (snapshotTimer) clearTimeout(snapshotTimer);
   snapshotTimer = undefined;
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('snapshot', snapshot());
-  desktopGuide.webContents?.send('snapshot', snapshot());
+  const targets: Electron.WebContents[] = [];
+  // In Xbox mode every application occupies the screen. A covered launcher
+  // catches up on focus instead of cloning the whole library behind a game.
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized() &&
+      (!fullscreenExperience.current.active || mainWindow.isFocused()) && !mainWindow.webContents.isDestroyed())
+    targets.push(mainWindow.webContents);
+  const guide = desktopGuide.webContents;
+  if (guide && !guide.isDestroyed() && guideIsVisible()) targets.push(guide);
+  if (!targets.length) return;
+  const value = snapshot();
+  for (const target of targets) target.send('snapshot', value);
 }
 
 function scheduleSnapshot(): void {
@@ -2383,6 +2392,8 @@ async function createWindow(background = false): Promise<void> {
   });
   mainWindow.webContents.on('did-fail-load', (_event, code, description) => console.error('Renderer load failed', code, description));
   mainWindow.webContents.on('render-process-gone', (_event, details) => console.error('Renderer process exited', details.reason));
+  mainWindow.on('show', () => {if (launchReady) emitSnapshot();});
+  mainWindow.on('focus', () => {if (launchReady) emitSnapshot();});
   const windowModeChanged = () => {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.webContents.send('window-fullscreen-changed', mainWindow.isFullScreen());

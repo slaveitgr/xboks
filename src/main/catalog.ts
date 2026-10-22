@@ -252,6 +252,7 @@ function directPackageSupport(product: Record<string, unknown> | undefined): Pac
   };
   const skus = Array.isArray(product.DisplaySkuAvailabilities) ? product.DisplaySkuAvailabilities : [];
   const desktopFormats = new Set<string>();
+  const universalFormats = new Set<string>();
   for (const availability of skus) {
     const sku = object(object(availability)?.Sku);
     const properties = object(sku?.Properties);
@@ -260,7 +261,10 @@ function directPackageSupport(product: Record<string, unknown> | undefined): Pac
       const pkg = object(entry);
       const dependencies = Array.isArray(pkg?.PlatformDependencies) ? pkg.PlatformDependencies : [];
       const desktop = dependencies.some((dependency) => string(object(dependency)?.PlatformName) === 'Windows.Desktop');
-      if (desktop) desktopFormats.add(string(pkg?.PackageFormat)?.toUpperCase() ?? 'UNKNOWN');
+      const universal = dependencies.some((dependency) => string(object(dependency)?.PlatformName) === 'Windows.Universal');
+      const format = string(pkg?.PackageFormat)?.toUpperCase() ?? 'UNKNOWN';
+      if (desktop) desktopFormats.add(format);
+      if (universal) universalFormats.add(format);
     }
   }
   if (desktopFormats.has('MSIXVC')) return {
@@ -273,6 +277,15 @@ function directPackageSupport(product: Record<string, unknown> | undefined): Pac
     packageFormat: [...desktopFormats].join(', '),
     supportNote: `The PC package uses ${[...desktopFormats].join(', ')}, which the current XBOKS Engine streaming path does not support.`,
   };
+  if (universalFormats.size > 0) {
+    const formats = [...universalFormats].join(', ');
+    const appFormats = new Set(['APPX', 'APPXBUNDLE', 'EAPPX', 'EAPPXBUNDLE', 'MSIX', 'MSIXBUNDLE']);
+    return {
+      installability: 'unsupported',
+      packageFormat: formats,
+      supportNote: `Microsoft lists a Windows.Universal package (${formats}). XBOKS Engine currently supports only Windows.Desktop MSIXVC installation and launch. ${[...universalFormats].every(format => appFormats.has(format)) ? 'UWP/MSIX app packages are not supported yet.' : 'This platform/package combination is not supported yet.'}`,
+    };
+  }
   return undefined;
 }
 
