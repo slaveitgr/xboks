@@ -2,10 +2,18 @@
 
 ## Unreleased
 
-- Add offline APPX/MSIX/bundle inspection with bounded ZIP64 and OPC names, architecture selection, namespace-aware activation/dependency reporting and explicit trust/compatibility limits. Record the actual Real Drive Simulator package and the pinned wine-uwp runtime candidate; UWP Store installation and launch remain disabled.
-- Add an account-free native UWP factory/lifecycle diagnostic probe for disposable prefixes. Its results diagnose missing activation support and do not establish game compatibility.
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
+
+## 0.3.28 — 2026-11-06
+
+- Introduce a desktop shell based on the November Xbox PC reference: full-width header, profile and notifications, Home/Library/Game Pass/Store panels, persistent account-bound friends and a separate Queue. Cloud Gaming, Remote Play and Settings remain available through More.
+- Give Xbox mode a distinct controller-oriented Home with selected-game artwork, horizontal game tiles, account/membership, working navigation shortcuts and desktop return. Entering/leaving observed fullscreen or a gaming session changes the shell; clock and battery stay in Xbox mode.
+- Restore the selected console Home tile after viewing game details. Keep shoulder navigation consistent with the primary page order, preserve Settings input isolation and support collapsed desktop navigation.
+- Keep message drafts until an actual submission ID is reconciled with the selected account/conversation history. Reject empty receipts, prevent automatic retries after ambiguous submissions and require explicit successful refresh before uncertain resubmission. This does not upgrade the backend authentication/signature flow or enable party voice.
+- Record the current upstream social changes and new Windows package separately from implementation and live-service acceptance. Native people/relationship APIs, pop-out chats and shared party media remain further integration work.
+- Add offline APPX/MSIX/bundle inspection with bounded ZIP64 and OPC names, architecture selection, namespace-aware activation/dependency reporting and explicit trust/compatibility limits. Record the actual Real Drive Simulator package and the pinned wine-uwp runtime candidate; UWP Store installation and launch remain disabled.
+- Add an account-free native UWP factory/lifecycle diagnostic probe for disposable prefixes. Its results diagnose missing activation support and do not establish game compatibility.
 
 ## 0.3.27 — 2026-10-22
 

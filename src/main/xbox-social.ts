@@ -65,11 +65,14 @@ export function parseXboxSocial(raw: string, account: string, operation: SocialO
   if (operation === 'conversation') {
     if (!Array.isArray(value.messages) || value.messages.length > 500) throw Error('Invalid Xbox messages.');
     result.messages = value.messages.map(message);
+    if (new Set(result.messages!.map(item => item.id)).size !== result.messages!.length) throw Error('Duplicate Xbox message identifier.');
     if (result.messages!.some(item => item.senderXuid !== result.selfXuid && item.senderXuid !== peer)) throw Error('Unsupported conversation participant.');
   }
   if (operation === 'send') {
-    if (!value.sent || typeof value.sent !== 'object') throw Error('Message delivery could not be confirmed.');
-    result.sent = { messageId: value.sent.messageId ? identifier(value.sent.messageId) : undefined, conversationId: value.sent.conversationId ? identifier(value.sent.conversationId) : undefined };
+    if (!value.sent || typeof value.sent !== 'object' || Array.isArray(value.sent)) throw Error('Message delivery could not be confirmed.');
+    // A 2xx without an actual submission identifier cannot justify discarding
+    // the draft. The renderer reconciles this ID with account-bound history.
+    result.sent = { messageId: identifier(value.sent.messageId), conversationId: value.sent.conversationId ? identifier(value.sent.conversationId) : undefined };
   }
   result.continuationToken = optionalText(value.continuationToken, 8192);
   return result;
@@ -119,6 +122,9 @@ export class XboxSocialService {
     const cached = this.cache.get(key);
     if (!options.refresh && operation !== 'send' && cached && cached.until > Date.now()) return structuredClone(cached.value);
     const controller = new AbortController();
+    // Even an interrupted or malformed POST response can follow an accepted
+    // submission. Do not reconcile it against pre-send cached conversation data.
+    if (operation === 'send') this.cache.clear();
     const job = (async () => {
       try {
         const raw = await this.reader(binary, operation, options.peer, operation === 'send' ? { text: options.text } : operation === 'search' ? { query: options.query?.trim() } : undefined, controller.signal);

@@ -76,11 +76,13 @@ export function ShellClock() {
   return <time className="shell-clock" dateTime={now.toISOString()}>{formatShellClock(now, language)}</time>;
 }
 
-export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, onError, onNotice }: {
+export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, onError, onNotice, onTransition }: {
   sessionFullscreen: boolean;
   integrationAvailable?: boolean;
   onError: (message: string) => void;
   onNotice?: (message: string) => void;
+  /** Keep the entry surface alive until the native transition has settled. */
+  onTransition?: (pending: boolean) => void;
 }) {
   const { text } = useReferenceLocale();
   const [state, setState] = useState<WindowFullscreenState>(() => ({ documentFullscreen: typeof document !== 'undefined' && Boolean(document.fullscreenElement), nativeFullscreen: false }));
@@ -102,7 +104,7 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
   }, [full]);
   useEffect(() => observeXboxModeEntryRequests(document, window.launcher,
     () => !full && mounted.current && !pending.current, () => setEntryOpen(true)), [full]);
-  useEffect(() => { if (full) setEntryOpen(false); }, [full]);
+  useEffect(() => { if (full && !pending.current) setEntryOpen(false); }, [full]);
   useEffect(() => {
     if (entryOpen || !restoreEntryFocus.current) return;
     restoreEntryFocus.current = false;
@@ -113,7 +115,7 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
   }, [entryOpen]);
   async function enter() {
     if (pending.current) return;
-    pending.current = true; setBusy(true);
+    pending.current = true; setBusy(true); onTransition?.(true);
     const revision = observer.current?.revision();
     try {
       const entered = await enterWindowFullscreen(document, window.launcher);
@@ -130,7 +132,7 @@ export function ShellHeaderControls({ sessionFullscreen, integrationAvailable, o
     } catch (error) {
       if (mounted.current) onError(error instanceof Error ? error.message.replace(/^Error invoking remote method '[^']+': Error:\s*/, '') : String(error));
       throw error;
-    } finally { pending.current = false; if (mounted.current) setBusy(false); }
+    } finally { pending.current = false; onTransition?.(false); if (mounted.current) setBusy(false); }
   }
   const closeEntry = () => { restoreEntryFocus.current = true; setEntryOpen(false); };
   return <><div className="shell-tools shell-header-controls" data-shell-display-mode={full ? 'fullscreen' : 'desktop'}>

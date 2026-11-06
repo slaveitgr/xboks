@@ -5,16 +5,18 @@ import type { AppSnapshot } from '../shared/types';
 import { noXboxSocialCapabilities, type XboxChatMessage, type XboxFriend, type XboxSocialResult } from '../shared/xbox-social';
 import { useReferenceLocale } from './ReferenceLocale';
 import { useBackHandler } from './GamepadNavigation';
+import { XboxMessageSubmission } from './xbox-message-submission';
 import './xbox-social-panel.css';
 
 type Text = (en: string, el: string) => string;
 type SocialTab = 'friends' | 'chats';
+export interface XboxSocialRoute { tab?: SocialTab; peer?: { xuid: string; gamertag: string } }
 type Resource = 'friends' | 'chats' | 'conversation' | 'search';
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 const presenceOrder = ['online', 'away', 'offline', 'unknown'] as const;
 export const xboxPartyVoiceReason = 'Xbox party voice is not available in this version.';
 export const xboxMessageLength = (text: string) => [...text].length;
-export const validXboxMessage = (text: string) => Boolean(text.trim()) && xboxMessageLength(text) <= 256;
+export const validXboxMessage = (text: string) => Boolean(text.trim()) && xboxMessageLength(text) <= 256 && !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(text);
 export function xboxSocialAccountKey(auth: AppSnapshot['auth']): string { return JSON.stringify([auth.stored, auth.running, auth.username ?? null]); }
 export function xboxFriendGroups(friends: XboxFriend[], presenceAvailable: boolean): Record<XboxFriend['presence'], XboxFriend[]> {
   const groups: Record<XboxFriend['presence'], XboxFriend[]> = { online: [], away: [], offline: [], unknown: [] };
@@ -27,8 +29,8 @@ export function xboxMessageText(message: XboxChatMessage, t: Text): string {
 export function xboxConversationMatches(result: XboxSocialResult, peerXuid: string): boolean {
   return result.status === 'ready' && result.peerXuid === peerXuid && Boolean(result.selfXuid) && (result.messages ?? []).every(message => message.senderXuid === result.selfXuid || message.senderXuid === peerXuid);
 }
-function socialError(value: unknown, t: Text): XboxSocialResult {
-  return { status: 'error', checkedAt: new Date().toISOString(), capabilities: { ...noXboxSocialCapabilities }, reason: value instanceof Error ? value.message : t('Xbox social could not load. Try refreshing.', 'Δεν ήταν δυνατή η φόρτωση των κοινωνικών υπηρεσιών Xbox. Δοκιμάστε ανανέωση.') };
+function socialError(_value: unknown, t: Text): XboxSocialResult {
+  return { status: 'error', checkedAt: new Date().toISOString(), capabilities: { ...noXboxSocialCapabilities }, reason: t('Xbox social could not load. Try refreshing.', 'Δεν ήταν δυνατή η φόρτωση των κοινωνικών υπηρεσιών Xbox. Δοκιμάστε ανανέωση.') };
 }
 function statusText(result: XboxSocialResult | undefined, t: Text) {
   if (!result) return t('Loading Xbox social…', 'Φόρτωση κοινωνικών υπηρεσιών Xbox…');
@@ -49,18 +51,24 @@ export function XboxFriendsList({ result, select, t }: { result: XboxSocialResul
 
 /** The keyed session immediately discards private UI on sign-out/account switch;
  * IPC caching stays in the account-bound main process, never localStorage. */
-export function XboxSocialPanel({ auth, variant = 'shell', accountSettings }: { auth: AppSnapshot['auth']; variant?: 'shell' | 'guide'; accountSettings: () => void }) {
-  return <XboxSocialSession key={xboxSocialAccountKey(auth)} auth={auth} variant={variant} accountSettings={accountSettings} />;
+export function XboxSocialPanel({ auth, variant = 'shell', accountSettings, initialRoute }: { auth: AppSnapshot['auth']; variant?: 'shell' | 'guide'; accountSettings: () => void; initialRoute?: XboxSocialRoute }) {
+  return <XboxSocialSession key={xboxSocialAccountKey(auth)} auth={auth} variant={variant} accountSettings={accountSettings} initialRoute={initialRoute} />;
 }
-function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapshot['auth']; variant: 'shell' | 'guide'; accountSettings: () => void }) {
+function XboxSocialSession({ auth, variant, accountSettings, initialRoute }: { auth: AppSnapshot['auth']; variant: 'shell' | 'guide'; accountSettings: () => void; initialRoute?: XboxSocialRoute }) {
   const { text: t, language } = useReferenceLocale();
   const id = useId();
-  const [tab, setTab] = useState<SocialTab>('friends');
+  const [tab, setTab] = useState<SocialTab>(initialRoute?.tab === 'chats' ? 'chats' : 'friends');
   const [results, setResults] = useState<Partial<Record<Resource, XboxSocialResult>>>({});
   const [loading, setLoading] = useState<Partial<Record<Resource, boolean>>>({});
   const [query, setQuery] = useState(''), [searchOpen, setSearchOpen] = useState(false);
-  const [peer, setPeer] = useState<{ xuid: string; name: string; origin: string }>();
+  const [peer, setPeer] = useState<{ xuid: string; name: string; origin: string } | undefined>(() => {
+    const value = initialRoute?.peer;
+    if (auth.stored !== true || auth.running || !value || !/^[1-9]\d{0,19}$/.test(value.xuid) || BigInt(value.xuid) > 18446744073709551615n) return;
+    return { xuid: value.xuid, name: value.gamertag, origin: `[data-social-peer="${value.xuid}"]` };
+  });
   const [draft, setDraft] = useState(''), [sending, setSending] = useState(false), [sendError, setSendError] = useState(''), [sentNotice, setSentNotice] = useState('');
+  const submission = useRef(new XboxMessageSubmission());
+  const [submissionBlocked, setSubmissionBlocked] = useState(false);
   const root = useRef<HTMLDivElement>(null), subpage = useRef<HTMLDivElement>(null);
   const mounted = useRef(true), sendPending = useRef(false), sequence = useRef({ friends: 0, chats: 0, conversation: 0, search: 0 });
   const currentPeer = useRef(peer); currentPeer.current = peer;
@@ -74,7 +82,8 @@ function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapsh
   const canSend = signedIn && Boolean(peer && conversation?.capabilities.send && typeof launcher?.sendXboxMessage === 'function');
   const labels = { friends: t('Friends', 'Φίλοι'), chats: t('Chats', 'Συνομιλίες') };
 
-  async function read(resource: Resource, refresh = false, value?: string) {
+  const uncertainMessage = () => t('The submission could not be confirmed. Your draft is kept. Refresh and review the conversation before sending again.', 'Η υποβολή δεν επιβεβαιώθηκε. Το πρόχειρο διατηρήθηκε. Ανανεώστε και ελέγξτε τη συνομιλία πριν το στείλετε ξανά.');
+  async function read(resource: Resource, refresh = false, value?: string, manualReview = false) {
     if (!signedIn) return;
     const version = ++sequence.current[resource];
     setLoading(previous => ({ ...previous, [resource]: true }));
@@ -89,13 +98,25 @@ function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapsh
       if (!mounted.current || sequence.current[resource] !== version) return;
       if (resource === 'conversation' && result.status === 'ready' && !xboxConversationMatches(result, value!)) result = socialError(new Error(t('The conversation target could not be verified.', 'Δεν ήταν δυνατή η επαλήθευση του παραλήπτη συνομιλίας.')), t);
       setResults(previous => ({ ...previous, [resource]: result }));
+      if (resource === 'conversation' && currentPeer.current?.xuid === value) {
+        const reconciliation = submission.current.history(result, manualReview);
+        if (reconciliation.kind === 'confirmed') {
+          setDraft(current => current === reconciliation.text ? '' : current);
+          setSubmissionBlocked(false); setSendError('');
+          setSentNotice(t('Your submitted message now appears in the conversation history.', 'Το μήνυμα που υποβάλατε εμφανίζεται πλέον στο ιστορικό συνομιλίας.'));
+        } else if (reconciliation.kind === 'reviewed') {
+          setSubmissionBlocked(false); setSentNotice('');
+          setSendError(t('Conversation refreshed. Your draft is kept. Check whether it was already sent before choosing Send again.', 'Η συνομιλία ανανεώθηκε. Το πρόχειρο διατηρήθηκε. Ελέγξτε αν έχει ήδη σταλεί πριν επιλέξετε ξανά Αποστολή.'));
+        }
+      }
     } catch (value) { if (mounted.current && sequence.current[resource] === version) setResults(previous => ({ ...previous, [resource]: socialError(value, t) })); }
     finally { if (mounted.current && sequence.current[resource] === version) setLoading(previous => ({ ...previous, [resource]: false })); }
   }
-  useEffect(() => { mounted.current = true; if (signedIn) void read('friends'); return () => { mounted.current = false; for (const key of Object.keys(sequence.current) as Resource[]) sequence.current[key]++; }; }, []);
+  useEffect(() => { mounted.current = true; if (signedIn) void read('friends'); return () => { mounted.current = false; submission.current.reset(); for (const key of Object.keys(sequence.current) as Resource[]) sequence.current[key]++; }; }, []);
   useEffect(() => { if (tab === 'chats' && !results.chats) void read('chats'); }, [tab]);
   useEffect(() => {
     if (!peer) return;
+    submission.current.reset(); setSubmissionBlocked(false);
     setResults(previous => ({ ...previous, conversation: undefined })); setDraft(''); setSendError(''); setSentNotice(''); void read('conversation', false, peer.xuid);
     return () => { sequence.current.conversation++; };
   }, [peer?.xuid]);
@@ -111,7 +132,7 @@ function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapsh
   }, []);
   const back = () => {
     if (sendPending.current) return;
-    if (peer) { const origin = peer.origin; setPeer(undefined); setDraft(''); setSendError(''); setSentNotice(''); requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(origin)?.focus()); }
+    if (peer) { const origin = peer.origin; submission.current.reset(); setSubmissionBlocked(false); setPeer(undefined); setDraft(''); setSendError(''); setSentNotice(''); requestAnimationFrame(() => (root.current?.querySelector<HTMLElement>(origin) ?? root.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]'))?.focus()); }
     else if (searchOpen) { setSearchOpen(false); sequence.current.search++; requestAnimationFrame(() => root.current?.querySelector<HTMLElement>('.xbox-social-search input')?.focus()); }
   };
   useBackHandler(() => { back(); return true; }, Boolean(peer || searchOpen), () => subpage.current);
@@ -127,18 +148,25 @@ function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapsh
   }
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (sendPending.current || !peer || !canSend || !validXboxMessage(draft)) return;
+    if (sendPending.current || submission.current.blocked || !peer || !canSend || !validXboxMessage(draft) || !conversation?.selfXuid) return;
     const target = peer.xuid, text = draft;
+    if (!submission.current.begin(conversation.selfXuid, target, text)) return;
+    // A history request started before the POST must not reconcile it later.
+    sequence.current.conversation++;
+    setLoading(previous => ({ ...previous, conversation: false }));
+    setSubmissionBlocked(true);
     sendPending.current = true; setSending(true); setSendError(''); setSentNotice('');
     try {
       const result = await launcher!.sendXboxMessage(target, text);
       if (!mounted.current || currentPeer.current?.xuid !== target) return;
-      if (result.status !== 'ready' || result.peerXuid !== target || !result.sent) { setSendError(result.reason || t('Message delivery could not be confirmed. Check the conversation before sending again.', 'Η παράδοση του μηνύματος δεν επιβεβαιώθηκε. Ελέγξτε τη συνομιλία πριν το στείλετε ξανά.')); return; }
-      setDraft(''); setSentNotice(t('Xbox accepted the message. Refreshing the conversation…', 'Το Xbox δέχτηκε το μήνυμα. Ανανέωση συνομιλίας…')); await read('conversation', true, target);
-    } catch { if (mounted.current && currentPeer.current?.xuid === target) setSendError(t('Message delivery could not be confirmed. Check the conversation before sending again.', 'Η παράδοση του μηνύματος δεν επιβεβαιώθηκε. Ελέγξτε τη συνομιλία πριν το στείλετε ξανά.')); }
+      if (!submission.current.receive(result)) { setSendError(uncertainMessage()); return; }
+      setSentNotice(t('Checking the submitted message in conversation history…', 'Έλεγχος του μηνύματος στο ιστορικό συνομιλίας…'));
+      await read('conversation', true, target);
+      if (mounted.current && currentPeer.current?.xuid === target && submission.current.blocked) { setSentNotice(''); setSendError(uncertainMessage()); }
+    } catch { if (mounted.current && currentPeer.current?.xuid === target) { submission.current.failed(); setSentNotice(''); setSendError(uncertainMessage()); } }
     finally { sendPending.current = false; if (mounted.current) setSending(false); }
   }
-  const retry = (resource: Resource, value?: string) => <button className="xbox-social-retry" disabled={loading[resource] || sending} onClick={() => void read(resource, true, value)}><RefreshCw />{t('Refresh', 'Ανανέωση')}</button>;
+  const retry = (resource: Resource, value?: string) => <button className="xbox-social-retry" disabled={loading[resource] || sending} onClick={() => void read(resource, true, value, resource === 'conversation')}><RefreshCw />{t('Refresh', 'Ανανέωση')}</button>;
   const failed = (result: XboxSocialResult | undefined, resource: Resource, value?: string) => <div className="xbox-social-status" role={result?.status === 'error' ? 'alert' : 'status'}><p>{statusText(result, t)}</p>{retry(resource, value)}</div>;
   const view = peer ? 'conversation' : searchOpen ? 'search' : undefined;
   return <div ref={root} className={`xbox-social-panel xbox-social-${variant}`}>
@@ -161,7 +189,7 @@ function XboxSocialSession({ auth, variant, accountSettings }: { auth: AppSnapsh
       <div className="xbox-social-subpage-heading"><button data-gamepad-cancel disabled={sending} onClick={back}><ArrowLeft />{t('Back', 'Πίσω')}</button><h3>{peer?.name ?? t('Search results', 'Αποτελέσματα αναζήτησης')}</h3>{retry(peer ? 'conversation' : 'search', peer?.xuid ?? query.trim())}</div>
       {peer ? <>
         {!conversation ? failed(results.conversation, 'conversation', peer.xuid) : <><ol className="xbox-social-messages" aria-label={t('Conversation messages', 'Μηνύματα συνομιλίας')}>{conversation.messages?.map(message => <li key={message.id} className={message.senderXuid === conversation.selfXuid ? 'self-message' : ''}><small>{message.senderXuid === conversation.selfXuid ? t('You', 'Εσείς') : peer.name}{message.sentAt ? <time dateTime={message.sentAt}>{new Date(message.sentAt).toLocaleString(language === 'el' ? 'el-GR' : undefined)}</time> : null}</small><p>{xboxMessageText(message, t)}</p></li>)}</ol>{!conversation.messages?.length ? <p className="xbox-social-empty">{t('No messages were returned.', 'Δεν επιστράφηκαν μηνύματα.')}</p> : null}{conversation.continuationToken ? <p className="xbox-social-empty">{t('Only the returned message page is shown.', 'Εμφανίζεται μόνο η σελίδα μηνυμάτων που επιστράφηκε.')}</p> : null}</>}
-        <form className="xbox-social-composer" onSubmit={event => void send(event)}><label htmlFor={`${id}-message`}>{t('Message', 'Μήνυμα')}</label><textarea id={`${id}-message`} aria-label={t('Message text', 'Κείμενο μηνύματος')} value={draft} onChange={event => { setDraft(event.target.value); setSendError(''); setSentNotice(''); }} disabled={!canSend || sending} /><div><span aria-live="polite">{xboxMessageLength(draft)} / 256</span><button type="submit" disabled={!canSend || sending || !validXboxMessage(draft)}><Send />{sending ? t('Sending…', 'Αποστολή…') : t('Send', 'Αποστολή')}</button></div></form>
+        <form className="xbox-social-composer" onSubmit={event => void send(event)}><label htmlFor={`${id}-message`}>{t('Message', 'Μήνυμα')}</label><textarea id={`${id}-message`} aria-label={t('Message text', 'Κείμενο μηνύματος')} value={draft} onChange={event => { setDraft(event.target.value); setSendError(''); setSentNotice(''); }} disabled={!canSend || sending || submissionBlocked} /><div><span aria-live="polite">{xboxMessageLength(draft)} / 256</span><button type="submit" disabled={!canSend || sending || submissionBlocked || !validXboxMessage(draft)}><Send />{sending ? t('Sending…', 'Αποστολή…') : t('Send', 'Αποστολή')}</button></div></form>
         {!canSend && !loading.conversation ? <p className="xbox-social-empty">{t('Messaging is unavailable for this account or conversation.', 'Η αποστολή μηνυμάτων δεν είναι διαθέσιμη για αυτόν τον λογαριασμό ή συνομιλία.')}</p> : null}
         {sendError ? <p className="xbox-social-error" role="alert">{sendError}</p> : null}{sentNotice ? <p className="xbox-social-notice" role="status">{sentNotice}</p> : null}
       </> : <>{!results.search || results.search.status !== 'ready' ? failed(results.search, 'search', query.trim()) : <><XboxFriendsList result={results.search} select={openPeer} t={t} />{!results.search.friends?.length ? <p className="xbox-social-empty">{t('No matching people were returned.', 'Δεν επιστράφηκαν άτομα που να ταιριάζουν.')}</p> : null}{results.search.continuationToken ? <p className="xbox-social-empty">{t('Only the returned search page is shown.', 'Εμφανίζεται μόνο η σελίδα αναζήτησης που επιστράφηκε.')}</p> : null}</>}</>}

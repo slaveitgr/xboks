@@ -61,6 +61,10 @@ describe('Xbox explicit message composition limits', () => {
     expect(validXboxMessage('a')).toBe(true); expect(validXboxMessage('a'.repeat(256))).toBe(true); expect(validXboxMessage('a'.repeat(257))).toBe(false);
     expect(validXboxMessage('First line\nSecond line')).toBe(true);
   });
+  it('rejects controls before asking the private send adapter while retaining normal multiline text', () => {
+    for (const text of ['draft\0secret','draft\x1b[31m','draft\x7f','\x08']) expect(validXboxMessage(text)).toBe(false);
+    expect(validXboxMessage('First line\r\n\tSecond line')).toBe(true);
+  });
 });
 
 describe('Xbox social rendered surfaces', () => {

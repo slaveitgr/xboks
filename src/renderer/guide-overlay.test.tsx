@@ -45,7 +45,7 @@ it('renders settings safely without a browser bridge and distinguishes window fu
   const data=demoSnapshot(); data.desktopSettings={canSetAutostart:true,fullscreenExperience:true,fullscreenExperienceSource:'environment'};
   const html=render('settings',data);
   expect(html).toContain('Enter window fullscreen');
-  expect(html).toContain('Fullscreen Experience is managed by the gaming session.');
+  expect(html).toContain('Xbox mode is managed by the gaming session.');
   expect(html).not.toContain('Fullscreen Experience settings');
   expect(html).toMatch(/<button[^>]*data-guide-fullscreen="[^"]*"[^>]*disabled=""/);
 });

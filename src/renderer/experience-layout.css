@@ -1,0 +1,58 @@
+/* Desktop and Xbox mode deliberately have different shells. The native window
+   and session observers select them; resizing a window does not enter Xbox mode. */
+.console-home.app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.console-home > .content-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
+.console-home .page-scroll { height: 100%; overflow: hidden; }
+.console-home .home-shell::before { display: none; }
+.console-home-status .console-desktop-return { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; padding: 7px; background: #090b0c80; }
+.console-home-status .console-desktop-return > .xbox-icon { width: 22px; height: 22px; }
+.console-home-status .shell-battery > .xbox-icon { width: 24px; height: 22px; }
+.desktop-experience .page { max-width: none; padding: 28px clamp(22px, 1.5625vw, 30px) 64px; }
+.desktop-experience .dashboard-home { width: 100%; background: #070909; }
+.desktop-experience .dashboard-home::before { display: none; }
+.desktop-experience .dashboard-home h1, .desktop-experience .dashboard-home h2 { font-size: 24px; font-weight: 600; letter-spacing: 0; }
+.desktop-experience .jump-back { position: relative; }
+.desktop-experience .jump-back > h1 { position: absolute; z-index: 1; bottom: 22px; left: 24px; margin: 0; font-size: 14px; pointer-events: none; }
+.desktop-experience .jump-back-row { gap: 16px; margin: 0; padding: 0; overflow: hidden; }
+.desktop-experience .resume-tile { flex: 1; aspect-ratio: auto; height: clamp(200px, 20vw, 320px); background: #161b1b; border-radius: 12px; }
+.desktop-experience .resume-tile .game-cover { width: 100%; object-fit: cover; object-position: center; }
+.desktop-experience .resume-tile > span { inset: 0; align-content: start; opacity: 1; padding: 26px; background: linear-gradient(90deg, #000b, #0000 85%); }
+.desktop-experience .resume-tile strong { max-width: 80%; font-size: clamp(23px, 2vw, 36px); line-height: 1.2; }
+.desktop-experience .resume-tile .state-pill { justify-self: start; margin-top: 8px; }
+.desktop-experience .resume-group { flex: 0 0 clamp(200px, 20vw, 300px); width: auto; height: auto; padding: 12px; background: #0b0d0d; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; gap: 10px; border-radius: 12px; }
+.desktop-experience .resume-group button { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0; background: transparent; text-align: left; }
+.desktop-experience .resume-group .game-cover, .desktop-experience .resume-group .cover-placeholder { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 5px; }
+.desktop-experience .resume-group strong { min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desktop-experience .home-featured { margin-top: 30px; }
+.desktop-experience .home-featured > h2 { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.desktop-experience .home-feature-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(260px, 38%); grid-template-columns: none; gap: 16px; overflow-x: auto; scrollbar-width: thin; padding: 4px 2px 12px; margin: -4px -2px 0; }
+.desktop-experience .home-feature-tile { border-radius: 8px; }
+.desktop-experience .feature-copy { padding: 46px 14px 14px; gap: 4px; }
+.desktop-experience .feature-copy > strong { font-size: 18px; font-weight: 600; }
+.desktop-experience .feature-copy > span { font-size: 13px; color: #b8bdbc; }
+.desktop-experience .home-feature-stack { display: contents; }
+.desktop-experience .home-feature-stack .home-feature-tile { position: relative; inset: auto; width: auto; height: auto; aspect-ratio: 16 / 9; }
+.desktop-experience .home-discover { margin: 30px 0 0; padding: 0; background: transparent; border-radius: 0; }
+.desktop-experience .home-discover-heading { margin: 0 0 18px; text-align: left; }
+.desktop-experience .home-discover-heading p { margin-top: 5px; font-size: 13px; }
+.desktop-experience .home-discover .home-catalog-row { display: grid; grid-auto-flow: column; grid-auto-columns: clamp(210px, 18vw, 340px); grid-template-columns: none; gap: 16px; max-width: none; margin: 0; overflow-x: auto; padding: 4px 2px 12px; }
+.desktop-experience .home-product { background: transparent; border-radius: 6px; }
+.desktop-experience .home-product > img, .desktop-experience .home-product > .cover-placeholder { aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; }
+.desktop-experience .home-product > span { padding: 8px 2px; gap: 6px; }
+.desktop-experience .home-product strong { font-size: 13px; font-weight: 500; }
+.desktop-experience .home-product small { font-size: 12px; }
+.desktop-experience .home-product .home-product-price { color: #e4e8e6; }
+.desktop-experience .home-product .home-product-plan { color: #b5bcb8; font-size: 11px; }
+@media (max-width: 1100px) {
+  .desktop-experience .page { padding: 22px 22px 60px; }
+  .desktop-experience .resume-group { flex-basis: 180px; }
+  .desktop-experience .resume-group .game-cover, .desktop-experience .resume-group .cover-placeholder { width: 42px; height: 42px; flex-basis: 42px; }
+  .desktop-experience .resume-group strong { font-size: 11px; }
+}
+@media (max-width: 760px) {
+  .desktop-experience .resume-group { display: none; }
+  .desktop-experience .resume-tile > span { padding: 20px; }
+  .desktop-experience .resume-tile strong { max-width: 95%; }
+  .desktop-experience .home-feature-grid { grid-auto-columns: minmax(230px, 78%); }
+  .desktop-experience .dashboard-home h2 { font-size: 21px; }
+}

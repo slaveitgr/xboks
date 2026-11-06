@@ -1,0 +1,139 @@
+.desktop-experience.app-shell {
+  --xboks-sidebar-width: clamp(248px, 19.1146vw, 367px);
+  --xboks-header-height: clamp(40px, 2.5vw, 48px);
+  --canvas: #070909;
+  --sidebar: #101212;
+  --surface: #161818;
+  --surface-hover: #222526;
+  display: grid;
+  grid-template-columns: var(--xboks-sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--xboks-header-height) minmax(0, 1fr);
+  background: var(--canvas);
+}
+.desktop-experience.app-shell[data-desktop-collapsed] { --xboks-sidebar-width: 72px; }
+.desktop-experience > .content-shell { grid-column: 2; grid-row: 2; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; }
+.desktop-experience > .desktop-topbar { grid-column: 1 / -1; grid-row: 1; }
+.desktop-experience .desktop-topbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) minmax(200px, clamp(300px, 18.75vw, 360px)) minmax(100px, 1fr);
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  padding: 0 20px;
+  background: #070909;
+  color: #f4f5f5;
+  z-index: 30;
+  -webkit-app-region: drag;
+}
+.desktop-topbar .desktop-brand-controls, .desktop-topbar .desktop-header-actions { display: flex; align-items: center; min-width: 0; gap: 12px; }
+.desktop-topbar .desktop-header-actions { justify-self: end; }
+.desktop-topbar button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 34px; height: 34px; min-height: 34px; padding: 7px; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+.desktop-topbar button:hover { background: #252829; }
+.desktop-topbar button:focus-visible, .desktop-sidebar button:focus-visible { outline: 2px solid #e5e8e7; outline-offset: -2px; }
+.desktop-topbar .xbox-icon { width: 20px; height: 20px; font-size: 18px; }
+.desktop-topbar .desktop-brand { display: inline-grid; place-items: center; flex: 0 0 30px; width: 30px; height: 30px; }
+.desktop-brand img { width: 26px; height: 26px; object-fit: contain; }
+.desktop-topbar .desktop-collapse-icon { position: relative; display: grid; place-items: center; width: 21px; height: 16px; padding-left: 5px; border: 1px solid #b3b6b5; border-radius: 2px; }
+.desktop-collapse-icon:before { content: ''; position: absolute; left: 5px; top: 0; bottom: 0; border-left: 1px solid #b3b6b5; }
+.desktop-topbar .desktop-collapse-icon > .xbox-icon { width: 12px; height: 12px; font-size: 10px; }
+.desktop-collapse-icon.is-collapsed > .xbox-icon { transform: rotate(180deg); }
+.desktop-topbar .desktop-search-area { display: flex; align-items: center; gap: 12px; min-width: 0; -webkit-app-region: no-drag; }
+.desktop-topbar .desktop-back, .desktop-topbar .desktop-back-space { width: 28px; height: 32px; flex: 0 0 28px; }
+.desktop-topbar .desktop-back { padding: 5px; }
+.desktop-topbar .search-box { position: relative; inset: auto; flex: 1; width: auto; min-width: 0; height: 34px; padding: 0 10px; grid-template-columns: 24px minmax(0, 1fr) 22px; border: 1px solid #292d2e; border-radius: 24px; background: #101213; }
+.desktop-topbar .search-box:focus-within { border-color: #777f7b; background: #151818; }
+.desktop-topbar .search-box > .xbox-icon { width: 16px; height: 16px; }
+.desktop-topbar .search-box input { min-width: 0; font-size: 12px; }
+.desktop-topbar .search-box > button { width: 24px; height: 26px; min-height: 26px; padding: 4px; }
+.desktop-topbar .search-box > button > .xbox-icon { width: 16px; height: 16px; }
+.desktop-topbar .search-results { z-index: 60; width: min(480px, calc(100vw - 100px)); }
+.desktop-topbar .search-results button { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 10px; width: 100%; height: 52px; min-height: 52px; padding: 6px; text-align: left; }
+.desktop-topbar .desktop-avatar { display: inline-grid; place-items: center; width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%; background: #202526; }
+.desktop-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.desktop-topbar .desktop-account { position: relative; padding: 4px; border-radius: 50%; }
+.desktop-account-copy { position: absolute; display: none; top: calc(100% + 12px); right: 0; min-width: 150px; max-width: 240px; gap: 7px; padding: 12px; border: 1px solid #363c3a; border-radius: 8px; background: #171c1a; box-shadow: 0 8px 24px #0007; text-align: left; pointer-events: none; }
+.desktop-account-copy strong { overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.desktop-account:hover .desktop-account-copy, .desktop-account:focus-visible .desktop-account-copy { display: grid; }
+.desktop-topbar .desktop-mode-controls .shell-header-controls { position: static; inset: auto; display: flex; align-items: center; gap: 8px; }
+.desktop-topbar .desktop-mode-controls .xbox-mode-entry { display: inline-flex; align-items: center; gap: 7px; width: auto; height: 30px; min-height: 30px; padding: 0 10px; border: 1px solid #3b4440; border-radius: 7px; background: #171c19; font-size: 12px; white-space: nowrap; }
+.desktop-topbar .desktop-mode-controls .xbox-mode-entry > .xbox-icon { width: 16px; height: 16px; }
+.desktop-experience .desktop-sidebar {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: clamp(12px, .83333vw, 16px);
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(12px, .78125vw, 15px);
+  border: 0;
+  background: transparent;
+}
+.desktop-sidebar .desktop-navigation-panel, .desktop-sidebar .desktop-sidebar-social, .desktop-sidebar .desktop-sidebar-queue { min-width: 0; min-height: 0; border-radius: 15px; background: #101212; }
+.desktop-sidebar .desktop-navigation-panel { position: relative; padding: clamp(7px, .46875vw, 9px); }
+.desktop-sidebar .desktop-primary-nav { display: grid; gap: clamp(3px, .41667vw, 8px); }
+.desktop-sidebar .desktop-primary-nav .nav-item { display: flex; align-items: center; gap: 16px; width: 100%; height: clamp(44px, 2.91667vw, 56px); min-height: 44px; padding: 0 44px 0 17px; border: 0; border-radius: 8px; background: transparent; color: #eaeceb; font-size: 14px; font-weight: 400; }
+.desktop-sidebar .desktop-primary-nav .nav-item:hover { background: #1a1e1d; }
+.desktop-sidebar .desktop-primary-nav .nav-item.active { background: #1d2121; font-weight: 600; }
+.desktop-sidebar .desktop-primary-nav .nav-item.active:before { display: none; }
+.desktop-sidebar .desktop-primary-nav .nav-item > .xbox-icon { display: inline-flex; width: 21px; height: 21px; flex: 0 0 21px; font-size: 18px; }
+.desktop-sidebar .desktop-navigation-tools { position: absolute; right: 10px; bottom: 12px; display: flex; justify-content: flex-end; }
+.desktop-sidebar .desktop-more { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 28px; padding: 5px; border: 0; border-radius: 5px; background: transparent; color: #bdc4c0; cursor: pointer; }
+.desktop-sidebar .desktop-more > .xbox-icon { width: 19px; height: 19px; }
+.desktop-sidebar .desktop-more:hover, .desktop-sidebar .desktop-more.active { background: #222826; }
+.desktop-sidebar .desktop-sidebar-social { overflow: hidden; }
+.desktop-sidebar .desktop-social-expanded { height: 100%; min-height: 0; }
+.desktop-sidebar .desktop-social-collapsed { display: none; align-items: center; justify-content: center; width: 100%; height: 48px; border: 0; border-radius: 9px; background: transparent; cursor: pointer; }
+.desktop-sidebar .desktop-social-collapsed > .xbox-icon { width: 23px; height: 23px; }
+.desktop-sidebar .desktop-sidebar-queue { position: relative; }
+.desktop-sidebar .queue-shortcut { width: 100%; }
+.desktop-sidebar .queue-summary { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-height: clamp(60px, 3.75vw, 72px); padding: 9px 16px; border: 0; border-radius: 15px; background: transparent; }
+.desktop-sidebar .queue-summary:hover { background: #1d2320; }
+.desktop-sidebar .queue-summary > .xbox-icon { width: 21px; height: 21px; flex: 0 0 21px; font-size: 19px; }
+.desktop-sidebar .queue-summary-copy { display: grid; min-width: 0; gap: 3px; }
+.desktop-sidebar .queue-summary-copy strong { font-size: 13px; font-weight: 400; }
+.desktop-sidebar .queue-summary-copy small { font-size: 11px; line-height: 15px; }
+.desktop-sidebar .queue-summary:has(.queue-preview-art) { padding: 9px 12px; gap: 10px; }
+.desktop-sidebar .queue-summary .queue-preview-art { width: 36px; height: 36px; flex: 0 0 36px; }
+.desktop-sidebar[data-collapsed] { grid-template-rows: auto 48px minmax(0, 1fr); padding: 8px 7px 12px; gap: 12px; }
+.desktop-sidebar[data-collapsed] .desktop-navigation-panel { padding: 5px; }
+.desktop-sidebar[data-collapsed] .desktop-primary-nav .nav-item { justify-content: center; height: 44px; min-height: 44px; padding: 8px; }
+.desktop-sidebar[data-collapsed] .desktop-nav-label, .desktop-sidebar[data-collapsed] .queue-summary-copy { display: none; }
+.desktop-sidebar[data-collapsed] .desktop-navigation-tools { justify-content: center; }
+.desktop-sidebar[data-collapsed] .desktop-navigation-tools { position: static; margin-top: 2px; }
+.desktop-sidebar[data-collapsed] .desktop-social-collapsed { display: flex; }
+.desktop-sidebar[data-collapsed] .desktop-sidebar-queue { align-self: end; }
+.desktop-sidebar[data-collapsed] .queue-summary, .desktop-sidebar[data-collapsed] .queue-summary:has(.queue-preview-art) { justify-content: center; padding: 8px; min-height: 52px; }
+.desktop-sidebar[data-collapsed] .queue-summary .queue-preview-art { width: 32px; height: 32px; flex-basis: 32px; }
+body:has(.desktop-experience.app-shell) .shell-account-menu { top: 64px; right: 16px; left: auto; }
+@media (max-width: 1100px) and (min-width: 761px) {
+  .desktop-experience.app-shell:not([data-desktop-collapsed]) { --xboks-sidebar-width: 248px; }
+  .desktop-experience .desktop-topbar { gap: 10px; grid-template-columns: minmax(80px, 1fr) minmax(160px, 340px) minmax(80px, 1fr); padding: 0 12px; }
+  .desktop-topbar .desktop-header-actions { gap: 4px; }
+  .desktop-topbar .desktop-mode-controls .xbox-mode-entry { max-width: 116px; padding: 0 7px; font-size: 11px; }
+}
+@media (max-width: 760px) {
+  .desktop-experience.app-shell { --xboks-sidebar-width: 64px; --xboks-header-height: 52px; }
+  .desktop-experience .desktop-topbar { grid-template-columns: 30px minmax(130px, 1fr) auto; gap: 8px; padding: 0 10px; }
+  .desktop-topbar .desktop-brand-controls { gap: 0; }
+  .desktop-topbar .desktop-collapse { display: none; }
+  .desktop-topbar .desktop-search-area { gap: 4px; }
+  .desktop-topbar .desktop-back, .desktop-topbar .desktop-back-space { width: 24px; flex-basis: 24px; }
+  .desktop-topbar .search-box { height: 32px; padding: 0 6px; grid-template-columns: 20px minmax(0, 1fr) 18px; }
+  .desktop-topbar .search-box input { font-size: 11px; }
+  .desktop-topbar .desktop-header-actions { gap: 2px; }
+  .desktop-topbar .desktop-notifications { width: 30px; padding: 5px; }
+  .desktop-topbar .desktop-mode-controls .xbox-mode-entry { width: 30px; overflow: hidden; gap: 16px; padding: 0 7px; font-size: 0; }
+  .desktop-topbar .desktop-mode-controls .xbox-mode-entry > .xbox-icon { flex: 0 0 16px; }
+  .desktop-experience .desktop-sidebar, .desktop-sidebar[data-collapsed] { grid-template-rows: auto 48px minmax(0, 1fr); padding: 8px 6px 10px; gap: 10px; }
+  .desktop-sidebar .desktop-navigation-panel { padding: 4px; }
+  .desktop-sidebar .desktop-primary-nav .nav-item { justify-content: center; min-height: 44px; height: 44px; padding: 8px; }
+  .desktop-sidebar .desktop-nav-label, .desktop-sidebar .desktop-social-expanded, .desktop-sidebar .queue-summary-copy { display: none; }
+  .desktop-sidebar .desktop-social-collapsed { display: flex; }
+  .desktop-sidebar .desktop-navigation-tools { justify-content: center; }
+  .desktop-sidebar .desktop-navigation-tools { position: static; margin-top: 2px; }
+  .desktop-sidebar .desktop-sidebar-queue { align-self: end; }
+  .desktop-sidebar .queue-summary, .desktop-sidebar .queue-summary:has(.queue-preview-art) { justify-content: center; min-height: 50px; padding: 8px; }
+  .desktop-sidebar .queue-summary .queue-preview-art { width: 30px; height: 30px; flex-basis: 30px; }
+}

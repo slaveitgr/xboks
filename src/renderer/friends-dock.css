@@ -1,0 +1,37 @@
+.friends-dock { width: 100%; min-width: 0; height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 16px 14px 12px; gap: 14px; background: var(--sidebar, #202020); }
+.friends-dock-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.friends-dock-heading h2 { margin: 0; font-size: 15px; line-height: 28px; font-weight: 500; }
+.friends-dock-heading > div { display: flex; gap: 4px; }
+.friends-dock button { border: 0; border-radius: 6px; cursor: pointer; color: inherit; background: transparent; }
+.friends-dock button:hover:not(:disabled) { background: var(--surface-hover, #383838); }
+.friends-dock button:disabled { cursor: default; opacity: .45; }
+.friends-dock button:focus-visible, .friends-dock input:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.friends-dock-heading button, .friends-dock-search button, .friends-dock footer > button:last-child:not(:first-child) { width: 32px; height: 32px; display: inline-grid; place-items: center; padding: 6px; }
+.friends-dock-heading svg { width: 20px; height: 20px; }
+.friends-dock-search { display: flex; align-items: center; min-height: 36px; gap: 8px; padding: 0 5px 0 10px; border: 1px solid #858b9380; border-radius: 22px; background: var(--surface, #292929); }
+.friends-dock-search > :is(svg, .xbox-icon) { flex: none; width: 16px; height: 16px; color: var(--muted, #b4b8bf); }
+.friends-dock-search input { min-width: 0; width: 100%; padding: 8px 0; border: 0; background: transparent; font-size: 12px; color: inherit; }
+.friends-dock-search input::placeholder { color: var(--muted, #b4b8bf); }
+.friends-dock-search input:focus-visible { outline-offset: 0; }
+.friends-dock-search button { width: 26px; height: 26px; padding: 5px; flex: none; }
+.friends-dock-search button :is(svg, .xbox-icon) { width: 15px; height: 15px; }
+.friends-dock-body { min-height: 0; flex: 1; overflow: auto; margin: -4px -8px 0; padding: 0 8px; scrollbar-width: thin; }
+.friends-dock-roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.friends-dock-roster li { min-width: 0; }
+.friends-dock-roster button { width: 100%; min-height: 62px; padding: 8px 4px; display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 11px; align-items: center; text-align: left; }
+.friends-dock-roster button > span:last-child { min-width: 0; display: grid; gap: 5px; }
+.friends-dock-roster strong { font-size: 13px; line-height: 17px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.friends-dock-roster small { color: var(--muted, #b4b8bf); font-size: 11px; line-height: 15px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.friends-dock-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface, #292929); display: grid; place-items: center; position: relative; }
+.friends-dock-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.friends-dock-avatar > :is(svg, .xbox-icon) { width: 27px; height: 27px; color: var(--muted, #b4b8bf); }
+.friends-dock-avatar.presence-online::after, .friends-dock-avatar.presence-away::after { content: ''; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--sidebar, #202020); position: absolute; bottom: -1px; right: -1px; background: #66c243; }
+.friends-dock-avatar.presence-away::after { background: #e7ba62; }
+.friends-dock-results-label { margin: 0 0 10px; font-size: 12px; color: var(--muted, #b4b8bf); }
+.friends-dock-status { margin: 0; padding: 10px 2px; color: var(--muted, #b4b8bf); font-size: 12px; line-height: 1.6; }
+.friends-dock-status p { margin: 0 0 12px; }
+.friends-dock-status button, .friends-dock-more { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; background: var(--surface, #292929); font-size: 12px; }
+.friends-dock-status :is(svg, .xbox-icon) { width: 15px; height: 15px; }
+.friends-dock footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line, #ffffff1a); }
+.friends-dock footer > button:first-child { font-size: 12px; text-align: left; padding: 8px; }
+.friends-dock footer :is(svg, .xbox-icon) { width: 16px; height: 16px; }

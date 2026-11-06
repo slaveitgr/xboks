@@ -45,6 +45,21 @@ The default game folder is **`~/Games/Xboks`**; custom locations are preserved. 
 
 ### Game Bar and fullscreen
 
+The **0.3.28 desktop interface** introduces a full-width header, separate navigation,
+persistent friends/search and a Queue panel. **Xbox mode** opens a dedicated
+controller Home with game artwork, horizontal tiles and account shortcuts.
+Clock and battery/power status stay in the fullscreen interface. The
+[redesign reference](docs/analysis/xbox-pc-redesign-2026-11-05.md) distinguishes
+the observed Windows layout from the Linux adaptation and remaining gaps.
+
+| Desktop redesign | Xbox mode Home |
+| --- | --- |
+| ![XBOKS desktop redesign with labeled fixture data](docs/screenshots/xboks-desktop-redesign.png) | ![XBOKS Xbox mode Home with labeled fixture data](docs/screenshots/xboks-xbox-mode-home.png) |
+
+*Actual 0.3.28 renderer, generated test artwork and sample account/service data.
+[Capture provenance](docs/screenshots/redesign-provenance.json). These captures
+verify layout and input routes; they do not show live Xbox services or Windows parity.*
+
 Open Game Bar with **Ctrl+G**, `xboks --game-bar`, or the controller Guide button when your desktop exposes it. D-pad/left stick moves focus, **A** selects, **B** goes back, and **LB/RB** switches the active page or tab. Mouse and keyboard remain available.
 
 - **Widgets:** Home, friends/chat, audio, Spotify, performance, captures, and settings; choose favorites and keep panels open while Game Bar is visible.
@@ -57,6 +72,13 @@ Open Game Bar with **Ctrl+G**, `xboks --game-bar`, or the controller Guide butto
 **Xbox mode** offers **Restart**, **Start now (no performance changes)**, and **Remain on desktop**. Clock and available battery/power status appear when fullscreen is observed. Opening the dialog does not reboot or change startup settings.
 
 The optional **GNOME Shell 51** extension adds Xbox/Desktop transitions and a native task switcher with actual windows, icons, previews, and the desktop's light/dark preference. **Alt+Tab**, **Alt+Shift+Tab**, and **Super** work within the active mode; **Ctrl+Super+Escape** restores the desktop. This experimental integration keeps the existing desktop session and background applications running. A separate minimal gaming session remains planned.
+
+Messages keep their draft after an uncertain submission. A valid submission ID
+must appear in the selected account's conversation history before XBOKS clears
+the text; refreshing and reviewing is required before retrying an uncertain send.
+The [upstream social comparison](docs/analysis/nexus-social-2026-11-06.md) records
+the additional authentication, relationship, desktop-chat and party work still
+needed. This update does not enable Xbox party voice.
 
 ### Around the app
 

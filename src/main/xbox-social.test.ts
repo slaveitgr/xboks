@@ -7,6 +7,15 @@ const friend = { xuid:'200',gamertag:'Friend',presence:'unknown',gamerpicUrl:'ht
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; };
 
 describe('Xbox social response boundaries', () => {
+  it('requires a real submission receipt and preserves its exact message identifier', () => {
+    const result = parseXboxSocial(envelope({ peerXuid:'200',sent:{messageId:'submission-123',conversationId:'thread-1',privateToken:'discard'} }),'sample@example.test','send','200');
+    expect(result.sent).toEqual({messageId:'submission-123',conversationId:'thread-1'});
+    expect(JSON.stringify(result.sent)).not.toContain('privateToken');
+    for (const sent of [{},{messageId:''},{messageId:' '},{messageId:'bad id'},{messageId:'id\nsecret'},{messageId:123},{messageId:'x'.repeat(257)},[],null]) {
+      expect(() => parseXboxSocial(envelope({peerXuid:'200',sent}),'sample@example.test','send','200')).toThrow();
+    }
+    expect(() => parseXboxSocial(envelope({peerXuid:'300',sent:{messageId:'submission-123'}}),'sample@example.test','send','200')).toThrow('target');
+  });
   it('matches the backend positive u64 identity bounds without number rounding', () => {
     for (const id of ['1','9007199254740993','18446744073709551615']) expect(socialPeer(id)).toBe(id);
     for (const id of ['0','01','18446744073709551616','99999999999999999999','184467440737095516150','1e3','+1',' 1',1,null]) expect(() => socialPeer(id)).toThrow('player ID');
@@ -30,6 +39,7 @@ describe('Xbox social response boundaries', () => {
     const result = parseXboxSocial(raw,'sample@example.test','conversation','200');
     expect(result.messages?.map(item => item.text)).toEqual([undefined,undefined]);
     expect(() => parseXboxSocial(raw,'sample@example.test','conversation','300')).toThrow('target');
+    expect(() => parseXboxSocial(envelope({peerXuid:'200',messages:[{id:'same',senderXuid:'100',deleted:false,text:'First'},{id:'same',senderXuid:'200',deleted:false,text:'Second'}]}),'sample@example.test','conversation','200')).toThrow('Duplicate');
     expect(() => parseXboxSocial(envelope({peerXuid:'200',messages:[{id:'m1',senderXuid:'300',deleted:false,text:'third party'}]}),'sample@example.test','conversation','200')).toThrow('participant');
   });
   it('requires two distinct bound inbox participants and a matching preview sender', () => {
@@ -41,6 +51,20 @@ describe('Xbox social response boundaries', () => {
   });
 });
 describe('account-bound social requests shared by both windows', () => {
+  it('treats a malformed successful send as uncertain and invalidates pre-send cached history', async () => {
+    const reader = vi.fn<SocialReader>(async (_binary, operation) => operation === 'send'
+      ? envelope({peerXuid:'200',sent:{}})
+      : envelope({peerXuid:'200',messages:[]}));
+    const service = new XboxSocialService(reader);
+    service.select('sample@example.test','/fixture/xodus-cli');
+    await service.request('conversation',{peer:'200'}); await service.request('conversation',{peer:'200'});
+    expect(reader).toHaveBeenCalledTimes(1);
+    const sent = await service.request('send',{peer:'200',text:'Synthetic draft'});
+    expect(sent.status).toBe('error'); expect(sent.sent).toBeUndefined(); expect(sent.reason).toContain('could not be confirmed');
+    await service.request('conversation',{peer:'200'});
+    expect(reader.mock.calls.filter(call => call[1] === 'send')).toHaveLength(1);
+    expect(reader.mock.calls.filter(call => call[1] === 'conversation')).toHaveLength(2);
+  });
   it('deduplicates reads and caches only the selected account in memory', async () => {
     const wait = deferred<string>(), reader = vi.fn<SocialReader>(() => wait.promise), service = new XboxSocialService(reader);
     service.select('sample@example.test','/fixture/xodus-cli');

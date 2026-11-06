@@ -8,6 +8,25 @@ export const settingsSections = [
   ['audio', 'Audio'], ['accessibility', 'Accessibility'], ['about', 'About'],
 ] as const;
 export type SettingsSection = typeof settingsSections[number][0];
+/** Shell mode changes replace direct background surfaces while Settings stays
+ * mounted. Own each surface's prior state, including later replacements, and
+ * leave the enclosing app's inert state to its separate modal owner. */
+export function inertSettingsBackground(shell: HTMLElement | null): () => void {
+  if (!shell) return () => {};
+  const owned = new Map<HTMLElement, boolean>();
+  const synchronize = () => {
+    const current = new Set(shell.querySelectorAll<HTMLElement>(':scope > .sidebar,:scope > .content-shell,:scope > .desktop-topbar'));
+    for (const [element, previous] of owned) if (!current.has(element)) { element.inert = previous; owned.delete(element); }
+    for (const element of current) {
+      if (!owned.has(element)) owned.set(element, element.inert);
+      element.inert = true;
+    }
+  };
+  const observer = new MutationObserver(synchronize);
+  observer.observe(shell, { childList: true });
+  synchronize();
+  return () => { observer.disconnect(); for (const [element, previous] of owned) element.inert = previous; owned.clear(); };
+}
 const greekSections: Record<SettingsSection, string> = { account: 'Λογαριασμός', application: 'Εφαρμογή', subscriptions: 'Συνδρομές', notifications: 'Ειδοποιήσεις', install: 'Επιλογές εγκατάστασης', library: 'Βιβλιοθήκη και επεκτάσεις', audio: 'Ήχος', accessibility: 'Προσβασιμότητα', about: 'Πληροφορίες' };
 /** A nested provider/license pane consumes Back before the enclosing dialog. */
 export function handleSettingsBack(surface: Pick<HTMLElement, 'querySelector'> | null, busy: boolean, close: () => void) {
@@ -23,10 +42,9 @@ export function SettingsFrame({ active, select, close, busy, children, language 
   useBackHandler(() => handleSettingsBack(root.current, busy, close), true, () => root.current);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const background = Array.from(document.querySelectorAll<HTMLElement>('.app-shell > .sidebar,.app-shell > .content-shell'));
-    const inert = background.map(el => el.inert); background.forEach(el => { el.inert = true; });
+    const restoreBackground = inertSettingsBackground(document.querySelector<HTMLElement>('.app-shell'));
     root.current?.querySelector<HTMLButtonElement>('[aria-selected="true"]')?.focus();
-    return () => { background.forEach((el, index) => { el.inert = inert[index]; }); if (previous?.isConnected) previous.focus(); };
+    return () => { restoreBackground(); if (previous?.isConnected) previous.focus(); };
   }, []);
   useEffect(() => {
     const change = (event: Event) => {

@@ -1,5 +1,23 @@
 # XBOKS screenshots
 
+## November desktop and Xbox mode preview
+
+The 0.3.28 renderer captures below were taken on 2026-11-06 in an isolated,
+localhost-only fixture browser. Artwork is generated test imagery; accounts,
+catalog data and social responses are explicit samples. Each image contains a
+fixture watermark. These are actual XBOKS components, without live Xbox service,
+physical-controller, original-Windows or operating-system integration acceptance.
+
+![XBOKS November desktop shell — labeled sample data](xboks-desktop-redesign.png)
+
+![XBOKS Xbox mode Home — labeled sample data](xboks-xbox-mode-home.png)
+
+[Capture provenance and source hashes](redesign-provenance.json) ·
+[Implementation and remaining gaps](../analysis/redesign-implementation-2026-11-06.md)
+
+## Earlier captures
+
+
 The launcher and Game Bar images capture **XBOKS's own React renderer**, taken
 on 2026-10-21 at 1920 × 1080. The cloud UI was captured in an isolated Electron
 browser on 2026-10-22; the native task switcher uses a private GNOME Shell 51

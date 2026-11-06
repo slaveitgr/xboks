@@ -7,7 +7,7 @@ import { useReferenceLocale } from './ReferenceLocale';
 import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu } from './ReferenceMenu';
 import type { AccountLibraryPage, AppSnapshot, CatalogProduct, Page } from '../shared/types';
-import { XboxSocialPanel } from './XboxSocialPanel';
+import { XboxSocialPanel, type XboxSocialRoute } from './XboxSocialPanel';
 import { ConsoleLibrary } from './ConsoleLibrary';
 
 export type ShellPanel = 'account' | 'friends' | 'notifications' | 'remote-play';
@@ -16,12 +16,12 @@ export function GamePassIcon({ wordmark = false }: { wordmark?: boolean }) {
   return wordmark ? <span className="game-pass-wordmark" aria-hidden="true">{missing ? 'XBOX GAME PASS' : <img src="./original-xbox/icons/GamePassInline5.svg" alt="" onError={() => setMissing(true)} />}</span> : <GamePassBadge className="game-pass-icon" />;
 }
 
-type ShellFlyoutProps = {panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void};
+type ShellFlyoutProps = {panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void; socialRoute?: XboxSocialRoute};
 export function ShellFlyout(props: ShellFlyoutProps) {
   if (props.panel === 'remote-play') return <ConsoleLibrary auth={props.data.auth} close={props.close} signIn={() => {props.close(); if (props.settings) props.settings('account'); else props.go('settings');}}/>;
   return <ShellFlyoutContent {...props} panel={props.panel}/>;
 }
-function ShellFlyoutContent({panel, data, close, go, settings}: Omit<ShellFlyoutProps, 'panel'> & {panel: Exclude<ShellPanel, 'remote-play'>}) {
+function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omit<ShellFlyoutProps, 'panel'> & {panel: Exclude<ShellPanel, 'remote-play'>}) {
   const { text } = useReferenceLocale();
   const root = useRef<HTMLDivElement>(null);
   const notificationAnchor = useRef<HTMLButtonElement>(null);
@@ -93,7 +93,7 @@ function ShellFlyoutContent({panel, data, close, go, settings}: Omit<ShellFlyout
           ]} /> : null}
           <label className="shell-unread-toggle">{text('Show unread only', 'Εμφάνιση μόνο μη αναγνωσμένων')}<input type="checkbox" role="switch" checked={unread} onChange={event => setUnread(event.target.checked)} /></label>
           <div className="shell-notification-list">{visibleNotifications.length ? visibleNotifications.map(task => <button key={task.id} onClick={() => navigate('downloads')} className={readIds.includes(`${task.id}:${task.status}`) ? 'read' : ''}>{task.status === 'failed' ? <CircleAlert /> : <Download />}<span><strong>{task.title}</strong><small>{task.status === 'failed' ? 'Installation needs attention' : 'Installation complete'}</small></span><ChevronRight /></button>) : <p className="shell-panel-empty"><Bell />No new notifications</p>}</div>
-        </> : <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} />}
+        </> : <XboxSocialPanel auth={data.auth} accountSettings={() => openSettings('account')} initialRoute={socialRoute} />}
 
       </>}
     </div>

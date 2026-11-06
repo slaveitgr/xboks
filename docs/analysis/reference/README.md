@@ -1,5 +1,7 @@
 # Xbox reference library for xboks
 
+Latest investigation: [2612 package](../xbox-package-2612.md), [November desktop reference](../xbox-pc-redesign-2026-11-05.md), [0.3.28 implementation checkpoint](../redesign-implementation-2026-11-06.md) and [upstream social comparison](../nexus-social-2026-11-06.md). The earlier indexes below retain their original version scope.
+
 This is the canonical engineering reference for reconstructing **Xbox app 2610.1001.20.0 x64** and the supplied **Game Bar 7.326.10141.0** experience in xboks. It supersedes guesses made during the first UI implementation. It contains reproducible tools, source locators, screenshot contracts, a feature verification matrix and Linux implementation instructions.
 
 **Status:** broad static decoding and targeted behavioral reconstruction, not completed 100% reverse engineering. Function/instruction indexing, semantic understanding, Windows runtime observation, Linux implementation and visual matching are separate checks. No combined percentage is assigned. PRI resource candidates and the supplied native XBF node streams are now decoded; native method implementations, effective binding/theme values, server content and unobserved runtime states remain separate gaps. The user currently has no Windows PC available, so original-client dynamic observation remains unavailable rather than silently treated as passed.

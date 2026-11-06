@@ -32,7 +32,12 @@ import { StreamModals } from './StreamModals';
 import { SettingsFrame, type SettingsSection } from './SettingsFrame';
 import { LaunchExperience } from './LaunchExperience';
 import { installationReadiness } from '../shared/installation-state';
-import { ShellHeaderControls } from './ShellHeaderControls';
+import { ShellHeaderControls, ShellClock, observeWindowFullscreen, shellIsFullscreen, type WindowFullscreenState } from './ShellHeaderControls';
+import { BatteryStatus } from './BatteryStatus';
+import { DesktopHeader, DesktopSidebar, desktopPrimaryPages } from './DesktopChrome';
+import { FriendsDock } from './FriendsDock';
+import { XboxModeHome } from './XboxModeHome';
+import { xboxSocialAccountKey, type XboxSocialRoute } from './XboxSocialPanel';
 import { OriginalSettings } from './OriginalSettings';
 import { InstallSettings } from './InstallSettings';
 import { AudioSettings } from './AudioSettings';
@@ -229,8 +234,8 @@ export function HomePage({ data, go, action, openGame, openProduct }: {
     <section className="jump-back" aria-labelledby="jump-back-title">
       <h1 id="jump-back-title">{text('Jump back in', 'Επιστροφή')}</h1>
       <div className="jump-back-row">{games[0] ? <>
-        <button className="resume-tile" onClick={() => selectGame(games[0])} title={games[0].title}><Cover game={games[0]} /><span><GameTitle title={games[0].title} /><StatePill game={games[0]} /></span></button>
-        {games.length > 1 ? <div className="resume-group" role="group" aria-label="More recent games">{games.slice(1, 5).map(game => <button key={game.id} onClick={() => selectGame(game)} title={game.title} aria-label={game.title}><Cover game={game} /></button>)}</div> : null}
+        <button className="resume-tile" onClick={() => selectGame(games[0])} title={games[0].title}><Cover game={games[0]} variant="hero" /><span><GameTitle title={games[0].title} /><StatePill game={games[0]} /></span></button>
+        {games.length > 1 ? <div className="resume-group" role="group" aria-label="More recent games">{games.slice(1, 5).map(game => <button key={game.id} onClick={() => selectGame(game)} title={game.title} aria-label={game.title}><Cover game={game} /><GameTitle title={game.title} /></button>)}</div> : null}
       </> : <button className="resume-empty" onClick={() => go('library')}><Library /><strong>Your next game starts here</strong><span>Open your library to import or install a game</span></button>}</div>
     </section>
     <section className="home-featured" aria-labelledby="home-featured-title">
@@ -244,7 +249,7 @@ export function HomePage({ data, go, action, openGame, openProduct }: {
           {products[0]?.heroUrl || products[0]?.posterUrl ? <img src={products[0].heroUrl ?? products[0].posterUrl} alt="" /> : <div className="feature-fallback discovery-fallback"><Store /></div>}
           <span className="feature-copy"><strong>{products[0]?.title ?? 'Find something new to play'}</strong><span>Browse the live PC catalog</span></span>
         </button>
-        <div className="home-feature-stack">{[0, 1].map(index => {
+        <div className="home-feature-stack">{[0].map(index => {
           const product = products[index + 1];
           const image = product?.heroUrl ?? product?.posterUrl;
           return <button className="home-feature-tile utility-tile" key={index} data-product-id={product?.productId} onClick={() => product && openProduct ? openProduct(product) : go(product || index === 0 ? 'store' : 'library')}>
@@ -257,7 +262,7 @@ export function HomePage({ data, go, action, openGame, openProduct }: {
     <section className="home-discover" aria-labelledby="home-discover-title">
       <div className="home-discover-heading"><h2 id="home-discover-title">{text('Discover PC games', 'Ανακαλύψτε παιχνίδια υπολογιστή')}</h2><p>{text('Explore the Microsoft Store catalog', 'Ανακαλύψτε τον κατάλογο του Microsoft Store')}</p></div>
       {products.length ? <div className="home-catalog-row">{products.slice(0, 8).map(product => <button className="home-product" key={product.productId} data-product-id={product.productId} onClick={() => openProduct ? openProduct(product) : go('store')}>
-        {product.posterUrl ? <img src={product.posterUrl} alt="" loading="lazy" /> : <div className="cover-placeholder"><Gamepad2 /></div>}<span><GameTitle title={product.title} /><small>{product.publisher ?? 'Microsoft Store'}</small></span>
+        {product.heroUrl || product.posterUrl ? <img src={product.heroUrl ?? product.posterUrl} alt="" loading="lazy" /> : <div className="cover-placeholder"><Gamepad2 /></div>}<span>{product.purchasePrice ? <small className="home-product-price">{product.purchasePrice}</small> : null}<GameTitle title={product.title} />{product.includedWith ? <small className="home-product-plan">{product.includedWith}</small> : null}<small>{product.publisher ?? 'Microsoft Store'}</small></span>
       </button>)}</div> : <div className="home-catalog-state" role="status">{catalogError ? <><CircleAlert /><span>Store highlights are unavailable. Your local library is still available.</span><button className="secondary" onClick={() => go('store')}>Open Store</button></> : <><LoaderCircle className="spin" /><span>Loading Store highlights…</span></>}</div>}
     </section>
     {games[0]?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath) ? <button className="primary home-launch" onClick={() => action(() => window.launcher.launchGame(games[0].id))}><Play />Launch {games[0].title}</button> : null}
@@ -1112,10 +1117,11 @@ export function GlobalSearch({ games, page, query, change, submit, select }: {
 
 interface ShellLocation {
   page: Page; product?: CatalogProduct; query: string; game?: { id: string }; view: LibraryView;
-  scrollTop: number; focusSelector?: string;
+  scrollTop: number; focusSelector?: string; consoleScrollTop?: number;
 }
 
 export default function App() {
+  const { text: t } = useReferenceLocale();
   const [catalogProduct, setCatalogProduct] = useState<CatalogProduct>();
   const [page, setPage] = useState<Page>(() => window.location.hash === '#store' ? 'store' : 'home');
   const [data, setData] = useState<AppSnapshot>(emptySnapshot);
@@ -1127,6 +1133,19 @@ export default function App() {
   const [libraryView, setLibraryView] = useState<LibraryView>('games');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('account');
   const [shellPanel, setShellPanel] = useState<ShellPanel>();
+  const [socialRoute, setSocialRoute] = useState<(XboxSocialRoute & { accountKey: string })>();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [modeTransitionPending, setModeTransitionPending] = useState(false);
+  const [windowDisplay, setWindowDisplay] = useState<WindowFullscreenState>({ documentFullscreen: false, nativeFullscreen: false });
+  useEffect(() => { const observer = observeWindowFullscreen(document, window.launcher, setWindowDisplay); return () => observer.stop(); }, []);
+  const sessionFullscreen = data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true;
+  const consoleMode = !modeTransitionPending && shellIsFullscreen(sessionFullscreen, windowDisplay);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-xboks-experience', consoleMode ? 'xbox' : 'desktop');
+    document.documentElement.toggleAttribute('data-fullscreen-experience', consoleMode);
+  }, [consoleMode]);
+  const socialAccount = xboxSocialAccountKey(data.auth);
+  useEffect(() => { setSocialRoute(undefined); }, [socialAccount]);
   useEffect(() => window.launcher.onConsoleLibraryOpen?.(() => setShellPanel('remote-play')), []);
   const [history, setHistory] = useState<ShellLocation[]>([]);
   const [returnPoint, setReturnPoint] = useState<ShellLocation>();
@@ -1137,6 +1156,7 @@ export default function App() {
   useEffect(() => { applyAppearance(loadAppearance()); }, []);
 
   const contentPage = page === 'settings' ? previousPage.current : page;
+  const consoleHome = consoleMode && contentPage === 'home';
   const [submittedSearch, setSubmittedSearch] = useState('');
   // App stays mounted while pages change, unlike LibraryPage/AccountGames.
   const [libraryFilters, setLibraryFilters] = useState<LibraryFilters>(() => loadLibraryFilters());
@@ -1204,6 +1224,7 @@ export default function App() {
   }
   function currentLocation(): ShellLocation {
     const active = document.activeElement as HTMLElement | null;
+    const consoleItem = active?.closest<HTMLElement>('[data-console-home-item]')?.dataset.consoleHomeItem;
     const productOwner = active?.closest<HTMLElement>('[data-product-id]');
     const product = productOwner?.dataset.productId;
     const productSelector = product && productOwner ? `${productOwner.tagName.toLowerCase()}${productOwner.classList[0] ? `.${CSS.escape(productOwner.classList[0])}` : ''}[data-product-id="${CSS.escape(product)}"]${productOwner.matches('button,a') ? '' : productOwner.classList.contains('catalog-details-page') ? ' .catalog-detail-actions .primary' : ' button'}` : undefined;
@@ -1212,7 +1233,8 @@ export default function App() {
     return { page: page === 'settings' ? previousPage.current : page, product: contentPage === 'store' ? catalogProduct : undefined,
       query: contentPage === 'store' ? submittedSearch : contentPage === 'cloud' ? cloudSearch : '', game: contentPage === 'library' ? librarySelection : undefined, view: libraryView,
       scrollTop: document.querySelector('.page-scroll')?.scrollTop ?? 0,
-      focusSelector: productSelector ?? (game ? `[data-gamepad-detail-target="${CSS.escape(game)}"]` : operation ? `[data-queue-options="${CSS.escape(operation)}"]` : undefined) };
+      consoleScrollTop: document.querySelector('.xbox-mode-home')?.scrollTop,
+      focusSelector: consoleItem ? `[data-console-home-item="${CSS.escape(consoleItem)}"]` : productSelector ?? (game ? `[data-gamepad-detail-target="${CSS.escape(game)}"]` : operation ? `[data-queue-options="${CSS.escape(operation)}"]` : undefined) };
   }
   function rememberLocation() {
     setReturnPoint(undefined);
@@ -1237,6 +1259,16 @@ export default function App() {
   function openSettings(section: SettingsSection) {
     setShellPanel(undefined); setSettingsSection(section); setPage('settings');
   }
+  function openPanel(panel: ShellPanel) {
+    setSocialRoute(undefined); setShellPanel(panel);
+  }
+  function openSocial(route: XboxSocialRoute = {}) {
+    setSocialRoute({ ...route, accountKey: socialAccount }); setShellPanel('friends');
+  }
+  function focusSearch() {
+    navigate('store'); setSubmittedSearch('');
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.search-box input')?.focus());
+  }
   function back() {
     if (shellPanel) { setShellPanel(undefined); return; }
     if (page === 'settings') { setPage(previousPage.current); return; }
@@ -1259,6 +1291,8 @@ export default function App() {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         if (scroll) scroll.scrollTop = returnPoint.scrollTop;
+        const consoleHomeElement = document.querySelector('.xbox-mode-home');
+        if (consoleHomeElement && returnPoint.consoleScrollTop !== undefined) consoleHomeElement.scrollTop = returnPoint.consoleScrollTop;
         const target = returnPoint.focusSelector ? document.querySelector<HTMLElement>(returnPoint.focusSelector) : undefined;
         // Retained galleries exist while their details page is still visible.
         // Wait for the actual destination to become available before settling.
@@ -1276,14 +1310,17 @@ export default function App() {
     return () => { finish(); cancelAnimationFrame(frame); };
   }, [returnPoint]);
 
+  const globalSearch = <GlobalSearch games={data.games} page={contentPage} query={contentPage === 'cloud' ? cloudSearch : search} change={value => contentPage === 'cloud' ? setCloudSearch(value) : setSearch(value)} submit={value => { if (contentPage === 'cloud') {setCloudSearch(value); return;} rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} />;
+  const modeControls = <ShellHeaderControls sessionFullscreen={consoleMode} integrationAvailable={data.fullscreenExperience?.available} onTransition={setModeTransitionPending} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} />;
+  const consoleStatus = <><button className="console-desktop-return" onClick={() => void window.launcher.setWindowFullscreen(false).catch(() => setToast({ kind: 'error', message: t('Could not return to the desktop. Try again.', 'Δεν ήταν δυνατή η επιστροφή στην επιφάνεια εργασίας. Δοκιμάστε ξανά.') }))} aria-label={t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας')} title={t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας')}><MonitorPlay /></button><BatteryStatus /><ShellClock /></>;
   if (loading) return <div className="boot"><div className="brand-mark">X</div><LoaderCircle className="spin" /><span>Loading XBOKS</span></div>;
-  return <ConfirmationProvider><PackageInstallProvider><div className="app-shell xbox-mode">
+  return <ConfirmationProvider><PackageInstallProvider><div className={`app-shell ${consoleMode ? `xbox-mode console-experience${consoleHome ? ' console-home' : ''}` : 'desktop-experience'}`} data-desktop-collapsed={sidebarCollapsed ? '' : undefined}>
     {!data.settings.firstRunCompleted ? <FirstRunWizard data={data} toast={(value) => setToast(value)} /> : null}
-    <Sidebar data={data} page={page} go={navigate} openGame={openLibraryGame} onPanel={setShellPanel} />
+    {!consoleMode ? <><DesktopHeader data={data} search={globalSearch} controls={modeControls} collapsed={sidebarCollapsed} onCollapsed={() => setSidebarCollapsed(value => !value)} onPanel={openPanel} back={page !== 'home' ? () => { if (!dispatchBackHandlers(window, document)) back(); } : undefined} /><DesktopSidebar page={page} go={navigate} onPanel={openPanel} collapsed={sidebarCollapsed} social={<FriendsDock auth={data.auth} openFriends={tab => openSocial({ tab })} openAccount={() => openSettings('account')} onOpenPeer={peer => openSocial({ peer })} />} queue={<InstallQueueShortcut downloads={data.downloads} games={data.games} active={page === 'downloads'} openQueue={() => navigate('downloads')} />} /></> : !consoleHome ? <Sidebar data={data} page={page} go={navigate} openGame={openLibraryGame} onPanel={openPanel} /> : null}
 
     <section className={`content-shell${contentPage === 'home' ? ' home-shell' : ''}`} style={contentPage === 'home' && (data.games[0]?.heroUrl || data.games[0]?.coverUrl) ? { '--shell-art': `url(${JSON.stringify(data.games[0].heroUrl ?? data.games[0].coverUrl)})` } as React.CSSProperties : undefined}>
-      <header className="topbar">{page !== 'home' ? <button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button> : null}<div className="shell-version">XBOKS · {data.launcherUpdate?.currentVersion ?? '0.3.11'}</div><GlobalSearch games={data.games} page={contentPage} query={contentPage === 'cloud' ? cloudSearch : search} change={value => contentPage === 'cloud' ? setCloudSearch(value) : setSearch(value)} submit={value => { if (contentPage === 'cloud') {setCloudSearch(value); return;} rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} /><ShellHeaderControls sessionFullscreen={data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true} integrationAvailable={data.fullscreenExperience?.available} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} /></header>
-      <div className="page-scroll">{contentPage === 'home' ? <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage query={cloudSearch} onQueryChange={setCloudSearch} auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => setShellPanel('friends')}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
+      {consoleMode && !consoleHome ? <header className="topbar"><button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button>{globalSearch}{modeControls}</header> : null}
+      <div className="page-scroll">{contentPage === 'home' ? consoleMode ? <XboxModeHome data={data} go={navigate} openGame={openLibraryGame} openProduct={openCatalogProduct} onSearch={focusSearch} onCustomize={() => openSettings('accessibility')} onAccount={() => openPanel('account')} status={consoleStatus} /> : <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage query={cloudSearch} onQueryChange={setCloudSearch} auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => openSocial()}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
       const game = data.games.find(game => game.id === task.gameId || game.storeId === task.productId);
       if (game) { setLibraryView('games'); openLibraryGame(game.id); }
       else { const product = queuedCatalogProduct(task); if (product) openCatalogProduct(product); else setToast({ kind: 'error', message: 'This queue entry has no Product ID.' }); }
@@ -1291,12 +1328,11 @@ export default function App() {
     </section>
     {page === 'settings' ? <SettingsPage key={settingsSection} initialSection={settingsSection} data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}
     {toast ? <div className={`toast ${toast.kind}`}>{toast.kind === 'success' ? <Check /> : toast.kind === 'error' ? <CircleAlert /> : <Terminal />}<span>{toast.message}</span><button onClick={() => setToast(undefined)}><X /></button></div> : null}
-  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel === 'remote-play' ? <ConsoleLibrary auth={data.auth} close={() => setShellPanel(undefined)} signIn={() => {setShellPanel(undefined); openSettings('account');}} /> : shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<RemotePlayHost/><CloudGamingHost/><CloudStreamHost/><ConsoleStreamHost/><StreamModals/><GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
+  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel === 'remote-play' ? <ConsoleLibrary auth={data.auth} close={() => setShellPanel(undefined)} signIn={() => {setShellPanel(undefined); openSettings('account');}} /> : shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} socialRoute={socialRoute?.accountKey === socialAccount ? socialRoute : undefined} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<RemotePlayHost/><CloudGamingHost/><CloudStreamHost/><ConsoleStreamHost/><StreamModals/><GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
     if (guideOpen) { setGuideTab(current => cycleGuideTab(current, delta)); return; }
     if (page === 'settings') { window.dispatchEvent(new CustomEvent('xboks-settings-section', { detail: delta })); return; }
-    setPage(current => {
-    const pages: Page[] = ['home', 'gamepass', 'library', 'cloud', 'store'];
-    const index = pages.indexOf(current);
-    return index === -1 ? pages[delta > 0 ? 0 : pages.length - 1] : pages[(index + delta + pages.length) % pages.length];
-  }); }} /></PackageInstallProvider></ConfirmationProvider>;
+    const pages: readonly Page[] = desktopPrimaryPages;
+    const index = pages.indexOf(contentPage);
+    navigate(index === -1 ? pages[delta > 0 ? 0 : pages.length - 1] : pages[(index + delta + pages.length) % pages.length]);
+  }} /></PackageInstallProvider></ConfirmationProvider>;
 }

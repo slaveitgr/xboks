@@ -1,0 +1,51 @@
+{
+  "version": "0.3.28",
+  "capturedAt": "2026-11-06T21:12:56.070Z",
+  "actualRenderer": true,
+  "syntheticArtworkAndAccounts": true,
+  "realXboxServiceVerified": false,
+  "originalWindowsRuntimeVerified": false,
+  "operatingSystemIntegrationVerified": false,
+  "networkScope": "localhost-only isolated fixture browser",
+  "checksPassed": 34,
+  "checksFailed": 0,
+  "sourceSha256": {
+    "src/renderer/App.tsx": "631bb913a53568b270e00f18ff89963ef3525052f7e37a7db11e08095b4990ac",
+    "src/renderer/main.tsx": "88d31002a3da28d83e298b7bdfc82831bc510e11f3ca3d6c7308a45fa484d0b6",
+    "src/renderer/DesktopChrome.tsx": "479e5977493c6404f13f922f27190f7287426238e8091af72ac93d45cf97dabd",
+    "src/renderer/desktop-chrome.css": "f5683626c24d32a52d8bb7da4b25495179324372648914244e06644fa4e5445f",
+    "src/renderer/FriendsDock.tsx": "ae398abc43c1573b7a28e19a259c133431db9c12f9b1c5ef8cad5263d5743d57",
+    "src/renderer/friends-dock.css": "840b22abe67201b009f440dde58107d4c84fc14eb86ed3861fd2e58568c92493",
+    "src/renderer/XboxModeHome.tsx": "8aeb5bfc76607684142c6f8081394bb670a69b64897006e1f25d12a03bcf5997",
+    "src/renderer/xbox-mode-home.css": "8323f00e90ce0484af84339ab82b2c52a09bc31984a9355f4b9c89eb864dc0d5",
+    "src/renderer/experience-layout.css": "19b6ed463f587f51d7f1942862885e9def3bdaf373fb5274bce092d5c41f8281",
+    "src/renderer/XboxSocialPanel.tsx": "cb74b9d4311d9475f75dce665461d202073e5e7cc60f3d36a423ed1fe4854d7d",
+    "src/renderer/XboxShell.tsx": "2f07ebc5448928cf03e3aa837b4fc6f3fb4838ade346fd83d807eaed3239ba93",
+    "src/renderer/SettingsFrame.tsx": "b9332152ecd41adfb7263590353ac868af885b4def4ced8c03143a2244e12e18",
+    "src/renderer/ShellHeaderControls.tsx": "195db80724fa1626e4fd3178ed70ff8650c00de1a38f641d161908004655a77d",
+    "src/renderer/shell-header-controls.css": "a9a9fe4fc1c4c2547ad9b8dde67d5d32cb0adfbe0255f5c3147c0f5b394c209a",
+    "src/renderer/OriginalSettings.tsx": "74f35902ca4b2ee11c9d489df5a39f22681c647e595c21e62be636fe0787f16e",
+    "src/renderer/GuideOverlay.tsx": "15e7f2a7005b46f9f6fd76c62b73859be9310e4c8a32aaed3643176085ffb083",
+    "src/renderer/gamepad-navigation.ts": "47cbef77606a275a56a5a26e6a7c096b8046353e579161cd613730e623650407",
+    "src/renderer/XboxModeEntryDialog.tsx": "b304884ad69716524c9e7adeb16ceade63bb8f687e2904cc2032b20086c71420",
+    "src/renderer/xbox-mode-entry-dialog.css": "d9fd9d3f6c245ace55d14aeff97cde343e3d8489629254b0bec6d01ab6ecedcd",
+    "src/renderer/styles.css": "84d734dd179139ed94b79e46b2f7a48fa4dff305787a56acc01ecb0e02593e8d",
+    "src/renderer/xbox-mode.css": "0dd470b7748db5e841b22932c1c5e30aa4ea12a675a1d84dc1024102e421f131",
+    "src/renderer/xbox-shell.css": "7253b52ec114a0582efca7f587d53ff0b65981337a70f12f2e2df89ceb2eca5f",
+    "src/renderer/settings-frame.css": "e945dc71ea979b08c0f8935b7cd77908199a7d3190a9553385aed07fd7f66648",
+    "scripts/ui/experience-redesign-smoke.mjs": "aa98789e2c80562ceb77f565ae35da1c7ef9229cfcf261149154fca7ec3f6af0",
+    "package.json": "708d1a2f71fdd713d7ec865a6d4b7df38326b452d71343e3528d7ee53140313c"
+  },
+  "screenshots": [
+    {
+      "file": "xboks-desktop-redesign.png",
+      "sha256": "2174fd40291d0e6b1a273e30ec014a399da798fd9efef204fbde8c75b56d6892",
+      "bytes": 758246
+    },
+    {
+      "file": "xboks-xbox-mode-home.png",
+      "sha256": "dd5176712a88a42addc48bac20e7fd33e31f79d07c086b1efb04bae95a8132c5",
+      "bytes": 1129512
+    }
+  ]
+}
