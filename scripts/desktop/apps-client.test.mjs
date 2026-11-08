@@ -13,7 +13,7 @@ catch { supported = false; }
 try { execFileSync('gtk4-broadwayd', ['--help'], {stdio: 'pipe'}); }
 catch { graphicsSupported = false; }
 
-test('desktop helper resolves exact visible launchers and launches only a selected disposable fixture', {skip: !supported, timeout: 30000}, async () => {
+test('desktop helper resolves exact visible launchers and launches only a selected disposable fixture', {skip: !supported, timeout: 30000}, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-desktop-apps-'));
   let broadway;
   try {
@@ -29,6 +29,20 @@ test('desktop helper resolves exact visible launchers and launches only a select
       XDG_CONFIG_HOME: path.join(root, 'config'), XDG_CACHE_HOME: path.join(root, 'cache'), XDG_CURRENT_DESKTOP: 'GNOME', GIO_USE_VFS: 'local',
       GDK_BACKEND: 'broadway', BROADWAY_DISPLAY: ':43', GTK_A11Y: 'none', GTK_USE_PORTAL: '0', LC_ALL: 'C.UTF-8'};
     for (const key of ['DBUS_SESSION_BUS_ADDRESS', 'DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'GNOME_KEYRING_CONTROL']) delete env[key];
+    // Validate the fixture through Gio itself before exercising the consumer.
+    // GJS 1.80 returns a Gio wrapper here; newer versions alias it to GioUnix.
+    const {stdout: identityOutput} = await run('gjs', ['-c', `const {Gio, GioUnix, GObject} = imports.gi;
+      const info = Gio.AppInfo.get_all().find(value => value.get_id() === 'visible.desktop');
+      print(JSON.stringify({id: info?.get_id(), visible: info?.should_show(),
+        nativeObject: info instanceof GObject.Object,
+        nativeType: info ? GObject.type_name(info.constructor.$gtype) : null,
+        desktopType: info ? GObject.type_is_a(info.constructor.$gtype, GioUnix.DesktopAppInfo.$gtype) : false,
+        constructorMatches: info instanceof GioUnix.DesktopAppInfo}));`], {env, timeout: 8000, maxBuffer: 4096});
+    const {constructorMatches, ...identity} = JSON.parse(identityOutput.trim());
+    assert.deepEqual(identity, {id: 'visible.desktop', visible: true,
+      nativeObject: true, nativeType: 'GDesktopAppInfo', desktopType: true});
+    assert.equal(typeof constructorMatches, 'boolean');
+    t.diagnostic(`Synthetic desktop entry uses GDesktopAppInfo; GioUnix JS constructor matches: ${constructorMatches}`);
     const invoke = async (...args) => {
       const {stdout} = await run('dbus-run-session', ['--config-file', path.join(root, 'bus.conf'), '--', 'gjs', '-m', helper, ...args], {env, timeout: 8000, maxBuffer: 2 * 1024 * 1024});
       return JSON.parse(stdout.trim());

@@ -82,6 +82,29 @@ the final unit log SHA256 is
 `28863552b9ef6f927a5f44d58eb2e2feb5e701f94036a17595deb14507ab5cc4`.
 Neither raw fixture logs nor account diagnostics are included in Git.
 
+### GJS compatibility correction
+
+The first GitHub CI run exposed a genuine Apps-provider defect on Ubuntu 24.04
+(GJS 1.80.2 / GLib 2.80). Gio and GioUnix expose different JavaScript
+constructors for the same native GDesktopAppInfo type there. An `instanceof`
+check accepted current GJS 1.90 but filtered every entry on the older version.
+The provider now checks a native GObject instance and its exact GType, retaining
+all ID, visibility, launch and icon restrictions. The unchanged launch fixture
+failed before this fix and passed on both toolchains after it. A separate Gio
+preflight validates the fixture metadata independently of the consumer.
+
+The corrected helper passed the current-GJS desktop suite (93 tests), main Apps
+checks (16 tests), and the real Ubuntu 24.04/GJS 1.80 fixture. The private paired
+compatibility proof has SHA256
+`308f44aa25fcf232844f0b301d5af6c3af2e3ecd692face739776eba238d00a2`.
+
+This correction changes the one-shot desktop helper only; the accepted renderer
+and compiled main/preload code are unchanged. The remote CI result and final
+local package checksum identify the corrected candidate separately from the
+first local package. Reference UI resources extracted from the user's original
+package remain optional local build inputs; those resources are not in Git or
+published as a binary release.
+
 ## Remaining boundaries
 
 Public Featured products are not the original personalized campaign feed.

@@ -2,6 +2,7 @@
 // One-shot desktop app discovery/activation. Gio owns desktop-entry parsing.
 import Gio from 'gi://Gio';
 import GioUnix from 'gi://GioUnix';
+import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
 
 const MAX_APPS = 512, MAX_JSON = 2 * 1024 * 1024, MAX_ICON = 16 * 1024, ICON_BUDGET = 512 * 1024;
@@ -9,7 +10,10 @@ const encoder = new TextEncoder();
 const validId = id => typeof id === 'string' && id.length <= 255 && /^[A-Za-z0-9_][A-Za-z0-9_.@+-]*\.desktop$/.test(id);
 const text = (value, length) => typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, length) : '';
 function visible(info) {
-    return info instanceof GioUnix.DesktopAppInfo && validId(info.get_id()) && info.should_show() &&
+    // Older GJS may wrap GDesktopAppInfo through Gio instead of GioUnix.
+    // Both wrappers share the native GType, but not the JS constructor.
+    return info instanceof GObject.Object && GObject.type_is_a(info.constructor.$gtype, GioUnix.DesktopAppInfo.$gtype) &&
+        validId(info.get_id()) && info.should_show() &&
         !info.get_boolean('Hidden') && !info.get_boolean('NoDisplay');
 }
 
