@@ -1,0 +1,19 @@
+/* 2612 uses intrinsic navigation labels and density tokens, rather than the
+   previous client's fixed translated-tab widths. */
+.xbox-library-tabs.library-tabs-v2 { display: flex; align-items: center; gap: 8px; min-height: 44px; height: auto; margin: 0 0 24px; overflow-x: auto; scrollbar-width: none; }
+.xbox-library-tabs.library-tabs-v2 button:nth-child(n) { flex: 0 0 auto; width: auto; min-width: 0; min-height: 40px; border-radius: 999px; padding: 10px 16px; font: inherit; font-size: 16px; line-height: 20px; font-weight: 600; color: var(--text, #f5f5f5); }
+.xbox-library-tabs.library-tabs-v2 button:hover { background: #ffffff0f; }
+.xbox-library-tabs.library-tabs-v2 button[aria-selected="true"] { background: #ffffff14; }
+.xbox-library-tabs.library-tabs-v2 [aria-selected="true"]::after { display: none; }
+.xbox-library-tabs.library-tabs-v2 button:focus-visible { outline: 2px solid var(--text, white); outline-offset: -2px; }
+.console-experience .xbox-library-tabs.library-tabs-v2 { gap: 12px; margin-bottom: 32px; }
+.console-experience .xbox-library-tabs.library-tabs-v2 button:nth-child(n) { min-height: 56px; padding: 12px 20px; font-size: 20px; line-height: 28px; }
+@media (max-width: 760px) { .xbox-library-tabs.library-tabs-v2 { gap: 4px; } .xbox-library-tabs.library-tabs-v2 button:nth-child(n) { padding-inline: 12px; } }
+.library-navigation-row { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
+.library-navigation-row .library-tabs-v2 { flex: 1; min-width: 0; margin: 0; padding: 4px 8px; border-radius: 999px; background: linear-gradient(#202526cc,#171c1ccc); min-height: 48px; }
+.library-add-game { display: grid; place-items: center; flex: 0 0 48px; height: 48px; border: 0; border-radius: 50%; background: #202626; color: #c0c8c3; cursor: pointer; }
+.library-add-game > .xbox-icon { width: 20px; height: 20px; }
+.library-installed-empty { display: grid; align-content: center; justify-items: center; min-height: 65vh; text-align: center; gap: 12px; }
+.library-installed-empty h2 { margin: 0; font-size: 16px; line-height: 20px; }
+.library-installed-empty p { margin: 0; color: #aeb4b1; }
+.library-installed-empty button { margin-top: 20px; }

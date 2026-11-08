@@ -1,0 +1,93 @@
+/* Console destinations share one header and canvas. These rules supersede the
+   retained 2610 desktop-layout rules; no old rail is mounted in this mode. */
+.app-shell.console-experience { --xboks-sidebar-width: 0px; --xboks-header-height: 122px; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); isolation: isolate; background: #0e131b; }
+html .app-shell.console-experience[data-shell-mode="console"] { --xboks-sidebar-width: 0px; grid-template-columns: minmax(0, 1fr); }
+.app-shell.console-experience::before { content: ''; position: absolute; z-index: -1; inset: 0; background-image: linear-gradient(#080c12cf, #0e131be8), var(--console-art, none); background-position: center; background-size: cover; pointer-events: none; filter: blur(16px); }
+.app-shell.console-experience.console-home::before { filter: none; background-image: linear-gradient(#070b1470, #080c1210 35%, #080c1290), var(--console-art, none); }
+.app-shell.console-experience > .content-shell { grid-column: 1; grid-row: 2; position: relative; min-height: 0; height: auto; grid-template-rows: minmax(0, 1fr); background: transparent; }
+.app-shell.console-experience > .content-shell > .page-scroll { grid-row: 1; height: auto; min-height: 0; overflow: auto; }
+.app-shell.console-experience > .content-shell:has(.xbox-store-page:not([hidden])):not(:has(.console-search-surface)) { grid-template-rows: minmax(0, 1fr); }
+.app-shell.console-experience > .content-shell:has(.xbox-store-page:not([hidden])):not(:has(.console-search-surface)) > .page-scroll { grid-row: 1; }
+.app-shell.console-experience .home-shell::before { display: none; }
+.console-experience .page { max-width: none; width: 100%; padding: 24px clamp(36px, 5.4vw, 120px) 78px; background-color: transparent; }
+.console-experience .page h1 { font-size: clamp(28px, 2.4vw, 46px); font-weight: 500; line-height: 1.2; }
+.console-experience .page h2 { font-size: clamp(22px, 1.7vw, 32px); font-weight: 500; }
+.app-shell.console-experience.console-home > .content-shell > .page-scroll { overflow: hidden; }
+.console-experience .xbox-mode-home { padding-top: 0; min-height: 100%; background: transparent; }
+.console-experience .xbox-mode-home .console-home-background, .console-experience .xbox-mode-home::before { display: none; }
+.console-experience .xbox-mode-home .console-home-content { padding-top: clamp(86px, 12vh, 250px); }
+.console-experience .page button, .console-experience .page select, .console-experience .page input { font-size: clamp(15px, 1.1vw, 20px); }
+.console-experience .page button:not(.catalog-card-main):not(.library-card-main):not(.home-product):not(.home-feature-tile):not(.xbox-store-product button):not(.xbox-store-feature):not(.cloud-product) { min-height: 42px; }
+.console-experience .xbox-library-tabs, .console-experience .cloud-library-tabs { display: flex; gap: clamp(24px, 3vw, 60px); margin: 0 0 30px; padding: 6px 0 10px; }
+.console-experience .xbox-library-tabs button, .console-experience .cloud-library-tabs button { min-height: 48px; padding: 8px 4px 14px; font-size: clamp(20px, 1.55vw, 30px); font-weight: 500; }
+.console-experience .library-layout { display: block; }
+.console-experience .library-filters { gap: 12px; flex-wrap: wrap; margin: 0 0 20px; }
+.console-experience .library-filters select, .console-experience .library-filter-count, .console-experience .library-import, .console-experience .library-filters button { height: 46px; border-radius: 8px; }
+.console-experience .library-game-count { font-size: 16px; }
+.console-experience .library-filter-chips { margin: 0 0 24px; }
+.console-experience .library-filter-chips > button { font-size: 16px; min-height: 38px; }
+.console-experience .library-page .catalog-grid, .console-experience .account-games-results .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(clamp(160px, 13vw, 260px), 1fr)); gap: clamp(16px, 1.4vw, 28px); align-items: stretch; }
+.console-experience .library-page .catalog-card { width: auto; min-width: 0; border-radius: 8px; }
+.console-experience .library-card-main, .console-experience .catalog-card-main { width: 100%; }
+.console-experience .library-card strong, .console-experience .account-games-results .library-card strong { font-size: clamp(16px, 1.15vw, 22px); line-height: 1.25; }
+.console-experience .catalog-card-status { min-height: 30px; font-size: 15px; }
+.console-experience .library-card-menu-button { min-width: 38px; min-height: 38px; }
+.console-experience .queue-toolbar { margin-block: 10px 28px; gap: 20px; }
+.console-experience .queue-group-heading { margin: 30px 0 16px; }
+.console-experience .download-item { min-height: 120px; padding: 0 16px 0 0; gap: 20px; border-radius: 10px; background: #242a32e6; }
+.console-experience .download-status { width: 112px; height: 112px; flex: 0 0 112px; }
+.console-experience .download-status .download-cover { width: 112px; height: 112px; }
+.console-experience .download-heading h3 { font-size: 20px; }
+.console-experience .download-main p { font-size: 15px; }
+.console-experience .game-pass-banner { margin: 0 0 28px; min-height: 70px; font-size: 20px; }
+.console-experience .game-pass-hero-row { gap: 22px; }
+.console-experience .game-pass-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 32px 0 44px; }
+.console-experience .game-pass-actions > * { min-height: 58px; padding: 12px 22px; border-radius: 8px; font-size: 18px; }
+.console-experience .home-catalog-row { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 22px; }
+.app-shell.console-experience .page.xbox-store-page { padding: 20px clamp(36px, 5.4vw, 120px) 78px; }
+.console-experience .xbox-store-gallery-heading h2 { font-size: clamp(30px, 2.5vw, 48px); }
+.console-experience .xbox-store-shortcuts { gap: 16px; margin-block: 28px 36px; }
+.console-experience .xbox-store-shortcuts button { min-height: 60px; padding: 14px 24px; font-size: 19px; width: auto; flex: 1 1 180px; max-width: 270px; }
+.console-experience .xbox-store-product { border-radius: 8px; }
+.console-experience .xbox-store-product-copy > strong { font-size: clamp(16px, 1.1vw, 21px); }
+.console-experience .xbox-store-gallery-grid { grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 24px; }
+.console-experience .xbox-store-shelf-rail { gap: 22px; }
+.console-experience .xbox-store-shelf-rail > .xbox-store-product { flex-basis: clamp(180px, 14vw, 270px); }
+.console-experience .cloud-library-page { padding: 18px clamp(36px, 5.4vw, 120px) 78px; background: transparent; }
+.console-experience .cloud-library-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 22px; }
+.console-experience .cloud-product { border-radius: 8px; }
+.console-experience .cloud-product strong { font-size: clamp(16px, 1.15vw, 22px); }
+.console-experience .cloud-product-detail { inset: var(--xboks-header-height) 0 0; padding: 22px clamp(36px, 5.4vw, 120px) 70px; background: #141a23; }
+.console-experience .cloud-detail-hero { border-radius: 10px; }
+.console-experience .game-details-page, .console-experience .catalog-details-page { padding-top: 20px; }
+.console-experience .gd-hero, .console-experience .catalog-detail-hero { gap: 40px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); }
+.console-experience .gd-hero h1, .console-experience .catalog-detail-hero h1 { font-size: clamp(32px, 3vw, 58px); }
+.console-experience .gd-play-controls > button, .console-experience .catalog-detail-actions button, .console-experience .catalog-detail-actions a { min-height: 54px; font-size: 18px; }
+.console-experience .gd-tabs, .console-experience .catalog-detail-tabs { gap: 38px; margin-block: 34px; }
+.console-experience .gd-tabs button, .console-experience .catalog-detail-tabs button { font-size: 21px; min-height: 50px; }
+.console-search-surface { position: sticky; z-index: 12; top: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 24px; padding: 14px clamp(36px, 5.4vw, 120px) 22px; background: #111925f5; box-shadow: 0 10px 20px #0003; }
+.console-search-surface h1 { margin: 0; font-size: 25px; font-weight: 500; }
+.console-experience .console-search-surface .search-box { position: relative; inset: auto; transform: none; flex: 1; min-width: 0; width: auto; max-width: 1000px; height: 52px; margin: 0; border-radius: 8px; }
+.console-experience .console-search-surface .search-box input { height: 100%; font-size: 20px; }
+.console-search-close { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 6px; color: #fff; background: #ffffff18; }
+.app-shell.console-experience > .content-shell:has(.console-search-surface) { grid-template-rows: auto minmax(0, 1fr); }
+.app-shell.console-experience > .content-shell:has(.console-search-surface) > .page-scroll { grid-row: 2; }
+.app-shell.console-experience > .content-shell > .page-scroll:has(.xbox-store-page:not([hidden])) { overflow-x: hidden; }
+.console-experience .xbox-store-spotlight { margin-inline: calc(-1 * clamp(36px, 5.4vw, 120px)); }
+html[data-xboks-experience="xbox"] .shell-flyout-backdrop { inset: 0; padding: clamp(100px, 12vh, 140px) clamp(36px, 5.4vw, 120px) 50px; background: #070b12b3; display: flex; align-items: stretch; justify-content: flex-end; }
+html[data-xboks-experience="xbox"] .shell-flyout { position: relative; inset: auto; width: min(720px, 100%); max-height: 100%; height: auto; border: 1px solid #ffffff26; border-radius: 14px; padding: 26px; background: #202631f5; font-size: 18px; }
+html[data-xboks-experience="xbox"] .shell-flyout header h2 { font-size: 26px; }
+html[data-xboks-experience="xbox"] .shell-flyout button, html[data-xboks-experience="xbox"] .shell-flyout a { min-height: 48px; font-size: 18px; }
+html[data-xboks-experience="xbox"] .account-flyout-backdrop { justify-content: flex-start; }
+html[data-xboks-experience="xbox"] .shell-account-menu { width: min(580px, 100%); align-self: flex-start; }
+html[data-xboks-experience="xbox"] .console-library-backdrop { padding: clamp(100px, 12vh, 140px) clamp(36px, 5.4vw, 120px) 50px; background: #080d17cc; }
+html[data-xboks-experience="xbox"] .console-library { width: min(1050px, 100%); max-height: 100%; border-radius: 14px; background: #202631; }
+html[data-xboks-experience="xbox"] .console-library h1 { font-size: 30px; }
+html[data-xboks-experience="xbox"] .console-library button { min-height: 52px; font-size: 18px; }
+html[data-xboks-experience="xbox"] .console-device-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 18px; }
+html[data-xboks-experience="xbox"] .reference-menu button { min-height: 46px; font-size: 18px; }
+html[data-xboks-experience="xbox"] .gamepad-hints { bottom: 18px; gap: 20px; padding: 10px 20px; background: #050a12d9; border: 0; border-radius: 8px; font-size: 15px; }
+.console-experience :focus-visible { outline-width: 3px; outline-offset: 4px; }
+html[data-hide-background] .console-experience::before { background-image: none !important; }
+@media (max-width: 1350px) { .app-shell.console-experience { --xboks-header-height: 112px; } .console-experience .page { padding-inline: 36px; } .console-experience .gd-hero, .console-experience .catalog-detail-hero { gap: 24px; } }
+@media (max-width: 980px) { .app-shell.console-experience { --xboks-header-height: 160px; } .console-experience .page { padding: 18px 28px 70px; } .console-experience .xbox-library-tabs { gap: 22px; overflow-x: auto; } .console-experience .xbox-library-tabs button { white-space: nowrap; font-size: 19px; } .console-experience .gd-hero, .console-experience .catalog-detail-hero { grid-template-columns: 1fr; } .console-experience .download-status { width: 80px; height: 80px; flex-basis: 80px; } .console-experience .download-status .download-cover { width: 80px; height: 80px; } }

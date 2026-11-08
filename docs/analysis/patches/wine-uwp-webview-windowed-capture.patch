@@ -1,0 +1,182 @@
+--- a/dlls/webview2host/main.c
++++ b/dlls/webview2host/main.c
+@@ -38,6 +38,9 @@
+  * WebView2's interfaces are reached by vtable slot. The environment and the windowed controller are wrapped with
+  * forwarding thunks, so only the methods that change behaviour are written out; the slot numbers below are the
+  * published interface layouts.
++ *
++ * WINE_UWP_WEBVIEW2_WINDOWED_CAPTURE=1 additionally routes ordinary windowed controllers through
++ * that popup bridge. It is opt-in: the default windowed path remains the runtime's own controller.
+  */
+ 
+ #include <stdarg.h>
+@@ -187,6 +190,7 @@
+     HWND owner, popup;
+     RECT bounds;
+     BOOL visible, capturing, closed;
++    BOOL composition_mode;         /* FALSE: the caller requested an ordinary windowed controller */
+     HBITMAP frame;
+     int frame_w, frame_h;
+     LONG tokens;
+@@ -255,15 +259,28 @@
+ 
+ static HRESULT host_query( struct host *host, REFIID iid, void **out )
+ {
+-    if (IsEqualGUID( iid, &IID_IUnknown ) || IsEqualGUID( iid, &IID_Composition ) || IsEqualGUID( iid, &IID_Composition2 ) ||
+-        IsEqualGUID( iid, &IID_Composition3 ) || IsEqualGUID( iid, &IID_Composition4 ))
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!iid) return E_INVALIDARG;
++    if (IsEqualGUID( iid, &IID_IUnknown ))
++        *out = host->composition_mode ? (void *)&host->composition : (void *)&host->controller;
++    else if (IsEqualGUID( iid, &IID_Composition ) || IsEqualGUID( iid, &IID_Composition2 ) ||
++             IsEqualGUID( iid, &IID_Composition3 ) || IsEqualGUID( iid, &IID_Composition4 ))
++    {
++        if (!host->composition_mode) return E_NOINTERFACE;
+         *out = &host->composition;
++    }
+     else if (IsEqualGUID( iid, &IID_Controller ) || IsEqualGUID( iid, &IID_Controller2 ) ||
+              IsEqualGUID( iid, &IID_Controller3 ) || IsEqualGUID( iid, &IID_Controller4 ))
+         *out = &host->controller;
+     else
+     {
+-        HRESULT hr = IUnknown_QueryInterface( host->real, iid, out );
++        HRESULT hr;
++        /* A raw newer controller face would expose another IUnknown and bypass this wrapper's
++         * bounds/parent/visibility handling. Only the wrapped Controller1-4 contract is offered
++         * for the opt-in windowed mode. Preserve the existing composition path's fallback. */
++        if (!host->composition_mode) return E_NOINTERFACE;
++        hr = IUnknown_QueryInterface( host->real, iid, out );
+         trace_iid( "controller", iid, hr );
+         return hr;
+     }
+@@ -720,7 +737,7 @@
+ {
+     struct handler handler;
+     struct host *host;
+-    IUnknown *app;  /* ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler */
++    IUnknown *app;  /* the requested windowed or composition controller completion handler */
+ };
+ 
+ static HRESULT WINAPI controller_created_Invoke( IUnknown *iface, HRESULT hr, IUnknown *controller )
+@@ -728,7 +745,8 @@
+     struct controller_created *created = (struct controller_created *)iface;
+     struct host *host = created->host;
+ 
+-    TRACE( "windowed controller -> %#lx %p\n", hr, controller );
++    TRACE( "%s controller captured -> %#lx %p\n",
++           host->composition_mode ? "composition" : "windowed", hr, controller );
+     if (FAILED(hr) || !controller) return CALL( fn_invoke, created->app, HANDLER_Invoke, FAILED(hr) ? hr : E_FAIL, NULL );
+     /* every slot of the controller face forwards to it, so it has to be the newest revision we describe */
+     if (FAILED(IUnknown_QueryInterface( controller, &IID_Controller4, (void **)&host->real )))
+@@ -740,7 +758,8 @@
+     CALL( fn_bool, host->real, CONTROLLER_put_IsVisible, TRUE );
+     SetTimer( host->popup, 1, 120, NULL );
+     host_addref( host );
+-    hr = CALL( fn_invoke, created->app, HANDLER_Invoke, S_OK, (IUnknown *)&host->composition );
++    hr = CALL( fn_invoke, created->app, HANDLER_Invoke, S_OK,
++               host->composition_mode ? (IUnknown *)&host->composition : (IUnknown *)&host->controller );
+     host_release( host );
+     return hr;
+ }
+@@ -803,20 +822,15 @@
+     return ref;
+ }
+ 
+-static HRESULT WINAPI env_CreateCoreWebView2Controller( IUnknown *iface, HWND parent, IUnknown *handler )
+-{
+-    struct environment *env = environment_from_iface( iface );
+-    TRACE( "CreateCoreWebView2Controller %p\n", parent );
+-    return CALL( fn_create, env->face.target, ENVIRONMENT_CreateController, parent, handler );
+-}
+-
+-static HRESULT create_composition( struct environment *env, HWND parent, IUnknown *options, IUnknown *handler )
++static HRESULT create_captured_controller( struct environment *env, HWND parent, IUnknown *options,
++                                          IUnknown *handler, BOOL composition_mode, BOOL with_options )
+ {
+     struct controller_created *created;
+     struct host *host;
+     HRESULT hr;
+ 
+-    TRACE( "composition controller for %p: a windowed controller on a popup\n", parent );
++    TRACE( "controller mode %s-capture, options %d, parent %p\n",
++           composition_mode ? "composition" : "windowed", with_options, parent );
+     if (!handler) return E_POINTER;
+     register_popup_class();
+     if (!(host = calloc( 1, sizeof(*host) ))) return E_OUTOFMEMORY;
+@@ -829,8 +843,16 @@
+     host->controller.vtbl = controller_vtbl;
+     host->ref = 1;
+     host->visible = TRUE;
++    host->composition_mode = composition_mode;
+     host->owner = parent;
+     host->popup = CreateWindowExW( WS_EX_TOOLWINDOW, popup_class, L"", WS_POPUP, 0, 0, 1, 1, parent, NULL, self_instance, NULL );
++    if (!host->popup)
++    {
++        DWORD error = GetLastError();
++        free( created );
++        host_release( host );
++        return error ? HRESULT_FROM_WIN32(error) : E_FAIL;
++    }
+     SetWindowLongPtrW( host->popup, GWLP_USERDATA, (LONG_PTR)host );
+ 
+     created->handler.vtbl = controller_created_vtbl;
+@@ -840,22 +862,47 @@
+     created->app = handler;
+     IUnknown_AddRef( handler );
+ 
+-    if (options) hr = CALL( fn_create_opts, env->face.target, ENVIRONMENT_CreateControllerWithOptions, host->popup, options,
++    if (with_options) hr = CALL( fn_create_opts, env->face.target, ENVIRONMENT_CreateControllerWithOptions, host->popup, options,
+                             (IUnknown *)&created->handler );
+     else hr = CALL( fn_create, env->face.target, ENVIRONMENT_CreateController, host->popup, (IUnknown *)&created->handler );
+     handler_Release( (IUnknown *)&created->handler );
+     return hr;
+ }
+ 
++static BOOL windowed_capture_enabled(void)
++{
++    WCHAR value[2];
++    return GetEnvironmentVariableW(L"WINE_UWP_WEBVIEW2_WINDOWED_CAPTURE", value, ARRAY_SIZE(value)) == 1 && value[0] == L'1';
++}
++
++static HRESULT WINAPI env_CreateCoreWebView2Controller( IUnknown *iface, HWND parent, IUnknown *handler )
++{
++    struct environment *env = environment_from_iface( iface );
++    if (windowed_capture_enabled())
++        return create_captured_controller(env, parent, NULL, handler, FALSE, FALSE);
++    TRACE( "controller mode windowed-passthrough, options 0, parent %p\n", parent );
++    return CALL( fn_create, env->face.target, ENVIRONMENT_CreateController, parent, handler );
++}
++
++static HRESULT WINAPI env_CreateCoreWebView2ControllerWithOptions( IUnknown *iface, HWND parent,
++                                                                 IUnknown *options, IUnknown *handler )
++{
++    struct environment *env = environment_from_iface( iface );
++    if (windowed_capture_enabled())
++        return create_captured_controller(env, parent, options, handler, FALSE, TRUE);
++    TRACE( "controller mode windowed-passthrough, options 1, parent %p\n", parent );
++    return CALL( fn_create_opts, env->face.target, ENVIRONMENT_CreateControllerWithOptions, parent, options, handler );
++}
++
+ static HRESULT WINAPI env_CreateCoreWebView2CompositionController( IUnknown *iface, HWND parent, IUnknown *handler )
+ {
+-    return create_composition( environment_from_iface( iface ), parent, NULL, handler );
++    return create_captured_controller( environment_from_iface( iface ), parent, NULL, handler, TRUE, FALSE );
+ }
+ 
+ static HRESULT WINAPI env_CreateCoreWebView2CompositionControllerWithOptions( IUnknown *iface, HWND parent, IUnknown *options,
+                                                                                IUnknown *handler )
+ {
+-    return create_composition( environment_from_iface( iface ), parent, options, handler );
++    return create_captured_controller( environment_from_iface( iface ), parent, options, handler, TRUE, !!options );
+ }
+ 
+ static void *environment_vtbl[ENVIRONMENT_SLOTS];
+@@ -867,6 +914,7 @@
+     environment_vtbl[1] = env_AddRef;
+     environment_vtbl[2] = env_Release;
+     environment_vtbl[ENVIRONMENT_CreateController] = env_CreateCoreWebView2Controller;
++    environment_vtbl[ENVIRONMENT_CreateControllerWithOptions] = env_CreateCoreWebView2ControllerWithOptions;
+     environment_vtbl[ENVIRONMENT_CreateCompositionController] = env_CreateCoreWebView2CompositionController;
+     environment_vtbl[ENVIRONMENT_CreateCompositionControllerWithOptions] = env_CreateCoreWebView2CompositionControllerWithOptions;
+ }

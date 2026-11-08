@@ -1,0 +1,278 @@
+--- a/dlls/wineuwp/main.c
++++ b/dlls/wineuwp/main.c
+@@ -67,6 +67,7 @@
+ DEFINE_GUID(CLSID_PsmBroker,                        0x02844640, 0xe37c, 0x4322, 0xa3, 0xb8, 0x4c, 0x61, 0xa2, 0xe5, 0x88, 0x79);
+ DEFINE_GUID(IID_IPsmBroker,                         0x33c255c3, 0x1a86, 0x45fc, 0x94, 0x98, 0xf6, 0x0d, 0x8f, 0x56, 0xb9, 0xd3);
+ DEFINE_GUID(IID_ICoreWindowBroker,                  0x0f4accb1, 0xd8f9, 0x4011, 0xba, 0x37, 0x25, 0x57, 0x92, 0x5a, 0x78, 0xcf);
++DEFINE_GUID(IID_IApplicationInstanceBroker,         0x4c79fb19, 0xe2a8, 0x4f1a, 0xb4, 0x77, 0xad, 0x6e, 0x7b, 0x0b, 0xcc, 0xc9);
+ DEFINE_GUID(IID_ICoreWindowFactory,                 0xcd292360, 0x2763, 0x4085, 0x8a, 0x9f, 0x74, 0xb2, 0x24, 0xa2, 0x91, 0x75);
+ DEFINE_GUID(IID_IConfigureWindowFactory,            0x601d51e3, 0x801e, 0x49c9, 0xbb, 0xfa, 0xfe, 0x29, 0xa6, 0x62, 0xae, 0xad);
+ DEFINE_GUID(IID_ICoreWindow,                        0x79b9d5f2, 0x879e, 0x4b89, 0xb7, 0x98, 0x79, 0xe4, 0x75, 0x98, 0x03, 0x0c);
+@@ -138,6 +139,7 @@
+     const void *vtbl_protocol;    /* IProtocolActivatedEventArgs, when activated on a URI */
+     const void *vtbl_protocol2;   /* IProtocolActivatedEventArgsWithCallerPackageFamilyNameAndData */
+     IUnknown *protocol_uri;       /* the Windows.Foundation.Uri; NULL unless a Protocol activation */
++    INT32 previous_execution_state;
+ };
+ 
+ #define ARGS_FROM(iface, field) ((struct launch_args *)((char *)(iface) - offsetof(struct launch_args, field)))
+@@ -145,6 +147,8 @@
+ static HRESULT WINAPI args_QueryInterface(struct launch_args *args, REFIID iid, void **out)
+ {
+     TRACE("%p, %s, %p\n", args, debugstr_guid(iid), out);
++    if (!out) return E_POINTER;
++    *out = NULL;
+     if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_IInspectable) || IsEqualGUID(iid, &IID_IActivatedEventArgs))
+         *out = &args->vtbl_activated;
+     /* ProtocolActivatedEventArgs is not a launch: it has no Arguments, TileId or Prelaunch */
+@@ -240,16 +244,19 @@
+ static HRESULT WINAPI activated_get_Kind(void *iface, INT32 *kind)
+ {
+     struct launch_args *args = ARGS_FROM(iface, vtbl_activated);
++    if (!kind) return E_POINTER;
+     *kind = args->protocol_uri ? 4 /* Protocol */ : args->file_path ? 3 /* File */ : 0 /* Launch */;
+     TRACE("kind %d\n", *kind);
+     return S_OK;
+ }
+-/* Protocol args only ever go to the instance that is already running (see activation_inbox_thread). */
++/* Inbox protocol activations target a running process; a protocol supplied at process startup
++ * instead has NotRunning as its previous state. */
+ static HRESULT WINAPI activated_get_PreviousExecutionState(void *iface, INT32 *state)
+ {
+     struct launch_args *args = ARGS_FROM(iface, vtbl_activated);
+     TRACE("\n");
+-    *state = args->protocol_uri ? 1 /* Running */ : 0 /* NotRunning */;
++    if (!state) return E_POINTER;
++    *state = args->previous_execution_state;
+     return S_OK;
+ }
+ /* The args object is its own splash screen: a managed OnLaunched dereferences
+@@ -969,12 +976,13 @@
+     }
+     if (FAILED(hr) || !args->protocol_uri)
+     {
+-        ERR("cannot make a Uri of %s, hr %#lx\n", debugstr_w(uri), hr);
++        ERR("cannot create protocol activation Uri, hr %#lx\n", hr);
+         IInspectable_Release(inspectable);
+         return NULL;
+     }
+     args->vtbl_protocol = protocol_vtbl;
+     args->vtbl_protocol2 = protocol2_vtbl;
++    args->previous_execution_state = 1; /* Running: the inbox targets an existing process. */
+     args->vtbl_activated = protocol_view_vtbl(activated_vtbl, ARRAY_SIZE(activated_vtbl), &activated_copy);
+     args->vtbl_appview = protocol_view_vtbl(appview_vtbl, ARRAY_SIZE(appview_vtbl), &appview_copy);
+     args->vtbl_viewswitch = protocol_view_vtbl(viewswitch_vtbl, ARRAY_SIZE(viewswitch_vtbl), &viewswitch_copy);
+@@ -990,6 +998,29 @@
+ static IInspectable *create_launch_args(const WCHAR *arguments)
+ {
+     WCHAR file[MAX_PATH];
++    WCHAR *uri;
++    DWORD length, copied;
++    IInspectable *inspectable;
++
++    if ((length = GetEnvironmentVariableW(L"WINE_UWP_ACTIVATE_URI", NULL, 0)))
++    {
++        /* URI activation is explicit and does not silently override an activation on a file.
++         * Do not log the URI: authentication callbacks can contain private query values. */
++        if (GetEnvironmentVariableW(L"WINE_UWP_ACTIVATE_FILE", NULL, 0) || length > 32768)
++            return NULL;
++        if (!(uri = malloc(length * sizeof(*uri)))) return NULL;
++        copied = GetEnvironmentVariableW(L"WINE_UWP_ACTIVATE_URI", uri, length);
++        if (!copied || copied >= length)
++        {
++            free(uri);
++            return NULL;
++        }
++        inspectable = create_protocol_args(uri);
++        free(uri);
++        if (inspectable)
++            ARGS_FROM(inspectable, vtbl_activated)->previous_execution_state = 0; /* NotRunning. */
++        return inspectable;
++    }
+ 
+     if (GetEnvironmentVariableW(L"WINE_UWP_ACTIVATE_FILE", file, ARRAY_SIZE(file)))
+     {
+@@ -1413,6 +1444,7 @@
+     IActivatableApplication *app;
+     IInspectable *args;
+     HSTRING aumid, contract, activation_id, extra;
++    const WCHAR *contract_name;
+     WCHAR aumid_buf[512];
+     UINT32 len = ARRAY_SIZE(aumid_buf);
+     HRESULT hr;
+@@ -1424,13 +1456,17 @@
+         ERR("app object does not expose IActivatableApplication, hr %#lx\n", hr);
+         return hr;
+     }
++    if (!(args = create_launch_args(L"")))
++    {
++        app->lpVtbl->Release(app);
++        return E_FAIL;
++    }
++    contract_name = ARGS_FROM(args, vtbl_activated)->protocol_uri ? L"Windows.Protocol" : L"Windows.Launch";
+     WindowsCreateString(aumid_buf, lstrlenW(aumid_buf), &aumid);
+-    WindowsCreateString(L"Windows.Launch", 14, &contract);
++    WindowsCreateString(contract_name, lstrlenW(contract_name), &contract);
+     WindowsCreateString(L"", 0, &activation_id);
+     WindowsCreateString(L"", 0, &extra);
+-    args = create_launch_args(L"");
+-
+-    TRACE("activating %s with contract Windows.Launch\n", debugstr_w(aumid_buf));
++    TRACE("activating %s with contract %s\n", debugstr_w(aumid_buf), debugstr_w(contract_name));
+     arm_twinapi_breaks();
+     mark_psm_registered();
+     hr = app->lpVtbl->Activate(app, aumid, contract, activation_id, extra, args, 0, 0);
+@@ -4701,12 +4737,153 @@
+     return S_OK;
+ }
+ 
++/* ExecModelClient's AppInstanceStatics asks the CoreWindow broker for this service. The
++ * measured IUnknown-derived ABI has five methods after IUnknown, not IInspectable slots.
++ * Registration, enumeration and redirection require a cross-process instance registry; do
++ * not report those operations as successful until such a registry exists. */
++struct application_instance_broker;
++struct application_instance_broker_vtbl
++{
++    HRESULT (WINAPI *QueryInterface)(struct application_instance_broker *, REFIID, void **);
++    ULONG (WINAPI *AddRef)(struct application_instance_broker *);
++    ULONG (WINAPI *Release)(struct application_instance_broker *);
++    HRESULT (WINAPI *RegisterInstanceKey)(struct application_instance_broker *, const WCHAR *, DWORD *);
++    HRESULT (WINAPI *Unregister)(struct application_instance_broker *);
++    HRESULT (WINAPI *GetActivatedEventArgs)(struct application_instance_broker *, IUnknown **);
++    HRESULT (WINAPI *RedirectActivationTo)(struct application_instance_broker *, const WCHAR *);
++    HRESULT (WINAPI *GetInstanceKeys)(struct application_instance_broker *, ULONG *, WCHAR ***);
++};
++struct application_instance_broker
++{
++    const struct application_instance_broker_vtbl *vtbl;
++    LONG refcount;
++    IUnknown *ftm;
++};
++
++/* AppInstance.GetActivatedEventArgs describes process startup, so repeated queries must not
++ * change identity or start reading a later inbox activation. wineuwp.dll cannot unload and
++ * retains the single strong reference for this process's lifetime. Construct outside the
++ * lock because creating a protocol Uri can activate another WinRT class. */
++static SRWLOCK initial_activation_lock = SRWLOCK_INIT;
++static IInspectable *initial_activation_args;
++
++static ULONG WINAPI instance_broker_AddRef(struct application_instance_broker *broker)
++{
++    return InterlockedIncrement(&broker->refcount);
++}
++static ULONG WINAPI instance_broker_Release(struct application_instance_broker *broker)
++{
++    ULONG refs = InterlockedDecrement(&broker->refcount);
++    if (!refs)
++    {
++        if (broker->ftm) IUnknown_Release(broker->ftm);
++        free(broker);
++    }
++    return refs;
++}
++static HRESULT WINAPI instance_broker_QueryInterface(struct application_instance_broker *broker,
++        REFIID iid, void **out)
++{
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!iid) return E_INVALIDARG;
++    if (IsEqualGUID(iid, &IID_IUnknown) || IsEqualGUID(iid, &IID_IApplicationInstanceBroker))
++    {
++        *out = broker;
++        instance_broker_AddRef(broker);
++        return S_OK;
++    }
++    if (IsEqualGUID(iid, &IID_IMarshal) || IsEqualGUID(iid, &IID_IAgileObject))
++        return IUnknown_QueryInterface(broker->ftm, iid, out);
++    return E_NOINTERFACE;
++}
++static HRESULT WINAPI instance_broker_RegisterInstanceKey(struct application_instance_broker *broker,
++        const WCHAR *key, DWORD *status)
++{
++    if (!status) return E_POINTER;
++    *status = 0;
++    return E_NOTIMPL;
++}
++static HRESULT WINAPI instance_broker_Unregister(struct application_instance_broker *broker)
++{
++    return E_NOTIMPL;
++}
++static HRESULT WINAPI instance_broker_GetActivatedEventArgs(struct application_instance_broker *broker,
++        IUnknown **out)
++{
++    IInspectable *candidate;
++
++    if (!out) return E_POINTER;
++    *out = NULL;
++    AcquireSRWLockShared(&initial_activation_lock);
++    if (initial_activation_args)
++    {
++        IInspectable_AddRef(initial_activation_args);
++        *out = (IUnknown *)initial_activation_args;
++        ReleaseSRWLockShared(&initial_activation_lock);
++        return S_OK;
++    }
++    ReleaseSRWLockShared(&initial_activation_lock);
++    if (!(candidate = create_launch_args(L""))) return E_FAIL;
++    AcquireSRWLockExclusive(&initial_activation_lock);
++    if (!initial_activation_args)
++    {
++        initial_activation_args = candidate;
++        candidate = NULL;
++    }
++    IInspectable_AddRef(initial_activation_args);
++    *out = (IUnknown *)initial_activation_args;
++    ReleaseSRWLockExclusive(&initial_activation_lock);
++    if (candidate) IInspectable_Release(candidate);
++    return S_OK;
++}
++static HRESULT WINAPI instance_broker_RedirectActivationTo(struct application_instance_broker *broker,
++        const WCHAR *key)
++{
++    return E_NOTIMPL;
++}
++static HRESULT WINAPI instance_broker_GetInstanceKeys(struct application_instance_broker *broker,
++        ULONG *count, WCHAR ***keys)
++{
++    if (count) *count = 0;
++    if (keys) *keys = NULL;
++    if (!count || !keys) return E_POINTER;
++    return E_NOTIMPL;
++}
++static const struct application_instance_broker_vtbl instance_broker_vtbl =
++{
++    instance_broker_QueryInterface, instance_broker_AddRef, instance_broker_Release,
++    instance_broker_RegisterInstanceKey, instance_broker_Unregister,
++    instance_broker_GetActivatedEventArgs, instance_broker_RedirectActivationTo,
++    instance_broker_GetInstanceKeys
++};
++static HRESULT create_instance_broker(REFIID iid, void **out)
++{
++    struct application_instance_broker *broker;
++    HRESULT hr;
++
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!(broker = calloc(1, sizeof(*broker)))) return E_OUTOFMEMORY;
++    broker->vtbl = &instance_broker_vtbl;
++    broker->refcount = 1;
++    if (SUCCEEDED(hr = CoCreateFreeThreadedMarshaler((IUnknown *)broker, &broker->ftm)))
++        hr = instance_broker_QueryInterface(broker, iid, out);
++    instance_broker_Release(broker);
++    return hr;
++}
++
+ static HRESULT WINAPI wf_QueryService( struct window_factory *wf, const GUID *service, const GUID *iid, void **out )
+ {
+     /* the private service GetWindowFactory asks for, and then calls slot 5 on */
+     static const GUID SID_window_factory = { 0xd98fd14a, 0x522a, 0x4d59, { 0xb8, 0x75, 0x81, 0x1e, 0x83, 0x91, 0x9a, 0x9e } };
+ 
+     TRACE( "service %s iid %s\n", debugstr_guid( service ), debugstr_guid( iid ) );
++    if (!out) return E_POINTER;
++    *out = NULL;
++    if (!service || !iid) return E_INVALIDARG;
++    if (IsEqualGUID(service, &IID_IApplicationInstanceBroker))
++        return create_instance_broker(iid, out);
+     if (service && IsEqualGUID( service, &SID_window_factory )) return wf_QueryInterface( wf, &IID_IUnknown, out );
+     /* Anything else is a broker service this process does not have, e.g. the share UI's
+      * IApplicationInvocableFlow {f230b678}: handing back the window factory made twinapi.appcore

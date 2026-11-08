@@ -1,4 +1,63 @@
-# Optional GNOME Fullscreen Experience and native switcher
+# Linux Gaming Mode (Fullscreen Experience)
+
+A GNOME extension for a controller-oriented gaming desktop with a selectable
+home application, a native running-app switcher and reversible fullscreen window
+policy. The display name is independent of XBOKS; the existing extension UUID
+`xboks-experience@slaveitgr.github.io` and application bridge names remain stable
+so installed clients continue to connect after an update.
+
+## Choose your gaming home
+
+Open the extension's preferences from the GNOME Extensions application, or run:
+
+```sh
+gnome-extensions prefs xboks-experience@slaveitgr.github.io
+```
+
+Choose **Gaming home app**:
+
+| Home | Required installation | Requested interface |
+| --- | --- | --- |
+| None | No application | Keep the ordinary desktop; no home starts at sign-in. |
+| Steam Big Picture | Native Steam or Flatpak Steam with its desktop launcher | Steam's controller interface through `steam://open/bigpicture`. |
+| XBOKS Fullscreen | XBOKS with the `--fullscreen-experience` launch adapter | XBOKS Fullscreen Experience and the integrated desktop mode. |
+| Original Xbox (Xbox mode) | The original client, a prepared experimental Wine-UWP runtime and an enrolled launcher | The original client's own Xbox mode with the Native1 bridge. |
+
+Preferences show which desktop launchers are installed and allow refreshing the
+list after installing an application. A matching desktop entry establishes only
+that an app can be requested; it does not prove runtime compatibility. In
+particular, Original Xbox requires the separately prepared Wine bridge and an
+enrolled client. The extension does not include or download Microsoft binaries,
+Windows, Wine, Steam, XBOKS, account credentials or games.
+
+**Enter now** requests the selected home. **Desktop** restores the desktop without
+closing the applications. **Enter gaming mode at sign-in** starts the selected
+home after a fresh sign-in; turn it off to enter only on request. Its default is
+on, but the home defaults to **None**, so installation alone does not start an
+application or hide the desktop. Selecting a home configures future starts;
+opening preferences does not itself launch it.
+
+During a home launch the Shell owns a temporary black cover on each monitor
+before waiting for the application. The startup deadline is five minutes to
+accommodate a cold experimental Wine client. Entry requires the home to become
+ready; a launch failure, timeout, cancellation, session lock or extension disable
+removes the cover and restores the desktop. **Ctrl+Super+Escape** is available
+before any desktop chrome is hidden. Selecting None prevents automatic home
+startup. A new GNOME login is required to verify startup behavior after updating
+an already loaded extension.
+
+The extension stores only its own home selection and startup preference in
+`org.gnome.shell.extensions.linux-gaming-mode`. The preferences window writes
+these values at the user's request; Shell chrome, other extensions and global
+keyboard shortcuts are still restored through the existing in-memory lease.
+
+Version 8 provides this home selection and launch coordination. Automated
+source/fixture checks are separate from physical desktop acceptance. Steam
+startup and the original client's pre-active launch path require their own
+observed runs; a successful original-client mode entry through its menu does
+not establish that every sign-in startup path works.
+
+## Desktop behavior and supported versions
 
 This extension targets **GNOME Shell 51 only**. The installed GNOME Shell 51.0
 JavaScript resources and Ubuntu Dock source were inspected on 2026-10-21. Other
@@ -7,10 +66,11 @@ chrome mode, not a separate gaming session, desktop replacement or memory-saving
 claim. Existing applications, compositor, lock screen and desktop services keep
 running.
 
-The extension starts inactive. An explicit request from the focused xboks
-application can temporarily hide the panel, built-in dash, observed Ubuntu Dock
+Without a configured home the extension starts inactive. A configured home
+launch or an explicit request from the focused XBOKS application can temporarily
+hide the panel, built-in dash, observed Ubuntu Dock
 actors, overview entry and hot-corner activation. Existing hot-corner barrier sizes are left unchanged, including previously disabled barriers. It leases object visibility and
-methods in memory; it does not write gsettings, disable other extensions, kill
+methods in memory; it does not rewrite desktop settings, disable other extensions, kill
 processes, log out or restart GNOME. Later third-party method overrides are not
 overwritten during restoration. Unobserved docks/other extensions can conflict
 and require separate acceptance.
@@ -45,8 +105,18 @@ is visible and disconnect on dismissal, failed entry and extension cleanup.
 The extension only reads these settings. The D-Bus capability remains version 3
 because this color change adds no protocol methods or window policy.
 
-Bare Super temporarily leases Shell51's overview `toggle` method. Keyboard
-switching leases `AppSwitcherPopup.prototype.show` and
+Bare Super temporarily leases Shell51's active `overlay-key` signal handlers.
+Only currently unblocked handlers are blocked, by their exact connection IDs;
+handlers already blocked by another extension keep their existing block count.
+The bounded scan admits at most 64 active handlers and undoes acquired blocks
+if entry fails. Our mode-only handler opens the switcher and stops emission to
+handlers registered later. Restoration disconnects only our own handler and
+releases one owned block from each still-connected original ID, preserving
+external disconnections and additional blocks. No other extension's function,
+registration or setting is replaced. Sticky Keys follows the same live read of
+`org.gnome.desktop.a11y.keyboard stickykeys-enable` as Shell51's original
+handler. The existing overview `toggle` method lease also covers other Shell
+entry points. Keyboard switching leases `AppSwitcherPopup.prototype.show` and
 `WindowSwitcherPopup.prototype.show` for the four existing applications/windows
 forward/backward bindings. Shell51's existing WM handler builds the stock popup,
 then destroys it after our dispatcher returns false. The unused popup has never
@@ -102,7 +172,8 @@ after Leave; the Shell policy preserves the state it observed at lease entry.
 - `GetState() → (b active, b owned)`: `owned` is relative to the calling bus sender.
 - `Enter() → ()`, `Leave() → ()`; `StateChanged(b active)` signal.
 - `GetCapabilities() → (u version)`: version 2 provides the bridge below; version 3
-  also owns the native fullscreen/no-minimize window policy.
+  also owns the native fullscreen/no-minimize window policy; version 4 adds the
+  separate switcher-control capability below.
 - `GetForegroundApp() → (s json)`: ephemeral, bounded actual
   `{desktopId,name,title}`; no account data, persistence or arbitrary window ID.
 - `FocusGuide() → ()`: activates only the authenticated xboks main process's
@@ -135,7 +206,118 @@ SIGTERM close the owned connection. The helper never installs/enables the
 extension and does not call Enter at startup. Ephemeral `gdbus` is suitable for
 GetState discovery, because Enter's ownership must outlive the method call.
 
-## Stage, then explicitly install
+## Optional original-client Native1 bridge
+
+Package version 6 adds a separate interface on the same session-bus name:
+`org.slaveitgr.Xboks.Experience.Native1`, object
+`/org/slaveitgr/Xboks/Experience/Native1`. The existing XBOKS API and its entry
+authorization are unchanged.
+
+- `GetState() → (u version, t epoch, b supported, b active, b canSet, b owned)`.
+- `SetMode(b active, t expectedEpoch) → (t epoch, b active, b owned)`.
+- `StateChanged(t epoch, b active)`.
+
+Read-only support and global active state are available to a caller whose
+kernel-reported session-bus UID matches this desktop user. These queries do not
+enter mode, create a lease or change desktop state. Permission and ownership
+are checked separately; sign-in, a window title and a Wine class do not imply
+either. Changes require a matching epoch, preventing a stale request from
+reentering after exit, lock or ownership loss. Clients must also reject replies
+from a replaced bus-service owner.
+
+Original-client entry is explicitly enrolled by its launcher through
+`/run/user/UID/xboks/original-clients/PID.json`. The runtime/xboks/enrollment
+directories must be owned by the user with mode 0700; the regular record must
+be owned by the user with mode 0600. Its schema is exactly:
+
+```json
+{
+  "schema": 1,
+  "pid": 12345,
+  "startTime": "123456789",
+  "executable": "/canonical/private/runtime/wine-preloader",
+  "pePath": "/canonical/original/XboxPcAppCE.exe",
+  "peSHA256": "dc50e62227838178c6f8b1e42463cd2b4a7f4b4f55dfc4b0e672d71a8fed0d89",
+  "desktopId": "original-xbox-ce-wineuwp.desktop"
+}
+```
+
+The PID and UID come from DBus credentials, then the record is bound to Linux
+`/proc/PID/stat` start-time ticks, the actual canonical process executable and
+selected PE command line. A fresh asynchronous SHA256 verifies the pinned
+original CE bytes; caching is keyed to stable file/process metadata. Symlinks,
+broader enrollment permissions, process reuse and changed identity are rejected.
+The PID is never accepted from a DBus method argument.
+
+Entry additionally requires the enrolled process's focused window or a
+transient owned by it, an unlocked user session, a closed overview and an
+available lease. The existing owner may exit after focus moves elsewhere.
+Enrollment revocation, bus-owner loss, lock, emergency escape and extension
+disable restore the desktop. Switcher Home returns to the enrolled CE process.
+Errors use typed `Native1.Error.AccessDenied`, `Busy`, `StaleEpoch`,
+`NotSupported`, `Unavailable`, `OverviewOpen`, `EmergencyUnavailable` or
+`ShellError` names; descriptions contain no account or enrollment data.
+
+This interface reuses the existing reversible shell policy. Its source tests
+do not establish that a live Wine client can enter Xbox mode; that requires
+separate desktop acceptance. It does not stop background services or establish
+an FPS/memory benefit. No enrollment is created and no mode is entered merely
+by installing or enabling the extension.
+
+## Resident controller service and original-client mode
+
+Package version 7 adds controller access to the native switcher while the
+original client owns Xbox mode. The mode lease continues to belong to that
+client's persistent Wine connection. The resident XBOKS helper reports
+`owned=false`; switcher permission does not make its own Fullscreen Experience
+active or grant the ability to acquire another client's lease.
+
+The existing interface has two additive capability-version-4 methods:
+
+- `GetSwitcherControl() → (t epoch, b active, b owned, b visible, b canControl)`
+  returns one atomic snapshot. `owned` remains relative to the calling sender;
+  `canControl` is a separate delegated permission.
+- `ControlSwitcher(s action, t expectedEpoch) → (b visible)` accepts the fixed
+  existing switcher action list. Delegation requires the real same-user helper
+  parent to be the installed, root-owned `/opt/xboks/xboks.bin`, a current
+  enrolled original-client owner, an active lease and an unlocked user session.
+
+The control revision advances on lease and switcher-visibility changes. A
+queued action cannot select or close a window in a reopened switcher or after a
+mode-owner transition. This revision is separate from Native1's mode revision.
+Old `Enter`, `Leave` and `Switch` ownership checks remain unchanged. The
+controller helper cannot take the Native lease, and its disappearance does not
+release that lease. Selecting Desktop through the delegated switcher remains
+an explicit user action that restores the desktop.
+
+The GJS transport prefers this atomic snapshot and falls back to the original
+owned-only protocol when the new method is absent. Delegated JSONL switcher
+commands carry the captured `controlEpoch`; the helper never substitutes a
+newer token or upgrades an owner-only command after a role change. Its state,
+reply and switcher events keep ownership, delegated permission and visibility
+separate. The main process assigns the controller surface only while visibility
+and control are both acknowledged. Opening Guide awaits switcher cancellation
+before handing input to Guide.
+
+Source and isolated-bus tests cover these paths. They do not establish physical
+controller behavior in the user's live GNOME session; that needs separate
+acceptance after loading the updated extension and resident helper.
+
+## Home preferences interface
+
+The additive interface `org.slaveitgr.Xboks.Experience.Home1` uses object
+`/org/slaveitgr/Xboks/Experience/Home1` on the existing session bus name.
+`LaunchHome()` requests the configured home, `LeaveMode()` restores the desktop,
+and `GetState()` returns bounded JSON describing the selected home and actual
+active/loading state. Preferences communicate with this interface rather than
+running arbitrary shell commands. It does not replace the existing XBOKS or
+Native1 lease contracts.
+
+## Stage, package, then explicitly install
+
+Staging requires Python 3 and `glib-compile-schemas` (on Ubuntu, supplied by
+`libglib2.0-bin`). The script compiles the copied schema with `--strict`; it never
+ships a stale source-tree `gschemas.compiled` file.
 
 From the repository root, stage outside the live extension directory:
 
@@ -143,8 +325,28 @@ From the repository root, stage outside the live extension directory:
 python3 scripts/desktop/stage-gnome-experience.py --output work/gnome-experience/staged
 ```
 
-The output must be new. The script records copied-file SHA-256 hashes. It does
-not install or enable anything by default. An explicit user-run installation is:
+The output must be new. The script records source and compiled-schema SHA-256
+hashes. It does not install or enable anything by default. To prepare an
+installable GitHub release artifact, use another new output directory:
+
+```sh
+python3 scripts/desktop/stage-gnome-experience.py \
+  --output work/linux-gaming-mode/release-stage \
+  --archive work/linux-gaming-mode/xboks-experience@slaveitgr.github.io.shell-extension.zip
+```
+
+The archive contains the verified extension files at its root, including
+preferences and its compiled schema. Packaging refuses a changed staged file,
+an output inside the bundle or an existing archive. No private research files,
+game data, account state or original-client runtime are added.
+
+Install that archive using GNOME Extensions, or:
+
+```sh
+gnome-extensions install work/linux-gaming-mode/xboks-experience@slaveitgr.github.io.shell-extension.zip
+```
+
+An alternative user-run source installation is:
 
 ```sh
 python3 scripts/desktop/stage-gnome-experience.py \

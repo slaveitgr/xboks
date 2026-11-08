@@ -25,6 +25,23 @@ describe('progress parser', () => {
   it('strips terminal control codes', () => expect(stripAnsi('\u001b[32mok\u001b[0m\r')).toContain('ok'));
 });
 
+describe('terminal hyperlink cleanup', () => {
+  it('keeps visible labels between ST-terminated hyperlink sequences', () => {
+    expect(stripAnsi('\u001b]8;;https://example.test\u001b\\Visible game\u001b]8;;\u001b\\')).toBe('Visible game');
+    expect(stripAnsi('before\u001b]0;first\u001b\\middle\u001b]0;second\u001b\\after')).toBe('beforemiddleafter');
+  });
+  it('handles adjacent OSC sequences and mixed BEL/ST terminators without swallowing progress text', () => {
+    expect(stripAnsi('\u001b]8;;first\u001b\\one\u001b]8;;second\u001b\\two\u001b]8;;\u001b\\')).toBe('onetwo');
+    expect(stripAnsi('\u001b]0;title\u0007a\u001b]8;;url\u001b\\b')).toBe('ab');
+    expect(progressFromLine(stripAnsi('\u001b]8;;url\u001b\\Downloading 42%\u001b]8;;\u001b\\'))).toBe(42);
+  });
+  it('preserves plain and unterminated input while retaining CSI and carriage-return cleanup', () => {
+    expect(stripAnsi('plain text')).toBe('plain text'); expect(stripAnsi('\u001b]0;unfinished')).toBe('\u001b]0;unfinished');
+    expect(stripAnsi('\u001b[1;33mwarn\u001b[0m\rnext')).toBe('warn\nnext');
+    expect(stripAnsi('\u001b]0;ti\u001btle\u0007visible')).toBe('visible');
+  });
+});
+
 describe('version comparison', () => {
   it('detects newer published releases only', () => {
     expect(isNewerVersion('v0.5.25', '0.5.24')).toBe(true);

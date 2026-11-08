@@ -1,0 +1,28 @@
+.console-shell-header { position: relative; z-index: 20; display: grid; grid-template-columns: minmax(160px, 1fr) auto minmax(160px, 1fr); align-items: start; gap: 20px; padding: clamp(22px, 3.5vh, 42px) clamp(28px, 5.4vw, 120px) 12px; min-height: 112px; color: #fff; background: linear-gradient(#080c1470, transparent); }
+.console-shell-header button { color: inherit; font: inherit; cursor: pointer; }
+.console-shell-header .console-home-account { display: flex; align-items: center; gap: 12px; justify-self: start; min-width: 0; max-width: 100%; padding: 6px 8px; margin: -6px -8px; border: 0; border-radius: 8px; background: transparent; text-align: left; }
+.console-shell-header .console-home-avatar { display: grid; place-items: center; flex: 0 0 clamp(40px, 3vw, 60px); width: clamp(40px, 3vw, 60px); aspect-ratio: 1; border-radius: 50%; overflow: hidden; background: #252d36; }
+.console-shell-header .console-home-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.console-shell-header .console-home-avatar > .xbox-icon { width: 65%; height: 65%; }
+.console-shell-header .console-home-account-copy { display: grid; gap: 6px; min-width: 0; }
+.console-shell-header .console-home-account-copy > span:first-child { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
+.console-shell-header .console-home-account-copy strong { min-width: 0; max-width: 16ch; font-size: clamp(13px, 1.12vw, 22px); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-shell-header .subscription-badge { margin: 0; }
+.console-shell-header .console-home-score { display: flex; align-items: center; gap: 7px; font-size: clamp(11px, .85vw, 17px); font-variant-numeric: tabular-nums; }
+.console-shell-header .console-home-score b { display: grid; place-items: center; width: 1.25em; height: 1.25em; border-radius: 50%; background: #fff; color: #111; font-size: .85em; }
+.console-shell-header .console-home-shortcuts { display: flex; align-items: center; justify-content: center; gap: clamp(7px, .9vw, 18px); }
+.console-shell-header .console-home-shortcuts button { display: flex; align-items: center; justify-content: center; gap: 8px; width: clamp(36px, 3vw, 60px); height: clamp(36px, 3vw, 60px); flex: 0 0 auto; padding: 8px; border: 0; border-radius: 50%; background: #080b1066; }
+.console-shell-header .console-home-shortcuts button.selected { position: relative; width: auto; min-width: clamp(36px, 3vw, 60px); padding-inline: 14px; border-radius: 28px; background: #e6e8ed26; }
+.console-shell-header .console-home-shortcuts button.selected::after { content: ''; position: absolute; height: 3px; width: 30%; background: #69bb26; bottom: -5px; left: 35%; border-radius: 2px; }
+.console-shell-header .console-home-shortcuts .xbox-icon { width: clamp(20px, 1.6vw, 30px); height: clamp(20px, 1.6vw, 30px); font-size: clamp(20px, 1.6vw, 30px); flex: 0 0 auto; }
+.console-shell-header .console-nav-label { font-size: clamp(13px, 1vw, 18px); white-space: nowrap; }
+.console-shell-header .console-bumper { font-size: 10px; line-height: 15px; border: 1px solid #ffffffb3; border-radius: 5px 5px 8px 8px; padding: 0 4px; font-weight: 700; }
+.console-shell-header .console-home-status { display: flex; align-items: center; justify-self: end; gap: 12px; padding-top: 8px; }
+.console-shell-header .shell-clock { white-space: nowrap; font-size: clamp(14px, 1.3vw, 26px); font-variant-numeric: tabular-nums; }
+.console-shell-header .shell-battery { display: inline-flex; align-items: center; gap: 6px; }
+.console-shell-header .console-page-back { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; justify-self: start; padding: 6px 8px; margin: 0 0 -12px -8px; border: 0; border-radius: 6px; background: transparent; font-size: 15px; }
+.console-shell-header button:focus-visible, html[data-gamepad-navigation] .console-shell-header [data-gamepad-focus] { outline: 3px solid #fff !important; outline-offset: 5px; }
+html[data-xboks-experience="xbox"] .console-navigation-menu { min-width: 300px; padding: 10px; border-radius: 12px; background: #20242bf5; }
+html[data-xboks-experience="xbox"] .console-navigation-menu button { min-height: 52px; font-size: 18px; }
+@media (max-width: 1350px) { .console-shell-header { padding-inline: 36px; grid-template-columns: minmax(128px, 1fr) auto minmax(128px, 1fr); gap: 12px; } .console-shell-header .console-nav-label { display: none; } .console-shell-header .console-home-account-copy strong { max-width: 13ch; } }
+@media (max-width: 980px) { .console-shell-header { grid-template-columns: minmax(0,1fr) auto; row-gap: 14px; padding: 20px 28px 12px; } .console-shell-header .console-home-shortcuts { grid-column: 1 / -1; grid-row: 2; gap: 18px; } .console-shell-header .console-home-status { grid-column: 2; grid-row: 1; } }

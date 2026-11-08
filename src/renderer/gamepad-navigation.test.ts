@@ -1,10 +1,53 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BackHandlerStack, dispatchBackHandlers, navigationTarget, PadInput, padDirection, registerBackHandler, revealDelta, stepGamepadRange } from './gamepad-navigation';
+import { BackHandlerStack, consoleNavigationHandoff, dispatchBackHandlers, navigationTarget, PadInput, padDirection, registerBackHandler, revealDelta, stepGamepadRange } from './gamepad-navigation';
 
 function pad(buttons: number[] = [], axes = [0, 0, 0, 0]) {
   return { buttons: Array.from({ length: 17 }, (_, index) => ({ pressed: buttons.includes(index), touched: false, value: buttons.includes(index) ? 1 : 0 })), axes };
 }
 const rect = (x: number, y: number, width = 80, height = 40) => ({ left: x, top: y, right: x + width, bottom: y + height });
+
+describe('console header and page navigation handoff', () => {
+  const defaults = { modal: false, editable: false };
+  it('moves from a page edge to the closest header column despite different layouts', () => {
+    const from = rect(280, 160, 100, 48);
+    const targets = [{ value: 'profile', rect: rect(30, 20, 180, 60) },
+      { value: 'library', rect: rect(420, 26, 56, 48) }, { value: 'store', rect: rect(500, 26, 56, 48) }];
+    expect(navigationTarget(from, targets, 'up')).toBeUndefined();
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'content', direction: 'up', from, targets })).toBe('library');
+  });
+  it('returns to the exact content control previously left, even after changing header columns', () => {
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'header', direction: 'down', from: rect(700, 20), remembered: 'filter',
+      targets: [{ value: 'filter', rect: rect(100, 130) }, { value: 'nearest', rect: rect(700, 130) }] })).toBe('filter');
+  });
+  it('falls back to the nearest control in the first content row when the prior page is gone', () => {
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'header', direction: 'down', from: rect(800, 20), remembered: 'removed-game',
+      targets: [{ value: 'first-left', rect: rect(100, 130) }, { value: 'first-right', rect: rect(500, 130) },
+        { value: 'aligned-lower-card', rect: rect(800, 450, 180, 240) }] })).toBe('first-right');
+  });
+  it.each(['up', 'down'] as const)('never crosses a nested modal scope on %s', direction => {
+    const origin = direction === 'up' ? 'content' : 'header';
+    expect(consoleNavigationHandoff({ ...defaults, modal: true, origin, direction, from: rect(200, 100), remembered: 'background',
+      targets: [{ value: 'background', rect: rect(200, direction === 'up' ? 0 : 200) }] })).toBeUndefined();
+  });
+  it.each(['up', 'down'] as const)('does not steal an editable or slider focus on %s', direction => {
+    expect(consoleNavigationHandoff({ ...defaults, editable: true, origin: direction === 'up' ? 'content' : 'header', direction,
+      from: rect(200, 100), targets: [{ value: 'background', rect: rect(200, direction === 'up' ? 0 : 200) }] })).toBeUndefined();
+  });
+  it.each(['left', 'right'] as const)('leaves %s to native range edits or within-row navigation', direction => {
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'content', direction, from: rect(200, 100),
+      targets: [{ value: 'header', rect: rect(200, 0) }] })).toBeUndefined();
+  });
+  it('does not turn content Down or header Up into a region wrap', () => {
+    const targets = [{ value: 'another-region', rect: rect(200, 300) }];
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'content', direction: 'down', from: rect(200, 100), targets })).toBeUndefined();
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'header', direction: 'up', from: rect(200, 400), targets })).toBeUndefined();
+  });
+  it('ignores controls behind the requested direction and absent destinations', () => {
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'content', direction: 'up', from: rect(200, 100),
+      targets: [{ value: 'lower', rect: rect(200, 200) }] })).toBeUndefined();
+    expect(consoleNavigationHandoff({ ...defaults, origin: 'header', direction: 'down', from: rect(200, 100), targets: [] })).toBeUndefined();
+  });
+});
 
 describe('native range edits for controlled React inputs', () => {
   function fixture(next = '51') {

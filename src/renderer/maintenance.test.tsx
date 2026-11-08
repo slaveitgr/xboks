@@ -48,8 +48,9 @@ it('preserves the launcher restart notice while listing pending backend and runt
 });
 it('offers verified in-app install with independent backend version labels', () => {
   const data = demoSnapshot(); data.launcherUpdate = { currentVersion: '9.0.0', checking: false, latestVersion: '9.0.1', canInstall: true }; data.backend.version = '0.2.1';
-  const html = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} />);
-  expect(html).toContain('Install launcher update'); expect(html).toContain('XBOKS Engine 0.2.1'); expect(html).not.toContain('Backend updates are versioned independently');
+  const html = renderToStaticMarkup(<SettingsPage data={data} initialSection="about" toast={() => {}} />);
+  const engine = renderToStaticMarkup(<SettingsPage data={data} initialSection="install" toast={() => {}} />);
+  expect(html).toContain('Install launcher update'); expect(engine).toContain('XBOKS Engine / Proton settings'); expect(engine).toContain('XBOKS Engine 0.2.1'); expect(html).not.toContain('Backend updates are versioned independently');
 });
 it('shows game update badges and a separate version-check action', () => {
   const data = demoSnapshot(); data.gameUpdates = { [data.games[0].id]: { checking: false, available: true, latestVersion: '1.10.0.0' } };

@@ -13,6 +13,7 @@ const loop = new GLib.MainLoop(null, false), connection = Gio.bus_get_sync(Gio.B
 const input = new GioUnix.InputStream({fd: 0, close_fd: false}), cancellation = new Gio.Cancellable();
 let stopping = false, pending = new Uint8Array(), queued = 0, chain = Promise.resolve(), epoch = 0, refreshTimer = 0;
 let owner = null, playerBus = null, trackId = null;
+let readQueue = Promise.resolve(), signalRefresh = null, signalRefreshAgain = false;
 const disabled = () => ({playPause: false, previous: false, next: false, seek: false, open: false});
 // Fixed native, Flatpak and Snap desktop IDs. Never accept a renderer command,
 // arbitrary desktop filename or URI as an executable launch target.
@@ -55,7 +56,27 @@ function readFailure(failure) {
     const denied = remote === 'org.freedesktop.DBus.Error.AccessDenied';
     return {reason: denied ? 'permission-denied' : 'transport-error', diagnostic: {code: denied ? 'access-denied' : 'read-failed', stage}};
 }
-async function refresh(emit = false) {
+// Keep each requested read ahead of later signal reads. Otherwise a signal
+// can supersede its generation before it finishes and make its reply use the
+// previous state. Coalesce property bursts, retaining one follow-up read for
+// signals that arrive while the current signal read is still outstanding.
+function refresh(emit = false) {
+    if (emit && signalRefresh) { signalRefreshAgain = true; return signalRefresh; }
+    const request = readQueue.then(() => stopping ? state : refreshNow(emit));
+    readQueue = request.then(() => undefined, () => undefined);
+    if (emit) {
+        signalRefresh = request;
+        const clear = () => {
+            if (signalRefresh !== request) return;
+            signalRefresh = null;
+            const again = signalRefreshAgain; signalRefreshAgain = false;
+            if (again && !stopping) void refresh(true);
+        };
+        void request.then(clear, clear);
+    }
+    return request;
+}
+async function refreshNow(emit = false) {
     const generation = ++epoch;
     try {
         const [names] = await atStage('discovery', busCall('ListNames', null, '(as)'));

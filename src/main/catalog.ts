@@ -1,4 +1,4 @@
-import type { CatalogProduct, CatalogSearchResult, GameStoreDetails } from '../shared/types.js';
+import type { CatalogProduct, CatalogSearchResult, GameStoreDetails, StoreCategoryKey } from '../shared/types.js';
 import type { HandheldCompatibility } from '../shared/handheld-compatibility.js';
 import { randomBytes } from 'node:crypto';
 
@@ -40,9 +40,33 @@ interface StoreSearchResponse {
   nextPageNumber?: unknown;
 }
 
-export type StoreCollection = 'all-pc' | 'toppaid' | 'addons';
+export type StoreCollection = 'all-pc' | 'toppaid' | 'addons' | 'deals';
 interface StoreCollectionPage { version: 1; collection: StoreCollection; market: string; page?: number; cursor?: string }
-const STORE_COLLECTIONS = new Set<StoreCollection>(['all-pc', 'toppaid', 'addons']);
+const STORE_COLLECTIONS = new Set<StoreCollection>(['all-pc', 'toppaid', 'addons', 'deals']);
+const DEALS_CHANNEL = 'DynamicChannel.PCCCGameDeals';
+const DEALS_PAGE_SIZE = 24;
+export const STORE_CATEGORY_CHANNELS: Readonly<Record<StoreCategoryKey, string>> = {
+  'action-adventure': 'DynamicChannel.PCCCPrimaryGenreActionAdventureGames', atmospheric: 'DynamicChannel.PCCCMoodAtmospheric',
+  'card-board': 'DynamicChannel.PCCCPrimaryGenreCardBoardGames', collaborative: 'DynamicChannel.MoodCollaborativePCGA',
+  comedic: 'DynamicChannel.PCCCMoodComedic', competitive: 'DynamicChannel.PCCCMoodCompetitive', cozy: 'DynamicChannel.PCCCMoodCozy',
+  family: 'DynamicChannel.PCCCPrimaryGenreFamilyKidsGames', fighting: 'DynamicChannel.PCCCPrimaryGenreFightingGames',
+  horror: 'DynamicChannel.PCCCMoodHorror', platformer: 'DynamicChannel.PCCCPrimaryGenrePlatformerGames', puzzle: 'DynamicChannel.PCCCPrimaryGenrePuzzleTriviaGames',
+  racing: 'DynamicChannel.PCCCPrimaryGenreRacingFlyingGames', rpg: 'DynamicChannel.PCCCPrimaryGenreRoleplayingGames', shooter: 'DynamicChannel.PCCCPrimaryGenreShooterGames',
+  simulation: 'DynamicChannel.PCCCPrimaryGenreSimulationGames', social: 'DynamicChannel.PCCCSocialCouchCoop', thriller: 'DynamicChannel.MoodThrillerPCGA',
+};
+
+function channelPage(collection: string, market: string, cursor?: string): { skip: number; previous: string[] } {
+  if (!cursor) return { skip: 0, previous: [] };
+  try {
+    if (cursor.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(cursor)) throw Error();
+    const value = object(JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')));
+    if (!value || value.version !== 1 || value.collection !== collection || value.market !== market ||
+      !Number.isSafeInteger(value.skip) || (value.skip as number) < 1 || (value.skip as number) > 2400 || !Array.isArray(value.previous) ||
+      value.previous.length > DEALS_PAGE_SIZE || !value.previous.length ||
+      value.previous.some(id => typeof id !== 'string' || !/^[A-Z0-9]{12}$/.test(id)) || new Set(value.previous).size !== value.previous.length) throw Error();
+    return { skip: value.skip as number, previous: value.previous as string[] };
+  } catch { throw Error('The Store collection paging cursor is invalid.'); }
+}
 
 function collectionPage(collection: StoreCollection, market: string, cursor?: string): StoreCollectionPage {
   if (!cursor) return { version: 1, collection, market, ...(collection === 'toppaid' ? { page: 1 } : {}) };
@@ -580,6 +604,7 @@ export class CatalogService {
    * was Durable. Missing/malformed service data fails without fabricated rows. */
   async collection(collection: StoreCollection, rawMarket: string, cursor?: string): Promise<CatalogSearchResult> {
     if (!STORE_COLLECTIONS.has(collection)) throw Error('Unknown Store collection.');
+    if (collection === 'deals') return this.channel('deals', DEALS_CHANNEL, normalizeMarket(rawMarket), cursor);
     const market = normalizeMarket(rawMarket), page = collectionPage(collection, market, cursor);
     const cacheKey = `collection\u0000${market}\u0000${collection}\u0000${cursor ?? ''}`;
     const cached = this.cache.get(cacheKey);
@@ -614,6 +639,60 @@ export class CatalogService {
       }
       value.hasMore = true;
     }
+    if (this.cache.size >= 100) this.cache.delete(this.cache.keys().next().value!);
+    this.cache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
+    return structuredClone(value);
+  }
+
+  /** The 2612 collection service's anonymous, service-ranked Deals channel.
+   * Channel membership is distinct from a purchase license or a usable PC package.
+   * Public product metadata enriches only these exact returned IDs. */
+  async category(category: StoreCategoryKey, rawMarket: string, cursor?: string): Promise<CatalogSearchResult> {
+    if (typeof category !== 'string' || !Object.hasOwn(STORE_CATEGORY_CHANNELS, category)) throw Error('Unknown Store category.');
+    return this.channel(`category:${category}`, STORE_CATEGORY_CHANNELS[category], normalizeMarket(rawMarket), cursor);
+  }
+
+  private async channel(collection: string, channelId: string, market: string, cursor?: string): Promise<CatalogSearchResult> {
+    const page = channelPage(collection, market, cursor), cacheKey = `${collection}\u0000${market}\u0000${cursor ?? ''}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached && cached.expires > Date.now()) return structuredClone(cached.value);
+    const url = new URL(`https://reef.xboxservices.com/channels/${channelId}/browse`);
+    for (const [key, value] of Object.entries({ market, language: 'en-US', pageSize: String(DEALS_PAGE_SIZE), skipItems: String(page.skip) })) url.searchParams.set(key, value);
+    const response = await this.fetcher(url, { headers: { Accept: 'application/json', 'MS-CV': `${randomBytes(16).toString('base64').replace(/=+$/, '')}.0` },
+      credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) { await response.body?.cancel(); throw Error(`Microsoft Store deals returned HTTP ${response.status}.`); }
+    const channel = object(await boundedCatalogJson(response));
+    const ids = channel?.productIds;
+    if (!channel || channel.channelId !== channelId || typeof channel.title !== 'string' || !channel.title.trim() ||
+      /failed to get channel/i.test(channel.title) || !Number.isSafeInteger(channel.totalItems) || (channel.totalItems as number) < 0 ||
+      !Array.isArray(ids) || ids.length > DEALS_PAGE_SIZE || ids.some(id => typeof id !== 'string' || !/^[A-Z0-9]{12}$/.test(id)) ||
+      new Set(ids).size !== ids.length || ids.length > (channel.totalItems as number) || !ids.length && page.skip < (channel.totalItems as number)) throw Error('Microsoft Store did not return a verified deals channel.');
+    if (ids.length && page.previous.length && ids.every(id => page.previous.includes(id))) throw Error('Microsoft Store collection pagination did not advance.');
+    const catalog = ids.length ? await this.details(ids, market, true) : { Products: [] };
+    const records = new Map((Array.isArray(catalog.Products) ? catalog.Products : []).flatMap(entry => {
+      const product = object(entry), id = string(product?.ProductId)?.toUpperCase();
+      return id && product ? [[id, product] as const] : [];
+    }));
+    const products: CatalogProduct[] = ids.flatMap(id => {
+      const product = records.get(id);
+      if (!product || product.ProductType !== 'Game') return [];
+      const localized = Array.isArray(product.LocalizedProperties) ? object(product.LocalizedProperties[0]) : undefined;
+      const title = string(localized?.ProductTitle)?.slice(0, 512);
+      if (!title) return [];
+      const images = Array.isArray(localized?.Images) ? localized.Images.filter(image => object(image)).slice(0, 200) as DisplayCatalogImage[] : [];
+      const properties = object(product.Properties), marketProperties = Array.isArray(product.MarketProperties) ? object(product.MarketProperties[0]) : undefined;
+      return [{ productId: id, primaryProductId: primaryGameProductId(id, records), title,
+        description: (string(localized?.ProductDescription) ?? '').slice(0, 64_000), publisher: string(localized?.PublisherName)?.slice(0, 512),
+        posterUrl: displayImage(images, POSTER_PURPOSES), heroUrl: displayImage(images, HERO_PURPOSES),
+        storeUrl: `https://www.microsoft.com/store/productId/${id}`,
+        categories: (Array.isArray(properties?.Categories) ? properties.Categories : []).flatMap(value => string(value)?.slice(0, 80) ?? []).slice(0, 12),
+        releaseDate: string(marketProperties?.OriginalReleaseDate), ...packageSupport(id, records) }];
+    });
+    if (ids.length && !products.length) throw Error('Microsoft Store deals metadata could not be loaded.');
+    const next = page.skip + ids.length, hasMore = ids.length > 0 && next < (channel.totalItems as number) && next <= 2400;
+    const value: CatalogSearchResult = { query: channel.title.slice(0, 256), market, products, hasMore,
+      cursor: hasMore ? Buffer.from(JSON.stringify({ version: 1, collection, market, skip: next, previous: ids })).toString('base64url') : undefined,
+      fetchedAt: new Date().toISOString(), source: 'Microsoft Store' };
     if (this.cache.size >= 100) this.cache.delete(this.cache.keys().next().value!);
     this.cache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
     return structuredClone(value);

@@ -112,6 +112,32 @@ export function navigationTarget<T>(from: Rect, targets: readonly { value: T; re
   return best;
 }
 
+/** The console header and content have different columns. Cross only at a
+ * vertical region edge, retaining the content control that the player left.
+ * Ordinary geometry still owns movement inside each region. */
+export function consoleNavigationHandoff<T>(request: {
+  direction: Direction; origin: 'header' | 'content'; from: Rect;
+  targets: readonly { value: T; rect: Rect }[]; remembered?: T;
+  modal: boolean; editable: boolean;
+}): T | undefined {
+  const { direction, origin, from, targets, remembered, modal, editable } = request;
+  if (modal || editable || (origin === 'content' ? direction !== 'up' : direction !== 'down')) return;
+  if (origin === 'header' && remembered !== undefined && targets.some(target => target.value === remembered)) return remembered;
+  const fromCenter = (from.top + from.bottom) / 2;
+  let forward = targets.filter(({ rect }) => direction === 'up'
+    ? (rect.top + rect.bottom) / 2 < fromCenter : (rect.top + rect.bottom) / 2 > fromCenter);
+  if (!forward.length) return;
+  // Enter the first content row rather than a distant, horizontally aligned
+  // card. Header controls belong to one navigation band and can differ in size.
+  if (origin === 'header') {
+    const top = Math.min(...forward.map(({ rect }) => rect.top));
+    forward = forward.filter(({ rect }) => Math.abs(rect.top - top) < 2);
+  }
+  const centerX = (from.left + from.right) / 2;
+  return [...forward].sort((a, b) => Math.abs((a.rect.left + a.rect.right) / 2 - centerX)
+    - Math.abs((b.rect.left + b.rect.right) / 2 - centerX))[0]?.value;
+}
+
 type Options = {
   mode: (active: boolean) => void; back: () => void; page: (delta: number) => void; activateOnFocus?: boolean;
   subscribeInput?: (dispatch: (action: PadAction) => void) => () => void;
@@ -150,6 +176,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
   const inputs = new Map<string, PadInput>();
   const returns = new WeakMap<Element, HTMLElement>();
   const sidebarReturns = new WeakMap<Element, HTMLElement>();
+  const consoleContentReturns = new WeakMap<Element, HTMLElement>();
   const deferredFrames = new Set<number>();
   let active = false, stopped = false, frame = 0, nativeRepairFrame = 0, previousTime = 0;
   let scope: HTMLElement | Document = doc;
@@ -425,7 +452,7 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
           return;
         }
         const actionRow = direction === 'left' || direction === 'right' ? element.closest<HTMLElement>('[data-gamepad-action-row]') : undefined;
-        const region = scope === doc ? actionRow ?? element.closest<HTMLElement>('[data-gamepad-grid],[data-gamepad-filters],[data-gamepad-library-header],[data-gamepad-library-footer],[data-gamepad-detail],.page-scroll,.topbar') ?? scope : scope;
+        const region = scope === doc ? actionRow ?? element.closest<HTMLElement>('[data-gamepad-grid],[data-gamepad-filters],[data-gamepad-library-header],[data-gamepad-library-footer],[data-gamepad-detail],.page-scroll,.topbar,[data-console-navigation]') ?? scope : scope;
         const choose = (root: HTMLElement | Document) => navigationTarget(focusBox(element).getBoundingClientRect(), candidates(root).filter(target => target !== element)
           .map(target => ({ value: target, rect: focusBox(target).getBoundingClientRect() })), direction, root === actionRow);
         let target = choose(region);
@@ -471,6 +498,31 @@ export function installGamepadNavigation(win: Window, options: Options): () => v
               // leaving a game detail must not reselect/reset its Library page.
               focus(target);
               return;
+            }
+          }
+        }
+        if (!target && scope === doc && (direction === 'up' || direction === 'down')) {
+          const shell = element.closest<HTMLElement>('.app-shell');
+          const header = shell?.querySelector<HTMLElement>(':scope > [data-console-navigation]');
+          const content = shell?.querySelector<HTMLElement>(':scope > .content-shell > .page-scroll');
+          if (header && content && visible(header)) {
+            const inHeader = header.contains(element), inContent = content.contains(element);
+            if (inHeader || inContent) {
+              const remembered = consoleContentReturns.get(header);
+              const viewport = content.getBoundingClientRect();
+              const targets = candidates(inHeader ? content : header).filter(candidate => {
+                if (!inHeader || candidate === remembered) return true;
+                const rect = focusBox(candidate).getBoundingClientRect();
+                return rect.bottom > viewport.top && rect.top < viewport.bottom && rect.right > viewport.left && rect.left < viewport.right;
+              });
+              target = consoleNavigationHandoff({
+                direction, origin: inHeader ? 'header' : 'content', from: focusBox(element).getBoundingClientRect(),
+                targets: targets.map(candidate => ({ value: candidate, rect: focusBox(candidate).getBoundingClientRect() })),
+                remembered: inHeader && remembered && content.contains(remembered) && enabled(remembered) ? remembered : undefined,
+                modal: currentScope() !== doc,
+                editable: element.matches('input,textarea,select') || element.isContentEditable,
+              });
+              if (target && inContent) consoleContentReturns.set(header, element);
             }
           }
         }

@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { createContext, runInContext } from 'node:vm';
 import { expect, it, vi } from 'vitest';
 import ts from 'typescript';
+import { fullscreenHomeInstanceData } from './shortcut-launch.js';
 
 // Execute the actual integration with fake windows and wallet adapters. No
 // Electron, system bus, provider, account request or real profile is opened.
@@ -37,6 +38,7 @@ function fixture() {
     accountRefreshKey: vi.fn(() => 'same-backend'), emitSnapshot: vi.fn(), refreshAccount: vi.fn(async () => {}), requireBackend: vi.fn(() => '/fixture/engine'),
     ensureIdle: vi.fn(), ipcMain: { handle: vi.fn() }, startupError: undefined, pathMigration: undefined,
     app: { requestSingleInstanceLock: vi.fn(() => true) }, startupRequest: {}, shortcutInstanceData: vi.fn(() => ({ fixture: true })),
+    pendingFullscreenHome: false, fullscreenHomeInstanceData,
     showLauncher: vi.fn(async (valid: () => boolean) => { if (!valid()) throw Error('cancelled'); context.mainWindow ??= new Window(); context.mainWindow.visible = true; context.shortcutOnly = false; }),
   });
   runInContext(code, context); context.registerWalletIpc();
@@ -97,4 +99,10 @@ it.each(['primary', 'secondary', 'throw', 'startup-error', 'demo'])('holds the m
   if (scenario === 'throw') await expect(f.context.claimLauncherInstance()).rejects.toThrow('synthetic');
   else expect(await f.context.claimLauncherInstance()).toBe(['primary', 'demo'].includes(scenario));
   expect(order).toEqual(['startup-error', 'demo'].includes(scenario) ? ['release'] : ['claim', 'release']); expect(release).toHaveBeenCalledOnce();
+});
+it('preserves the explicit fullscreen home intent while acquiring the profile singleton', async () => {
+  const f = fixture(); f.context.pendingFullscreenHome = true;
+  expect(await f.context.claimLauncherInstance()).toBe(true);
+  expect(f.context.app.requestSingleInstanceLock).toHaveBeenCalledWith({ fixture: true,
+    xboksFullscreenHome: { schema: 1, requested: true } });
 });

@@ -7,6 +7,7 @@ import {LoaderCircle} from 'lucide-react';
 import {useBackHandler} from './GamepadNavigation';
 import {useReferenceLocale} from './ReferenceLocale';
 import {observeConsoleSession} from './ConsoleStream';
+import {inertSettingsBackground} from './SettingsFrame';
 import './console-library.css';
 
 type Bridge = Partial<ConsoleStreamApi>;
@@ -32,10 +33,9 @@ export function ConsoleLibrary({auth, close, signIn, bridge = typeof window === 
   useEffect(() => {
     mounted.current = true;
     const previous = document.activeElement as HTMLElement | null;
-    const background = [...document.querySelectorAll<HTMLElement>('.app-shell > .sidebar,.app-shell > .content-shell')], inert = background.map(node => node.inert);
-    background.forEach(node => {node.inert = true;});
+    const restoreBackground = inertSettingsBackground(document.querySelector<HTMLElement>('.app-shell'));
     root.current?.querySelector<HTMLButtonElement>('.console-library-close')?.focus();
-    return () => {mounted.current = false; generation.current++; pending.current = undefined; background.forEach((node, index) => {node.inert = inert[index];}); if (previous?.isConnected) previous.focus({preventScroll: true});};
+    return () => {mounted.current = false; generation.current++; pending.current = undefined; restoreBackground(); if (previous?.isConnected) previous.focus({preventScroll: true});};
   }, []);
   async function load(refresh: boolean) {
     if (pending.current) return;

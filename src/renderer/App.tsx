@@ -35,9 +35,15 @@ import { installationReadiness } from '../shared/installation-state';
 import { ShellHeaderControls, ShellClock, observeWindowFullscreen, shellIsFullscreen, type WindowFullscreenState } from './ShellHeaderControls';
 import { BatteryStatus } from './BatteryStatus';
 import { DesktopHeader, DesktopSidebar, desktopPrimaryPages } from './DesktopChrome';
+import { useDesktopDock } from './desktop-dock';
+import { NewExperienceHome } from './NewExperienceHome';
+import { DesktopApps, useAppsLibraryPreference } from './DesktopApps';
 import { FriendsDock } from './FriendsDock';
 import { XboxModeHome } from './XboxModeHome';
+import { XboxModeNavigation, xboxModePrimaryPages } from './XboxModeNavigation';
+import { SettingsV2RouteOnly } from './settings-v2';
 import { xboxSocialAccountKey, type XboxSocialRoute } from './XboxSocialPanel';
+import type { XboxFriend } from '../shared/xbox-social';
 import { OriginalSettings } from './OriginalSettings';
 import { InstallSettings } from './InstallSettings';
 import { AudioSettings } from './AudioSettings';
@@ -212,61 +218,8 @@ function useGameLaunchOptions(game: Game | undefined, data: AppSnapshot): GameLa
   return options;
 }
 
-export function HomePage({ data, go, action, openGame, openProduct }: {
-  data: AppSnapshot; go: (page: Page) => void; action: (fn: () => Promise<unknown>, success?: string) => void;
-  openGame?: (id: string) => void;
-  openProduct?: (product: CatalogProduct) => void;
-}) {
-  const { text } = useReferenceLocale();
-  const [catalog, setCatalog] = useState<CatalogSearchResult>();
-  const [catalogError, setCatalogError] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    window.launcher.getFeaturedCatalog().then(result => { if (!cancelled) setCatalog(result); })
-      .catch(() => { if (!cancelled) setCatalogError(true); });
-    return () => { cancelled = true; };
-  }, []);
-  const games = data.games.slice(0, 6);
-  const products = catalog?.products ?? [];
-  const art = games[0]?.heroUrl ?? games[0]?.coverUrl ?? products[0]?.heroUrl;
-  const selectGame = (game: Game) => openGame ? openGame(game.id) : go('library');
-  return <main className="page home-page dashboard-home" style={art ? { '--home-art': `url(${JSON.stringify(art)})` } as React.CSSProperties : undefined}>
-    <section className="jump-back" aria-labelledby="jump-back-title">
-      <h1 id="jump-back-title">{text('Jump back in', 'Επιστροφή')}</h1>
-      <div className="jump-back-row">{games[0] ? <>
-        <button className="resume-tile" onClick={() => selectGame(games[0])} title={games[0].title}><Cover game={games[0]} variant="hero" /><span><GameTitle title={games[0].title} /><StatePill game={games[0]} /></span></button>
-        {games.length > 1 ? <div className="resume-group" role="group" aria-label="More recent games">{games.slice(1, 5).map(game => <button key={game.id} onClick={() => selectGame(game)} title={game.title} aria-label={game.title}><Cover game={game} /><GameTitle title={game.title} /></button>)}</div> : null}
-      </> : <button className="resume-empty" onClick={() => go('library')}><Library /><strong>Your next game starts here</strong><span>Open your library to import or install a game</span></button>}</div>
-    </section>
-    <section className="home-featured" aria-labelledby="home-featured-title">
-      <h2 id="home-featured-title">{text('Featured', 'Επιλεγμένα')}</h2>
-      <div className="home-feature-grid">
-        <button className="home-feature-tile" onClick={() => games[0] ? selectGame(games[0]) : go('store')}>
-          {art ? <img src={art} alt="" /> : <div className="feature-fallback"><Gamepad2 /></div>}
-          <span className="feature-copy"><strong>{games[0]?.title ?? 'Discover your next favorite'}</strong><span>{games[0] ? 'Play now' : 'Explore PC games in the Store'}</span></span>
-        </button>
-        <button className="home-feature-tile" data-product-id={products[0]?.productId} onClick={() => products[0] && openProduct ? openProduct(products[0]) : go('store')}>
-          {products[0]?.heroUrl || products[0]?.posterUrl ? <img src={products[0].heroUrl ?? products[0].posterUrl} alt="" /> : <div className="feature-fallback discovery-fallback"><Store /></div>}
-          <span className="feature-copy"><strong>{products[0]?.title ?? 'Find something new to play'}</strong><span>Browse the live PC catalog</span></span>
-        </button>
-        <div className="home-feature-stack">{[0].map(index => {
-          const product = products[index + 1];
-          const image = product?.heroUrl ?? product?.posterUrl;
-          return <button className="home-feature-tile utility-tile" key={index} data-product-id={product?.productId} onClick={() => product && openProduct ? openProduct(product) : go(product || index === 0 ? 'store' : 'library')}>
-            {image ? <img src={image} alt="" /> : index === 0 ? <Store /> : <Library />}
-            <span className="feature-copy"><strong>{product?.title ?? (index === 0 ? 'Explore PC games' : 'Your library')}</strong><span>{product?.publisher ?? (index === 0 ? 'Discover the Store catalog' : 'Find your next game')}</span></span>
-          </button>;
-        })}</div>
-      </div>
-    </section>
-    <section className="home-discover" aria-labelledby="home-discover-title">
-      <div className="home-discover-heading"><h2 id="home-discover-title">{text('Discover PC games', 'Ανακαλύψτε παιχνίδια υπολογιστή')}</h2><p>{text('Explore the Microsoft Store catalog', 'Ανακαλύψτε τον κατάλογο του Microsoft Store')}</p></div>
-      {products.length ? <div className="home-catalog-row">{products.slice(0, 8).map(product => <button className="home-product" key={product.productId} data-product-id={product.productId} onClick={() => openProduct ? openProduct(product) : go('store')}>
-        {product.heroUrl || product.posterUrl ? <img src={product.heroUrl ?? product.posterUrl} alt="" loading="lazy" /> : <div className="cover-placeholder"><Gamepad2 /></div>}<span>{product.purchasePrice ? <small className="home-product-price">{product.purchasePrice}</small> : null}<GameTitle title={product.title} />{product.includedWith ? <small className="home-product-plan">{product.includedWith}</small> : null}<small>{product.publisher ?? 'Microsoft Store'}</small></span>
-      </button>)}</div> : <div className="home-catalog-state" role="status">{catalogError ? <><CircleAlert /><span>Store highlights are unavailable. Your local library is still available.</span><button className="secondary" onClick={() => go('store')}>Open Store</button></> : <><LoaderCircle className="spin" /><span>Loading Store highlights…</span></>}</div>}
-    </section>
-    {games[0]?.installState === 'ready' && data.backend.capabilities.run && (data.settings.winePath || data.runtime.winePath) ? <button className="primary home-launch" onClick={() => action(() => window.launcher.launchGame(games[0].id))}><Play />Launch {games[0].title}</button> : null}
-  </main>;
+export function HomePage(props: Parameters<typeof NewExperienceHome>[0]) {
+  return <NewExperienceHome {...props}/>;
 }
 
 export function StoreProductCard({ product, selected, select }: {
@@ -282,7 +235,7 @@ export function StoreProductCard({ product, selected, select }: {
   </article>;
 }
 
-function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct, back, openGame, clearSearch }: { initialProduct?: CatalogProduct; openProduct?: (product: CatalogProduct) => void; back?: () => void; openGame?: (id: string) => void; clearSearch?: () => void; data: AppSnapshot; toast: (value: Toast) => void; go: (page: Page) => void; initialQuery: string }) {
+function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct, back, openGame, clearSearch, deferPageBack = false }: { deferPageBack?: boolean; initialProduct?: CatalogProduct; openProduct?: (product: CatalogProduct) => void; back?: () => void; openGame?: (id: string) => void; clearSearch?: () => void; data: AppSnapshot; toast: (value: Toast) => void; go: (page: Page) => void; initialQuery: string }) {
   const startPackageInstall = usePackageInstall();
   const [selected, setSelected] = useState<CatalogProduct | undefined>(initialProduct);
   const [busy, setBusy] = useState<string>();
@@ -301,7 +254,7 @@ function StorePage({ data, toast, go, initialQuery, initialProduct, openProduct,
   }
   const installed = selected ? installedCatalogGame(selected, data.games) : undefined;
   const operation = selected ? data.downloads.find(task => task.productId.toUpperCase() === selected.productId.toUpperCase() || task.productId.toUpperCase() === selected.installProductId?.toUpperCase()) : undefined;
-  return <><XboxStorePage active={!selected} data={data} initialQuery={initialQuery} clearSearch={clearSearch} openProduct={selectProduct}
+  return <><XboxStorePage deferPageBack={deferPageBack} active={!selected} data={data} initialQuery={initialQuery} clearSearch={clearSearch} openProduct={selectProduct}
     openLibrary={() => go('library')} openAccount={() => go('settings')} toast={toast} />
   {selected ? <CatalogDetails key={selected.productId} product={selected} data={data} back={back ?? (() => setSelected(undefined))}
     install={() => void install(selected)} busy={busy === selected.productId}
@@ -572,14 +525,16 @@ export function GameLaunchToolFields({ value, change }: { value: GameLaunchTools
   </fieldset>;
 }
 
-export function LibraryPage({ data, toast, filters, onFiltersChange, selection, view: selectedView, onView, openProduct, openGame, backToOrigin }: Pick<AccountGamesProps, 'data' | 'toast' | 'filters' | 'onFiltersChange' | 'openProduct'> & { selection?: { id: string }; view?: LibraryView; onView?: (view: LibraryView) => void; openGame?: (id: string) => void; backToOrigin?: () => void }) {
+export function LibraryPage({ data, toast, filters, onFiltersChange, selection, view: selectedView, onView, openProduct, openGame, backToOrigin, consoleMode = false, onBrowseGames }: Pick<AccountGamesProps, 'data' | 'toast' | 'filters' | 'onFiltersChange' | 'openProduct'> & { selection?: { id: string }; view?: LibraryView; onView?: (view: LibraryView) => void; openGame?: (id: string) => void; backToOrigin?: () => void; consoleMode?: boolean; onBrowseGames?: () => void }) {
   const { text } = useReferenceLocale();
   const confirm = useConfirmation();
   const [localView, setLocalView] = useState<LibraryView>('games');
   const view = selectedView ?? localView;
   const changeView = onView ?? setLocalView;
+  const showApps = useAppsLibraryPreference();
+  useEffect(() => {if (!showApps && view === 'apps') changeView('installed');}, [showApps, view, changeView]);
   const { collections, update: updateCollections } = useLibraryCollections(data.auth);
-  const collectionGames = view === 'later' ? data.games.filter(game => collections.later.includes(game.id)) : view === 'history' ? data.games.filter(game => collections.history[game.id]) : data.games;
+  const collectionGames = view === 'installed' ? data.games.filter(game => game.installState === 'ready') : view === 'later' ? data.games.filter(game => collections.later.includes(game.id)) : view === 'history' ? data.games.filter(game => collections.history[game.id]) : data.games;
   const [selectedId, setSelectedId] = useState<string | undefined>(selection?.id);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number }>();
   const [dialogGame, setDialogGame] = useState<{ id: string; kind: 'settings' | 'remove' }>();
@@ -778,11 +733,11 @@ export function LibraryPage({ data, toast, filters, onFiltersChange, selection, 
     </>} /> : null;
   return <main ref={pageRef} className={`page library-page${detailOpen && selected ? ' library-detail-open' : ''}`}>
     <div hidden={Boolean(detailOpen && selected)}>
-    <LibraryTabs active={view} select={changeView} />
+    <div className="library-navigation-row"><LibraryTabs active={view} select={changeView} showInstalled showApps={showApps} showLater={consoleMode || view === 'later'} highDensity={!consoleMode} queueInDock={!consoleMode} /><button type="button" className="library-add-game" aria-label={text('Import game', 'Προσθήκη παιχνιδιού')} onClick={() => void importGame()}><Plus/></button></div>
     <h1 className="sr-only">My Library</h1>
     <div className="library-layout" role="tabpanel" aria-labelledby={`library-tab-${view}`}>
-      <AccountGamesForUser data={{ ...data, games: collectionGames }} toast={toast} filters={view === 'games' ? filters : undefined} onFiltersChange={view === 'games' ? onFiltersChange : undefined} selectedId={selected?.id} select={selectGame} menu={openMenu} openProduct={openProduct} onImport={importGame} onCheckUpdates={() => void checkUpdates()} checkingUpdates={gameBusy || Object.values(data.gameUpdates ?? {}).some(update => update.checking)} lastPlayed={collections.history} localOnly={view !== 'games'} />
-      {view !== 'games' && !collectionGames.length ? <p className="library-collection-empty">{view === 'later' ? 'Add games to Play later from their Options menu.' : 'Games launched through XBOKS will appear here. History is stored on this device.'}</p> : null}
+      {view === 'apps' ? <DesktopApps onError={message => toast({kind:'error',message})}/> : view === 'installed' && !collectionGames.length ? <div className="library-installed-empty"><h2>{text('Games installed on this device will show here', 'Τα εγκατεστημένα παιχνίδια θα εμφανίζονται εδώ')}</h2><p>{text('Install a game to get started', 'Εγκαταστήστε ένα παιχνίδι για να ξεκινήσετε')}</p><button className="primary" disabled={!onBrowseGames} onClick={onBrowseGames}>{text('Browse games', 'Περιήγηση σε παιχνίδια')}</button></div> : <AccountGamesForUser data={{ ...data, games: collectionGames }} toast={toast} filters={view === 'games' ? filters : undefined} onFiltersChange={view === 'games' ? onFiltersChange : undefined} selectedId={selected?.id} select={selectGame} menu={openMenu} openProduct={openProduct} onCheckUpdates={() => void checkUpdates()} checkingUpdates={gameBusy || Object.values(data.gameUpdates ?? {}).some(update => update.checking)} lastPlayed={collections.history} localOnly={view !== 'games'} />}
+      {view !== 'games' && view !== 'apps' && view !== 'installed' && !collectionGames.length ? <p className="library-collection-empty">{view === 'later' ? 'Add games to Play later from their Options menu.' : 'Games launched through XBOKS will appear here. History is stored on this device.'}</p> : null}
     </div>
     </div>
     {selectedPanel}
@@ -910,15 +865,15 @@ function ToggleStatus({ ok, label }: { ok: boolean; label: string }) {
   return <span className={`dependency ${ok ? 'ok' : ''}`}>{ok ? <Check /> : <X />}{label}</span>;
 }
 
-export function SettingsPage({ data, toast, close = () => {}, initialSection = 'account' }: { data: AppSnapshot; toast: (value: Toast) => void; close?: () => void; initialSection?: SettingsSection }) {
+export function SettingsPage({ data, toast, close = () => {}, initialSection = 'account', consoleMode = false, onRemotePlay, onCloud, onProfile, onHelp }: { data: AppSnapshot; toast: (value: Toast) => void; close?: () => void; initialSection?: SettingsSection; consoleMode?: boolean; onRemotePlay?: () => void; onCloud?: () => void; onProfile?: () => void; onHelp?: () => void }) {
   const locale = useReferenceLocale();
   const confirm = useConfirmation();
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [appearance, setAppearance] = useState(loadAppearance);
-  async function requestClose() {
+  async function requestClose(afterClose: () => void = close) {
     if (busy) return;
     if (JSON.stringify(form) !== JSON.stringify(data.settings) && !await confirm({ title: 'Discard unsaved settings?', message: 'Unsaved installation and runtime settings will be discarded.', confirmLabel: 'Discard changes' })) return;
-    close();
+    afterClose();
   }
   function appearanceChange(patch: Partial<typeof appearance>) {
     const next = { ...appearance, ...patch }; setAppearance(next);
@@ -951,7 +906,7 @@ export function SettingsPage({ data, toast, close = () => {}, initialSection = '
   const caps = data.backend.capabilities;
   const runtimeInfo = runtimeDisplay(data.runtime);
   const runtimeArchiveTools = data.runtime.prerequisites.tar && data.runtime.prerequisites.sha512sum;
-  return <SettingsFrame language={locale.language} active={section} select={setSection} close={() => void requestClose()} busy={Boolean(busy)}>
+  return <SettingsFrame signedIn={data.auth.stored === true && !data.auth.running} canSignOut={data.backend.capabilities.logout && !data.auth.running} onSignOut={() => void invoke('logout', () => window.launcher.logout())} onSignIn={() => void invoke('login', () => window.launcher.login())} onViewProfile={onProfile ? () => void requestClose(onProfile) : undefined} onHelpFeedback={onHelp ? () => void requestClose(onHelp) : undefined} developerEnabled={appearance.developerOptions} profile={data.auth.stored === true && !data.auth.running ? {gamertag: data.auth.gamertag ?? data.auth.username, avatarDataUrl: data.auth.avatarDataUrl} : undefined} consoleMode={consoleMode} onRemotePlay={onRemotePlay ? () => void requestClose(onRemotePlay) : undefined} onCloud={onCloud ? () => void requestClose(onCloud) : undefined} language={locale.language} active={section} select={setSection} close={() => void requestClose()} busy={Boolean(busy)}>
     <fieldset className="original-settings-fieldset" disabled={Boolean(busy)}><OriginalSettings language={locale.language} languagePreference={locale.preference} changeLanguage={locale.setPreference}
       closeSocialSurface={() => window.dispatchEvent(new Event('xboks-close-social'))}
       editAccount={() => { const pane = document.getElementById('account-session-controls') as HTMLDetailsElement | null; if (pane) { pane.open = true; pane.scrollIntoView({ block: 'nearest' }); pane.querySelector<HTMLElement>('button:not(:disabled)')?.focus(); } }}
@@ -959,7 +914,7 @@ export function SettingsPage({ data, toast, close = () => {}, initialSection = '
       gameBar={() => { if (window.desktopGuide) void invoke('game-bar', () => window.desktopGuide!.toggle()); }}
       notificationChange={value => { void invoke('notification-preference', () => window.launcher.updateSettings({ downloadNotifications: value })); }} /></fieldset>
     {section === 'audio' ? <AudioSettings /> : null}
-    {section === 'application' ? <CloudRegionSettings inline value={data.settings.cloudLoginCountry} save={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}
+    {section === 'application' ? <SettingsV2RouteOnly routes={['streaming']}><CloudRegionSettings inline value={data.settings.cloudLoginCountry} save={country => window.launcher.updateSettings({cloudLoginCountry: country})}/></SettingsV2RouteOnly> : null}
 
     <section className="settings-card compact launcher-card" hidden={section !== 'about'}>
       {data.launcherUpdate?.phase ? <p>{data.launcherUpdate.phase}</p> : null}
@@ -976,13 +931,13 @@ export function SettingsPage({ data, toast, close = () => {}, initialSection = '
       </div>
     </section>
 
-    <details id="account-session-controls" className="settings-card account-card original-account-session" hidden={section !== 'account'}><summary>{locale.text('Account sign-in and session', 'Σύνδεση και συνεδρία λογαριασμού')}</summary>
+    <SettingsV2RouteOnly routes={['profile']}><details id="account-session-controls" className="settings-card account-card original-account-session" hidden={section !== 'account'}><summary>{locale.text('Account sign-in and session', 'Σύνδεση και συνεδρία λογαριασμού')}</summary>
       <div className="settings-heading"><AccountAvatar auth={data.auth} large /><div><span className="overline">MICROSOFT ACCOUNT</span><h2>{data.auth.gamertag ?? data.auth.username ?? (data.auth.stored === false ? 'Not signed in' : 'Account status unavailable')}</h2><p>{data.auth.stored === true ? 'Signed in on this computer' : 'Sign in with your Microsoft account'}</p></div><span className={`status-label ${data.auth.stored === true ? 'ready' : data.auth.stored === false ? 'off' : 'unknown'}`}><StatusDot tone={data.auth.stored === true ? 'green' : data.auth.stored === false ? 'red' : 'amber'} />{data.auth.stored === true ? 'STORED' : data.auth.stored === false ? 'SIGNED OUT' : 'UNKNOWN'}</span></div>
       <div className="account-note"><CircleAlert /><span>{data.auth.note}</span></div>
       <KeyringSetup compact disabled={data.auth.running} />
       <div className="button-row"><button className="primary" disabled={!caps.login || data.auth.running} onClick={() => invoke('login', () => window.launcher.login(), 'Microsoft sign-in completed.')}>{data.auth.running ? <LoaderCircle className="spin" /> : <LogIn />}{data.auth.stored ? 'Sign in again' : 'Sign in with Microsoft'}</button><button className="secondary" disabled={!caps.logout || data.auth.running || data.auth.stored === false} onClick={() => invoke('logout', () => window.launcher.logout(), 'Stored account credentials were removed.')}>Sign out</button><button className="secondary" disabled={!caps.account || data.auth.running} onClick={() => invoke('account', () => window.launcher.refreshAccount())}><RefreshCw />Refresh status</button></div>
       <PasskeySignInNotice />
-    </details>
+    </details></SettingsV2RouteOnly>
 
     {section === 'install' ? <InstallSettings data={data} disabled={Boolean(busy)} working={value => setBusy(value ? 'install-preferences' : undefined)} /> : null}
     <details className="engine-settings-extra" hidden={section !== 'install'}><summary>{locale.text('XBOKS Engine / Proton settings', 'Ρυθμίσεις XBOKS Engine / Proton')}</summary>
@@ -1094,24 +1049,38 @@ export function FirstRunWizard({ data, toast }: { data: AppSnapshot; toast: (val
   </div>;
 }
 
-export function GlobalSearch({ games, page, query, change, submit, select }: {
+export function GlobalSearch({ games, page, query, change, submit, select, auth, onPerson }: {
   games: Game[]; page: Page; query: string; change: (value: string) => void;
   submit: (value: string) => void; select: (id: string) => void;
+  auth?: AppSnapshot['auth']; onPerson?: (person: {xuid: string; gamertag: string}) => void;
 }) {
   const { text } = useReferenceLocale();
   const [open, setOpen] = useState(false);
+  const [peopleState, setPeopleState] = useState<{owner: string; query: string; people: XboxFriend[]}>();
   useEffect(() => setOpen(false), [page]);
   const term = query.trim().toLowerCase();
+  const owner = xboxSocialAccountKey(auth ?? emptySnapshot.auth);
+  useEffect(() => {
+    if (!onPerson || auth?.stored !== true || auth.running || page === 'cloud' || term.length < 2 || term.length > 64) {setPeopleState(undefined); return;}
+    let current = true;
+    const timer = setTimeout(() => {
+      window.launcher.searchXboxPeople(query.trim()).then(value => {
+        if (current) setPeopleState({owner, query: term, people: value.status === 'ready' && value.capabilities.search ? (value.friends ?? []).slice(0, 5) : []});
+      }).catch(() => {if (current) setPeopleState({owner, query: term, people: []});});
+    }, 300);
+    return () => {current = false; clearTimeout(timer);};
+  }, [owner, term, page, Boolean(onPerson)]);
+  const people = peopleState?.owner === owner && peopleState.query === term ? peopleState.people : [];
   const results = term ? games.filter(game => `${game.title} ${game.storeId ?? ''}`.toLowerCase().includes(term)) : [];
-  const visible = open && page !== 'store' && page !== 'cloud' && results.length > 0;
+  const visible = open && page !== 'cloud' && (page !== 'store' && results.length > 0 || people.length > 0);
   return <div className="search-box" onFocus={() => setOpen(true)} onBlur={event => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false);
   }}><Search /><input value={query} onChange={event => { change(event.target.value); setOpen(true); }} onKeyDown={event => {
     if (event.key === 'Escape') setOpen(false);
     if (event.key === 'Enter' && term.length >= 2) { setOpen(false); submit(query.trim()); }
-  }} aria-expanded={visible} aria-controls={visible ? 'global-search-results' : undefined} placeholder={page === 'cloud' ? text('Search cloud games', 'Αναζήτηση παιχνιδιών cloud') : text('Search for games, add-ons and more', 'Αναζήτηση για παιχνίδια, πρόσθετα και άλλα')} />
+  }} aria-expanded={visible} aria-controls={visible ? 'global-search-results' : undefined} placeholder={page === 'cloud' ? text('Search cloud games', 'Αναζήτηση παιχνιδιών cloud') : text('Search for games, people, and more', 'Αναζήτηση για παιχνίδια, άτομα και άλλα')} />
     {query ? <button aria-label="Clear search" onClick={() => { change(''); setOpen(false); }}><X /></button> : null}
-    {visible ? <div className="search-results" id="global-search-results">{results.map(game => <button key={game.id} onClick={() => { setOpen(false); change(''); select(game.id); }}><Cover game={game} /><span><GameTitle title={game.title} /><small>{game.storeId ?? game.path}</small></span></button>)}</div> : null}
+    {visible ? <div className="search-results" id="global-search-results">{page !== 'store' ? results.map(game => <button key={game.id} onClick={() => { setOpen(false); change(''); select(game.id); }}><Cover game={game} /><span><GameTitle title={game.title} /><small>{game.storeId ?? game.path}</small></span></button>) : null}{people.length ? <><strong className="search-result-heading">{text('People', 'Άτομα')}</strong>{people.map(person => <button key={person.xuid} data-search-person={person.xuid} onClick={() => {setOpen(false); change(''); onPerson?.({xuid: person.xuid, gamertag: person.gamertag});}}><CircleUserRound/><span><GameTitle title={person.gamertag}/>{person.activity ? <small>{person.activity}</small> : null}</span></button>)}</> : null}</div> : null}
   </div>;
 }
 
@@ -1130,12 +1099,14 @@ export default function App() {
   const [toast, setToast] = useState<Toast>();
   const [search, setSearch] = useState('');
   const [cloudSearch, setCloudSearch] = useState('');
-  const [libraryView, setLibraryView] = useState<LibraryView>('games');
+  const [libraryView, setLibraryView] = useState<LibraryView>('installed');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('account');
   const [shellPanel, setShellPanel] = useState<ShellPanel>();
   const [socialRoute, setSocialRoute] = useState<(XboxSocialRoute & { accountKey: string })>();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const {collapsed: sidebarCollapsed, setCollapsed: setSidebarCollapsed} = useDesktopDock();
   const [modeTransitionPending, setModeTransitionPending] = useState(false);
+  const [consoleSearchOpen, setConsoleSearchOpen] = useState(false);
+  const [consoleArtwork, setConsoleArtwork] = useState<string>();
   const [windowDisplay, setWindowDisplay] = useState<WindowFullscreenState>({ documentFullscreen: false, nativeFullscreen: false });
   useEffect(() => { const observer = observeWindowFullscreen(document, window.launcher, setWindowDisplay); return () => observer.stop(); }, []);
   const sessionFullscreen = data.desktopSettings?.fullscreenExperience === true || data.fullscreenExperience?.active === true;
@@ -1243,6 +1214,7 @@ export default function App() {
   }
   function navigate(next: Page) {
     setShellPanel(undefined);
+    setConsoleSearchOpen(false);
     if (next === 'settings') { setSettingsSection('account'); setPage(next); return; }
     if (next !== contentPage || catalogProduct || librarySelection) rememberLocation();
     setCatalogProduct(undefined); setLibrarySelection(undefined);
@@ -1252,6 +1224,7 @@ export default function App() {
     document.querySelector('.page-scroll')?.scrollTo({ top: 0 });
   }
   function openCatalogProduct(product: CatalogProduct) {
+    setConsoleSearchOpen(false);
     rememberLocation(); setShellPanel(undefined); if (contentPage !== 'store') setSubmittedSearch('');
     setCatalogProduct(product); setPage('store');
     document.querySelector('.page-scroll')?.scrollTo({ top: 0 });
@@ -1266,10 +1239,12 @@ export default function App() {
     setSocialRoute({ ...route, accountKey: socialAccount }); setShellPanel('friends');
   }
   function focusSearch() {
-    navigate('store'); setSubmittedSearch('');
+    if (contentPage !== 'cloud') { navigate('store'); setSubmittedSearch(''); }
+    if (consoleMode) setConsoleSearchOpen(true);
     requestAnimationFrame(() => document.querySelector<HTMLInputElement>('.search-box input')?.focus());
   }
   function back() {
+    if (consoleSearchOpen) { setConsoleSearchOpen(false); return; }
     if (shellPanel) { setShellPanel(undefined); return; }
     if (page === 'settings') { setPage(previousPage.current); return; }
     const previous = history.at(-1);
@@ -1310,28 +1285,28 @@ export default function App() {
     return () => { finish(); cancelAnimationFrame(frame); };
   }, [returnPoint]);
 
-  const globalSearch = <GlobalSearch games={data.games} page={contentPage} query={contentPage === 'cloud' ? cloudSearch : search} change={value => contentPage === 'cloud' ? setCloudSearch(value) : setSearch(value)} submit={value => { if (contentPage === 'cloud') {setCloudSearch(value); return;} rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} />;
+  const globalSearch = <GlobalSearch auth={data.auth} onPerson={person => openSocial({peer:person})} games={data.games} page={contentPage} query={contentPage === 'cloud' ? cloudSearch : search} change={value => contentPage === 'cloud' ? setCloudSearch(value) : setSearch(value)} submit={value => { if (contentPage === 'cloud') {setCloudSearch(value); return;} rememberLocation(); setCatalogProduct(undefined); setSubmittedSearch(value); setPage('store'); }} select={openLibraryGame} />;
   const modeControls = <ShellHeaderControls sessionFullscreen={consoleMode} integrationAvailable={data.fullscreenExperience?.available} onTransition={setModeTransitionPending} onError={message => setToast({ kind: 'error', message })} onNotice={message => setToast({ kind: 'info', message })} />;
   const consoleStatus = <><button className="console-desktop-return" onClick={() => void window.launcher.setWindowFullscreen(false).catch(() => setToast({ kind: 'error', message: t('Could not return to the desktop. Try again.', 'Δεν ήταν δυνατή η επιστροφή στην επιφάνεια εργασίας. Δοκιμάστε ξανά.') }))} aria-label={t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας')} title={t('Return to desktop', 'Επιστροφή στην επιφάνεια εργασίας')}><MonitorPlay /></button><BatteryStatus /><ShellClock /></>;
   if (loading) return <div className="boot"><div className="brand-mark">X</div><LoaderCircle className="spin" /><span>Loading XBOKS</span></div>;
-  return <ConfirmationProvider><PackageInstallProvider><div className={`app-shell ${consoleMode ? `xbox-mode console-experience${consoleHome ? ' console-home' : ''}` : 'desktop-experience'}`} data-desktop-collapsed={sidebarCollapsed ? '' : undefined}>
+  return <ConfirmationProvider><PackageInstallProvider><div className={`app-shell ${consoleMode ? `xbox-mode console-experience${consoleHome ? ' console-home' : ''}` : 'desktop-experience'}`} data-desktop-collapsed={sidebarCollapsed ? '' : undefined} data-shell-mode={consoleMode ? 'console' : 'desktop'} style={consoleMode && consoleArtwork ? { '--console-art': `url(${JSON.stringify(consoleArtwork)})` } as React.CSSProperties : undefined}>
     {!data.settings.firstRunCompleted ? <FirstRunWizard data={data} toast={(value) => setToast(value)} /> : null}
-    {!consoleMode ? <><DesktopHeader data={data} search={globalSearch} controls={modeControls} collapsed={sidebarCollapsed} onCollapsed={() => setSidebarCollapsed(value => !value)} onPanel={openPanel} back={page !== 'home' ? () => { if (!dispatchBackHandlers(window, document)) back(); } : undefined} /><DesktopSidebar page={page} go={navigate} onPanel={openPanel} collapsed={sidebarCollapsed} social={<FriendsDock auth={data.auth} openFriends={tab => openSocial({ tab })} openAccount={() => openSettings('account')} onOpenPeer={peer => openSocial({ peer })} />} queue={<InstallQueueShortcut downloads={data.downloads} games={data.games} active={page === 'downloads'} openQueue={() => navigate('downloads')} />} /></> : !consoleHome ? <Sidebar data={data} page={page} go={navigate} openGame={openLibraryGame} onPanel={openPanel} /> : null}
+    {!consoleMode ? <><DesktopHeader data={data} search={globalSearch} controls={modeControls} collapsed={sidebarCollapsed} onCollapsed={setSidebarCollapsed} onPanel={openPanel} back={page !== 'home' ? () => { if (!dispatchBackHandlers(window, document)) back(); } : undefined} /><DesktopSidebar page={page} go={navigate} onPanel={openPanel} collapsed={sidebarCollapsed} social={<FriendsDock auth={data.auth} openFriends={tab => openSocial({ tab })} openAccount={() => openSettings('account')} onOpenPeer={peer => openSocial({ peer })} />} queue={<InstallQueueShortcut downloads={data.downloads} games={data.games} active={page === 'downloads'} openQueue={() => navigate('downloads')} />} /></> : <XboxModeNavigation data={data} page={page === 'settings' ? 'settings' : contentPage} go={navigate} onSearch={focusSearch} onAccount={() => openPanel('account')} onPanel={openPanel} back={contentPage !== 'home' ? () => { if (!dispatchBackHandlers(window, document)) back(); } : undefined} status={consoleStatus} />}
 
     <section className={`content-shell${contentPage === 'home' ? ' home-shell' : ''}`} style={contentPage === 'home' && (data.games[0]?.heroUrl || data.games[0]?.coverUrl) ? { '--shell-art': `url(${JSON.stringify(data.games[0].heroUrl ?? data.games[0].coverUrl)})` } as React.CSSProperties : undefined}>
-      {consoleMode && !consoleHome ? <header className="topbar"><button className="shell-back" aria-label="Back" onClick={() => { if (!dispatchBackHandlers(window, document)) back(); }}><ChevronLeft /></button>{globalSearch}{modeControls}</header> : null}
-      <div className="page-scroll">{contentPage === 'home' ? consoleMode ? <XboxModeHome data={data} go={navigate} openGame={openLibraryGame} openProduct={openCatalogProduct} onSearch={focusSearch} onCustomize={() => openSettings('accessibility')} onAccount={() => openPanel('account')} status={consoleStatus} /> : <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage query={cloudSearch} onQueryChange={setCloudSearch} auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => openSocial()}/> : null}{contentPage === 'gamepass' ? <GamePassPage data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /> : null}{contentPage === 'store' ? <StorePage clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
+      {consoleMode && consoleSearchOpen ? <div className="console-search-surface"><h1>{contentPage === 'cloud' ? t('Search cloud games', 'Αναζήτηση παιχνιδιών cloud') : t('Search', 'Αναζήτηση')}</h1>{globalSearch}<button className="console-search-close" aria-label={t('Close search', 'Κλείσιμο αναζήτησης')} onClick={() => setConsoleSearchOpen(false)}><X /></button></div> : null}
+      <div className="page-scroll">{contentPage === 'home' ? consoleMode ? <XboxModeHome hideHeader onArtworkChange={setConsoleArtwork} data={data} go={navigate} openGame={openLibraryGame} openProduct={openCatalogProduct} onSearch={focusSearch} onCustomize={() => openSettings('accessibility')} onAccount={() => openPanel('account')} status={consoleStatus} /> : <HomePage data={data} go={navigate} action={action} openGame={openLibraryGame} openProduct={openCatalogProduct} /> : null}{contentPage === 'cloud' ? <CloudLibraryPage deferPageBack={consoleMode && consoleSearchOpen} query={cloudSearch} onQueryChange={setCloudSearch} auth={data.auth} signIn={() => openSettings('account')} country={data.settings.cloudLoginCountry} saveCountry={country => window.launcher.updateSettings({cloudLoginCountry: country})}/> : null}{contentPage === 'profile' ? <ProfilePage auth={data.auth} games={data.games} openGame={openLibraryGame} achievementsSupported={data.backend.capabilities.achievements === true} refresh={() => window.launcher.refreshXboxProfile()} settings={() => openSettings('account')} friends={() => openSocial()}/> : null}{contentPage === 'gamepass' || history.some(location => location.page === 'gamepass') ? <div className="game-pass-cache" hidden={contentPage !== 'gamepass'} style={contentPage !== 'gamepass' ? {display: 'none'} : undefined}><GamePassPage active={contentPage === 'gamepass' && page !== 'settings' && !shellPanel && !guideOpen && !consoleSearchOpen} data={data} go={navigate} select={openCatalogProduct} playLater={() => switchLibraryView('later')} /></div> : null}{contentPage === 'store' ? <StorePage deferPageBack={consoleMode && consoleSearchOpen} clearSearch={() => setSubmittedSearch('')} data={data} toast={setToast} go={navigate} initialQuery={submittedSearch} initialProduct={catalogProduct} openProduct={openCatalogProduct} back={back} openGame={openLibraryGame} /> : null}{contentPage === 'library' ? <LibraryPage consoleMode={consoleMode} onBrowseGames={() => navigate('store')} data={data} toast={setToast} filters={libraryFilters} onFiltersChange={changeLibraryFilters} selection={librarySelection} view={libraryView} onView={switchLibraryView} openProduct={openCatalogProduct} openGame={openLibraryGame} backToOrigin={back} /> : null}{contentPage === 'downloads' ? <DownloadsPage data={data} toast={setToast} onView={switchLibraryView} installOptions={() => openSettings('install')} onDetails={task => {
       const game = data.games.find(game => game.id === task.gameId || game.storeId === task.productId);
       if (game) { setLibraryView('games'); openLibraryGame(game.id); }
       else { const product = queuedCatalogProduct(task); if (product) openCatalogProduct(product); else setToast({ kind: 'error', message: 'This queue entry has no Product ID.' }); }
     }} /> : null}</div>
     </section>
-    {page === 'settings' ? <SettingsPage key={settingsSection} initialSection={settingsSection} data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}
+    {page === 'settings' ? <SettingsPage consoleMode={consoleMode} onRemotePlay={() => { setPage(previousPage.current); openPanel('remote-play'); }} onCloud={() => navigate('cloud')} onProfile={() => navigate('profile')} onHelp={() => { setPage(previousPage.current); openPanel('support'); }} key={settingsSection} initialSection={settingsSection} data={data} toast={setToast} close={() => setPage(previousPage.current)} /> : null}
     {toast ? <div className={`toast ${toast.kind}`}>{toast.kind === 'success' ? <Check /> : toast.kind === 'error' ? <CircleAlert /> : <Terminal />}<span>{toast.message}</span><button onClick={() => setToast(undefined)}><X /></button></div> : null}
-  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel === 'remote-play' ? <ConsoleLibrary auth={data.auth} close={() => setShellPanel(undefined)} signIn={() => {setShellPanel(undefined); openSettings('account');}} /> : shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} socialRoute={socialRoute?.accountKey === socialAccount ? socialRoute : undefined} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<RemotePlayHost/><CloudGamingHost/><CloudStreamHost/><ConsoleStreamHost/><StreamModals/><GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
+  </div>{data.gameOperation?.kind === 'launch' && ['preparing', 'failed'].includes(data.gameOperation.status) && dismissedLaunch !== `${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}` ? <LaunchExperience key={`${data.gameOperation.id}:${data.gameOperation.startedAt}:${data.gameOperation.status}`} operation={data.gameOperation} game={data.games.find(game => game.id === data.gameOperation?.gameId)} close={() => setDismissedLaunch(`${data.gameOperation!.id}:${data.gameOperation!.startedAt}:${data.gameOperation!.status}`)} /> : null}{shellPanel === 'remote-play' ? <ConsoleLibrary auth={data.auth} close={() => setShellPanel(undefined)} signIn={() => {setShellPanel(undefined); openSettings('account');}} /> : shellPanel ? <ShellFlyout panel={shellPanel} data={data} close={() => setShellPanel(undefined)} go={navigate} settings={openSettings} remotePlay={() => setShellPanel('remote-play')} socialRoute={socialRoute?.accountKey === socialAccount ? socialRoute : undefined} /> : null}{guideOpen ? <GuideOverlay data={data} tab={guideTab} setTab={setGuideTab} close={() => setGuideOpen(false)} go={setPage} openGame={openLibraryGame} /> : null}<RemotePlayHost/><CloudGamingHost/><CloudStreamHost/><ConsoleStreamHost/><StreamModals/><GamepadNavigation back={() => { if (guideOpen) setGuideOpen(false); else back(); }} page={delta => {
     if (guideOpen) { setGuideTab(current => cycleGuideTab(current, delta)); return; }
     if (page === 'settings') { window.dispatchEvent(new CustomEvent('xboks-settings-section', { detail: delta })); return; }
-    const pages: readonly Page[] = desktopPrimaryPages;
+    const pages: readonly Page[] = consoleMode ? xboxModePrimaryPages : desktopPrimaryPages;
     const index = pages.indexOf(contentPage);
     navigate(index === -1 ? pages[delta > 0 ? 0 : pages.length - 1] : pages[(index + delta + pages.length) % pages.length]);
   }} /></PackageInstallProvider></ConfirmationProvider>;

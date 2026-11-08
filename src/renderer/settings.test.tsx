@@ -21,7 +21,7 @@ const openingTag = (html: string) => html.slice(0,html.indexOf('>')+1);
 
 describe('Settings diagnostics and Engine disclosure integration', () => {
   it('does not call an unpublished development build the latest published release', () => {
-    const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} />);
+    const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} initialSection="about" />);
     expect(html).toContain(`<h2>${demoSnapshot().launcherUpdate?.currentVersion}</h2>`);
     expect(html).not.toContain('latest published release');
     expect(html).toContain('Check GitHub for launcher updates.');
@@ -57,22 +57,24 @@ describe('Settings diagnostics and Engine disclosure integration', () => {
     expect(extra).not.toContain('Install / update backend'); expect(extra).not.toContain('Install upstream snapshot');
   });
   it('keeps actionable setup errors outside nested diagnostics and unsupported account sign-in disabled', () => {
-    const data = demoSnapshot(); data.backend.capabilities.login = false;
+    const data = demoSnapshot(); data.backend.capabilities.login = false; data.auth.stored = false;
     data.backend.blockReason = 'Cargo is missing. Install it before building.'; data.runtime.error = 'SHA-512 verification failed.';
     const html = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} />);
     const session = account(html), extra=nexus(html), visibleSetup = extra.replace(diagnostics(extra),'');
     expect(openingTag(session)).not.toMatch(/\bopen(?:[\s=>])/);
     expect(visibleSetup).toContain(data.backend.blockReason); expect(visibleSetup).toContain(data.runtime.error);
-    const signInButton = [...session.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(match=>match[0].includes('Sign in again'))?.[0];
+    const signInButton = [...session.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/g)].find(match=>match[0].includes('Sign in with Microsoft'))?.[0];
     expect(signInButton).toBeDefined(); expect(openingTag(signInButton!)).toContain('disabled=""');
   });
   it('keeps account session controls separate from provider settings and Proton controls accessible under Engine', () => {
     const html = renderToStaticMarkup(<SettingsPage data={demoSnapshot()} toast={() => {}} initialSection="install" />);
     expect(html).toContain('role="dialog" aria-modal="true" aria-label="Settings"');
-    expect(html).toContain('aria-orientation="vertical"'); expect(html).toContain('Install options');
+    expect(html).toContain('aria-orientation="vertical"'); expect(html).toContain('Storage');
     const extra=nexus(html);
     expect(extra).toContain('Managed Proton compatibility runtime'); expect(extra).toContain('Wine / Proton binary');
-    expect(extra).not.toContain('Sign in again'); expect(account(html)).toContain('Sign in again');
-    expect(html).toContain('data-gamepad-cancel'); expect(html).toContain('id="settings-tab-install"');
+    expect(extra).not.toContain('Sign in again');
+    const signedOut = demoSnapshot(); signedOut.auth.stored = false;
+    expect(account(renderToStaticMarkup(<SettingsPage data={signedOut} toast={() => {}} initialSection="account" />))).toContain('Sign in with Microsoft');
+    expect(html).toContain('data-gamepad-cancel'); expect(html).toContain('id="settings-v2-tab-system"');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { applicationControlState, changeCompactMode, OriginalSettings, SettingToggle } from './OriginalSettings';
+import { applicationControlState, changeCompactMode, OriginalSettings, SettingToggle, readShowMyAppsPreference, saveShowMyAppsPreference } from './OriginalSettings';
 import { handleSettingsBack, SettingsFrame } from './SettingsFrame';
 import { loadAppearance, saveAppearance, type Appearance } from './appearance';
 import { demoSnapshot } from '../shared/demo-data';
@@ -74,33 +74,30 @@ describe('Original category layout and truthful service states', () => {
   expect(subscriptions).not.toContain('renewal failed');
   expect(subscriptions.indexOf('XBOX GAME PASS')).toBeLessThan(subscriptions.indexOf('Connected accounts'));
   const notifications = render('notifications');
-  expect((notifications.match(/disabled=""/g) ?? []).length).toBe(4);
+  expect((notifications.match(/disabled=""/g) ?? []).length).toBe(5);
   expect(notifications).toContain('Notify me when a game download finishes');
-  expect(notifications.match(/<details\b[^>]*>[\s\S]*?<\/details>/)?.[0]).toContain('Notify me when a game download finishes');
+  expect(notifications).toContain('Show achievement notifications');
   const account = render('account');
   expect(account).toContain('https://account.xbox.com/settings');
   expect(account).toContain('Managed by Xbox privacy settings');
   expect(render('about')).not.toContain('F900D9D175867DF5');
  });
- it('shows exactly the five captured providers, actual logos, and extension status only for EA and Ubisoft', () => {
-  const html = render('library');
-  const names=['EA App','Epic Games Store','GOG GALAXY','Steam','Ubisoft Connect PC'];
-  const cards=[...html.matchAll(/<button[^>]*class="settings-reference-provider-card"[\s\S]*?<\/button>/g)].map(match=>match[0]);
-  expect(cards).toHaveLength(5);
-  cards.forEach((card,index)=>expect(card).toContain(names[index]));
-  for(const id of ['ea','epic','gog','steam','ubisoft']) expect(html).toContain(`./original-xbox/providers/${id}.png`);
-  expect(cards.filter(card=>card.includes('Extension: not connected'))).toHaveLength(2);
-  expect(html).not.toContain('Battle.net'); expect(html).not.toContain('Riot Client');
-  expect(html).not.toContain('Automatically start extensions'); expect(html).not.toContain('Show hidden games');
-  expect(html).toContain('Digital license history');
-  expect(html).not.toContain('Account connected');
-  expect(html).toContain('Add a game');
+ it('shows the observed seven compatible providers without inventing detection or account connection', () => {
+  const html=render('library');
+  const names=['Battle.net','Steam','Ubisoft Connect','EA app','Epic Games Store','GOG GALAXY','Riot Games'];
+  const cards=[...html.matchAll(/<button[^>]*class="settings-v2-provider-card"[\s\S]*?<\/button>/g)].map(match=>match[0]);
+  expect(cards).toHaveLength(7);cards.forEach((card,index)=>expect(card).toContain(names[index]));
+  for(const id of ['battlenet','steam','ubisoft','ea','epic','gog','riot'])expect(html).toContain(`./original-xbox/providers/${id}.png`);
+  expect(html).toContain('Detected apps');expect(html).toContain('Compatible apps');expect(html).toContain('Checking installed apps');
+  expect(html).not.toContain('Account connected');expect(html).not.toContain('Disconnected');
+  expect(html).not.toContain('Automatically start extensions');expect(html).toContain('Add a game');
  });
- it('retains the original five accessibility choices and hides capability explanations from visual row flow', () => {
-  const html = render('accessibility');
-  expect(html).toContain('Show video previews on hover');
-  expect(html).toContain('Show accessibility features on game card hover');
-  expect((html.match(/disabled=""/g) ?? []).length).toBe(4); // three service preferences + unavailable OS settings link
+ it('uses the observed inline accessibility controls and all four motion levels without adding a hover metadata preference', () => {
+  const html=render('accessibility');
+  expect(html).toContain('Show video preview on hover');expect(html).toContain('Show themes on profiles');
+  expect(html).not.toContain('Show accessibility features on game card hover');
+  for(const value of ['auto','full','simple','off'])expect(html).toContain(`value="${value}"`);
+  expect((html.match(/disabled=""/g)??[]).length).toBe(3);
   expect(html).toContain('class="settings-control-reason"');
  });
  it('gives Greek controls unique accessible explanations, even when labels are repeated', () => {
@@ -110,7 +107,7 @@ describe('Original category layout and truthful service states', () => {
  });
  it('localizes the category rail and original settings without translating provider brands', () => {
   const html=renderToStaticMarkup(<SettingsFrame active="library" select={()=>{}} close={()=>{}} busy={false} language="el">{render('library',demoSnapshot(),'el')}</SettingsFrame>);
-  for(const text of ['Ρυθμίσεις','Βιβλιοθήκη και επεκτάσεις','Συγκεντρωτική βιβλιοθήκη','Ιστορικό ψηφιακών αδειών','GOG GALAXY']) expect(html).toContain(text);
+  for(const text of ['Ρυθμίσεις','Εφαρμογές','Εντοπισμένες εφαρμογές','Συμβατές εφαρμογές','GOG GALAXY']) expect(html).toContain(text);
   expect(render('application',demoSnapshot(),'el')).toContain('Εμφάνιση ποσοστού ένδειξης μπαταρίας');
  });
  it('uses connected Xbox identity separately from Store identity and never shows stale profile data after sign-out', () => {
@@ -151,4 +148,16 @@ it('migrates, persists and applies appearance without clearing the battery prefe
   expect(attributes.has('data-fullscreen-experience')).toBe(false);
   saved='null'; expect(loadAppearance().reduceMotion).toBe(false);
  } finally { vi.unstubAllGlobals(); }
+});
+
+it('persists My apps visibility and announces only saved changes to the library', () => {
+ let value: string | null=null;const events: Array<{type:string;detail:boolean}>=[];
+ vi.stubGlobal('localStorage',{getItem:()=>value,setItem:(key:string,next:string)=>{expect(key).toBe('xboks.library.show-apps');value=next;}});
+ vi.stubGlobal('window',{dispatchEvent:(event:CustomEvent<boolean>)=>{events.push({type:event.type,detail:event.detail});}});
+ try {
+  expect(readShowMyAppsPreference()).toBe(true);expect(saveShowMyAppsPreference(false)).toBe(true);expect(readShowMyAppsPreference()).toBe(false);
+  expect(events).toEqual([{type:'xboks-library-apps-changed',detail:false}]);
+  vi.stubGlobal('localStorage',{getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('blocked');}});
+  expect(readShowMyAppsPreference()).toBe(true);expect(saveShowMyAppsPreference(true)).toBe(false);expect(events).toHaveLength(1);
+ } finally {vi.unstubAllGlobals();}
 });

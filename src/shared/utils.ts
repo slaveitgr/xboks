@@ -40,9 +40,10 @@ export function parseBackendHelp(help: string): BackendCapabilities {
 }
 
 export function stripAnsi(value: string): string {
-  // ANSI CSI/OSC sequences emitted by indicatif and tracing.
+  // Stop each OSC at its first terminator so visible hyperlink labels and
+  // progress text between adjacent terminal sequences are preserved.
   return value
-    .replace(/\u001b\][^\u0007]*(?:\u0007|\u001b\\)/g, '')
+    .replace(/\u001b\](?:[^\u0007\u001b]|\u001b(?!\\))*(?:\u0007|\u001b\\)/g, '')
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '')
     .replace(/\r/g, '\n');
 }

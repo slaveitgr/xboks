@@ -385,6 +385,9 @@ export interface CatalogSearchResult {
   source: 'Microsoft Store';
 }
 
+export type StoreCategoryKey = 'action-adventure' | 'atmospheric' | 'card-board' | 'collaborative' | 'comedic' | 'competitive' | 'cozy' | 'family'
+  | 'fighting' | 'horror' | 'platformer' | 'puzzle' | 'racing' | 'rpg' | 'shooter' | 'simulation' | 'social' | 'thriller';
+
 export interface AccountLibraryPage {
   kind: 'all' | 'owned' | 'gamepass';
   products: (CatalogProduct & { access: 'owned' | 'gamepass' })[];
@@ -392,6 +395,18 @@ export interface AccountLibraryPage {
   cursor?: string;
   checkedAt: string;
   skippedEntitlements?: number;
+}
+
+export interface DesktopAppEntry {
+  id: string;
+  name: string;
+  description?: string;
+  iconDataUrl?: string;
+}
+export interface DesktopAppsResult {
+  available: boolean;
+  apps: DesktopAppEntry[];
+  reason?: string;
 }
 
 export type GuideAudio = { available: true; volume: number; muted: boolean } | { available: false; reason: string };
@@ -443,6 +458,8 @@ export interface LauncherApi extends CloudStreamApi, ConsoleStreamApi {
   setRemotePlayObscured(obscured: boolean): Promise<void>;
   getBatteryPercentage(): Promise<number | null>;
   getLibraryProviders(): Promise<import('./library-providers.js').LibraryProviderStatus[]>;
+  getDesktopApps(): Promise<DesktopAppsResult>;
+  launchDesktopApp(id: string): Promise<void>;
   getGuideAudio(): Promise<GuideAudio>;
   setGuideAudio(patch: { volume?: number; muted?: boolean }): Promise<GuideAudio>;
   getGuideMixer(): Promise<import('./guide-mixer.js').GuideMixerState>;
@@ -483,7 +500,8 @@ export interface LauncherApi extends CloudStreamApi, ConsoleStreamApi {
   logout(): Promise<void>;
   searchCatalog(query: string, cursor?: string): Promise<CatalogSearchResult>;
   getFeaturedCatalog(): Promise<CatalogSearchResult>;
-  getStoreCollection(collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string): Promise<CatalogSearchResult>;
+  getStoreCollection(collection: 'all-pc' | 'toppaid' | 'addons' | 'deals', cursor?: string): Promise<CatalogSearchResult>;
+  getStoreCategory(category: StoreCategoryKey, cursor?: string): Promise<CatalogSearchResult>;
   getCatalogDetails(productId: string): Promise<GameStoreDetails | undefined>;
   getAccountLibrary(kind: AccountLibraryPage['kind'], cursor?: string, refresh?: boolean): Promise<AccountLibraryPage>;
   startInstall(request: InstallRequest): Promise<string>;

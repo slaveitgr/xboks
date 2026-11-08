@@ -15,9 +15,11 @@ describe('alternative browser sign-in', () => {
   });
   it.each(['settings', 'wizard'])('disables sign-in during authentication or with an incompatible backend in %s', location => {
     for (const running of [true, false]) {
-      const data = demoSnapshot(); data.auth.running = running; data.backend.capabilities.login = running;
+      const data = demoSnapshot(); data.auth.stored = false; data.auth.running = running; data.backend.capabilities.login = running;
       const html = renderToStaticMarkup(location === 'settings' ? <SettingsPage data={data} toast={() => {}} /> : <FirstRunWizard data={data} toast={() => {}} />);
-      expect(html).toMatch(/<button[^>]*disabled=""[^>]*><svg[^]*?Sign in again<\/button>/);
+      const buttons = [...html.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/g)].filter(match => /(?:Sign in with Microsoft|>Sign in)(?:<|$)/.test(match[2]));
+      expect(buttons.length).toBeGreaterThan(0);
+      for (const button of buttons) expect(button[1]).toContain('disabled=""');
     }
   });
 });

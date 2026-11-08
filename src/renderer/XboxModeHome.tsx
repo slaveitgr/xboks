@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import type { AppSnapshot, CatalogProduct, Game, Page } from '../shared/types';
-import { CircleUserRound, Cloud, Gamepad2, GamePassBadge, Library, Search, Settings, Store } from './XboxIcons';
-import { SubscriptionBadge } from './SubscriptionBadge';
+import { Cloud, Gamepad2, GamePassBadge, Library, Settings, Store } from './XboxIcons';
+import { XboxModeNavigation } from './XboxModeNavigation';
 import { useReferenceLocale } from './ReferenceLocale';
 import './xbox-mode-home.css';
 
@@ -63,6 +63,8 @@ export interface XboxModeHomeProps extends Navigation {
   status?: ReactNode;
   /** Optional public metadata for previews or an already loaded catalog. */
   catalog?: readonly CatalogProduct[];
+  hideHeader?: boolean;
+  onArtworkChange?: (artwork: string | undefined) => void;
 }
 
 function Artwork({ source, className = '' }: { source?: string; className?: string }) {
@@ -72,14 +74,8 @@ function Artwork({ source, className = '' }: { source?: string; className?: stri
   </span>;
 }
 
-function Avatar({ source }: { source?: string }) {
-  const [failed, setFailed] = useState(false);
-  return <span className="console-home-avatar">{source && !failed
-    ? <img src={source} alt="" onError={() => setFailed(true)} /> : <CircleUserRound />}</span>;
-}
-
-export function XboxModeHome({ data, go, openGame, openProduct, onSearch, onAccount, onCustomize, status, catalog }: XboxModeHomeProps) {
-  const { text, language } = useReferenceLocale();
+export function XboxModeHome({ data, go, openGame, openProduct, onSearch, onAccount, onCustomize, status, catalog, hideHeader = false, onArtworkChange }: XboxModeHomeProps) {
+  const { text } = useReferenceLocale();
   const [fetched, setFetched] = useState<readonly CatalogProduct[]>([]);
   const [catalogState, setCatalogState] = useState<'loading' | 'available' | 'unavailable'>('loading');
   const [selectedKey, setSelectedKey] = useState<string>();
@@ -97,12 +93,7 @@ export function XboxModeHome({ data, go, openGame, openProduct, onSearch, onAcco
   const products = catalog ?? fetched;
   const items = useMemo(() => xboxModeHomeItems(data.games, products), [data.games, products]);
   const selected = items.find(item => item.key === selectedKey) ?? items[0];
-  const signedIn = data.auth.stored === true && !data.auth.running;
-  const account = signedIn ? data.auth.gamertag ?? data.auth.profile?.gamertag ?? data.auth.username
-    ?? text('Your profile', 'Το προφίλ σας') : text('Sign in', 'Σύνδεση');
-  const avatar = signedIn ? data.auth.avatarDataUrl ?? data.auth.profile?.avatarDataUrl : undefined;
-  const score = signedIn ? data.auth.profile?.gamerscore : undefined;
-  const hasScore = typeof score === 'number' && Number.isSafeInteger(score) && score >= 0;
+  useEffect(() => { onArtworkChange?.(selected?.hero); }, [selected?.hero, onArtworkChange]);
   const navigation = { go, openGame, openProduct };
   const featured = products[0];
   const select = (item: XboxModeHomeItem, target?: HTMLButtonElement) => {
@@ -119,22 +110,7 @@ export function XboxModeHome({ data, go, openGame, openProduct, onSearch, onAcco
   return <main className="xbox-mode-home" aria-label={text('Xbox mode Home', 'Αρχική λειτουργίας Xbox')}>
     <div className="console-home-background" aria-hidden="true">{selected?.hero
       ? <img key={selected.hero} src={selected.hero} alt="" onError={event => { event.currentTarget.hidden = true; }} /> : null}</div>
-    <header className="console-home-header">
-      <button className="console-home-account" aria-label={signedIn ? text(`View profile: ${account}`, `Προβολή προφίλ: ${account}`) : account}
-        onClick={onAccount ?? (() => go(signedIn ? 'profile' : 'settings'))}>
-        <Avatar key={avatar ?? 'signed-out'} source={avatar} />
-        <span className="console-home-account-copy"><span><strong>{account}</strong>{signedIn ? <SubscriptionBadge value={data.auth.subscription} /> : null}</span>
-          {hasScore ? <span className="console-home-score" aria-label={text(`Gamerscore ${score}`, `Βαθμολογία παίκτη ${score}`)}><b aria-hidden="true">G</b>{new Intl.NumberFormat(language).format(score)}</span> : null}</span>
-      </button>
-      <nav className="console-home-shortcuts" data-gamepad-action-row="" aria-label={text('Xbox mode navigation', 'Πλοήγηση λειτουργίας Xbox')}>
-        <button title={text('My Library', 'Η βιβλιοθήκη μου')} aria-label={text('My Library', 'Η βιβλιοθήκη μου')} onClick={() => go('library')}><Library /></button>
-        <button title="Store" aria-label="Store" onClick={() => go('store')}><Store /></button>
-        <button title="Game Pass" aria-label="Game Pass" onClick={() => go('gamepass')}><GamePassBadge /></button>
-        <button title={text('Search', 'Αναζήτηση')} aria-label={text('Search', 'Αναζήτηση')} onClick={onSearch}><Search /></button>
-        <button title={text('Settings', 'Ρυθμίσεις')} aria-label={text('Settings', 'Ρυθμίσεις')} onClick={() => go('settings')}><Settings /></button>
-      </nav>
-      <div className="console-home-status xbox-mode-home-status">{status}</div>
-    </header>
+    {!hideHeader ? <XboxModeNavigation data={data} go={go} onSearch={onSearch} onAccount={onAccount} status={status} /> : null}
     <div className="console-home-content">
       <section className="console-home-games" aria-labelledby={`${id}-row-title`}>
         <h2 id={`${id}-row-title`}>{data.games.length ? text('Jump back in', 'Επιστροφή') : text('Discover games', 'Ανακαλύψτε παιχνίδια')}</h2>

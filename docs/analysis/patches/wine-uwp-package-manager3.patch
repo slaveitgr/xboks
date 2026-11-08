@@ -1,0 +1,244 @@
+--- a/include/windows.management.deployment.idl
++++ b/include/windows.management.deployment.idl
+@@ -29,6 +29,7 @@
+     typedef enum DeploymentProgressState DeploymentProgressState;
+     typedef enum PackageInstallState PackageInstallState;
+     typedef enum PackageState PackageState;
++    typedef enum PackageStatus PackageStatus;
+     typedef enum PackageTypes PackageTypes;
+     typedef enum RemovalOptions RemovalOptions;
+ 
+@@ -37,6 +38,7 @@
+     interface IDeploymentResult;
+     interface IPackageManager;
+     interface IPackageManager2;
++    interface IPackageManager3;
+     interface IPackageUserInformation;
+ 
+     interface IPackageVolume;
+@@ -51,6 +53,8 @@
+         interface Windows.Foundation.Collections.IVector<Windows.ApplicationModel.Package *>;
+         interface Windows.Foundation.IAsyncOperation<UINT64>;
+         interface Windows.Foundation.AsyncOperationCompletedHandler<UINT64>;
++        interface Windows.Foundation.IAsyncOperation<Windows.Management.Deployment.PackageVolume *>;
++        interface Windows.Foundation.AsyncOperationCompletedHandler<Windows.Management.Deployment.PackageVolume *>;
+         interface Windows.Foundation.Collections.IIterable<Windows.Management.Deployment.PackageVolume *>;
+         interface Windows.Foundation.Collections.IIterator<Windows.Management.Deployment.PackageVolume *>;
+         interface Windows.Foundation.Collections.IVectorView<Windows.Management.Deployment.PackageVolume *>;
+@@ -87,6 +91,17 @@
+         RetainFilesOnFailure            = 0x200000,
+         [contract(Windows.Foundation.UniversalApiContract, 10.0)]
+         StageInPlace                    = 0x400000,
++    };
++
++    [contract(Windows.Foundation.UniversalApiContract, 1.0)]
++    [flags]
++    enum PackageStatus
++    {
++        OK = 0,
++        LicenseIssue = 1,
++        Modified = 2,
++        Tampered = 4,
++        Disabled = 8,
+     };
+ 
+     [contract(Windows.Foundation.UniversalApiContract, 1.0)]
+@@ -242,6 +257,41 @@
+ 
+     [
+         contract(Windows.Foundation.UniversalApiContract, 1.0),
++        exclusiveto(Windows.Management.Deployment.PackageManager),
++        uuid(daad9948-36f1-41a7-9188-bc263e0dcb72)
++    ]
++    interface IPackageManager3 : IInspectable
++    {
++        HRESULT AddPackageVolumeAsync([in] HSTRING store_path, [out, retval] Windows.Foundation.IAsyncOperation<Windows.Management.Deployment.PackageVolume *> **operation);
++        HRESULT AddPackageToVolumeAsync([in] Windows.Foundation.Uri *uri, [in] Windows.Foundation.Collections.IIterable<Windows.Foundation.Uri *> *dependencies,
++                                       [in] Windows.Management.Deployment.DeploymentOptions options, [in] Windows.Management.Deployment.PackageVolume *volume,
++                                       [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT ClearPackageStatus([in] HSTRING name, [in] Windows.Management.Deployment.PackageStatus status);
++        HRESULT RegisterPackageWithAppDataVolumeAsync([in] Windows.Foundation.Uri *uri, [in] Windows.Foundation.Collections.IIterable<Windows.Foundation.Uri *> *dependencies,
++                                                     [in] Windows.Management.Deployment.DeploymentOptions options, [in] Windows.Management.Deployment.PackageVolume *volume,
++                                                     [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT FindPackageVolumeByName([in] HSTRING name, [out, retval] Windows.Management.Deployment.PackageVolume **volume);
++        HRESULT FindPackageVolumes([out, retval] Windows.Foundation.Collections.IIterable<Windows.Management.Deployment.PackageVolume *> **volumes);
++        HRESULT GetDefaultPackageVolume([out, retval] Windows.Management.Deployment.PackageVolume **volume);
++        HRESULT MovePackageToVolumeAsync([in] HSTRING name, [in] Windows.Management.Deployment.DeploymentOptions options, [in] Windows.Management.Deployment.PackageVolume *volume,
++                                        [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT RemovePackageVolumeAsync([in] Windows.Management.Deployment.PackageVolume *volume,
++                                        [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT SetDefaultPackageVolume([in] Windows.Management.Deployment.PackageVolume *volume);
++        HRESULT SetPackageStatus([in] HSTRING name, [in] Windows.Management.Deployment.PackageStatus status);
++        HRESULT SetPackageVolumeOfflineAsync([in] Windows.Management.Deployment.PackageVolume *volume,
++                                            [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT SetPackageVolumeOnlineAsync([in] Windows.Management.Deployment.PackageVolume *volume,
++                                           [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT StagePackageToVolumeAsync([in] Windows.Foundation.Uri *uri, [in] Windows.Foundation.Collections.IIterable<Windows.Foundation.Uri *> *dependencies,
++                                         [in] Windows.Management.Deployment.DeploymentOptions options, [in] Windows.Management.Deployment.PackageVolume *volume,
++                                         [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++        HRESULT StageUserDataWithOptionsAsync([in] HSTRING name, [in] Windows.Management.Deployment.DeploymentOptions options,
++                                             [out, retval] Windows.Foundation.IAsyncOperationWithProgress<Windows.Management.Deployment.DeploymentResult *, Windows.Management.Deployment.DeploymentProgress> **operation);
++    }
++
++    [
++        contract(Windows.Foundation.UniversalApiContract, 1.0),
+         exclusiveto(Windows.Management.Deployment.PackageUserInformation),
+         uuid(f6383423-fa09-4cbc-9055-15ca275e2e7e)
+     ]
+@@ -332,7 +382,7 @@
+     {
+         [default] interface Windows.Management.Deployment.IPackageManager;
+         [contract(Windows.Foundation.UniversalApiContract, 1.0)] interface Windows.Management.Deployment.IPackageManager2;
+-        /* [contract(Windows.Foundation.UniversalApiContract, 1.0)] interface Windows.Management.Deployment.IPackageManager3; */
++        [contract(Windows.Foundation.UniversalApiContract, 1.0)] interface Windows.Management.Deployment.IPackageManager3;
+         [contract(Windows.Foundation.UniversalApiContract, 3.0)] interface Windows.Management.Deployment.IPackageManager4;
+         /* [contract(Windows.Foundation.UniversalApiContract, 4.0)] interface Windows.Management.Deployment.IPackageManager5; */
+         /* [contract(Windows.Foundation.UniversalApiContract, 5.0)] interface Windows.Management.Deployment.IPackageManager6; */
+--- a/dlls/appxdeploymentclient/package.c
++++ b/dlls/appxdeploymentclient/package.c
+@@ -30,6 +30,7 @@
+ {
+     IPackageManager IPackageManager_iface;
+     IPackageManager2 IPackageManager2_iface;
++    IPackageManager3 IPackageManager3_iface;
+     IPackageManager4 IPackageManager4_iface;
+     LONG ref;
+ };
+@@ -58,6 +59,13 @@
+     if (IsEqualGUID( iid, &IID_IPackageManager2 ))
+     {
+         *out = &impl->IPackageManager2_iface;
++        IInspectable_AddRef( *out );
++        return S_OK;
++    }
++
++    if (IsEqualGUID( iid, &IID_IPackageManager3 ))
++    {
++        *out = &impl->IPackageManager3_iface;
+         IInspectable_AddRef( *out );
+         return S_OK;
+     }
+@@ -517,6 +525,115 @@
+     package_manager4_GetPackageVolumesAsync,
+ };
+ 
++DEFINE_IINSPECTABLE( package_manager3, IPackageManager3, struct package_manager, IPackageManager_iface );
++
++static HRESULT WINAPI package_manager3_FindPackageVolumes( IPackageManager3 *iface, IIterable_PackageVolume **volumes )
++{
++    PROPVARIANT result;
++    HRESULT hr;
++
++    if (!volumes) return E_POINTER;
++    *volumes = NULL;
++    if (FAILED(hr = get_package_volumes( (IUnknown *)iface, NULL, &result, FALSE ))) return hr;
++    hr = IUnknown_QueryInterface( result.punkVal, &IID_IIterable_PackageVolume, (void **)volumes );
++    IUnknown_Release( result.punkVal );
++    return hr;
++}
++
++static HRESULT WINAPI package_manager3_GetDefaultPackageVolume( IPackageManager3 *iface, IPackageVolume **volume )
++{
++    if (!volume) return E_POINTER;
++    *volume = NULL;
++    return package_volume_create( volume );
++}
++
++static HRESULT WINAPI package_manager3_FindPackageVolumeByName( IPackageManager3 *iface, HSTRING name, IPackageVolume **volume )
++{
++    IPackageVolume *candidate;
++    HSTRING known_name;
++    HRESULT hr;
++
++    if (!volume) return E_POINTER;
++    *volume = NULL;
++    if (!name || !WindowsGetStringLen( name )) return E_INVALIDARG;
++    if (FAILED(hr = package_volume_create( &candidate ))) return hr;
++    if (SUCCEEDED(hr = IPackageVolume_get_Name( candidate, &known_name )))
++    {
++        if (WindowsGetStringLen( name ) == WindowsGetStringLen( known_name ) &&
++            !wcsicmp( WindowsGetStringRawBuffer( name, NULL ), WindowsGetStringRawBuffer( known_name, NULL ) ))
++            *volume = candidate;
++        else hr = E_NOTIMPL; /* Other volumes are not represented by this backend yet. */
++        WindowsDeleteString( known_name );
++    }
++    if (!*volume) IPackageVolume_Release( candidate );
++    return hr;
++}
++
++#define MANAGER3_ASYNC_STUB(name, type, ...) \
++    static HRESULT WINAPI package_manager3_##name( IPackageManager3 *iface, __VA_ARGS__, type **operation ) \
++    { \
++        if (!operation) return E_POINTER; \
++        *operation = NULL; \
++        FIXME( "%s is not implemented\n", #name ); \
++        return E_NOTIMPL; \
++    }
++
++MANAGER3_ASYNC_STUB( AddPackageVolumeAsync, IAsyncOperation_PackageVolume, HSTRING path )
++MANAGER3_ASYNC_STUB( AddPackageToVolumeAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress,
++                     IUriRuntimeClass *uri, IIterable_Uri *dependencies, DeploymentOptions options, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( RegisterPackageWithAppDataVolumeAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress,
++                     IUriRuntimeClass *uri, IIterable_Uri *dependencies, DeploymentOptions options, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( MovePackageToVolumeAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress,
++                     HSTRING name, DeploymentOptions options, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( RemovePackageVolumeAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( SetPackageVolumeOfflineAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( SetPackageVolumeOnlineAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( StagePackageToVolumeAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress,
++                     IUriRuntimeClass *uri, IIterable_Uri *dependencies, DeploymentOptions options, IPackageVolume *volume )
++MANAGER3_ASYNC_STUB( StageUserDataWithOptionsAsync, IAsyncOperationWithProgress_DeploymentResult_DeploymentProgress,
++                     HSTRING name, DeploymentOptions options )
++#undef MANAGER3_ASYNC_STUB
++
++static HRESULT WINAPI package_manager3_ClearPackageStatus( IPackageManager3 *iface, HSTRING name, PackageStatus status )
++{
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI package_manager3_SetPackageStatus( IPackageManager3 *iface, HSTRING name, PackageStatus status )
++{
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI package_manager3_SetDefaultPackageVolume( IPackageManager3 *iface, IPackageVolume *volume )
++{
++    return E_NOTIMPL;
++}
++
++static const struct IPackageManager3Vtbl package_manager3_vtbl =
++{
++    package_manager3_QueryInterface,
++    package_manager3_AddRef,
++    package_manager3_Release,
++    package_manager3_GetIids,
++    package_manager3_GetRuntimeClassName,
++    package_manager3_GetTrustLevel,
++    package_manager3_AddPackageVolumeAsync,
++    package_manager3_AddPackageToVolumeAsync,
++    package_manager3_ClearPackageStatus,
++    package_manager3_RegisterPackageWithAppDataVolumeAsync,
++    package_manager3_FindPackageVolumeByName,
++    package_manager3_FindPackageVolumes,
++    package_manager3_GetDefaultPackageVolume,
++    package_manager3_MovePackageToVolumeAsync,
++    package_manager3_RemovePackageVolumeAsync,
++    package_manager3_SetDefaultPackageVolume,
++    package_manager3_SetPackageStatus,
++    package_manager3_SetPackageVolumeOfflineAsync,
++    package_manager3_SetPackageVolumeOnlineAsync,
++    package_manager3_StagePackageToVolumeAsync,
++    package_manager3_StageUserDataWithOptionsAsync,
++};
++
+ static HRESULT WINAPI factory_QueryInterface( IActivationFactory *iface, REFIID iid, void **out )
+ {
+     struct package_manager_statics *impl = impl_from_IActivationFactory( iface );
+@@ -585,6 +702,7 @@
+ 
+     impl->IPackageManager_iface.lpVtbl = &package_manager_vtbl;
+     impl->IPackageManager2_iface.lpVtbl = &package_manager2_vtbl;
++    impl->IPackageManager3_iface.lpVtbl = &package_manager3_vtbl;
+     impl->IPackageManager4_iface.lpVtbl = &package_manager4_vtbl;
+     impl->ref = 1;
+ 

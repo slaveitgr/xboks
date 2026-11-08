@@ -1,8 +1,11 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it, onTestFinished, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { AccountGames, Cover, GameLaunchToolFields, GameTitle, HomePage, LibraryPagination, Sidebar, type LibraryFilters } from './App';
 import { defaultLaunchTools } from '../shared/launch-tools';
-import { demoSnapshot } from '../shared/demo-data';
+import { demoAccountLibrary, demoSnapshot } from '../shared/demo-data';
+import { collectionKey } from './LibraryChrome';
+import { NewExperienceHomeContent } from './NewExperienceHome';
+import type { CatalogProduct } from '../shared/types';
 
 it('keeps My Library and Store alongside the separate Xbox Game Pass destination',()=>{
   const html=renderToStaticMarkup(<Sidebar data={demoSnapshot()} page="library" go={()=>{}} />);
@@ -51,16 +54,31 @@ it('uses Store box art instead of a package logo and wide artwork for details',(
   expect(renderToStaticMarkup(<Cover game={{...game, coverUrl:undefined, heroUrl:undefined}} />)).toContain('cover-local');
 });
 
-it('uses wide Store art for the Home banner and never stretches a small package logo',()=>{
-  const data=demoSnapshot();
-  data.games=[{...data.games[0],coverDataUrl:'data:image/png;base64,SMALLLOGO',coverUrl:'https://store-images.s-microsoft.com/box',heroUrl:'https://store-images.s-microsoft.com/hero'}];
-  const banner=()=>{const html=renderToStaticMarkup(<HomePage data={data} go={()=>{}} action={()=>{}} />);return html.slice(html.indexOf('<section class="home-featured'),html.indexOf('<section class="home-discover'));};
+it('uses wide Store art for Featured Home banners and never stretches a small package logo',()=>{
+  const product:CatalogProduct & {coverDataUrl:string}={...demoAccountLibrary('all',new Map()).products[0],coverDataUrl:'data:image/png;base64,SMALLLOGO',posterUrl:'https://store-images.s-microsoft.com/box',heroUrl:'https://store-images.s-microsoft.com/hero'};
+  const banner=()=>{const html=renderToStaticMarkup(<NewExperienceHomeContent recentGames={[]} products={[product]} catalogStatus="ready" retryCatalog={()=>{}} go={()=>{}} />);return html.match(/<section class="new-home-featured"[\s\S]*?<\/section>/)?.[0] ?? '';};
   expect(banner()).toContain('src="https://store-images.s-microsoft.com/hero"');
   expect(banner()).not.toContain('SMALLLOGO');
-  data.games[0].heroUrl=undefined;
+  product.heroUrl=undefined;
   expect(banner()).toContain('src="https://store-images.s-microsoft.com/box"');
-  data.games[0].coverUrl=undefined;
+  product.posterUrl=undefined;
   expect(banner()).not.toContain('SMALLLOGO');
+  expect(banner()).toContain('new-home-art-fallback');
+});
+
+it('shows installed Home recents only after account-scoped play history was recorded',()=>{
+  const data=demoSnapshot(), key=collectionKey(data.auth);
+  data.games=[{...data.games[0],coverDataUrl:'data:image/png;base64,SMALLLOGO',coverUrl:'https://store-images.s-microsoft.com/box'}];
+  let history:Record<string,number>={};
+  vi.stubGlobal('localStorage',{getItem:(requested:string)=>requested===key?JSON.stringify({later:[],history}):null});
+  onTestFinished(()=>{vi.unstubAllGlobals();});
+  const home=()=>renderToStaticMarkup(<HomePage data={data} go={()=>{}} action={()=>{}} />);
+  expect(home()).not.toContain('new-home-mru');
+  history={[data.games[0].id]:Date.UTC(2026,10,8)};
+  const recent=home().match(/<section class="new-home-mru"[\s\S]*?<\/section>/)?.[0] ?? '';
+  expect(recent).toContain(data.games[0].title);
+  expect(recent).toContain('src="https://store-images.s-microsoft.com/box"');
+  expect(recent).not.toContain('SMALLLOGO');
 });
 
 it('gives installed cards a separate status footer and an accessible compact refresh control',()=>{

@@ -1,0 +1,17 @@
+.desktop-app-library { min-height: 50vh; }
+.desktop-app-toolbar { display: flex; gap: 16px; align-items: center; margin: 24px 0 32px; }
+.desktop-app-toolbar label { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 360px; padding: 8px 16px; background: #171b1b; border: 1px solid #3a403d; border-radius: 999px; }
+.desktop-app-toolbar input { width: 100%; min-width: 0; border: 0; background: transparent; color: inherit; }
+.desktop-app-toolbar .xbox-icon { width: 20px; height: 20px; flex-shrink: 0; }
+.desktop-app-toolbar > button { padding: 8px; border: 0; border-radius: 50%; background: #202525; color: inherit; cursor: pointer; }
+.desktop-app-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(180px,1fr)); gap: 24px; }
+.desktop-app-grid > button { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; padding: 0 0 12px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.desktop-app-icon { display: grid; place-items: center; width: 100%; aspect-ratio: 1; padding: 28px; margin-bottom: 4px; border-radius: 8px; background: #1c2220; }
+.desktop-app-icon img, .desktop-app-icon > .xbox-icon { width: 64px; height: 64px; object-fit: contain; }
+.desktop-app-grid strong { max-width: 100%; overflow-wrap: anywhere; font-size: 16px; line-height: 20px; }
+.desktop-app-grid small { color: #adb5b1; font-size: 14px; line-height: 18px; }
+.desktop-app-empty { display: grid; align-content: center; justify-items: center; min-height: 50vh; text-align: center; }
+.desktop-app-empty h2 { margin: 0; font-size: 18px; }
+.desktop-app-empty p { color: #aeb5b2; }
+.console-experience .desktop-app-grid { grid-template-columns: repeat(auto-fill,minmax(220px,1fr)); gap: 32px; }
+.desktop-app-library button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
