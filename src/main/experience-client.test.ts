@@ -6,6 +6,7 @@ import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { GnomeExperienceClient } from './experience-client.js';
+import { FullscreenExperience } from './fullscreen-experience.js';
 let root: string, client: GnomeExperienceClient;
 beforeEach(async () => { root = await fs.mkdtemp(path.join(os.tmpdir(), 'xboks-experience-client-')); await fs.writeFile(path.join(root, 'helper.js'), '// fixture; never executed'); });
 afterEach(async () => { client?.dispose(); await fs.rm(root, { recursive: true, force: true }); });
@@ -124,4 +125,116 @@ it('still publishes real availability, activity, ownership, reason and recovery 
   f.reply({event: 'unavailable'}); expect(f.changed).toHaveBeenCalledTimes(7);
   client.dispose(); expect(f.changed).toHaveBeenCalledTimes(8); expect(client.current.reason).toContain('disconnected');
   client.dispose(); expect(f.changed).toHaveBeenCalledTimes(8);
+});
+
+it('acknowledges delegated switcher control without claiming the native mode lease', async () => {
+  const f = fixture(), state = client.request('state');
+  const delegated = { active: true, owned: false, canControlSwitcher: true, controlEpoch: 41, visible: true };
+  f.reply({ id: f.messages.at(-1).id, ok: true, ...delegated }); await state;
+  expect(client.current).toEqual({ available: true, active: true, owned: false, canControlSwitcher: true, controlEpoch: 41 });
+  expect(client.canControlSwitcher).toBe(true); expect(client.switcherVisible).toBe(true);
+  const fullscreen = new FullscreenExperience({ bridge: client, session: false, windowFullscreen: () => false,
+    setWindowFullscreen: vi.fn(), changed: vi.fn() });
+  expect(fullscreen.current).toMatchObject({ available: true, active: false, source: 'gnome-extension' });
+  const moved = client.switcher('right');
+  expect(f.messages.at(-1)).toEqual({ id: 2, method: 'switcher', action: 'right', controlEpoch: 41 });
+  f.reply({ id: 2, ok: true, ...delegated }); expect(await moved).toBe(true);
+  const cancelled = client.switcher('cancel');
+  expect(f.messages.at(-1)).toMatchObject({ action: 'cancel', controlEpoch: 41 });
+  f.reply({ id: 3, ok: true, ...delegated, controlEpoch: 42, visible: false });
+  expect(await cancelled).toBe(false); expect(client.switcherVisible).toBe(false);
+  expect(client.current.owned).toBe(false); expect(fullscreen.current.active).toBe(false);
+});
+
+it('clears delegated visibility on capability loss, inactivity, unavailable events and helper loss', async () => {
+  const f = fixture(), state = client.request('state');
+  const delegated = { active: true, owned: false, canControlSwitcher: true, controlEpoch: 10, visible: true };
+  f.reply({ id: 1, ok: true, ...delegated }); await state;
+  f.reply({ event: 'state', ...delegated, canControlSwitcher: false, controlEpoch: 11 });
+  expect(client.canControlSwitcher).toBe(false); expect(client.switcherVisible).toBe(false);
+  const count = f.messages.length;
+  await expect(client.switcher('accept')).rejects.toThrow('control is unavailable'); expect(f.messages).toHaveLength(count);
+  f.reply({ event: 'switcher', ...delegated, controlEpoch: 12 }); expect(client.switcherVisible).toBe(true);
+  f.reply({ event: 'state', ...delegated, active: false, canControlSwitcher: false, controlEpoch: 13 });
+  expect(client.canControlSwitcher).toBe(false); expect(client.switcherVisible).toBe(false);
+  f.reply({ event: 'state', ...delegated, controlEpoch: 14 }); expect(client.switcherVisible).toBe(true);
+  f.reply({ event: 'unavailable' }); expect(client.canControlSwitcher).toBe(false); expect(client.switcherVisible).toBe(false);
+  f.reply({ event: 'state', ...delegated, controlEpoch: 15 }); expect(client.switcherVisible).toBe(true);
+  f.child.emit('close', 1); expect(client.canControlSwitcher).toBe(false); expect(client.switcherVisible).toBe(false);
+});
+
+it('never upgrades an unowned switcher call when a later control grant arrives', async () => {
+  const f = fixture(), state = client.request('state');
+  f.reply({ id: 1, ok: true, active: true, owned: false }); await state;
+  const denied = client.switcher('accept');
+  f.reply({ event: 'state', active: true, owned: false, canControlSwitcher: true, controlEpoch: 21, visible: true });
+  await expect(denied).rejects.toThrow('control is unavailable'); expect(f.messages).toHaveLength(1);
+});
+
+it.each(['delegated-to-owned', 'owned-to-delegated', 'new-token', 'capability-lost'] as const)(
+  'keeps queued actions bound to their original control snapshot across %s', async transition => {
+    const f = fixture(), state = client.request('state');
+    const original = { active: true, owned: transition === 'owned-to-delegated', canControlSwitcher: true, controlEpoch: 50, visible: true };
+    f.reply({ id: 1, ok: true, ...original }); await state;
+    const first = client.switcher('next'), second = client.switcher('accept');
+    const sent = f.messages.slice(1);
+    expect(sent.map(message => message.controlEpoch)).toEqual(original.owned ? [undefined, undefined] : [50, 50]);
+    const next = { ...original, owned: transition === 'delegated-to-owned', canControlSwitcher: transition !== 'capability-lost', controlEpoch: 51, visible: false };
+    f.reply({ event: 'state', ...next });
+    for (const command of sent) f.reply({ id: command.id, ok: true, ...original });
+    expect(await first).toBe(false); expect(await second).toBe(false);
+    expect(client.current).toEqual({ available: true, active: next.active, owned: next.owned, canControlSwitcher: next.canControlSwitcher, controlEpoch: 51 });
+    expect(client.switcherVisible).toBe(false); expect(f.messages.slice(1)).toEqual(sent);
+  });
+
+it('uses current acknowledged visibility when an action signal precedes its reply', async () => {
+  const f = fixture(), state = client.request('state');
+  const delegated = { active: true, owned: false, canControlSwitcher: true, controlEpoch: 60, visible: false };
+  f.reply({ id: 1, ok: true, ...delegated }); await state;
+  const opened = client.switcher('open');
+  f.reply({ event: 'switcher', ...delegated, controlEpoch: 61, visible: true });
+  f.reply({ id: 2, ok: true, ...delegated, controlEpoch: 61, visible: true });
+  expect(await opened).toBe(true); expect(client.current.controlEpoch).toBe(61); expect(client.current.owned).toBe(false);
+  f.reply({ event: 'state', ...delegated });
+  expect(client.current.controlEpoch).toBe(61); expect(client.switcherVisible).toBe(true);
+});
+
+it('keeps legacy owned switcher commands token-free, including helper v3 fields', async () => {
+  const f = fixture(), caps = client.capabilities();
+  const owned = { active: true, owned: true, canControlSwitcher: true, visible: false };
+  f.reply({ id: 1, ok: true, ...owned, version: 3 }); expect(await caps).toBe(3);
+  const opened = client.switcher('open'); expect(f.messages.at(-1)).toEqual({ id: 2, method: 'switcher', action: 'open' });
+  f.reply({ id: 2, ok: true, ...owned, visible: true });
+  expect(await opened).toBe(true); expect(client.canControlSwitcher).toBe(true);
+});
+
+it.each([
+  { canControlSwitcher: 'true', controlEpoch: 1, visible: true },
+  { canControlSwitcher: true, visible: true },
+  { canControlSwitcher: true, controlEpoch: 0, visible: true },
+  { canControlSwitcher: true, controlEpoch: -1, visible: true },
+  { canControlSwitcher: true, controlEpoch: 1.5, visible: true },
+  { canControlSwitcher: true, controlEpoch: Number.MAX_SAFE_INTEGER + 1, visible: true },
+  { canControlSwitcher: true, controlEpoch: '1', visible: true },
+  { canControlSwitcher: true, controlEpoch: 1 },
+  { canControlSwitcher: true, controlEpoch: 1, visible: 'true' },
+  { controlEpoch: 1, visible: true },
+])('disconnects on malformed delegated control metadata %j', async metadata => {
+  const f = fixture(), state = client.request('state'), failed = expect(state).rejects.toThrow('disconnected');
+  f.reply({ id: 1, ok: true, active: true, owned: false, ...metadata }); await failed;
+  expect(client.canControlSwitcher).toBe(false); expect(client.switcherVisible).toBe(false); expect(f.child.kill).toHaveBeenCalled();
+});
+
+it('rejects a claimed v4 capability without the atomic control token', async () => {
+  const f = fixture(), caps = client.capabilities(), failed = expect(caps).rejects.toThrow('disconnected');
+  f.reply({ id: 1, ok: true, active: true, owned: true, canControlSwitcher: true, visible: false, version: 4 });
+  await failed; expect(client.current.available).toBe(false);
+});
+
+it('ignores unmatched reply ids without publishing their control metadata', async () => {
+  const f = fixture(), state = client.request('state');
+  const delegated = { active: true, owned: false, canControlSwitcher: true, controlEpoch: 70, visible: true };
+  f.reply({ id: 1, ok: true, ...delegated }); await state;
+  f.reply({ id: 999, ok: true, ...delegated, owned: true, controlEpoch: 71, visible: false });
+  expect(client.current.owned).toBe(false); expect(client.current.controlEpoch).toBe(70); expect(client.switcherVisible).toBe(true);
 });

@@ -1,5 +1,32 @@
 # XBOKS screenshots
 
+## 2612 New App Experience reconstruction
+
+These actual development-renderer captures were taken on 2026-11-08 during an
+isolated, localhost-only regression run: **177 checks passed**, with no browser
+exceptions or unexpected host actions. Accounts, artwork, catalog, installed
+applications and services are synthetic fixtures, visibly marked in each image.
+No real app, game, message, microphone, wallet or operating-system action was
+triggered. They verify renderer behavior, not complete original Windows parity
+or live Xbox services.
+
+![New Home and responsive desktop dock — fixture data](xboks-new-experience-home.png)
+
+![Installed Linux Apps route — synthetic desktop entry](xboks-new-experience-apps.png)
+
+![New desktop Account settings — fixture account](xboks-new-experience-settings.png)
+
+![Xbox mode Install & storage — fixture settings](xboks-new-experience-storage.png)
+
+![New Store Browse — exact product targets and fixture catalog](xboks-new-experience-store.png)
+
+![New Store Deals — distinct fixture collection](xboks-new-experience-deals.png)
+
+![Game Pass — retained page-two selection and genre after Details and Back](xboks-new-experience-gamepass-back.png)
+
+[Capture provenance and source fingerprints](new-experience-provenance.json) ·
+[Observed original behavior and remaining gaps](../analysis/xbox2612-new-ui-parity-ledger-2026-11-08.md)
+
 ## November desktop and Xbox mode preview
 
 The 0.3.28 renderer captures below were taken on 2026-11-06 in an isolated,

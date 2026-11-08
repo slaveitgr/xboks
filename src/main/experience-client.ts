@@ -4,7 +4,7 @@ import path from 'node:path';
 import { externalLauncherEnvironment } from './launcher-environment.js';
 import { desktopForegroundApp, shellSwitcherActions, type DesktopForegroundApp, type ShellSwitcherAction } from '../shared/desktop-shell.js';
 
-export interface ExperienceLease { available: boolean; active: boolean; owned: boolean; reason?: string }
+export interface ExperienceLease { available: boolean; active: boolean; owned: boolean; canControlSwitcher?: boolean; controlEpoch?: number; reason?: string }
 interface ExperienceReply extends ExperienceLease { app?: DesktopForegroundApp; visible?: boolean; version?: number }
 type Method = 'state' | 'enter' | 'leave' | 'foreground' | 'focus-guide' | 'capabilities' | 'switcher';
 export interface ExperienceBridge {
@@ -21,7 +21,8 @@ export class GnomeExperienceClient implements ExperienceBridge {
   private partial = '';
   private value: ExperienceLease = { available: false, active: false, owned: false, reason: 'GNOME integration has not been checked.' };
   private visible = false;
-  private pending = new Map<number, { resolve(value: ExperienceReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>; method: Method }>();
+  private controlGeneration = 0;
+  private pending = new Map<number, { resolve(value: ExperienceReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout>; method: Method; controlGeneration: number }>();
   constructor(private options: {
     helper: string;
     environment?: NodeJS.ProcessEnv;
@@ -31,11 +32,18 @@ export class GnomeExperienceClient implements ExperienceBridge {
     timeoutMs?: number;
   }) {}
   get current(): ExperienceLease { return { ...this.value }; }
+  get canControlSwitcher(): boolean { return this.value.available && this.value.active && (this.value.owned || this.value.canControlSwitcher === true); }
   get switcherVisible(): boolean { return this.visible; }
   private switcherState(visible: boolean): void { if (visible !== this.visible) { this.visible = visible; this.options.switcherChanged?.(visible); } }
   private publish(value: ExperienceLease): void {
     if (value.available === this.value.available && value.active === this.value.active &&
-        value.owned === this.value.owned && value.reason === this.value.reason) return;
+        value.owned === this.value.owned && value.canControlSwitcher === this.value.canControlSwitcher &&
+        value.controlEpoch === this.value.controlEpoch && value.reason === this.value.reason) return;
+    if (value.available !== this.value.available || value.active !== this.value.active || value.owned !== this.value.owned ||
+        value.canControlSwitcher !== this.value.canControlSwitcher || value.controlEpoch !== this.value.controlEpoch) {
+      this.controlGeneration++;
+      this.switcherState(false);
+    }
     this.value = {...value}; this.options.changed?.(this.current);
   }
   private fail(reason: string): void {
@@ -85,31 +93,54 @@ export class GnomeExperienceClient implements ExperienceBridge {
       }
       if (typeof message.active !== 'boolean' || typeof message.owned !== 'boolean' || message.owned && !message.active) throw Error();
       const state: ExperienceLease = { available: true, active: message.active, owned: message.owned };
+      if (message.canControlSwitcher !== undefined) {
+        if (typeof message.canControlSwitcher !== 'boolean' || typeof message.visible !== 'boolean') throw Error();
+        state.canControlSwitcher = message.canControlSwitcher;
+      }
+      if (message.controlEpoch !== undefined) {
+        if (!Number.isSafeInteger(message.controlEpoch) || message.controlEpoch <= 0 || state.canControlSwitcher === undefined) throw Error();
+        state.controlEpoch = message.controlEpoch;
+      }
+      if (!state.owned && state.canControlSwitcher && state.controlEpoch === undefined) throw Error();
+      if (message.visible !== undefined && typeof message.visible !== 'boolean') throw Error();
       if (message.event === 'switcher') {
         if (typeof message.visible !== 'boolean') throw Error();
-        this.switcherState(message.visible && state.active && state.owned); return;
       }
-      if (message.event === 'state') { if (!state.owned) this.switcherState(false); this.publish(state); return; }
+      const staleEpoch = state.controlEpoch !== undefined && this.value.controlEpoch !== undefined && state.controlEpoch < this.value.controlEpoch;
+      if (message.event === 'state' || message.event === 'switcher') {
+        if (staleEpoch) return;
+        this.publish(state);
+        if (message.visible !== undefined) this.switcherState(message.visible && this.canControlSwitcher);
+        return;
+      }
       if (!Number.isSafeInteger(message.id) || typeof message.ok !== 'boolean') throw Error();
       const request = this.pending.get(message.id);
       if (!request) return;
-      const reply: ExperienceReply = { ...state };
+      const reply: Pick<ExperienceReply, 'app' | 'visible' | 'version'> = {};
       if (message.ok && request.method === 'foreground' && message.app !== null) {
         reply.app = desktopForegroundApp(message.app);
         if (!reply.app) throw Error();
       }
       if (message.ok && request.method === 'capabilities') {
         if (!Number.isInteger(message.version) || message.version < 1 || message.version > 10) throw Error();
+        if (message.version >= 4 && state.controlEpoch === undefined) throw Error();
         reply.version = message.version;
       }
       if (message.ok && request.method === 'switcher') {
         if (typeof message.visible !== 'boolean') throw Error();
-        reply.visible = message.visible; this.switcherState(message.visible);
       }
       clearTimeout(request.timer); this.pending.delete(message.id);
-      this.publish(message.ok === false && message.error === 'unavailable'
-        ? { available: false, active: false, owned: false, reason: 'The XBOKS GNOME extension is not installed or enabled.' } : state);
-      if (message.ok) request.resolve({ ...reply, ...this.current });
+      // Replies to actions sent under an earlier role or token cannot restore
+      // that role. A switcher signal may already acknowledge the action itself.
+      const staleControl = request.method === 'switcher' && request.controlGeneration !== this.controlGeneration;
+      if (message.ok === false && message.error === 'unavailable') {
+        this.publish({ available: false, active: false, owned: false, reason: 'The XBOKS GNOME extension is not installed or enabled.' });
+      } else if (!staleControl && !staleEpoch) {
+        this.publish(state);
+        if (message.visible !== undefined) this.switcherState(message.visible && this.canControlSwitcher);
+      }
+      if (request.method === 'switcher') reply.visible = this.visible;
+      if (message.ok) request.resolve({ ...this.current, ...reply });
       else request.reject(Error('GNOME could not change Xbox mode. Keep XBOKS focused and check that the extension is enabled.'));
     } catch { this.dispose(); }
   }
@@ -122,12 +153,15 @@ export class GnomeExperienceClient implements ExperienceBridge {
   async capabilities(): Promise<number> { return (await this.send('capabilities')).version ?? 1; }
   async switcher(action: ShellSwitcherAction): Promise<boolean> {
     if (!shellSwitcherActions.includes(action)) throw Error('Invalid switcher action.');
+    if (!this.canControlSwitcher) throw Error('GNOME switcher control is unavailable.');
     return (await this.send('switcher', action)).visible ?? false;
   }
   private async send(method: Method, action?: ShellSwitcherAction): Promise<ExperienceReply> {
     try { this.start(); }
     catch (error) { this.fail((error as Error).message); throw error; }
     if (this.pending.size >= 8) throw Error('A gaming mode request is already pending.');
+    const controlEpoch = method === 'switcher' && !this.value.owned && this.value.canControlSwitcher === true ? this.value.controlEpoch : undefined;
+    if (method === 'switcher' && !this.value.owned && (controlEpoch === undefined || !Number.isSafeInteger(controlEpoch) || controlEpoch <= 0)) throw Error('GNOME switcher control is unavailable.');
     const id = ++this.nextId;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -135,8 +169,8 @@ export class GnomeExperienceClient implements ExperienceBridge {
         // Losing an unknown in-flight Enter must also drop its bus lease.
         this.dispose();
       }, this.options.timeoutMs ?? 10_000);
-      this.pending.set(id, { resolve, reject, timer, method });
-      try { this.child!.stdin.write(JSON.stringify({ id, method, ...(action ? { action } : {}) }) + '\n'); }
+      this.pending.set(id, { resolve, reject, timer, method, controlGeneration: this.controlGeneration });
+      try { this.child!.stdin.write(JSON.stringify({ id, method, ...(action ? { action } : {}), ...(controlEpoch !== undefined ? { controlEpoch } : {}) }) + '\n'); }
       catch { this.dispose(); }
     });
   }

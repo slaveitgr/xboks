@@ -1,0 +1,103 @@
+--- a/programs/wineuwp-launch/main.c
++++ b/programs/wineuwp-launch/main.c
+@@ -36,7 +36,12 @@
+  *   5. the app (UWP_EXE, or --exe), from the stage directory, with the rest of the command line; its exit code is
+  *      ours.
+  *
+- *   wineuwp-launch.exe [--stage DIR] [--defaults FILE] [--graphics DRIVER] [--exe EXE] [args...]
++ *   wineuwp-launch.exe [--stage DIR] [--identity FILE] [--defaults FILE] [--graphics DRIVER]
++ *                     [--exe EXE] [--activation-uri URI] [args...]
++ *
++ * --identity selects a generated identity for this launch without rewriting a shared stage's
++ * identity.env. --activation-uri supplies the initial protocol activation to the app model;
++ * forwarding a URI as an ordinary command-line argument is a different launch contract.
+  *
+  * --graphics sets HKCU\Software\Wine\Drivers\Graphics, which has no environment override; run.sh pins x11 so a
+  * test cannot land on the desktop compositor. Failures are shown in a message box (a launcher started from a menu
+@@ -288,19 +293,20 @@
+ {
+     const WCHAR *s = *p;
+     size_t n = 0;
+-    BOOL quoted = FALSE;
++    BOOL quoted = FALSE, overflow = FALSE;
+ 
+     if (!*s) return FALSE;
+     while (*s && (quoted || (*s != ' ' && *s != '\t')))
+     {
+         if (*s == '"') quoted = !quoted;
+         else if (n + 1 < size) out[n++] = *s;
++        else overflow = TRUE;
+         s++;
+     }
+     out[n] = 0;
+     while (*s == ' ' || *s == '\t') s++;
+     *p = s;
+-    return TRUE;
++    return !overflow && !quoted;
+ }
+ 
+ /* A Unix path (/a/b) as the Windows one Wine maps it to (Z:\a\b); a Windows path as it is. */
+@@ -321,7 +327,8 @@
+ {
+     STARTUPINFOW si = { sizeof(si) };
+     PROCESS_INFORMATION pi;
+-    WCHAR arg[MAX_PATH], defaults[MAX_PATH] = L"", graphics[64] = L"", exe_arg[MAX_PATH] = L"";
++    WCHAR arg[32768], defaults[MAX_PATH] = L"", graphics[64] = L"", exe_arg[MAX_PATH] = L"";
++    WCHAR identity[MAX_PATH] = L"", activation_uri[2048] = L"";
+     WCHAR *exe, *family, *path, *command, *p, *slash;
+     const WCHAR *tail = GetCommandLineW(), *rest;
+     BOOL staged = FALSE;
+@@ -332,34 +339,49 @@
+     if ((slash = wcsrchr( dir, '\\' ))) *slash = 0;
+ 
+     next_arg( &tail, arg, ARRAY_SIZE(arg) );   /* our own name */
+-    for (rest = tail; next_arg( &rest, arg, ARRAY_SIZE(arg) ); tail = rest)
++    for (rest = tail; *rest; tail = rest)
+     {
+         WCHAR *value = NULL;
+         size_t size = MAX_PATH;
+ 
++        if (!next_arg( &rest, arg, ARRAY_SIZE(arg) ))
++        {
++            fail( L"Malformed command-line argument" );
++            return 1;
++        }
+         if (!wcscmp( arg, L"--stage" )) value = dir;
++        else if (!wcscmp( arg, L"--identity" )) value = identity;
+         else if (!wcscmp( arg, L"--defaults" )) value = defaults;
+         else if (!wcscmp( arg, L"--graphics" )) { value = graphics; size = ARRAY_SIZE(graphics); }
+         else if (!wcscmp( arg, L"--exe" )) value = exe_arg;
++        else if (!wcscmp( arg, L"--activation-uri" )) { value = activation_uri; size = ARRAY_SIZE(activation_uri); }
+         else break;
+-        if (!next_arg( &rest, value, size ))
++        if (!next_arg( &rest, value, size ) || !*value)
+         {
+             fail( L"%s needs a value", arg );
+             return 1;
+         }
+-        if (value != graphics) to_windows_path( value, size );
++        if (value != graphics && value != activation_uri) to_windows_path( value, size );
+         if (value == dir) staged = quiet = TRUE;
+     }
+ 
+     /* a stage of stage-app.sh's may have no identity.env when the defaults are the whole identity */
+-    if (!load_env_file( L"identity.env", !staged )) return 1;
++    if (!*identity && !load_env_file( L"identity.env", !staged )) return 1;
+     if (!*defaults) load_env_file( L"launch.env", FALSE );
+     else
+     {
+         load_env_path( defaults, TRUE, TRUE );
+         add_frameworks();
+     }
++    /* An explicitly selected identity is authoritative even if launch.env contains
++     * a historical executable or AUMID override. It belongs to this process only. */
++    if (*identity && !load_env_path( identity, TRUE, FALSE )) return 1;
+     SetEnvironmentVariableW( L"WINE_UWP_PACKAGE_PATH", dir );
++    if (*activation_uri && !SetEnvironmentVariableW( L"WINE_UWP_ACTIVATE_URI", activation_uri ))
++    {
++        fail( L"Cannot set the initial activation URI (error %lu)", GetLastError() );
++        return 1;
++    }
+     /* EOS's Linux bootstrapper issues native Linux syscalls from its high-address helper */
+     if (file_exists( L"EasyAntiCheat\\Settings.json" ) && !GetEnvironmentVariableW( L"WINE_HACK_NATIVE_SYSCALLS", NULL, 0 ))
+         SetEnvironmentVariableW( L"WINE_HACK_NATIVE_SYSCALLS", L"1" );

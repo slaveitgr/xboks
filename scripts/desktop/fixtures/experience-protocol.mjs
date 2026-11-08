@@ -9,6 +9,7 @@ import { helperForUnixSignals } from './legacy-unix-signals.mjs';
 const processes = [];
 const fixtureDirectory = await mkdtemp(path.join(os.tmpdir(), 'xboks-experience-protocol-'));
 const legacyUnixSignals = process.argv.includes('--legacy-unix-signals');
+const state = (active, owned) => ({active, owned, canControlSwitcher: false, visible: false});
 function start(file) {
   const process = spawn('gjs', ['-m', file], { stdio: ['pipe', 'pipe', 'pipe'], env: { ...globalThis.process.env, GIO_USE_VFS: 'local' } });
   processes.push(process);
@@ -36,7 +37,7 @@ try {
   const first = start(helperFile);
   await first.wait(message => message.event === 'state' && message.active === false);
   first.send(1, 'enter');
-  assert.deepEqual(await first.wait(message => message.id === 1), { id: 1, ok: true, active: true, owned: true });
+  assert.deepEqual(await first.wait(message => message.id === 1), { id: 1, ok: true, ...state(true, true) });
   first.send(10, 'capabilities'); assert.equal((await first.wait(message => message.id === 10)).version, 2);
   first.send(11, 'foreground'); assert.deepEqual((await first.wait(message => message.id === 11)).app,
     {desktopId: 'fixture.Editor.desktop', name: 'Editor', title: 'Synthetic document'});
@@ -45,19 +46,19 @@ try {
   await first.wait(message => message.event === 'switcher' && message.visible === true);
   first.send(14, 'switcher', 'cancel'); assert.equal((await first.wait(message => message.id === 14)).visible, false);
   const second = start(helperFile);
-  assert.deepEqual(await second.wait(message => message.event === 'state'), { event: 'state', active: true, owned: false });
+  assert.deepEqual(await second.wait(message => message.event === 'state'), { event: 'state', ...state(true, false) });
   second.send(2, 'leave');
-  assert.deepEqual(await second.wait(message => message.id === 2), { id: 2, ok: false, active: true, owned: false, error: 'not-authorized' });
+  assert.deepEqual(await second.wait(message => message.id === 2), { id: 2, ok: false, ...state(true, false), error: 'not-authorized' });
   first.process.stdin.end();
   assert.deepEqual(await first.exited, { code: 0, signal: null });
   await service.wait(message => message.event === 'left');
   second.send(3, 'enter');
-  assert.deepEqual(await second.wait(message => message.id === 3), { id: 3, ok: true, active: true, owned: true });
+  assert.deepEqual(await second.wait(message => message.id === 3), { id: 3, ok: true, ...state(true, true) });
   second.process.kill('SIGKILL');
   await second.exited;
   await service.wait(message => message.event === 'owner-lost');
   const third = start(helperFile);
-  assert.deepEqual(await third.wait(message => message.event === 'state'), { event: 'state', active: false, owned: false });
+  assert.deepEqual(await third.wait(message => message.event === 'state'), { event: 'state', ...state(false, false) });
   third.send(4, 'enter');
   assert.equal((await third.wait(message => message.id === 4)).owned, true);
   third.send(5, 'invalid');

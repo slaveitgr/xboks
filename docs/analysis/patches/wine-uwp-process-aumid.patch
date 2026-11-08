@@ -1,0 +1,50 @@
+--- a/dlls/kernelbase/version.c
++++ b/dlls/kernelbase/version.c
+@@ -1584,6 +1584,29 @@
+ }
+ 
+ /***********************************************************************
++ *         GetApplicationUserModelId   (kernelbase.@)
++ */
++LONG WINAPI GetApplicationUserModelId( HANDLE process, UINT32 *length, WCHAR *id )
++{
++    DWORD pid;
++
++    TRACE( "(%p %p %p)\n", process, length, id );
++    if (!length) return ERROR_INVALID_PARAMETER;
++    if (process != GetCurrentProcess())
++    {
++        if (!(pid = GetProcessId( process ))) return GetLastError();
++        if (pid != GetCurrentProcessId())
++        {
++            /* The launcher owns the current process identity. Do not return it
++             * for another process until target-owned package queries exist. */
++            FIXME( "application identity for process %lu is not supported\n", pid );
++            return ERROR_NOT_SUPPORTED;
++        }
++    }
++    return get_package_string( L"WINE_UWP_AUMID", length, id, APPMODEL_ERROR_NO_APPLICATION );
++}
++
++/***********************************************************************
+  *         GetCurrentApplicationUserModelId   (kernelbase.@)
+  */
+ LONG WINAPI /* DECLSPEC_HOTPATCH */ GetCurrentApplicationUserModelId( UINT32 *length, WCHAR *id )
+--- a/dlls/kernelbase/kernelbase.spec
++++ b/dlls/kernelbase/kernelbase.spec
+@@ -1843,3 +1843,6 @@
+ @ stdcall lstrlenW(wstr) KERNELBASE_lstrlenW
+ # @ stub time
+ # @ stub wprintf
++
++# Appended to preserve the existing automatically assigned export ordinals.
++@ stdcall GetApplicationUserModelId(ptr ptr ptr)
+--- a/dlls/kernel32/kernel32.spec
++++ b/dlls/kernel32/kernel32.spec
+@@ -1739,3 +1739,6 @@
+ @ cdecl wine_get_unix_file_name(wstr)
+ @ cdecl wine_get_dos_file_name(str)
+ @ stdcall OOBEComplete(ptr)
++
++# Appended to preserve the existing automatically assigned export ordinals.
++@ stdcall GetApplicationUserModelId(ptr ptr ptr) kernelbase.GetApplicationUserModelId

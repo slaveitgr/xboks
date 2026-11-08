@@ -1,0 +1,649 @@
+--- a/dlls/winegameplatform/private.h
++++ b/dlls/winegameplatform/private.h
+@@ -102,6 +102,13 @@
+ struct gp_slot { int slot; const char *name; int kind; /* 0 a method, 1 add_ event, 2 remove_ event */ };
+ struct gp_class { const WCHAR *name; GUID statics; unsigned count; const struct gp_slot *slots; };
+ 
++struct factory;
++struct client2612_iface
++{
++    const void **vtbl;
++    struct factory *owner;
++};
++
+ struct factory
+ {
+     const void **vtbl;
+@@ -110,6 +117,7 @@
+     LONGLONG next_token;
+     BOOL heap;          /* an object handed out (a "...Instance" entry), freed on its last Release */
+     WCHAR source[64];   /* for a Package: the source it was created from */
++    struct client2612_iface client2612;
+ };
+ 
+ int kind_of( const WCHAR *name );
+--- a/dlls/winegameplatform/main.c
++++ b/dlls/winegameplatform/main.c
+@@ -48,6 +48,9 @@
+ static const void *factory_vtbl[K_COUNT][SLOTS];
+ static struct factory factories[K_COUNT];
+ 
++static void init_client2612( struct factory *factory );
++static const GUID *client2612_iid( struct factory *factory );
++
+ static const struct gp_slot *slot_info( int kind, int n )
+ {
+     unsigned i;
+@@ -83,6 +86,8 @@
+ 
+ static HRESULT WINAPI factory_QueryInterface( struct factory *f, REFIID iid, void **out )
+ {
++    const GUID *client_iid = client2612_iid( f );
++
+     if (!out) return E_POINTER;
+     if (IsEqualGUID( iid, &IID_IWeakReferenceSource_ )) return weak_source( (IUnknown *)f, out );
+     if (base_iid( iid ) || IsEqualGUID( iid, &IID_IActivationFactory ) || IsEqualGUID( iid, &gp_classes[f->kind].statics ))
+@@ -91,6 +96,12 @@
+         *out = f;
+         return S_OK;
+     }
++    if (client_iid && IsEqualGUID( iid, client_iid ))
++    {
++        InterlockedIncrement( &f->ref );
++        *out = &f->client2612;
++        return S_OK;
++    }
+     TRACE( "%s: QueryInterface refused %s\n", class_name( f->kind ), debugstr_guid( iid ) );
+     *out = NULL;
+     return E_NOINTERFACE;
+@@ -110,8 +121,15 @@
+ 
+ static HRESULT WINAPI factory_GetIids( struct factory *f, ULONG *count, IID **ids )
+ {
++    const GUID *client_iid = client2612_iid( f );
++
+     if (count) *count = 0;
+     if (ids) *ids = NULL;
++    if (!count || !ids) return E_POINTER;
++    if (!(*ids = CoTaskMemAlloc( (client_iid ? 2 : 1) * sizeof(**ids) ))) return E_OUTOFMEMORY;
++    (*ids)[0] = gp_classes[f->kind].statics;
++    if (client_iid) (*ids)[1] = *client_iid;
++    *count = client_iid ? 2 : 1;
+     return S_OK;
+ }
+ 
+@@ -638,6 +656,7 @@
+     package->ref = 1;
+     package->kind = k;
+     package->heap = TRUE;
++    init_client2612( package );
+     lstrcpynW( package->source, WindowsGetStringRawBuffer( source, NULL ), ARRAY_SIZE(package->source) );
+     TRACE( "Package.Create(%s, type %d) -> a package object (traced)\n", debugstr_w( package->source ), type );
+     *out = (IInspectable *)package;
+@@ -1013,6 +1032,8 @@
+ };
+ #undef GPS
+ 
++#include "client2612.h"
++
+ static BOOL WINAPI init_factories( INIT_ONCE *once, void *param, void **context )
+ {
+     unsigned i;
+@@ -1030,6 +1051,7 @@
+         factories[k].vtbl = factory_vtbl[k];
+         factories[k].ref = 1;
+         factories[k].kind = k;
++        init_client2612( &factories[k] );
+     }
+     for (i = 0; i < ARRAY_SIZE(specials); i++)
+         if ((k = kind_of( specials[i].cls )) >= 0) factory_vtbl[k][specials[i].slot] = specials[i].fn;
+--- a/dlls/winegameplatform/slots.h
++++ b/dlls/winegameplatform/slots.h
+@@ -208,6 +208,16 @@
+     { 6, "RequestConsentForCurrentUserAsync", 0 }, /* Windows.Foundation.IAsyncOperation`1<Microsoft.GamePlatform.Services.BackgroundConsentResult>() */
+     { 7, "GetCurrentUserConsent", 0 }, /* Microsoft.GamePlatform.Services.BackgroundConsentResult() */
+ };
++static const struct gp_slot gp_slots_DesktopPackage[] = {
++    { 6, "Register", 0 }, /* Microsoft.GamePlatform.Services.DesktopPackageRegistrationResult(string folderPath) */
++    { 7, "Unregister", 0 }, /* void(string packageFullName) */
++    { 8, "Launch", 0 }, /* u4(string launchParameter, string args) */
++    { 9, "RegisterUpdate", 0 }, /* void(string crdPath, bool isMandatory) */
++};
++static const struct gp_slot gp_slots_DesktopUtilities[] = {
++    { 6, "IsDeveloperModeEnabled", 0 }, /* bool() */
++    { 7, "IsMsixvc", 0 }, /* bool(string packageFullName) */
++};
+ static const struct gp_class gp_classes[] = {
+     { L"Microsoft.GamePlatform.Services.PackageRequest", {0xf039b8bf,0xc2bb,0x52f9,{0xa1,0xde,0xe7,0x35,0x4d,0x2f,0x0a,0x8d}}, ARRAY_SIZE(gp_slots_PackageRequest), gp_slots_PackageRequest },
+     { L"Microsoft.GamePlatform.Services.PackageInstance", {0xffa05c03,0x5784,0x56a4,{0xbe,0x9c,0x82,0xcf,0x03,0x5b,0x2a,0xd4}}, ARRAY_SIZE(gp_slots_PackageInstance), gp_slots_PackageInstance },
+@@ -230,4 +240,6 @@
+     { L"Microsoft.GamePlatform.Services.Customization", {0xc7d59bd6,0x702f,0x5bed,{0xbd,0xdf,0xb4,0xd0,0x9b,0x62,0x37,0x83}}, ARRAY_SIZE(gp_slots_Customization), gp_slots_Customization },
+     { L"Microsoft.GamePlatform.Services.ContentAccess", {0xf68e477c,0x55a7,0x52e3,{0xb0,0x2c,0x57,0x70,0x88,0x9f,0x5c,0x86}}, ARRAY_SIZE(gp_slots_ContentAccess), gp_slots_ContentAccess },
+     { L"Microsoft.GamePlatform.Services.BackgroundConsent", {0x27efce48,0xbb75,0x5850,{0x8d,0xd8,0x92,0xd3,0xb1,0x71,0x85,0x8e}}, ARRAY_SIZE(gp_slots_BackgroundConsent), gp_slots_BackgroundConsent },
+-};
++    { L"Microsoft.GamePlatform.Services.DesktopPackage", {0x7d812c10,0x1312,0x505e,{0x88,0xec,0xce,0x06,0xa6,0xc4,0x7e,0x58}}, ARRAY_SIZE(gp_slots_DesktopPackage), gp_slots_DesktopPackage },
++    { L"Microsoft.GamePlatform.Services.DesktopUtilities", {0x0dce56b4,0x95b9,0x5084,{0xa2,0xe2,0x7a,0x57,0x2e,0x29,0xae,0x4a}}, ARRAY_SIZE(gp_slots_DesktopUtilities), gp_slots_DesktopUtilities },
++};
+--- /dev/null
++++ b/dlls/winegameplatform/client2612.h
+@@ -0,0 +1,520 @@
++/* Xbox 2612 client interfaces. Keep the earlier ABI on the primary interface.
++ * These adapters use the original client WinMD signatures and preserve object identity. */
++
++static const GUID IID_ContentAccess_2612 = {0x92823c39,0xad1f,0x591c,{0x8f,0xcb,0xeb,0xdd,0xb2,0xf9,0xc9,0x78}};
++static const GUID IID_Licensing_2612 = {0x8a2e333a,0xec1f,0x583c,{0xbf,0x20,0xed,0x77,0x3c,0x52,0x63,0xdd}};
++static const GUID IID_PackageInstance_2612 = {0x91267ef4,0x4abb,0x592f,{0xa5,0x26,0xea,0x17,0x2c,0x8a,0xaf,0x7d}};
++
++static HRESULT WINAPI client2612_QueryInterface( struct client2612_iface *iface, REFIID iid, void **out )
++{ return factory_QueryInterface( iface->owner, iid, out ); }
++static ULONG WINAPI client2612_AddRef( struct client2612_iface *iface )
++{ return factory_AddRef( iface->owner ); }
++static ULONG WINAPI client2612_Release( struct client2612_iface *iface )
++{ return factory_Release( iface->owner ); }
++static HRESULT WINAPI client2612_GetIids( struct client2612_iface *iface, ULONG *count, IID **ids )
++{ return factory_GetIids( iface->owner, count, ids ); }
++static HRESULT WINAPI client2612_GetRuntimeClassName( struct client2612_iface *iface, HSTRING *name )
++{ return factory_GetRuntimeClassName( iface->owner, name ); }
++static HRESULT WINAPI client2612_GetTrustLevel( struct client2612_iface *iface, TrustLevel *level )
++{ return factory_GetTrustLevel( iface->owner, level ); }
++
++static HRESULT WINAPI client2612_ContentAccess_6( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return ca_GetRawContentAccessDataAsync( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_7( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_ContentAccess_8( struct client2612_iface *iface, IInspectable *productIds, HSTRING user, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_ContentAccess_9( struct client2612_iface *iface, IInspectable *productIds, HSTRING user, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_ContentAccess_10( struct client2612_iface *iface, HSTRING user, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_ContentAccess_11( struct client2612_iface *iface, IInspectable *productIds, HSTRING user, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_ContentAccess_12( struct client2612_iface *iface, IUnknown *handler, LONGLONG *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return generic_slot( iface->owner, 10, out, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_13( struct client2612_iface *iface, LONGLONG token )
++{
++    return generic_slot( iface->owner, 11, NULL, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_14( struct client2612_iface *iface, IUnknown *handler, LONGLONG *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return generic_slot( iface->owner, 12, out, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_15( struct client2612_iface *iface, LONGLONG token )
++{
++    return generic_slot( iface->owner, 13, NULL, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_16( struct client2612_iface *iface, IUnknown *handler, LONGLONG *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return generic_slot( iface->owner, 14, out, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_17( struct client2612_iface *iface, LONGLONG token )
++{
++    return generic_slot( iface->owner, 15, NULL, __builtin_return_address(0) );
++}
++
++static HRESULT WINAPI client2612_ContentAccess_18( struct client2612_iface *iface )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static const void *client2612_ContentAccess_vtbl[] =
++{
++    client2612_QueryInterface, client2612_AddRef, client2612_Release, client2612_GetIids,
++    client2612_GetRuntimeClassName, client2612_GetTrustLevel,
++    client2612_ContentAccess_6,
++    client2612_ContentAccess_7,
++    client2612_ContentAccess_8,
++    client2612_ContentAccess_9,
++    client2612_ContentAccess_10,
++    client2612_ContentAccess_11,
++    client2612_ContentAccess_12,
++    client2612_ContentAccess_13,
++    client2612_ContentAccess_14,
++    client2612_ContentAccess_15,
++    client2612_ContentAccess_16,
++    client2612_ContentAccess_17,
++    client2612_ContentAccess_18,
++};
++
++static HRESULT WINAPI client2612_Licensing_6( struct client2612_iface *iface, INT32 refreshPolicy )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_Licensing_7( struct client2612_iface *iface, HSTRING packageFullName )
++{
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_Licensing_8( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_Licensing_9( struct client2612_iface *iface, HSTRING packageFullName, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static const void *client2612_Licensing_vtbl[] =
++{
++    client2612_QueryInterface, client2612_AddRef, client2612_Release, client2612_GetIids,
++    client2612_GetRuntimeClassName, client2612_GetTrustLevel,
++    client2612_Licensing_6,
++    client2612_Licensing_7,
++    client2612_Licensing_8,
++    client2612_Licensing_9,
++};
++
++static HRESULT WINAPI client2612_PackageInstance_6( struct client2612_iface *iface, HSTRING *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryInstallPath( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_7( struct client2612_iface *iface, HSTRING *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_8( struct client2612_iface *iface, HSTRING *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryInstanceId( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_9( struct client2612_iface *iface, INT32 identityType, HSTRING *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryIdentity( iface->owner, identityType, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_10( struct client2612_iface *iface, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QuerySize( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_11( struct client2612_iface *iface, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QuerySize( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_12( struct client2612_iface *iface, INT32 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryStorageCategory( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_13( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryHeader( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_14( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryDetails( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_15( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_16( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryFeatures( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_17( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_QueryRecipes( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_18( struct client2612_iface *iface, INT32 queryType, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_19( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_20( struct client2612_iface *iface, IInspectable *specifiers, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_21( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_22( struct client2612_iface *iface, IInspectable **out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_23( struct client2612_iface *iface, IInspectable *specifiersToRemove, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_24( struct client2612_iface *iface, IInspectable *specifiersToRemove, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_25( struct client2612_iface *iface )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_26( struct client2612_iface *iface, UINT32 waitMs )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_27( struct client2612_iface *iface )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_28( struct client2612_iface *iface, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_IsFlatStreamed( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_29( struct client2612_iface *iface, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_IsLaunchable( iface->owner, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_30( struct client2612_iface *iface, INT32 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_31( struct client2612_iface *iface, HSTRING executable, UINT32 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_GetRunningProcessId( iface->owner, executable, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_32( struct client2612_iface *iface, HSTRING executable, HSTRING parameters, HSTRING callerId, HSTRING correlationVector, UINT32 timeoutMs )
++{
++    return pi_Activate( iface->owner, executable, parameters, callerId, correlationVector, timeoutMs );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_33( struct client2612_iface *iface, HSTRING executable, HSTRING parameters, HSTRING callerId, HSTRING correlationVector )
++{
++    return pi_ActivateAumid( iface->owner, executable, parameters, callerId, correlationVector );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_34( struct client2612_iface *iface, HSTRING executable, UINT32 timeoutMs )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_35( struct client2612_iface *iface, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_36( struct client2612_iface *iface, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_37( struct client2612_iface *iface, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_38( struct client2612_iface *iface, UINT64 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_39( struct client2612_iface *iface )
++{
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_40( struct client2612_iface *iface, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return GP_E_NO_SERVICE;
++}
++
++static HRESULT WINAPI client2612_PackageInstance_41( struct client2612_iface *iface, IUnknown *handler, LONGLONG *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return pi_add_InstallationChanged( iface->owner, handler, out );
++}
++
++static HRESULT WINAPI client2612_PackageInstance_42( struct client2612_iface *iface, LONGLONG token )
++{
++    return pi_remove_InstallationChanged( iface->owner, token );
++}
++
++static const void *client2612_PackageInstance_vtbl[] =
++{
++    client2612_QueryInterface, client2612_AddRef, client2612_Release, client2612_GetIids,
++    client2612_GetRuntimeClassName, client2612_GetTrustLevel,
++    client2612_PackageInstance_6,
++    client2612_PackageInstance_7,
++    client2612_PackageInstance_8,
++    client2612_PackageInstance_9,
++    client2612_PackageInstance_10,
++    client2612_PackageInstance_11,
++    client2612_PackageInstance_12,
++    client2612_PackageInstance_13,
++    client2612_PackageInstance_14,
++    client2612_PackageInstance_15,
++    client2612_PackageInstance_16,
++    client2612_PackageInstance_17,
++    client2612_PackageInstance_18,
++    client2612_PackageInstance_19,
++    client2612_PackageInstance_20,
++    client2612_PackageInstance_21,
++    client2612_PackageInstance_22,
++    client2612_PackageInstance_23,
++    client2612_PackageInstance_24,
++    client2612_PackageInstance_25,
++    client2612_PackageInstance_26,
++    client2612_PackageInstance_27,
++    client2612_PackageInstance_28,
++    client2612_PackageInstance_29,
++    client2612_PackageInstance_30,
++    client2612_PackageInstance_31,
++    client2612_PackageInstance_32,
++    client2612_PackageInstance_33,
++    client2612_PackageInstance_34,
++    client2612_PackageInstance_35,
++    client2612_PackageInstance_36,
++    client2612_PackageInstance_37,
++    client2612_PackageInstance_38,
++    client2612_PackageInstance_39,
++    client2612_PackageInstance_40,
++    client2612_PackageInstance_41,
++    client2612_PackageInstance_42,
++};
++
++struct desktop_package_registration_result
++{
++    HSTRING package_full_name;
++    HSTRING aumid;
++};
++
++static HRESULT WINAPI client2612_DesktopPackage_6( struct factory *f, HSTRING folderPath,
++                                                 struct desktop_package_registration_result *out )
++{
++    if (!out) return E_POINTER;
++    memset( out, 0, sizeof(*out) );
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_DesktopPackage_7( struct factory *f, HSTRING packageFullName )
++{
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_DesktopPackage_8( struct factory *f, HSTRING launchParameter, HSTRING args, UINT32 *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_DesktopPackage_9( struct factory *f, HSTRING crdPath, boolean isMandatory )
++{
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_DesktopUtilities_6( struct factory *f, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static HRESULT WINAPI client2612_DesktopUtilities_7( struct factory *f, HSTRING packageFullName, boolean *out )
++{
++    if (!out) return E_POINTER;
++    *out = 0;
++    return E_NOTIMPL;
++}
++
++static const GUID *client2612_iid( struct factory *f )
++{
++    const WCHAR *name = gp_classes[f->kind].name;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.ContentAccess" )) return &IID_ContentAccess_2612;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.Licensing" )) return &IID_Licensing_2612;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.PackageInstance" )) return &IID_PackageInstance_2612;
++    return NULL;
++}
++
++static void init_client2612( struct factory *f )
++{
++    const WCHAR *name = gp_classes[f->kind].name;
++    f->client2612.owner = f;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.ContentAccess" )) f->client2612.vtbl = client2612_ContentAccess_vtbl;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.Licensing" )) f->client2612.vtbl = client2612_Licensing_vtbl;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.PackageInstance" )) f->client2612.vtbl = client2612_PackageInstance_vtbl;
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.DesktopPackage" ))
++    {
++        factory_vtbl[f->kind][6] = client2612_DesktopPackage_6;
++        factory_vtbl[f->kind][7] = client2612_DesktopPackage_7;
++        factory_vtbl[f->kind][8] = client2612_DesktopPackage_8;
++        factory_vtbl[f->kind][9] = client2612_DesktopPackage_9;
++    }
++    if (!wcscmp( name, L"Microsoft.GamePlatform.Services.DesktopUtilities" ))
++    {
++        factory_vtbl[f->kind][6] = client2612_DesktopUtilities_6;
++        factory_vtbl[f->kind][7] = client2612_DesktopUtilities_7;
++    }
++}
++
++C_ASSERT(ARRAY_SIZE(client2612_ContentAccess_vtbl) == 19);
++C_ASSERT(ARRAY_SIZE(client2612_Licensing_vtbl) == 10);
++C_ASSERT(ARRAY_SIZE(client2612_PackageInstance_vtbl) == 43);

@@ -90,6 +90,8 @@ test('metadata targets only inspected Shell51; extension and helper parse withou
   execFileSync(process.execPath, ['--check', `${directory}/switcher.js`]);
   execFileSync(process.execPath, ['--check', `${directory}/switcher-theme.js`]);
   execFileSync(process.execPath, ['--check', `${directory}/window-policy.js`]);
+  execFileSync(process.execPath, ['--check', `${directory}/native-state.js`]);
+  execFileSync(process.execPath, ['--check', `${directory}/native-auth.js`]);
   execFileSync(process.execPath, ['--check', 'assets/desktop/experience-client.js']);
   const extension = await fs.readFile(`${directory}/extension.js`, 'utf8');
   assert.doesNotMatch(extension, /set_boolean|set_strv|set_string|spawn_command|Subprocess|kill\(/);
@@ -104,7 +106,11 @@ test('staging copies verified source outside live directory and refuses replacem
     const args = ['scripts/desktop/stage-gnome-experience.py', '--output', output];
     execFileSync('python3', args, { env: { ...process.env, XDG_DATA_HOME: data } });
     const manifest = JSON.parse(await fs.readFile(path.join(output, 'stage-manifest.json')));
-    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 9);
+    assert.equal(manifest.uuid, 'xboks-experience@slaveitgr.github.io'); assert.equal(Object.keys(manifest.sha256).length, 18);
+    assert.ok(manifest.sha256['schemas/gschemas.compiled']);
+    assert.ok(manifest.sha256['home-launcher.js']);
+    assert.ok(manifest.sha256['prefs.js']);
+    assert.ok(manifest.sha256['native-state.js']); assert.ok(manifest.sha256['native-auth.js']);
     assert.ok(manifest.sha256['switcher-theme.js']);
     await assert.rejects(fs.access(path.join(data, 'gnome-shell/extensions')));
     assert.throws(() => execFileSync('python3', args, { stdio: 'pipe' }));
@@ -182,7 +188,7 @@ test('an asynchronous Enter completing after extension disable cannot change She
 
 test('v2 bare Super switches only inside the owned lease and restores the exact overview method', async () => {
   const f = await shellFixture();
-  assert.deepEqual((await f.invoke('GetCapabilities')).value,[3]);
+  assert.deepEqual((await f.invoke('GetCapabilities')).value,[4]);
   assert.equal(f.Main.overview.toggle(),'original toggle');
   assert.equal((await f.invoke('Switch',':1.1',['open'])).error,'not-authorized');
   await f.invoke('Enter');assert.equal(f.Main.overview.toggle(),true);

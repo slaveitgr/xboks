@@ -21,6 +21,11 @@ it('discards private stale profile data after sign-out and handles absent score 
  for(const absent of['ExampleGamer','example@example.test','ULTIMATE','A real biography'])expect(html).not.toContain(absent);
  expect(renderToStaticMarkup(<ProfilePage auth={{...auth(),profile:undefined}} settings={()=>{}} friends={()=>{}}/>)).toContain('Gamerscore is unavailable');
 });
+it('hides previous account identity, biography and membership while an account transition is pending',()=>{
+ const html=renderToStaticMarkup(<ProfilePage auth={{...auth(),running:true}} settings={()=>{}} friends={()=>{}}/>);
+ expect(html).toContain('Checking your account');
+ for(const value of ['ExampleGamer','example@example.test','ULTIMATE','A real biography','Example location','Gamerscore'])expect(html).not.toContain(value);
+});
 it('labels cached data and generic refresh error without rendering arbitrary provider error strings',()=>{
  const html=renderToStaticMarkup(<ProfilePage auth={{...auth(),profileSource:'cache',profileError:'sensitive raw backend payload'}} settings={()=>{}} friends={()=>{}}/>);
  expect(html).toContain('Showing saved profile information');expect(html).toContain('could not be refreshed');expect(html).not.toContain('sensitive raw');

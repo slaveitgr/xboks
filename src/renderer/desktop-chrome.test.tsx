@@ -1,4 +1,4 @@
-import { expect, it, vi } from 'vitest';
+import { expect, it, onTestFinished, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { demoSnapshot } from '../shared/demo-data';
 import { DesktopHeader, DesktopSidebar, desktopMoreActions } from './DesktopChrome';
@@ -42,13 +42,17 @@ it('does not mount private roster content in the collapsed sidebar', () => {
 });
 
 it('places actual account identity in the header without inferring subscription from sign-in', () => {
+  vi.useFakeTimers({ now: new Date('2026-11-06T12:00:00Z') });
+  onTestFinished(() => { vi.useRealTimers(); });
   const data = demoSnapshot();
   data.auth = { stored: true, running: false, note: '', username: 'sample@example.test', gamertag: 'ActualPlayer', avatarDataUrl: 'data:image/png;base64,AA==' };
   const render = () => renderToStaticMarkup(<DesktopHeader data={data} collapsed={false} onCollapsed={noop} onPanel={noop} search={<input aria-label="Search" />} controls={<button>Xbox mode</button>} back={noop} />);
   expect(render()).toContain('Account menu: ActualPlayer');
   expect(render()).toContain('src="data:image/png;base64,AA=="');
   expect(render()).not.toContain('Game Pass ULTIMATE');
-  data.auth.subscription = { status: 'active', productIds: ['CFQ7TTC0KHS0'], checkedAt: '2026-11-06T12:00:00Z' };
+  data.auth.subscription = { status: 'active', productIds: ['CFQ7TTC0KHS0'], checkedAt: '2026-11-05T12:00:00Z' };
+  expect(render()).not.toContain('Game Pass ULTIMATE');
+  data.auth.subscription.checkedAt = '2026-11-06T12:00:00Z';
   expect(render()).toContain('Game Pass ULTIMATE');
   data.auth.stored = false;
   expect(render()).not.toContain('ActualPlayer');

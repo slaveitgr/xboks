@@ -1,0 +1,115 @@
+--- a/dlls/combase/combase.c
++++ b/dlls/combase/combase.c
+@@ -54,6 +54,87 @@
+ 
+ static LONG com_server_process_refcount;
+ 
++struct shared_service
++{
++    struct list entry;
++    ULONG id;
++    ULONG refs;
++};
++
++static struct list shared_services = LIST_INIT(shared_services);
++static SRWLOCK shared_services_lock = SRWLOCK_INIT;
++
++/* Shared service IDs are the calling thread's service tag, not allocated cookies.
++ * Keep entries for the lifetime of the process, including entries with no refs.
++ * Windows also notifies the SCM and manages service shutdown timers here; those
++ * service-host operations have no equivalent in this process-local table yet. */
++HRESULT WINAPI CoGetSharedServiceId(ULONG *id)
++{
++    struct shared_service *service;
++    ULONG tag = (ULONG)(ULONG_PTR)NtCurrentTeb()->SubProcessTag;
++
++    if (!id) return E_INVALIDARG;
++    *id = tag;
++    AcquireSRWLockExclusive(&shared_services_lock);
++    LIST_FOR_EACH_ENTRY(service, &shared_services, struct shared_service, entry)
++    {
++        if (service->id == tag)
++        {
++            ReleaseSRWLockExclusive(&shared_services_lock);
++            return S_OK;
++        }
++    }
++    if (!(service = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*service))))
++    {
++        ReleaseSRWLockExclusive(&shared_services_lock);
++        return E_OUTOFMEMORY;
++    }
++    service->id = tag;
++    list_add_tail(&shared_services, &service->entry);
++    ReleaseSRWLockExclusive(&shared_services_lock);
++    TRACE("tag %#lx\n", tag);
++    return S_OK;
++}
++
++ULONG WINAPI CoAddRefSharedService(ULONG id)
++{
++    struct shared_service *service;
++    ULONG refs = 0;
++
++    AcquireSRWLockExclusive(&shared_services_lock);
++    LIST_FOR_EACH_ENTRY(service, &shared_services, struct shared_service, entry)
++    {
++        if (service->id != id) continue;
++        refs = ++service->refs;
++        ReleaseSRWLockExclusive(&shared_services_lock);
++        TRACE("id %#lx refs %lu\n", id, refs);
++        return refs;
++    }
++    ReleaseSRWLockExclusive(&shared_services_lock);
++    WARN("unknown shared service id %#lx\n", id);
++    return refs;
++}
++
++ULONG WINAPI CoReleaseSharedService(ULONG id)
++{
++    struct shared_service *service;
++    ULONG refs = 0;
++
++    AcquireSRWLockExclusive(&shared_services_lock);
++    LIST_FOR_EACH_ENTRY(service, &shared_services, struct shared_service, entry)
++    {
++        if (service->id != id) continue;
++        if (service->refs) refs = --service->refs;
++        else WARN("unbalanced shared service release for id %#lx\n", id);
++        ReleaseSRWLockExclusive(&shared_services_lock);
++        TRACE("id %#lx refs %lu\n", id, refs);
++        return refs;
++    }
++    ReleaseSRWLockExclusive(&shared_services_lock);
++    WARN("unknown shared service id %#lx\n", id);
++    return refs;
++}
++
+ struct comclassredirect_data
+ {
+     ULONG size;
+--- a/dlls/combase/combase.spec
++++ b/dlls/combase/combase.spec
+@@ -62,9 +62,9 @@
+ @ stdcall RoFailFastWithErrorContextInternal2(long long ptr)
+ @ stub RoFailFastWithErrorContextInternal
+ @ stub UpdateProcessTracing
+-@ stdcall CLIPFORMAT_UserFree(ptr ptr)
+-@ stdcall CLIPFORMAT_UserMarshal(ptr ptr ptr)
+-@ stdcall CLIPFORMAT_UserSize(ptr long ptr)
++1000 stdcall CLIPFORMAT_UserFree(ptr ptr)
++1001 stdcall CLIPFORMAT_UserMarshal(ptr ptr ptr)
++1002 stdcall CLIPFORMAT_UserSize(ptr long ptr)
+ @ stdcall CLIPFORMAT_UserUnmarshal(ptr ptr ptr)
+ @ stub CLSIDFromOle1Class
+ @ stdcall CLSIDFromProgID(wstr ptr)
+@@ -356,6 +356,9 @@
+ 
+ # Private exports used by the UWP UI stack (twinapi.appcore, Windows.UI, Windows.UI.Xaml, CoreMessaging).
+ # Ordinals must match Windows: these DLLs import them by ordinal only. Names from Microsoft's public symbols.
++66 stdcall CoGetSharedServiceId(ptr)
++67 stdcall CoAddRefSharedService(long)
++68 stdcall CoReleaseSharedService(long)
+ 69 stdcall CoRegisterServerShutdownDelay(long)
+ 86 stdcall CoBeginProcessEvents(ptr)
+ 87 stdcall CoMsgWaitInProcessEvents(long long ptr long ptr)

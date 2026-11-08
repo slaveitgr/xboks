@@ -1,13 +1,14 @@
 {
   "uuid": "xboks-experience@slaveitgr.github.io",
-  "name": "XBOKS Fullscreen Experience",
-  "description": "Reversible Xbox mode, native window switcher and XBOKS Guide focus bridge. GNOME Shell 51 only.",
+  "name": "Linux Gaming Mode (Fullscreen Experience)",
+  "description": "Choose a gaming home app and use reversible fullscreen desktop mode with a native app switcher. GNOME Shell 51 only.",
+  "settings-schema": "org.gnome.shell.extensions.linux-gaming-mode",
   "shell-version": [
     "51"
   ],
   "session-modes": [
     "user"
   ],
-  "version": 5,
-  "url": "https://github.com/slaveitgr/xboks"
+  "version": 8,
+  "url": "https://github.com/slaveitgr/Linux_Gaming_Mode"
 }

@@ -1,18 +1,33 @@
 import { useEffect, useState } from 'react';
 import { useReferenceLocale } from './ReferenceLocale';
 import type { AppSnapshot } from '../shared/types';
+import './library-chrome.css';
 
-export type LibraryView = 'games' | 'later' | 'history' | 'queue';
-const tabs: [LibraryView, string][] = [['games', 'My games'], ['later', 'Play later'], ['history', 'Play history'], ['queue', 'Install Queue']];
-export function LibraryTabs({ active, select }: { active: LibraryView; select: (view: LibraryView) => void }) {
-  const { language } = useReferenceLocale();
-  const labels = { games: 'Τα παιχνίδια μου', later: 'Αναπαραγωγή αργότερα', history: 'Ιστορικό παιχνιδιού', queue: 'Εγκατάσταση ουράς' };
-  return <div className="xbox-library-tabs" role="tablist" aria-label="Library sections">{tabs.map(([id, label]) => <button key={id} role="tab" aria-selected={active === id} id={`library-tab-${id}`} onClick={() => select(id)} onKeyDown={event => {
+export type LibraryView = 'installed' | 'games' | 'apps' | 'later' | 'history' | 'queue';
+export interface LibraryTabOptions { showInstalled?: boolean; showApps?: boolean; showHistory?: boolean; showLater?: boolean; showQueue?: boolean; queueInDock?: boolean; highDensity?: boolean; surface?: 'inline' | 'subnav' }
+export function libraryTabItems({ showInstalled = false, showApps = false, showHistory = true, showLater = true, showQueue = true, queueInDock = false, highDensity = true, surface = 'subnav' }: LibraryTabOptions = {}): { id: LibraryView; en: string; el: string }[] {
+  const games = { id: 'games' as const, en: 'My games', el: 'Τα παιχνίδια μου' };
+  const secondary = [
+    ...(showApps ? [{ id: 'apps' as const, en: 'Apps', el: 'Εφαρμογές' }] : []),
+    ...(showHistory ? [{ id: 'history' as const, en: surface === 'subnav' ? 'Recently played' : 'Play history', el: surface === 'subnav' ? 'Πρόσφατα παιχνίδια' : 'Ιστορικό παιχνιδιού' }] : []),
+    ...(showLater ? [{ id: 'later' as const, en: 'Play later', el: 'Αναπαραγωγή αργότερα' }] : []),
+  ];
+  const queue = showQueue && !(surface === 'subnav' && highDensity && queueInDock) ? [{ id: 'queue' as const, en: 'Queue', el: 'Ουρά' }] : [];
+  return surface === 'inline' ? [games, ...secondary, ...queue] : [
+    ...(showInstalled ? [{ id: 'installed' as const, en: 'Installed', el: 'Εγκατεστημένα' }] : []),
+    ...secondary, ...(highDensity ? [games] : []), ...queue, ...(!highDensity ? [games] : []),
+  ];
+}
+export function LibraryTabs({ active, select, ...options }: { active: LibraryView; select: (view: LibraryView) => void } & LibraryTabOptions) {
+  const { text } = useReferenceLocale();
+  const tabs = libraryTabItems(options);
+  const selected = tabs.some(tab => tab.id === active) ? active : tabs[0].id;
+  return <nav className="xbox-library-tabs library-tabs-v2" role="tablist" aria-label={text('Library sections', 'Ενότητες βιβλιοθήκης')}>{tabs.map(({ id, en, el }) => <button key={id} type="button" role="tab" tabIndex={selected === id ? 0 : -1} aria-selected={selected === id} id={`library-tab-${id}`} onClick={() => select(id)} onKeyDown={event => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault(); const index = tabs.findIndex(tab => tab[0] === id);
+    event.preventDefault(); const index = tabs.findIndex(tab => tab.id === id);
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-    select(tabs[next][0]); requestAnimationFrame(() => document.getElementById(`library-tab-${tabs[next][0]}`)?.focus());
-  }}>{language === 'el' ? labels[id] : label}</button>)}</div>;
+    select(tabs[next].id); requestAnimationFrame(() => document.getElementById(`library-tab-${tabs[next].id}`)?.focus());
+  }}>{text(en, el)}</button>)}</nav>;
 }
 export interface LibraryCollections { later: string[]; history: Record<string, number> }
 type StorageLike = Pick<Storage, 'getItem' | 'setItem'>;

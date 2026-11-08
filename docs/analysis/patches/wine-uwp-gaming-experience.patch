@@ -1,0 +1,834 @@
+diff --git a/configure.ac b/configure.ac
+--- a/configure.ac
++++ b/configure.ac
+@@ -2691,6 +2691,7 @@
+ WINE_CONFIG_MAKEFILE(dlls/fusion/tests)
+ WINE_CONFIG_MAKEFILE(dlls/fwpuclnt)
+ WINE_CONFIG_MAKEFILE(dlls/gameinput)
++WINE_CONFIG_MAKEFILE(dlls/gamemode)
+ WINE_CONFIG_MAKEFILE(dlls/gameux)
+ WINE_CONFIG_MAKEFILE(dlls/gameux/tests)
+ WINE_CONFIG_MAKEFILE(dlls/gamingtcui)
+diff --git a/dlls/apisetschema/apisetschema.spec b/dlls/apisetschema/apisetschema.spec
+--- a/dlls/apisetschema/apisetschema.spec
++++ b/dlls/apisetschema/apisetschema.spec
+@@ -228,6 +228,7 @@
+ apiset api-ms-win-eventlog-legacy-l1-1-0 = advapi32.dll
+ apiset api-ms-win-eventlog-private-l1-1-0 = advapi32.dll
+ apiset api-ms-win-gaming-deviceinformation-l1-1-0 = kernelbase.dll
++apiset api-ms-win-gaming-experience-l1-1-0 = gamemode.dll
+ apiset api-ms-win-gaming-tcui-l1-1-0 = gamingtcui.dll
+ apiset api-ms-win-gdi-dpiinfo-l1-1-0 = gdi32.dll
+ apiset api-ms-win-http-time-l1-1-0 = kernelbase.dll
+diff --git a/dlls/gamemode/Makefile.in b/dlls/gamemode/Makefile.in
+new file mode 100644
+--- /dev/null
++++ b/dlls/gamemode/Makefile.in
+@@ -0,0 +1,10 @@
++MODULE = gamemode.dll
++ENABLE_ARCHS = x86_64
++IMPORTS = ntdll kernelbase
++UNIXLIB = gamemode.so
++UNIX_CFLAGS = $(DBUS_CFLAGS)
++UNIX_LIBS = $(PTHREAD_LIBS)
++
++SOURCES = \
++	main.c \
++	unixlib.c
+diff --git a/dlls/gamemode/gamemode.spec b/dlls/gamemode/gamemode.spec
+new file mode 100644
+--- /dev/null
++++ b/dlls/gamemode/gamemode.spec
+@@ -0,0 +1,6 @@
++1 stdcall CanSetGamingFullScreenExperience()
++4 stdcall IsGamingFullScreenExperienceActive()
++5 stdcall IsGamingFullScreenExperienceSupported()
++11 stdcall RegisterGamingFullScreenExperienceChangeNotification(ptr ptr ptr)
++13 stdcall SetGamingFullScreenExperience(long)
++14 stdcall UnregisterGamingFullScreenExperienceChangeNotification(ptr)
+diff --git a/dlls/gamemode/unixlib.h b/dlls/gamemode/unixlib.h
+new file mode 100644
+--- /dev/null
++++ b/dlls/gamemode/unixlib.h
+@@ -0,0 +1,34 @@
++/* Private native gaming-experience bridge ABI. LGPL-2.1-or-later. */
++#ifndef __WINE_GAMEMODE_UNIXLIB_H
++#define __WINE_GAMEMODE_UNIXLIB_H
++
++struct gamemode_state
++{
++    UINT64 epoch;
++    UINT64 generation;
++    UINT64 serial;
++    UINT32 version;
++    UINT32 supported;
++    UINT32 active;
++    UINT32 can_set;
++    UINT32 owned;
++};
++
++struct gamemode_params
++{
++    struct gamemode_state state;
++    UINT32 enabled;
++    UINT32 timeout_ms;
++    HRESULT result;
++};
++
++enum gamemode_unix_funcs
++{
++    gamemode_init,
++    gamemode_get_state,
++    gamemode_set_mode,
++    gamemode_poll,
++    gamemode_close,
++    gamemode_func_count
++};
++#endif
+diff --git a/dlls/gamemode/main.c b/dlls/gamemode/main.c
+new file mode 100644
+--- /dev/null
++++ b/dlls/gamemode/main.c
+@@ -0,0 +1,313 @@
++/* Acknowledged native gaming-experience APIs. LGPL-2.1-or-later. */
++#include <stdarg.h>
++#include <string.h>
++#include "windef.h"
++#include "winbase.h"
++#include "winerror.h"
++#include "winternl.h"
++#include "wine/unixlib.h"
++#include "wine/debug.h"
++#include "unixlib.h"
++
++WINE_DEFAULT_DEBUG_CHANNEL(gamemode);
++
++typedef void (CALLBACK *gaming_changed_callback)(void *context);
++
++struct registration
++{
++    struct registration *next;
++    HANDLE cookie;
++    gaming_changed_callback callback;
++    void *context;
++    HANDLE idle;
++    BOOL inflight;
++    BOOL cancelled;
++    unsigned int waiters;
++};
++
++static INIT_ONCE bridge_once = INIT_ONCE_STATIC_INIT;
++static SRWLOCK registrations_lock = SRWLOCK_INIT;
++static struct registration *registrations;
++static UINT_PTR next_cookie = 0x10001;
++static DWORD worker_id;
++static HRESULT bridge_result = (HRESULT)0x80070032; /* HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED) */
++static struct gamemode_state observed;
++static BOOL observed_valid;
++
++static HRESULT unix_call(unsigned int code, struct gamemode_params *params)
++{
++    NTSTATUS status = WINE_UNIX_CALL(code, params);
++    if (status) return HRESULT_FROM_WIN32(RtlNtStatusToDosError(status));
++    return params->result;
++}
++
++static struct registration *find_registration(HANDLE cookie)
++{
++    struct registration *entry;
++    for (entry = registrations; entry; entry = entry->next)
++        if (entry->cookie == cookie) return entry;
++    return NULL;
++}
++
++static void free_registration(struct registration *entry)
++{
++    CloseHandle(entry->idle);
++    HeapFree(GetProcessHeap(), 0, entry);
++}
++
++/* Called under registrations_lock, after all callback and waiter references end. */
++static void remove_registration(struct registration *entry)
++{
++    struct registration **cursor;
++    for (cursor = &registrations; *cursor; cursor = &(*cursor)->next)
++        if (*cursor == entry) { *cursor = entry->next; break; }
++}
++
++static BOOL state_changed(const struct gamemode_state *a, const struct gamemode_state *b)
++{
++    return a->generation != b->generation || a->supported != b->supported ||
++           a->active != b->active || a->can_set != b->can_set || a->owned != b->owned;
++}
++
++static void notify_changes(const struct gamemode_state *state)
++{
++    struct registration *entry;
++    HANDLE *cookies = NULL;
++    unsigned int count = 0, i = 0;
++    gaming_changed_callback callback;
++    void *context;
++    BOOL release;
++
++    AcquireSRWLockExclusive(&registrations_lock);
++    /* Register can publish a newer query between the worker's query and this lock. */
++    if (observed_valid && state->serial <= observed.serial)
++    {
++        ReleaseSRWLockExclusive(&registrations_lock);
++        return;
++    }
++    if (!observed_valid)
++    {
++        observed = *state;
++        observed_valid = TRUE;
++        ReleaseSRWLockExclusive(&registrations_lock);
++        return;
++    }
++    if (!state_changed(&observed, state))
++    {
++        observed = *state;
++        ReleaseSRWLockExclusive(&registrations_lock);
++        return;
++    }
++    for (entry = registrations; entry; entry = entry->next) if (!entry->cancelled) ++count;
++    if (count && !(cookies = HeapAlloc(GetProcessHeap(), 0, count * sizeof(*cookies))))
++    {
++        /* Retain the previous observation so delivery can retry next poll. */
++        ReleaseSRWLockExclusive(&registrations_lock);
++        return;
++    }
++    observed = *state;
++    for (entry = registrations; entry; entry = entry->next)
++        if (!entry->cancelled) cookies[i++] = entry->cookie;
++    ReleaseSRWLockExclusive(&registrations_lock);
++
++    for (i = 0; i < count; ++i)
++    {
++        AcquireSRWLockExclusive(&registrations_lock);
++        if (!(entry = find_registration(cookies[i])) || entry->cancelled)
++        {
++            ReleaseSRWLockExclusive(&registrations_lock);
++            continue;
++        }
++        entry->inflight = TRUE;
++        ResetEvent(entry->idle);
++        callback = entry->callback;
++        context = entry->context;
++        ReleaseSRWLockExclusive(&registrations_lock);
++
++        /* Run on a Wine-created thread, with neither transport nor registration lock held. */
++        callback(context);
++
++        AcquireSRWLockExclusive(&registrations_lock);
++        entry->inflight = FALSE;
++        SetEvent(entry->idle);
++        release = entry->cancelled && !entry->waiters;
++        if (release) remove_registration(entry);
++        ReleaseSRWLockExclusive(&registrations_lock);
++        if (release) free_registration(entry);
++    }
++    HeapFree(GetProcessHeap(), 0, cookies);
++}
++
++static DWORD WINAPI notification_worker(void *unused)
++{
++    for (;;)
++    {
++        struct gamemode_params params = {0};
++        params.timeout_ms = 100;
++        unix_call(gamemode_poll, &params);
++        notify_changes(&params.state);
++        /* Failed connects must not busy-spin; enrollment and service restarts remain observable. */
++        Sleep(50);
++    }
++    return 0;
++}
++
++static BOOL CALLBACK initialize_bridge(INIT_ONCE *once, void *parameter, void **context)
++{
++    WCHAR value[2];
++    HMODULE module;
++    HANDLE thread;
++    struct gamemode_params params = {0};
++
++    if (GetEnvironmentVariableW(L"WINE_UWP_GAMING_EXPERIENCE_BRIDGE", value, ARRAYSIZE(value)) != 1 ||
++        value[0] != '1') return TRUE;
++    if (__wine_init_unix_call()) return TRUE;
++    if (FAILED(bridge_result = unix_call(gamemode_init, &params))) return TRUE;
++
++    /* Public notification handles and an active lease cannot outlive this module. */
++    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
++                           (const WCHAR *)&bridge_once, &module))
++    {
++        bridge_result = HRESULT_FROM_WIN32(GetLastError());
++        return TRUE;
++    }
++    if (!(thread = CreateThread(NULL, 0, notification_worker, NULL, 0, &worker_id)))
++    {
++        bridge_result = HRESULT_FROM_WIN32(GetLastError());
++        return TRUE;
++    }
++    CloseHandle(thread);
++    TRACE("native gaming-experience bridge enabled; state remains session-owner authoritative\n");
++    return TRUE;
++}
++
++static HRESULT ensure_bridge(void)
++{
++    InitOnceExecuteOnce(&bridge_once, initialize_bridge, NULL, NULL);
++    return bridge_result;
++}
++
++static HRESULT query_state(struct gamemode_state *state)
++{
++    struct gamemode_params params = {0};
++    HRESULT hr;
++    memset(state, 0, sizeof(*state));
++    if (FAILED(hr = ensure_bridge())) return hr;
++    params.timeout_ms = 1500;
++    hr = unix_call(gamemode_get_state, &params);
++    if (SUCCEEDED(hr)) *state = params.state;
++    return hr;
++}
++
++BOOL WINAPI IsGamingFullScreenExperienceSupported(void)
++{
++    struct gamemode_state state;
++    return SUCCEEDED(query_state(&state)) && state.supported;
++}
++
++BOOL WINAPI IsGamingFullScreenExperienceActive(void)
++{
++    struct gamemode_state state;
++    return SUCCEEDED(query_state(&state)) && state.supported && state.active;
++}
++
++BOOL WINAPI CanSetGamingFullScreenExperience(void)
++{
++    struct gamemode_state state;
++    return SUCCEEDED(query_state(&state)) && state.supported && state.can_set;
++}
++
++HRESULT WINAPI SetGamingFullScreenExperience(BOOL enabled)
++{
++    struct gamemode_params params = {0};
++    HRESULT hr;
++    if (FAILED(hr = ensure_bridge())) return hr;
++    params.enabled = !!enabled;
++    params.timeout_ms = 1500;
++    hr = unix_call(gamemode_set_mode, &params);
++    TRACE("SetGamingFullScreenExperience(%u) returned %#lx, acknowledged active %u owned %u\n",
++          !!enabled, hr, params.state.active, params.state.owned);
++    return hr;
++}
++
++HRESULT WINAPI RegisterGamingFullScreenExperienceChangeNotification(gaming_changed_callback callback,
++                                                                    void *context, HANDLE *handle)
++{
++    struct gamemode_state state;
++    struct registration *entry, *cursor;
++    HRESULT hr;
++    if (!handle) return E_POINTER;
++    *handle = NULL;
++    if (!callback) return E_INVALIDARG;
++    if (FAILED(hr = query_state(&state))) return hr;
++    if (!state.supported) return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
++    if (!(entry = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(*entry)))) return E_OUTOFMEMORY;
++    if (!(entry->idle = CreateEventW(NULL, TRUE, TRUE, NULL)))
++    {
++        hr = HRESULT_FROM_WIN32(GetLastError());
++        HeapFree(GetProcessHeap(), 0, entry);
++        return hr;
++    }
++    entry->callback = callback;
++    entry->context = context;
++    AcquireSRWLockExclusive(&registrations_lock);
++    for (cursor = registrations; cursor && cursor->cancelled; cursor = cursor->next) {}
++    if (!cursor && (!observed_valid || state.serial > observed.serial))
++    {
++        observed = state;
++        observed_valid = TRUE;
++    }
++    do
++    {
++        entry->cookie = (HANDLE)next_cookie;
++        next_cookie += 4;
++        if (!next_cookie) next_cookie = 0x10001;
++    } while (!entry->cookie || find_registration(entry->cookie));
++    entry->next = registrations;
++    registrations = entry;
++    *handle = entry->cookie;
++    ReleaseSRWLockExclusive(&registrations_lock);
++    return S_OK;
++}
++
++void WINAPI UnregisterGamingFullScreenExperienceChangeNotification(HANDLE handle)
++{
++    struct registration *entry;
++    BOOL wait, release;
++    AcquireSRWLockExclusive(&registrations_lock);
++    if (!(entry = find_registration(handle)))
++    {
++        ReleaseSRWLockExclusive(&registrations_lock);
++        SetLastError(ERROR_INVALID_HANDLE);
++        return;
++    }
++    entry->cancelled = TRUE;
++    wait = entry->inflight;
++    if (wait && GetCurrentThreadId() == worker_id)
++    {
++        ReleaseSRWLockExclusive(&registrations_lock);
++        return;
++    }
++    if (wait) ++entry->waiters;
++    release = !wait && !entry->waiters;
++    if (release) remove_registration(entry);
++    ReleaseSRWLockExclusive(&registrations_lock);
++    if (wait)
++    {
++        WaitForSingleObject(entry->idle, INFINITE);
++        /* Complete the worker's final access before releasing the callback context. */
++        AcquireSRWLockExclusive(&registrations_lock);
++        --entry->waiters;
++        release = !entry->waiters;
++        if (release) remove_registration(entry);
++        ReleaseSRWLockExclusive(&registrations_lock);
++    }
++    if (release) free_registration(entry);
++}
++
++BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, void *reserved)
++{
++    if (reason == DLL_PROCESS_ATTACH) DisableThreadLibraryCalls(instance);
++    /* Process exit closes the private bus sender. Never wait or use D-Bus under loader lock. */
++    return TRUE;
++}
+diff --git a/dlls/gamemode/unixlib.c b/dlls/gamemode/unixlib.c
+new file mode 100644
+--- /dev/null
++++ b/dlls/gamemode/unixlib.c
+@@ -0,0 +1,424 @@
++/* Native gaming-experience lease transport. LGPL-2.1-or-later. */
++#if 0
++#pragma makedep unix
++#endif
++
++#include "config.h"
++#include <stdlib.h>
++#include <string.h>
++#include <time.h>
++#include <pthread.h>
++#include <dlfcn.h>
++#ifdef SONAME_LIBDBUS_1
++#include <dbus/dbus.h>
++#endif
++#include "ntstatus.h"
++#include "windef.h"
++#include "winbase.h"
++#include "winerror.h"
++#include "winternl.h"
++#include "wine/unixlib.h"
++#include "wine/debug.h"
++#include "unixlib.h"
++
++WINE_DEFAULT_DEBUG_CHANNEL(gamemode);
++
++#define UNAVAILABLE HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED)
++#define BUSY HRESULT_FROM_WIN32(ERROR_BUSY)
++#define TIMEOUT HRESULT_FROM_WIN32(ERROR_TIMEOUT)
++
++static pthread_mutex_t transport_lock = PTHREAD_MUTEX_INITIALIZER;
++static UINT64 observation_serial;
++
++/* Every exported observation, including an unavailable result, has one order. */
++static void publish_state(struct gamemode_params *params, const struct gamemode_state *state)
++{
++    if (state) params->state = *state;
++    else memset(&params->state, 0, sizeof(params->state));
++    params->state.serial = ++observation_serial;
++}
++
++#ifdef SONAME_LIBDBUS_1
++#define SERVICE "org.slaveitgr.Xboks.Experience"
++#define OBJECT "/org/slaveitgr/Xboks/Experience/Native1"
++#define INTERFACE "org.slaveitgr.Xboks.Experience.Native1"
++
++#define DBUS_FUNCS \
++    DO_FUNC(dbus_threads_init_default) \
++    DO_FUNC(dbus_error_init) \
++    DO_FUNC(dbus_error_free) \
++    DO_FUNC(dbus_connection_open_private) \
++    DO_FUNC(dbus_bus_register) \
++    DO_FUNC(dbus_bus_add_match) \
++    DO_FUNC(dbus_connection_set_exit_on_disconnect) \
++    DO_FUNC(dbus_connection_get_is_connected) \
++    DO_FUNC(dbus_connection_close) \
++    DO_FUNC(dbus_connection_unref) \
++    DO_FUNC(dbus_connection_flush) \
++    DO_FUNC(dbus_connection_send_with_reply_and_block) \
++    DO_FUNC(dbus_connection_read_write) \
++    DO_FUNC(dbus_connection_pop_message) \
++    DO_FUNC(dbus_message_new_method_call) \
++    DO_FUNC(dbus_message_set_auto_start) \
++    DO_FUNC(dbus_message_append_args) \
++    DO_FUNC(dbus_message_get_args) \
++    DO_FUNC(dbus_message_has_signature) \
++    DO_FUNC(dbus_message_get_sender) \
++    DO_FUNC(dbus_message_is_signal) \
++    DO_FUNC(dbus_message_unref)
++#define DO_FUNC(f) static typeof(f) *p_##f;
++DBUS_FUNCS
++#undef DO_FUNC
++
++static pthread_once_t dbus_once = PTHREAD_ONCE_INIT;
++static BOOL dbus_ready;
++static DBusConnection *connection;
++static char owner[256];
++static struct gamemode_state cached;
++static UINT64 generation = 1;
++static UINT64 last_query;
++
++static UINT64 clock_ms(void)
++{
++    struct timespec ts;
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return (UINT64)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
++}
++
++static void load_dbus(void)
++{
++    void *lib = dlopen(SONAME_LIBDBUS_1, RTLD_NOW | RTLD_LOCAL);
++    if (!lib) return;
++#define DO_FUNC(f) if (!(p_##f = dlsym(lib, #f))) { dlclose(lib); return; }
++    DBUS_FUNCS
++#undef DO_FUNC
++    dbus_ready = p_dbus_threads_init_default();
++}
++
++static void clear_state(void)
++{
++    memset(&cached, 0, sizeof(cached));
++    cached.generation = generation;
++    last_query = 0;
++}
++
++/* Closing this private sender also releases any lease at the session owner. */
++static void disconnect_bus(void)
++{
++    if (connection)
++    {
++        p_dbus_connection_close(connection);
++        p_dbus_connection_unref(connection);
++        connection = NULL;
++    }
++    owner[0] = 0;
++    ++generation;
++    clear_state();
++}
++
++static HRESULT map_error(const DBusError *error)
++{
++    const char *name = error->name;
++    if (!name) return E_FAIL;
++    if (!strcmp(name, DBUS_ERROR_ACCESS_DENIED) ||
++        !strcmp(name, INTERFACE ".Error.AccessDenied") ||
++        !strcmp(name, "org.slaveitgr.Xboks.Experience.Error.AccessDenied")) return E_ACCESSDENIED;
++    if (!strcmp(name, INTERFACE ".Error.Busy") || !strcmp(name, INTERFACE ".Error.StaleEpoch") ||
++        !strcmp(name, INTERFACE ".Error.OverviewOpen") ||
++        !strcmp(name, "org.slaveitgr.Xboks.Experience.Error.Busy") ||
++        !strcmp(name, "org.slaveitgr.Xboks.Experience.Error.StaleEpoch")) return BUSY;
++    if (!strcmp(name, DBUS_ERROR_NO_REPLY) || !strcmp(name, DBUS_ERROR_TIMEOUT)) return TIMEOUT;
++    if (!strcmp(name, DBUS_ERROR_INVALID_ARGS)) return E_INVALIDARG;
++    if (!strcmp(name, DBUS_ERROR_SERVICE_UNKNOWN) || !strcmp(name, DBUS_ERROR_NAME_HAS_NO_OWNER) ||
++        !strcmp(name, DBUS_ERROR_UNKNOWN_METHOD) || !strcmp(name, DBUS_ERROR_NOT_SUPPORTED) ||
++        !strcmp(name, INTERFACE ".Error.NotSupported") || !strcmp(name, INTERFACE ".Error.Unavailable") ||
++        !strcmp(name, INTERFACE ".Error.EmergencyUnavailable") ||
++        !strcmp(name, "org.slaveitgr.Xboks.Experience.Error.NotSupported")) return UNAVAILABLE;
++    return E_FAIL;
++}
++
++static HRESULT connect_bus(void)
++{
++    const char *address;
++    DBusError error;
++    pthread_once(&dbus_once, load_dbus);
++    if (!dbus_ready) return UNAVAILABLE;
++    if (connection && p_dbus_connection_get_is_connected(connection)) return S_OK;
++    if (connection) disconnect_bus();
++    /* Never discover or autolaunch another bus. The launcher supplies the host bus. */
++    address = getenv("DBUS_SESSION_BUS_ADDRESS");
++    if (!address || strncmp(address, "unix:", 5) || strchr(address, ';') || !address[5]) return UNAVAILABLE;
++    p_dbus_error_init(&error);
++    connection = p_dbus_connection_open_private(address, &error);
++    if (!connection) { p_dbus_error_free(&error); return UNAVAILABLE; }
++    p_dbus_connection_set_exit_on_disconnect(connection, FALSE);
++    if (!p_dbus_bus_register(connection, &error))
++    {
++        p_dbus_error_free(&error);
++        disconnect_bus();
++        return UNAVAILABLE;
++    }
++    p_dbus_bus_add_match(connection, "type='signal',interface='" INTERFACE "',path='" OBJECT "',member='StateChanged'", &error);
++    if (error.name) { p_dbus_error_free(&error); disconnect_bus(); return UNAVAILABLE; }
++    p_dbus_bus_add_match(connection, "type='signal',sender='org.freedesktop.DBus',interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='" SERVICE "'", &error);
++    if (error.name) { p_dbus_error_free(&error); disconnect_bus(); return UNAVAILABLE; }
++    p_dbus_error_free(&error);
++    p_dbus_connection_flush(connection);
++    clear_state();
++    return S_OK;
++}
++
++static DBusMessage *send_call(DBusMessage *message, UINT64 deadline, HRESULT *result)
++{
++    DBusError error;
++    DBusMessage *reply;
++    UINT64 now = clock_ms();
++    if (now >= deadline) { *result = TIMEOUT; return NULL; }
++    p_dbus_message_set_auto_start(message, FALSE);
++    p_dbus_error_init(&error);
++    reply = p_dbus_connection_send_with_reply_and_block(connection, message, deadline - now, &error);
++    *result = reply ? S_OK : map_error(&error);
++    p_dbus_error_free(&error);
++    return reply;
++}
++
++static HRESULT resolve_owner(UINT64 deadline)
++{
++    DBusMessage *message, *reply;
++    const char *name = SERVICE, *value;
++    DBusError error;
++    HRESULT hr;
++    if (!(message = p_dbus_message_new_method_call(DBUS_SERVICE_DBUS, DBUS_PATH_DBUS,
++                                                  DBUS_INTERFACE_DBUS, "GetNameOwner"))) return E_OUTOFMEMORY;
++    if (!p_dbus_message_append_args(message, DBUS_TYPE_STRING, &name, DBUS_TYPE_INVALID))
++    { p_dbus_message_unref(message); return E_OUTOFMEMORY; }
++    reply = send_call(message, deadline, &hr);
++    p_dbus_message_unref(message);
++    if (!reply)
++    {
++        if (owner[0]) { owner[0] = 0; ++generation; }
++        clear_state();
++        return hr;
++    }
++    p_dbus_error_init(&error);
++    if (!p_dbus_message_has_signature(reply, "s") ||
++        !p_dbus_message_get_args(reply, &error, DBUS_TYPE_STRING, &value, DBUS_TYPE_INVALID) ||
++        value[0] != ':' || strlen(value) >= sizeof(owner)) hr = UNAVAILABLE;
++    else if (strcmp(owner, value))
++    {
++        strcpy(owner, value);
++        ++generation;
++        clear_state();
++    }
++    p_dbus_error_free(&error);
++    p_dbus_message_unref(reply);
++    return hr;
++}
++
++static HRESULT get_state(UINT64 deadline)
++{
++    DBusMessage *message, *reply;
++    DBusError error;
++    dbus_uint32_t version;
++    dbus_uint64_t epoch;
++    dbus_bool_t supported, active, can_set, owned;
++    HRESULT hr;
++    const char *sender;
++    if (FAILED(hr = connect_bus()) || FAILED(hr = resolve_owner(deadline))) return hr;
++    if (!(message = p_dbus_message_new_method_call(owner, OBJECT, INTERFACE, "GetState"))) return E_OUTOFMEMORY;
++    reply = send_call(message, deadline, &hr);
++    p_dbus_message_unref(message);
++    if (!reply) { clear_state(); return hr; }
++    p_dbus_error_init(&error);
++    sender = p_dbus_message_get_sender(reply);
++    if (!sender || strcmp(sender, owner) || !p_dbus_message_has_signature(reply, "utbbbb") ||
++        !p_dbus_message_get_args(reply, &error, DBUS_TYPE_UINT32, &version,
++                                DBUS_TYPE_UINT64, &epoch, DBUS_TYPE_BOOLEAN, &supported,
++                                DBUS_TYPE_BOOLEAN, &active, DBUS_TYPE_BOOLEAN, &can_set,
++                                DBUS_TYPE_BOOLEAN, &owned, DBUS_TYPE_INVALID) ||
++        version != 1 || (owned && !active) || ((can_set || owned) && !supported)) hr = UNAVAILABLE;
++    else
++    {
++        cached.version = version;
++        cached.epoch = epoch;
++        cached.generation = generation;
++        cached.supported = supported;
++        cached.active = active;
++        cached.can_set = can_set;
++        cached.owned = owned;
++        last_query = clock_ms();
++    }
++    p_dbus_error_free(&error);
++    p_dbus_message_unref(reply);
++    if (FAILED(hr)) clear_state();
++    return hr;
++}
++
++static HRESULT set_mode(BOOL enabled, UINT64 deadline)
++{
++    DBusMessage *message, *reply;
++    DBusError error;
++    dbus_bool_t active, owned, value = enabled;
++    dbus_uint64_t epoch, expected;
++    char expected_owner[sizeof(owner)];
++    UINT64 expected_generation;
++    HRESULT hr;
++    const char *sender;
++    if (FAILED(hr = get_state(deadline))) return hr;
++    if (!cached.supported) return UNAVAILABLE;
++    if ((enabled && cached.active && cached.owned) ||
++        (!enabled && !cached.active && !cached.owned)) return S_OK;
++    if (cached.active && !cached.owned) return enabled ? BUSY : E_ACCESSDENIED;
++    if (!cached.can_set) return E_ACCESSDENIED;
++    expected = cached.epoch;
++    expected_generation = generation;
++    strcpy(expected_owner, owner);
++    if (!(message = p_dbus_message_new_method_call(owner, OBJECT, INTERFACE, "SetMode"))) return E_OUTOFMEMORY;
++    if (!p_dbus_message_append_args(message, DBUS_TYPE_BOOLEAN, &value,
++                                    DBUS_TYPE_UINT64, &expected, DBUS_TYPE_INVALID))
++    { p_dbus_message_unref(message); return E_OUTOFMEMORY; }
++    reply = send_call(message, deadline, &hr);
++    p_dbus_message_unref(message);
++    if (!reply) { disconnect_bus(); return hr; }
++    p_dbus_error_init(&error);
++    sender = p_dbus_message_get_sender(reply);
++    if (!sender || strcmp(sender, expected_owner) || !p_dbus_message_has_signature(reply, "tbb") ||
++        !p_dbus_message_get_args(reply, &error, DBUS_TYPE_UINT64, &epoch,
++                                DBUS_TYPE_BOOLEAN, &active, DBUS_TYPE_BOOLEAN, &owned, DBUS_TYPE_INVALID)) hr = UNAVAILABLE;
++    else if (epoch < expected || (enabled ? (!active || !owned) : (active || owned))) hr = BUSY;
++    p_dbus_error_free(&error);
++    p_dbus_message_unref(reply);
++    /* A late reply cannot restore mode after an emergency exit or service restart. */
++    if (SUCCEEDED(hr)) hr = get_state(deadline);
++    if (SUCCEEDED(hr) && (generation != expected_generation || strcmp(owner, expected_owner) ||
++        cached.epoch < epoch || (enabled ? (!cached.active || !cached.owned) : (cached.active || cached.owned)))) hr = BUSY;
++    if (FAILED(hr)) disconnect_bus();
++    return hr;
++}
++
++static BOOL drain_signals(unsigned int timeout)
++{
++    DBusMessage *message;
++    DBusError error;
++    const char *sender, *name, *old_owner, *new_owner;
++    BOOL dirty = FALSE;
++    dbus_uint64_t epoch;
++    dbus_bool_t active;
++    if (!p_dbus_connection_read_write(connection, timeout))
++    { disconnect_bus(); return TRUE; }
++    while ((message = p_dbus_connection_pop_message(connection)))
++    {
++        sender = p_dbus_message_get_sender(message);
++        p_dbus_error_init(&error);
++        if (sender && !strcmp(sender, DBUS_SERVICE_DBUS) &&
++            p_dbus_message_is_signal(message, DBUS_INTERFACE_DBUS, "NameOwnerChanged") &&
++            p_dbus_message_has_signature(message, "sss") &&
++            p_dbus_message_get_args(message, &error, DBUS_TYPE_STRING, &name,
++                                    DBUS_TYPE_STRING, &old_owner, DBUS_TYPE_STRING, &new_owner, DBUS_TYPE_INVALID) &&
++            !strcmp(name, SERVICE) && strcmp(owner, new_owner))
++        {
++            owner[0] = 0;
++            ++generation;
++            clear_state();
++            dirty = TRUE;
++        }
++        else if (sender && owner[0] && !strcmp(sender, owner) &&
++                 p_dbus_message_is_signal(message, INTERFACE, "StateChanged") &&
++                 p_dbus_message_has_signature(message, "tb") &&
++                 p_dbus_message_get_args(message, &error, DBUS_TYPE_UINT64, &epoch,
++                                         DBUS_TYPE_BOOLEAN, &active, DBUS_TYPE_INVALID)) dirty = TRUE;
++        p_dbus_error_free(&error);
++        p_dbus_message_unref(message);
++    }
++    return dirty;
++}
++#endif
++
++static NTSTATUS unix_init(void *args)
++{
++    struct gamemode_params *params = args;
++#ifdef SONAME_LIBDBUS_1
++    pthread_once(&dbus_once, load_dbus);
++    params->result = dbus_ready ? S_OK : UNAVAILABLE;
++#else
++    params->result = UNAVAILABLE;
++#endif
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS unix_get_state(void *args)
++{
++    struct gamemode_params *params = args;
++    pthread_mutex_lock(&transport_lock);
++#ifdef SONAME_LIBDBUS_1
++    params->result = get_state(clock_ms() + min(params->timeout_ms, 1500));
++    publish_state(params, &cached);
++#else
++    publish_state(params, NULL);
++    params->result = UNAVAILABLE;
++#endif
++    pthread_mutex_unlock(&transport_lock);
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS unix_set_mode(void *args)
++{
++    struct gamemode_params *params = args;
++    pthread_mutex_lock(&transport_lock);
++#ifdef SONAME_LIBDBUS_1
++    params->result = set_mode(!!params->enabled, clock_ms() + min(params->timeout_ms, 1500));
++    publish_state(params, &cached);
++#else
++    publish_state(params, NULL);
++    params->result = UNAVAILABLE;
++#endif
++    pthread_mutex_unlock(&transport_lock);
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS unix_poll(void *args)
++{
++    struct gamemode_params *params = args;
++#ifdef SONAME_LIBDBUS_1
++    BOOL dirty = FALSE;
++#endif
++    pthread_mutex_lock(&transport_lock);
++#ifdef SONAME_LIBDBUS_1
++    params->result = connect_bus();
++    if (SUCCEEDED(params->result)) dirty = drain_signals(min(params->timeout_ms, 100));
++    /* Enrollment can arrive after the Wine process starts, without a state signal. */
++    if (SUCCEEDED(params->result) && (dirty || !cached.supported || clock_ms() - last_query >= 250))
++        params->result = get_state(clock_ms() + 1500);
++    publish_state(params, &cached);
++#else
++    publish_state(params, NULL);
++    params->result = UNAVAILABLE;
++#endif
++    pthread_mutex_unlock(&transport_lock);
++    return STATUS_SUCCESS;
++}
++
++static NTSTATUS unix_close(void *args)
++{
++    struct gamemode_params *params = args;
++    pthread_mutex_lock(&transport_lock);
++#ifdef SONAME_LIBDBUS_1
++    disconnect_bus();
++    publish_state(params, &cached);
++#else
++    publish_state(params, NULL);
++#endif
++    params->result = S_OK;
++    pthread_mutex_unlock(&transport_lock);
++    return STATUS_SUCCESS;
++}
++
++const unixlib_entry_t __wine_unix_call_funcs[] =
++{
++    unix_init,
++    unix_get_state,
++    unix_set_mode,
++    unix_poll,
++    unix_close
++};
++C_ASSERT(ARRAYSIZE(__wine_unix_call_funcs) == gamemode_func_count);

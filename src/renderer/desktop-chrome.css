@@ -1,6 +1,6 @@
 .desktop-experience.app-shell {
-  --xboks-sidebar-width: clamp(248px, 19.1146vw, 367px);
-  --xboks-header-height: clamp(40px, 2.5vw, 48px);
+  --xboks-sidebar-width: clamp(352px, calc(10vw + 208px), 400px);
+  --xboks-header-height: 48px;
   --canvas: #070909;
   --sidebar: #101212;
   --surface: #161818;
@@ -10,17 +10,17 @@
   grid-template-rows: var(--xboks-header-height) minmax(0, 1fr);
   background: var(--canvas);
 }
-.desktop-experience.app-shell[data-desktop-collapsed] { --xboks-sidebar-width: 72px; }
+.desktop-experience.app-shell[data-desktop-collapsed] { --xboks-sidebar-width: 83px; }
 .desktop-experience > .content-shell { grid-column: 2; grid-row: 2; grid-template-rows: minmax(0, 1fr); min-width: 0; min-height: 0; }
 .desktop-experience > .desktop-topbar { grid-column: 1 / -1; grid-row: 1; }
 .desktop-experience .desktop-topbar {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(200px, clamp(300px, 18.75vw, 360px)) minmax(100px, 1fr);
+  grid-template-columns: minmax(100px, 1fr) minmax(200px, 320px) minmax(100px, 1fr);
   align-items: center;
   gap: 16px;
   min-width: 0;
-  padding: 0 20px;
+  padding: 0 32px;
   background: #070909;
   color: #f4f5f5;
   z-index: 30;
@@ -66,18 +66,18 @@
   gap: clamp(12px, .83333vw, 16px);
   min-width: 0;
   min-height: 0;
-  padding: clamp(12px, .78125vw, 15px);
+  padding: 15px 0 15px 15px;
   border: 0;
   background: transparent;
 }
 .desktop-sidebar .desktop-navigation-panel, .desktop-sidebar .desktop-sidebar-social, .desktop-sidebar .desktop-sidebar-queue { min-width: 0; min-height: 0; border-radius: 15px; background: #101212; }
 .desktop-sidebar .desktop-navigation-panel { position: relative; padding: clamp(7px, .46875vw, 9px); }
 .desktop-sidebar .desktop-primary-nav { display: grid; gap: clamp(3px, .41667vw, 8px); }
-.desktop-sidebar .desktop-primary-nav .nav-item { display: flex; align-items: center; gap: 16px; width: 100%; height: clamp(44px, 2.91667vw, 56px); min-height: 44px; padding: 0 44px 0 17px; border: 0; border-radius: 8px; background: transparent; color: #eaeceb; font-size: 14px; font-weight: 400; }
+.desktop-sidebar .desktop-primary-nav .nav-item { display: flex; align-items: center; gap: 16px; width: 100%; height: 56px; min-height: 44px; padding: 0 44px 0 17px; border: 0; border-radius: 8px; background: transparent; color: #eaeceb; font-size: 16px; line-height: 20px; font-weight: 400; }
 .desktop-sidebar .desktop-primary-nav .nav-item:hover { background: #1a1e1d; }
 .desktop-sidebar .desktop-primary-nav .nav-item.active { background: #1d2121; font-weight: 600; }
 .desktop-sidebar .desktop-primary-nav .nav-item.active:before { display: none; }
-.desktop-sidebar .desktop-primary-nav .nav-item > .xbox-icon { display: inline-flex; width: 21px; height: 21px; flex: 0 0 21px; font-size: 18px; }
+.desktop-sidebar .desktop-primary-nav .nav-item > .xbox-icon { display: inline-flex; width: 16px; height: 16px; flex: 0 0 16px; font-size: 16px; }
 .desktop-sidebar .desktop-navigation-tools { position: absolute; right: 10px; bottom: 12px; display: flex; justify-content: flex-end; }
 .desktop-sidebar .desktop-more { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 28px; padding: 5px; border: 0; border-radius: 5px; background: transparent; color: #bdc4c0; cursor: pointer; }
 .desktop-sidebar .desktop-more > .xbox-icon { width: 19px; height: 19px; }
@@ -96,7 +96,7 @@
 .desktop-sidebar .queue-summary-copy small { font-size: 11px; line-height: 15px; }
 .desktop-sidebar .queue-summary:has(.queue-preview-art) { padding: 9px 12px; gap: 10px; }
 .desktop-sidebar .queue-summary .queue-preview-art { width: 36px; height: 36px; flex: 0 0 36px; }
-.desktop-sidebar[data-collapsed] { grid-template-rows: auto 48px minmax(0, 1fr); padding: 8px 7px 12px; gap: 12px; }
+.desktop-sidebar[data-collapsed] { grid-template-rows: auto 48px minmax(0, 1fr); padding: 15px 0 15px 15px; gap: 16px; }
 .desktop-sidebar[data-collapsed] .desktop-navigation-panel { padding: 5px; }
 .desktop-sidebar[data-collapsed] .desktop-primary-nav .nav-item { justify-content: center; height: 44px; min-height: 44px; padding: 8px; }
 .desktop-sidebar[data-collapsed] .desktop-nav-label, .desktop-sidebar[data-collapsed] .queue-summary-copy { display: none; }
@@ -108,7 +108,7 @@
 .desktop-sidebar[data-collapsed] .queue-summary .queue-preview-art { width: 32px; height: 32px; flex-basis: 32px; }
 body:has(.desktop-experience.app-shell) .shell-account-menu { top: 64px; right: 16px; left: auto; }
 @media (max-width: 1100px) and (min-width: 761px) {
-  .desktop-experience.app-shell:not([data-desktop-collapsed]) { --xboks-sidebar-width: 248px; }
+  .desktop-experience.app-shell:not([data-desktop-collapsed]) { --xboks-sidebar-width: clamp(352px, calc(10vw + 208px), 400px); }
   .desktop-experience .desktop-topbar { gap: 10px; grid-template-columns: minmax(80px, 1fr) minmax(160px, 340px) minmax(80px, 1fr); padding: 0 12px; }
   .desktop-topbar .desktop-header-actions { gap: 4px; }
   .desktop-topbar .desktop-mode-controls .xbox-mode-entry { max-width: 116px; padding: 0 7px; font-size: 11px; }
@@ -137,3 +137,5 @@ body:has(.desktop-experience.app-shell) .shell-account-menu { top: 64px; right: 
   .desktop-sidebar .queue-summary, .desktop-sidebar .queue-summary:has(.queue-preview-art) { justify-content: center; min-height: 50px; padding: 8px; }
   .desktop-sidebar .queue-summary .queue-preview-art { width: 30px; height: 30px; flex-basis: 30px; }
 }
+
+.search-result-heading { display: block; padding: 12px 8px 4px; color: #b8c0bc; font-size: 13px; }

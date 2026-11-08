@@ -7,10 +7,12 @@ import { sessionStages, ticketFailureDiagnostic } from './session-errors.js';
 import { contentLicenseDiagnostic, contentLicenseStages } from '../shared/content-license.js';
 import { transferDiagnostic, transferStages } from '../shared/transfer-failure.js';
 import {safeCloudDiagnostic, type CloudDiagnosticEvent} from './cloud-diagnostics.js';
+import { xboxAuthDiagnostic, xboxAuthOperations, xboxAuthStages } from './xbox-auth-diagnostic.js';
 
-const operations = new Set(['account', 'profile', 'achievements', 'library', 'login', 'logout', 'streaming', 'cloud-stream', 'download', 'license', 'run', 'resolve-package', 'service', 'probe']);
+const operations = new Set(['account', 'profile', 'achievements', 'library', 'login', 'logout', 'streaming', 'cloud-stream', 'download', 'license', 'run', 'resolve-package', 'service', 'social', 'probe']);
 const credentialStages = new Set(['keyring-unavailable', 'keyring-invalid-data', 'keyring-missing-data', 'keyring-write-verification', 'credential-io', 'device-authentication']);
 const stages = new Set([
+  ...xboxAuthStages,
   ...sessionStages,
   ...contentLicenseStages,
   ...transferStages,
@@ -78,8 +80,10 @@ export class BackendDiagnostics {
     if (Number.isInteger(data.status) && data.status! >= 100 && data.status! <= 599) entry.status = data.status;
     if (Number.isInteger(data.skipped) && data.skipped! >= 0 && data.skipped! <= 200_000) entry.skipped = data.skipped;
     if (Number.isInteger(data.code) && data.code! >= -1 && data.code! <= 255) entry.code = data.code;
-    if (data.serviceCode && /^[A-F0-9]{8}$/.test(data.serviceCode) && ['library', 'profile'].includes(data.operation)
-      && ['ticket-refused', 'ticket-interaction-required'].includes(data.stage ?? '')) entry.serviceCode = data.serviceCode;
+    if (data.serviceCode && /^[A-F0-9]{8}$/.test(data.serviceCode) && (
+      ['library', 'profile'].includes(data.operation) && ['ticket-refused', 'ticket-interaction-required'].includes(data.stage ?? '')
+      || xboxAuthOperations.has(data.operation) && ['xbox-user-http', 'xbox-xsts-http'].includes(data.stage ?? '')
+    )) entry.serviceCode = data.serviceCode;
     if (data.signal && ['SIGINT', 'SIGTERM', 'SIGKILL', 'SIGSEGV', 'SIGABRT', 'SIGPIPE'].includes(data.signal)) entry.signal = data.signal;
     if (Number.isFinite(data.elapsedMs)) entry.elapsedMs = Math.max(0, Math.min(86_400_000, Math.round(data.elapsedMs!)));
     if (data.operation === 'cloud-stream' && data.event === 'diagnostic') {
@@ -132,9 +136,11 @@ export class BackendDiagnosticReader {
     const content = contentLicenseDiagnostic(line);
     const transfer = transferDiagnostic(line);
     const ticket = ticketFailureDiagnostic(line);
+    const xboxAuth = xboxAuthDiagnostic(line);
     const numeric = /^NEXUS_LIBRARY_DIAGNOSTIC_V1 ([a-z-]+) (\d{1,3}) (\d{1,6})$/.exec(line);
     const legacy = /^Account library unavailable \(([a-z-]+)\); credentials and installed games are unchanged\.$/.exec(line);
-    if (credential && credentialStages.has(credential[1])) stage = credential[1];
+    if (xboxAuth && xboxAuthOperations.has(this.operation)) { stage = xboxAuth.stage; status = xboxAuth.status; serviceCode = xboxAuth.serviceCode; }
+    else if (credential && credentialStages.has(credential[1])) stage = credential[1];
     else if (ticket && ['library', 'profile'].includes(this.operation)) { stage = ticket.stage; serviceCode = ticket.serviceCode; }
     else if (transfer && ['streaming', 'download'].includes(this.operation)) { stage = transfer.stage; status = transfer.status; }
     else if (content && ['streaming', 'download', 'license', 'run'].includes(this.operation)) { stage = content.stage; status = content.status; }

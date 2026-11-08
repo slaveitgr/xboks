@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.linux-gaming-mode" path="/org/gnome/shell/extensions/linux-gaming-mode/">
+    <key name="home-app" type="s">
+      <choices>
+        <choice value="none"/>
+        <choice value="steam"/>
+        <choice value="xboks"/>
+        <choice value="original-xbox"/>
+      </choices>
+      <default>'none'</default>
+      <summary>Gaming home application</summary>
+      <description>The installed gaming home opened by Linux Gaming Mode. None keeps the ordinary desktop.</description>
+    </key>
+    <key name="enter-on-login" type="b">
+      <default>true</default>
+      <summary>Enter gaming mode at sign-in</summary>
+      <description>Start the selected gaming home after sign-in. Has no effect when no home application is selected.</description>
+    </key>
+    <key name="use-feral-gamemode" type="b">
+      <default>false</default>
+      <summary>Request Feral GameMode optimizations</summary>
+      <description>Ask the installed Feral GameMode service to apply its configured optimizations during a gaming session. Availability and effects depend on the daemon policy.</description>
+    </key>
+  </schema>
+</schemalist>

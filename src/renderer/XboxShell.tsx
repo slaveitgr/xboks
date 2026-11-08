@@ -1,50 +1,65 @@
 import { useEffect, useRef, useState } from 'react';
 import { HelpCircle, Shield } from './XboxIcons';
-import { Bell, CheckCheck, ChevronRight, CircleAlert, CircleUserRound, Download, ExternalLink, Gift, Info, MoreHorizontal, Search, Settings, Users, X } from './XboxIcons';
+import { Bell, CheckCheck, ChevronDown, ChevronRight, CircleAlert, CircleUserRound, Download, ExternalLink, Gift, Info, LogOut, MonitorPlay, MoreHorizontal, Search, Settings, Users, X } from './XboxIcons';
 import { GamePassBadge } from './XboxIcons';
 import type { SettingsSection } from './SettingsFrame';
 import { useReferenceLocale } from './ReferenceLocale';
 import { useBackHandler } from './GamepadNavigation';
 import { ReferenceMenu } from './ReferenceMenu';
-import type { AccountLibraryPage, AppSnapshot, CatalogProduct, Page } from '../shared/types';
+import type { AppSnapshot, Page } from '../shared/types';
 import { XboxSocialPanel, type XboxSocialRoute } from './XboxSocialPanel';
 import { ConsoleLibrary } from './ConsoleLibrary';
+import { SubscriptionBadge } from './SubscriptionBadge';
+import { parseXboxSelfProfileDetails } from '../shared/xbox-profile';
+import './account-menu-v2.css';
 
-export type ShellPanel = 'account' | 'friends' | 'notifications' | 'remote-play';
+export type ShellPanel = 'account' | 'friends' | 'notifications' | 'remote-play' | 'support' | 'feedback';
 export function GamePassIcon({ wordmark = false }: { wordmark?: boolean }) {
   const [missing, setMissing] = useState(false);
   return wordmark ? <span className="game-pass-wordmark" aria-hidden="true">{missing ? 'XBOX GAME PASS' : <img src="./original-xbox/icons/GamePassInline5.svg" alt="" onError={() => setMissing(true)} />}</span> : <GamePassBadge className="game-pass-icon" />;
 }
 
-type ShellFlyoutProps = {panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void; socialRoute?: XboxSocialRoute};
+type ShellFlyoutProps = {panel: ShellPanel; data: AppSnapshot; close: () => void; go: (page: Page) => void; settings?: (section: SettingsSection) => void; remotePlay?: () => void; socialRoute?: XboxSocialRoute};
 export function ShellFlyout(props: ShellFlyoutProps) {
   if (props.panel === 'remote-play') return <ConsoleLibrary auth={props.data.auth} close={props.close} signIn={() => {props.close(); if (props.settings) props.settings('account'); else props.go('settings');}}/>;
-  return <ShellFlyoutContent {...props} panel={props.panel}/>;
+  return <ShellFlyoutContent key={props.panel} {...props} panel={props.panel}/>;
 }
-function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omit<ShellFlyoutProps, 'panel'> & {panel: Exclude<ShellPanel, 'remote-play'>}) {
+function ShellFlyoutContent({panel, data, close, go, settings, remotePlay, socialRoute}: Omit<ShellFlyoutProps, 'panel'> & {panel: Exclude<ShellPanel, 'remote-play'>}) {
   const { text } = useReferenceLocale();
   const root = useRef<HTMLDivElement>(null);
   const notificationAnchor = useRef<HTMLButtonElement>(null);
-  const [auxiliary, setAuxiliary] = useState<'support' | 'feedback'>();
+  const [auxiliary, setAuxiliary] = useState<'support' | 'feedback' | undefined>(panel === 'support' || panel === 'feedback' ? panel : undefined);
   const [accountError, setAccountError] = useState('');
   const [accountBusy, setAccountBusy] = useState(false);
+  const signedIn = data.auth.stored === true && !data.auth.running;
+  const accountOwner = JSON.stringify([data.auth.stored === false ? 'signed-out' : 'account', data.auth.username ?? null, data.auth.gamertag ?? null]);
+  const owner = useRef(accountOwner); owner.current = accountOwner;
+  const accountPending = useRef(false), mounted = useRef(false), auxiliaryOrigin = useRef<'support' | 'feedback'>();
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { accountPending.current = false; setAccountBusy(false); setAccountError(''); }, [accountOwner]);
+  const accountDetails = signedIn ? parseXboxSelfProfileDetails(data.auth.profile) : {};
+  const accountName = signedIn ? data.auth.profile?.gamertag ?? data.auth.gamertag ?? data.auth.username ?? text('Xbox account', 'Λογαριασμός Xbox') : data.auth.running ? text('Connecting…', 'Σύνδεση…') : text('Sign in', 'Σύνδεση');
+  const accountAvatar = signedIn ? data.auth.profile?.avatarDataUrl ?? data.auth.avatarDataUrl : undefined;
   const [unread, setUnread] = useState(false);
   const [readIds, setReadIds] = useState<string[]>(() => {
     try { const value: unknown = JSON.parse(localStorage.getItem('xboks.read-notifications.v1') ?? '[]'); return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []; } catch { return []; }
   });
   const [menu, setMenu] = useState(false);
   const title = auxiliary === 'support' ? text('Support', 'Υποστήριξη') : auxiliary === 'feedback' ? text('Feedback', 'Σχόλια') : panel === 'account' ? text('Account menu', 'Μενού λογαριασμού') : panel === 'friends' ? text('Friends', 'Φίλοι') : text('Notifications', 'Ειδοποιήσεις');
-  const closeSurface = () => { if (accountBusy) return true; if (auxiliary) setAuxiliary(undefined); else close(); return true; };
+  const closeSurface = () => { if (accountPending.current) return true; if (auxiliary && panel !== 'support' && panel !== 'feedback') setAuxiliary(undefined); else close(); return true; };
   useBackHandler(closeSurface, true, () => root.current);
   useEffect(() => { const closed = () => { if (panel === 'friends') close(); }; window.addEventListener('xboks-close-social', closed); return () => window.removeEventListener('xboks-close-social', closed); }, [panel, close]);
   async function signOut() {
+    if (accountPending.current || !signedIn || !data.backend.capabilities.logout) return;
+    accountPending.current = true; const requestOwner = owner.current;
     setAccountBusy(true); setAccountError('');
-    try { await window.launcher.logout(); close(); }
-    catch (error) { setAccountError(error instanceof Error ? error.message : text('Sign out failed.', 'Η αποσύνδεση απέτυχε.')); }
-    finally { setAccountBusy(false); }
+    try { await window.launcher.logout(); if (mounted.current && owner.current === requestOwner) close(); }
+    catch { if (mounted.current && owner.current === requestOwner) setAccountError(text('Sign out failed. Try again.', 'Η αποσύνδεση απέτυχε. Δοκιμάστε ξανά.')); }
+    finally { if (mounted.current && owner.current === requestOwner) { accountPending.current = false; setAccountBusy(false); } }
   }
-  const navigate = (page: Page) => { close(); go(page); };
-  const openSettings = (section: SettingsSection) => { close(); if (settings) settings(section); else go('settings'); };
+  const navigate = (page: Page) => { if (accountPending.current) return; close(); go(page); };
+  const openSettings = (section: SettingsSection) => { if (accountPending.current) return; close(); if (settings) settings(section); else go('settings'); };
+  const openAuxiliary = (kind: 'support' | 'feedback') => { if (accountPending.current) return; auxiliaryOrigin.current = kind; setAuxiliary(kind); };
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     const shell = document.querySelector<HTMLElement>('.app-shell');
@@ -53,7 +68,11 @@ function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omi
     root.current?.querySelector<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled)')?.focus();
     return () => { if (shell) shell.inert = wasInert; previous?.isConnected && previous.focus(); };
   }, []);
-  useEffect(() => { root.current?.querySelector<HTMLElement>('button:not(:disabled),a[href]')?.focus(); }, [auxiliary]);
+  useEffect(() => {
+    const restore = !auxiliary && auxiliaryOrigin.current ? root.current?.querySelector<HTMLElement>(`[data-shell-action="${auxiliaryOrigin.current}"]`) : undefined;
+    (restore ?? root.current?.querySelector<HTMLElement>('button:not(:disabled),a[href]'))?.focus();
+    if (!auxiliary) auxiliaryOrigin.current = undefined;
+  }, [auxiliary]);
   const notifications = data.downloads.filter(task => ['failed', 'complete'].includes(task.status));
   const visibleNotifications = notifications.filter(task => !unread || !readIds.includes(`${task.id}:${task.status}`));
   const markAllRead = () => {
@@ -62,7 +81,7 @@ function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omi
     setMenu(false);
   };
   return <div className={`shell-flyout-backdrop ${panel === 'account' && !auxiliary ? 'account-flyout-backdrop' : ''}`} onMouseDown={event => { if (event.target === event.currentTarget) closeSurface(); }}>
-    <div className={`shell-flyout ${auxiliary ? 'shell-auxiliary-dialog' : panel === 'account' ? 'shell-account-menu' : ''}`} ref={root} role="dialog" aria-modal="true" aria-label={title} onKeyDown={event => {
+    <div className={`shell-flyout ${auxiliary ? 'shell-auxiliary-dialog' : panel === 'account' ? 'shell-account-menu' : ''}`} ref={root} role="dialog" aria-modal="true" aria-label={title} aria-busy={accountBusy || undefined} onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeSurface(); }
       if (event.key === 'Tab') {
         const nodes = Array.from(root.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled)') ?? []).filter(el => el.getClientRects().length);
@@ -71,18 +90,19 @@ function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omi
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-      {auxiliary ? <><header><h2>{title}</h2><button aria-label={text('Close', 'Κλείσιμο')} data-gamepad-cancel onClick={() => setAuxiliary(undefined)}><X /></button></header>
+      {auxiliary ? <><header><h2>{title}</h2><button aria-label={text('Close', 'Κλείσιμο')} data-gamepad-cancel onClick={closeSurface}><X /></button></header>
         {auxiliary === 'support' ? <div className="shell-support-content"><h3>{text('How can we help?', 'Πώς μπορούμε να βοηθήσουμε;')}</h3><a href="https://support.xbox.com/" target="_blank" rel="noreferrer">{text('Xbox support', 'Υποστήριξη Xbox')}<ExternalLink /></a><a href="https://github.com/slaveitgr/xboks/issues" target="_blank" rel="noreferrer">{text('XBOKS support and known issues', 'Υποστήριξη XBOKS και γνωστά προβλήματα')}<ExternalLink /></a></div> : <div className="shell-support-content"><p>{text('Share feedback about XBOKS. Review your report before submitting it on GitHub.', 'Στείλτε σχόλια για το XBOKS. Ελέγξτε την αναφορά σας πριν την υποβολή στο GitHub.')}</p><a href="https://github.com/slaveitgr/xboks/issues/new" target="_blank" rel="noreferrer">{text('Open feedback form', 'Άνοιγμα φόρμας σχολίων')}<ExternalLink /></a></div>}
       </> : panel === 'account' ? <>
-        {data.auth.stored === true ? <><button onClick={() => navigate('profile')}><CircleUserRound />{text('View profile', 'Προβολή προφίλ')}<ChevronRight /></button>
-        <button onClick={() => openSettings('subscriptions')}><GamePassIcon />{text('My subscriptions', 'Οι συνδρομές μου')}</button>
-        <a href="https://www.xbox.com/promotions" target="_blank" rel="noreferrer"><Gift />{text('Offers and discounts', 'Προσφορές και πωλήσεις')}<ExternalLink /></a></> : null}
-        <a href="https://insider.xbox.com/" target="_blank" rel="noreferrer"><Shield />Xbox Insider Program<ExternalLink /></a>
-        <button onClick={() => openSettings('account')}><Settings />{text('Settings', 'Ρυθμίσεις')}</button>
-        <button onClick={() => setAuxiliary('support')}><HelpCircle />{text('Support', 'Υποστήριξη')}</button>
-        <button onClick={() => setAuxiliary('feedback')}><Info />{text('Feedback', 'Σχόλια')}</button>
-        <hr />{data.auth.stored === true ? <><button disabled title={text('Xbox presence controls are unavailable', 'Οι ρυθμίσεις παρουσίας Xbox δεν είναι διαθέσιμες')}>{text('Appear offline', 'Εμφάνιση εκτός σύνδεσης')}</button><button disabled={accountBusy || !data.backend.capabilities.logout || data.auth.running} onClick={() => void signOut()}>{text('Sign out', 'Αποσύνδεση')}</button></> : null}
-        {!data.desktopSettings?.fullscreenExperience ? <button disabled={accountBusy} onClick={() => void window.launcher.quitLauncher().catch(error => setAccountError(error instanceof Error ? error.message : 'Could not quit XBOKS.'))}>{text('Quit', 'Έξοδος')}</button> : null}
+        <div className="account-menu-summary"><span className="account-menu-gamerpic">{accountAvatar ? <img src={accountAvatar} alt="" /> : <CircleUserRound/>}</span><span><strong>{accountName}</strong>{signedIn ? <span className="account-menu-membership">{accountDetails.gamerscore !== undefined ? <span>Ⓖ {accountDetails.gamerscore.toLocaleString()}</span> : null}<SubscriptionBadge value={data.auth.profile?.subscription ?? data.auth.subscription}/></span> : null}</span></div>
+        {signedIn ? <><button className="account-menu-presence" disabled title={text('Presence controls are not supplied by the connected account service.', 'Η συνδεδεμένη υπηρεσία λογαριασμού δεν παρέχει έλεγχο παρουσίας.')}><span>{text('Presence', 'Παρουσία')}</span><ChevronDown/></button><button disabled={accountBusy} onClick={() => navigate('profile')}><CircleUserRound />{text('View profile', 'Προβολή προφίλ')}</button></> : <button disabled={data.auth.running} onClick={() => openSettings('account')}><CircleUserRound/>{text('Sign in', 'Σύνδεση')}</button>}
+        <button disabled={!remotePlay || accountBusy} onClick={() => { if (accountPending.current) return; close(); remotePlay?.(); }}><MonitorPlay/>{text('Remote play', 'Απομακρυσμένο παιχνίδι')}</button>
+        <button disabled={accountBusy} onClick={() => openSettings('account')}><Settings />{text('Settings', 'Ρυθμίσεις')}</button>
+        <hr/><a href="https://redeem.microsoft.com/" target="_blank" rel="noreferrer" aria-disabled={accountBusy || undefined} tabIndex={accountBusy ? -1 : undefined} onClick={event => { if (accountPending.current) event.preventDefault(); }}>{text('Redeem a code', 'Εξαργύρωση κωδικού')}</a>
+        <button disabled={accountBusy} data-shell-action="support" onClick={() => openAuxiliary('support')}>{text('Get help', 'Λήψη βοήθειας')}<ExternalLink/></button>
+        <label className="account-menu-experience" title={text('XBOKS uses the new app experience.', 'Το XBOKS χρησιμοποιεί τη νέα εμπειρία εφαρμογής.')}><span>{text('New app experience', 'Νέα εμπειρία εφαρμογής')}</span><input type="checkbox" role="switch" checked disabled readOnly/></label>
+        <hr/><button disabled={accountBusy} data-shell-action="feedback" onClick={() => openAuxiliary('feedback')}><Info />{text('Give feedback', 'Αποστολή σχολίων')}</button>
+        {signedIn ? <button disabled={accountBusy || !data.backend.capabilities.logout} onClick={() => void signOut()}><LogOut/>{text('Sign out', 'Αποσύνδεση')}</button> : null}
+        {accountBusy ? <p role="status">{text('Signing out…', 'Αποσύνδεση…')}</p> : null}
         {accountError ? <p role="alert">{accountError}</p> : null}
       </> : <>
         <header><h2>{title}</h2>{panel === 'notifications' ? <button ref={notificationAnchor} aria-label="Notification options" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(value => !value)}><MoreHorizontal /></button> : null}<button aria-label={`Close ${title}`} data-gamepad-cancel onClick={close}><X /></button></header>
@@ -100,28 +120,4 @@ function ShellFlyoutContent({panel, data, close, go, settings, socialRoute}: Omi
   </div>;
 }
 
-/** Account-backed Game Pass list: membership labels never come from Store promotions. */
-export function GamePassPage({ data, go, select, playLater }: { data: AppSnapshot; go: (page: Page) => void; select: (product: CatalogProduct) => void; playLater?: () => void }) {
-  const { text } = useReferenceLocale();
-  const [genre, setGenre] = useState('');
-  const [genreAnchor, setGenreAnchor] = useState<HTMLElement>();
-  const [result, setResult] = useState<AccountLibraryPage>();
-  const [error, setError] = useState('');
-  useEffect(() => {
-    let cancelled = false;
-    window.launcher.getAccountLibrary('gamepass').then(value => { if (!cancelled) setResult(value); }).catch(() => { if (!cancelled) setError('The Game Pass catalog could not be loaded.'); });
-    return () => { cancelled = true; };
-  }, [data.auth.stored]);
-  const allProducts = result?.products ?? [];
-  const genres = [...new Set(allProducts.flatMap(product => product.categories))].sort();
-  const products = genre ? allProducts.filter(product => product.categories.includes(genre)) : allProducts;
-  return <main className="page game-pass-page">
-    <button className="game-pass-banner" onClick={() => document.getElementById('game-pass-games')?.scrollIntoView({ behavior: 'smooth' })}><strong>{text('Discover Xbox Game Pass', 'Ανακαλύψτε το XBOX Game Pass')}</strong><span>{products.length ? `${products.length}${result?.cursor ? '+' : ''} games` : 'Explore Game Pass'}<ChevronRight /></span></button>
-    <div className="game-pass-hero-row">{products.slice(0, 3).map(product => <button className="home-feature-tile" key={product.productId} onClick={() => select(product)}>{product.heroUrl || product.posterUrl ? <img src={product.heroUrl ?? product.posterUrl} alt="" /> : null}<span className="feature-copy"><strong>{product.title}</strong><span>{product.publisher}</span></span></button>)}</div>
-    <div className="game-pass-actions"><button onClick={() => { setGenre(''); document.getElementById('game-pass-games')?.scrollIntoView({ behavior: 'smooth' }); }}><GamePassIcon />{text('All games', 'Όλα τα παιχνίδια')}</button><button disabled={!genres.length} aria-haspopup="menu" aria-expanded={Boolean(genreAnchor)} onClick={event => setGenreAnchor(event.currentTarget)}><Gift />{genre || text('Pin a genre', 'Καρφίτσωμα είδους')}</button><button onClick={() => playLater ? playLater() : go('library')}>{text('Play later', 'Αναπαραγωγή αργότερα')}<ChevronRight /></button><button disabled title={text('Game Pass benefits are not returned by the connected service', 'Η συνδεδεμένη υπηρεσία δεν επιστρέφει τα πλεονεκτήματα του Game Pass')}><Gift />{text('My benefits', 'Τα πλεονεκτήματά μου')}</button><a href="https://www.xbox.com/xbox-game-pass" target="_blank" rel="noreferrer">{text('Get Game Pass', 'Αποκτήστε το Game Pass')}<ExternalLink /></a></div>
-    {genreAnchor ? <ReferenceMenu id="game-pass-genres" label={text('Pin a genre', 'Καρφίτσωμα είδους')} anchor={{ element: genreAnchor }} onDismiss={() => setGenreAnchor(undefined)} items={genres.map(category => ({ id: category, label: category, onSelect: () => setGenre(category) }))} /> : null}
-    <section id="game-pass-games"><h1>Game Pass games</h1><p>Explore games available through your Xbox account.</p><div className="home-catalog-row">{products.map(product => <button className="home-product" key={product.productId} data-product-id={product.productId} onClick={() => select(product)}>{product.posterUrl ? <img src={product.posterUrl} alt="" /> : <GamePassIcon />}<span><strong>{product.title}</strong><small>{product.publisher}</small></span></button>)}</div>
-      {!products.length ? <div className="home-catalog-state" role="status">{error || (result ? data.auth.stored ? 'No Game Pass games were returned for this account.' : 'Sign in to see your Game Pass games.' : 'Loading Game Pass games…')}<button onClick={() => go('settings')}>Account settings</button></div> : null}
-    </section>
-  </main>;
-}
+export { GamePassPage } from './GamePassPage';

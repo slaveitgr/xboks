@@ -20,8 +20,8 @@ export function cloudCollectionIds(catalog: CloudPublicCatalog, account: CloudAc
   const source = catalog.collections[collection];
   return account.status === 'ready' ? source.filter(id => available.has(id)) : source;
 }
-export function CloudLibraryPage({bridge = typeof window === 'undefined' ? undefined : window.launcher, auth, signIn = closed, country = 'auto', saveCountry, query: controlledQuery, onQueryChange}: {
-  bridge?: Bridge; auth?: AuthStatus; signIn?: () => void; country?: CloudLoginCountry; saveCountry?: (country: CloudLoginCountry) => Promise<unknown>; query?: string; onQueryChange?: (value: string) => void;
+export function CloudLibraryPage({bridge = typeof window === 'undefined' ? undefined : window.launcher, auth, signIn = closed, country = 'auto', saveCountry, query: controlledQuery, onQueryChange, deferPageBack = false}: {
+  deferPageBack?: boolean; bridge?: Bridge; auth?: AuthStatus; signIn?: () => void; country?: CloudLoginCountry; saveCountry?: (country: CloudLoginCountry) => Promise<unknown>; query?: string; onQueryChange?: (value: string) => void;
 }) {
   const {text: t} = useReferenceLocale();
   const [catalog, setCatalog] = useState<CloudPublicCatalog>(), [accountSnapshot, setAccountSnapshot] = useState({revision: -1, value: empty});
@@ -99,7 +99,7 @@ export function CloudLibraryPage({bridge = typeof window === 'undefined' ? undef
   }, [selected?.productId, bridge]);
   useEffect(() => {if (selected) detailRoot.current?.querySelector<HTMLElement>('button')?.focus();}, [selected?.productId]);
   const dismiss = () => {setSelected(undefined); requestAnimationFrame(() => origin.current?.isConnected && origin.current.focus({preventScroll: true}));};
-  useBackHandler(() => {if (selected) dismiss(); else if (searching) setQuery(''); else if (view !== 'home') setView('home'); else return false; return true;}, Boolean(selected) || searching || view !== 'home', selected ? () => detailRoot.current : undefined);
+  useBackHandler(() => {if (selected) dismiss(); else if (searching) setQuery(''); else if (view !== 'home') setView('home'); else return false; return true;}, Boolean(selected) || !deferPageBack && (searching || view !== 'home'), selected ? () => detailRoot.current : undefined);
   const changeView = (value: typeof view) => {setView(value); setQuery(''); setInput('all'); setLimit(60); setFilters(false);};
   const tile = (id: string, index: number) => {
     const product = products[id];

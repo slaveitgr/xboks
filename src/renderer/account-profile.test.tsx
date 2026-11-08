@@ -15,7 +15,8 @@ it('shows the Xbox gamertag and cached avatar in sidebar and Settings, with emai
   data.auth.subscription = { ...data.auth.subscription, status: 'unknown', productIds: [] };
   expect(sidebar()).not.toContain('account-membership');
   const settings = renderToStaticMarkup(<SettingsPage data={data} toast={() => {}} />);
-  expect(settings).toContain('<h2>ExampleGamer</h2>'); expect(settings).toContain('alt="Xbox profile picture"');
+  expect(settings).toContain('class="settings-v2-profile"'); expect(settings).toContain('<strong>ExampleGamer</strong>'); expect(settings).toContain('src="data:image/png;base64,iVBORw0KGgo="');
+  expect(settings).toContain('View profile'); expect(settings).not.toContain('Signed in on this computer');
   delete data.auth.gamertag; delete data.auth.avatarDataUrl;
   expect(sidebar()).toContain('one@example.test'); expect(sidebar()).not.toContain('Xbox profile picture');
 });

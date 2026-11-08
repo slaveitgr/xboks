@@ -5,7 +5,7 @@ import GLib from 'gi://GLib';
 const name = ARGV[0] ?? 'org.mpris.MediaPlayer2.spotify';
 const loop = new GLib.MainLoop(null, false), connection = Gio.DBus.session;
 const PLAYER='org.mpris.MediaPlayer2.Player', ROOT='org.mpris.MediaPlayer2';
-let playback = 'Playing', position = 12345000, canControl = true, title = 'Track "one" Δ', canPause = true;
+let playback = 'Playing', position = 12345000, canControl = true, title = 'Track "one" Δ', canPause = true, readDelayMs = 0, signalDuringRead = false;
 const metadata = () => ({ 'mpris:trackid': new GLib.Variant('o', '/com/spotify/track/synthetic'),
   'mpris:length': new GLib.Variant('x', 180000000), 'xesam:title': new GLib.Variant('s', title),
   'xesam:artist': new GLib.Variant('as', ['Synthetic artist']), 'xesam:album': new GLib.Variant('s', 'Fixture album'),
@@ -13,7 +13,7 @@ const metadata = () => ({ 'mpris:trackid': new GLib.Variant('o', '/com/spotify/t
 const event = (method, detail) => print(JSON.stringify({ event: 'called', method, ...(detail ? {detail} : {}) }));
 const service={
   get Identity(){return 'Spotify';}, get DesktopEntry(){return 'spotify';}, get CanRaise(){return true;},
-  get PlaybackStatus(){return playback;}, get Metadata(){return metadata();}, get Position(){return position;},
+  get PlaybackStatus(){return playback;}, get Metadata(){return metadata();}, get Position(){if(readDelayMs){if(signalDuringRead){signalDuringRead=false;changed();}GLib.usleep(readDelayMs*1000);}return position;},
   get CanControl(){return canControl;}, get CanPlay(){return true;}, get CanPause(){return canPause;},
   get CanSeek(){return true;}, get CanGoNext(){return true;}, get CanGoPrevious(){return false;},
   Raise(){event('Raise');}, Next(){event('Next');title='Next synthetic track'; changed();}, Previous(){event('Previous');},
@@ -34,5 +34,5 @@ rootExported.export(connection,'/org/mpris/MediaPlayer2');
 exported.export(connection,'/org/mpris/MediaPlayer2');
 Gio.bus_own_name_on_connection(connection,name,Gio.BusNameOwnerFlags.NONE,()=>print(JSON.stringify({event:'ready',name})),()=>loop.quit());
 const input=new Gio.DataInputStream({base_stream:new GioUnix.InputStream({fd:0,close_fd:false})});
-function read(){input.read_line_async(GLib.PRIORITY_DEFAULT,null,(stream,result)=>{try{const[line]=stream.read_line_finish_utf8(result);if(line===null){loop.quit();return;}const value=JSON.parse(line);if(typeof value.canControl==='boolean')canControl=value.canControl;if(typeof value.canPause==='boolean')canPause=value.canPause;if(typeof value.playback==='string')playback=value.playback;changed();print(JSON.stringify({event:'configured'}));read();}catch{loop.quit();}});}
+function read(){input.read_line_async(GLib.PRIORITY_DEFAULT,null,(stream,result)=>{try{const[line]=stream.read_line_finish_utf8(result);if(line===null){loop.quit();return;}const value=JSON.parse(line);if(typeof value.canControl==='boolean')canControl=value.canControl;if(typeof value.canPause==='boolean')canPause=value.canPause;if(typeof value.playback==='string')playback=value.playback;if(Number.isInteger(value.readDelayMs)&&value.readDelayMs>=0&&value.readDelayMs<=1000)readDelayMs=value.readDelayMs;if(value.signalDuringRead===true)signalDuringRead=true;changed();print(JSON.stringify({event:'configured'}));read();}catch{loop.quit();}});}
 read();loop.run();

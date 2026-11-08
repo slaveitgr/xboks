@@ -1,0 +1,325 @@
+--- a/dlls/windows.media.playback.mediaplayer/Makefile.in
++++ b/dlls/windows.media.playback.mediaplayer/Makefile.in
+@@ -4,4 +4,5 @@
+ SOURCES = \
+ 	classes.idl \
+ 	main.c \
+-	playback_engine.c
++	playback_engine.c \
++	weakref.c
+--- a/dlls/windows.media.playback.mediaplayer/private.h
++++ b/dlls/windows.media.playback.mediaplayer/private.h
+@@ -29,6 +29,7 @@
+ 
+ #include "activation.h"
+ #include "roapi.h"
++#include "weakref.h"
+ 
+ #define WIDL_using_Windows_Foundation
+ #define WIDL_using_Windows_Foundation_Numerics
+--- a/dlls/windows.media.playback.mediaplayer/main.c
++++ b/dlls/windows.media.playback.mediaplayer/main.c
+@@ -120,7 +120,7 @@
+     IMediaPlayer5 IMediaPlayer5_iface;
+     IClosable IClosable_iface;
+     const void **IMediaPlayer4_vtbl;
+-    LONG ref;
++    struct weak_reference_source weak_reference_source;
+ 
+     ISystemMediaTransportControls *controls;
+     struct data_source *data_source;
+@@ -334,6 +334,9 @@
+ 
+     TRACE( "iface %p, iid %s, out %p.\n", iface, debugstr_guid( iid ), out );
+ 
++    if (!out) return E_POINTER;
++    *out = NULL;
++
+     if (IsEqualGUID( iid, &IID_IUnknown ) ||
+         IsEqualGUID( iid, &IID_IInspectable ) ||
+         IsEqualGUID( iid, &IID_IAgileObject ) ||
+@@ -347,6 +350,13 @@
+     if (IsEqualGUID( iid, &IID_IMediaPlayerPrivate ))
+         return create_media_player_private( iface, out );
+ 
++    if (IsEqualGUID( iid, &IID_IWeakReferenceSource ))
++    {
++        *out = &impl->weak_reference_source.IWeakReferenceSource_iface;
++        IWeakReferenceSource_AddRef( &impl->weak_reference_source.IWeakReferenceSource_iface );
++        return S_OK;
++    }
++
+     if (IsEqualGUID( iid, &IID_IMediaPlayer4 ))
+     {
+         *out = &impl->IMediaPlayer4_vtbl;
+@@ -397,7 +407,7 @@
+ static ULONG WINAPI media_player_AddRef( IMediaPlayer *iface )
+ {
+     struct media_player *impl = impl_from_IMediaPlayer( iface );
+-    ULONG ref = InterlockedIncrement( &impl->ref );
++    ULONG ref = weak_reference_strong_add_ref( &impl->weak_reference_source );
+     TRACE( "iface %p increasing refcount to %lu.\n", iface, ref );
+     return ref;
+ }
+@@ -407,7 +417,7 @@
+ static ULONG WINAPI media_player_Release( IMediaPlayer *iface )
+ {
+     struct media_player *impl = impl_from_IMediaPlayer( iface );
+-    ULONG ref = InterlockedDecrement( &impl->ref );
++    ULONG ref = weak_reference_strong_release( &impl->weak_reference_source );
+ 
+     TRACE( "iface %p decreasing refcount to %lu.\n", iface, ref );
+ 
+@@ -3014,6 +3024,7 @@
+ 
+     TRACE( "iface %p, instance %p.\n", iface, instance );
+ 
++    if (!instance) return E_POINTER;
+     *instance = NULL;
+ 
+     if (!(impl = calloc( 1, sizeof( *impl ) ))) return E_OUTOFMEMORY;
+@@ -3024,6 +3035,14 @@
+     }
+ 
+     impl->IMediaPlayer_iface.lpVtbl = &media_player_vtbl;
++    if (FAILED(hr = weak_reference_source_init( &impl->weak_reference_source,
++                                              (IUnknown *)&impl->IMediaPlayer_iface )))
++    {
++        ISystemMediaTransportControls_Release( impl->controls );
++        DestroyWindow( impl->window );
++        free( impl );
++        return hr;
++    }
+     if ((impl->data_source = calloc( 1, sizeof(*impl->data_source) )))
+     {
+         impl->data_source->vtbl = data_source_vtbl;
+@@ -3041,7 +3060,6 @@
+     impl->IMediaPlayer5_iface.lpVtbl = &media_player5_vtbl;
+     impl->IClosable_iface.lpVtbl = &media_player_closable_vtbl;
+     impl->IMediaPlayer4_vtbl = media_player4_vtbl;
+-    impl->ref = 1;
+     /* No DebugInfo annotation, as in playback_engine.c: this PE build leaves it NULL. */
+     InitializeCriticalSectionEx( &impl->open_cs, 0, 0 );
+ 
+--- /dev/null
++++ b/dlls/windows.media.playback.mediaplayer/weakref.h
+@@ -0,0 +1,38 @@
++/* WinRT weak reference helpers
++ *
++ * Copyright 2025 Zhiyi Zhang for CodeWeavers
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#ifndef __WINE_WEAKREF_H
++#define __WINE_WEAKREF_H
++
++#include "weakreference.h"
++
++struct weak_reference_source
++{
++    IWeakReferenceSource IWeakReferenceSource_iface;
++    IWeakReference *weak_reference;
++};
++
++/* Initialize a IWeakReferenceSource with the object to manage */
++HRESULT weak_reference_source_init( struct weak_reference_source *source, IUnknown *object );
++/* Add a strong reference to the managed object */
++ULONG weak_reference_strong_add_ref( struct weak_reference_source *source );
++/* Release a strong reference to the managed object */
++ULONG weak_reference_strong_release( struct weak_reference_source *source );
++
++#endif /* __WINE_WEAKREF_H */
+--- /dev/null
++++ b/dlls/windows.media.playback.mediaplayer/weakref.c
+@@ -0,0 +1,178 @@
++/* WinRT weak reference helpers
++ *
++ * Copyright 2025 Zhiyi Zhang for CodeWeavers
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
++ */
++
++#define COBJMACROS
++#include "weakref.h"
++
++/* The control block is contained in struct weak_reference so that we don't have to allocate a
++ * separate struct for it */
++struct weak_reference
++{
++    IWeakReference IWeakReference_iface;
++    IUnknown *object;
++    /* control block */
++    LONG ref_strong;
++    LONG ref_weak;
++};
++
++static inline struct weak_reference *impl_from_IWeakReference( IWeakReference *iface )
++{
++    return CONTAINING_RECORD(iface, struct weak_reference, IWeakReference_iface);
++}
++
++static HRESULT WINAPI weak_reference_QueryInterface( IWeakReference *iface, REFIID iid, void **out )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( iface );
++
++    if (!out) return E_POINTER;
++    if (IsEqualGUID( iid, &IID_IUnknown ) || IsEqualGUID( iid, &IID_IWeakReference ))
++    {
++        *out = &impl->IWeakReference_iface;
++        IWeakReference_AddRef( *out );
++        return S_OK;
++    }
++
++    *out = NULL;
++    return E_NOINTERFACE;
++}
++
++static ULONG WINAPI weak_reference_AddRef( IWeakReference *iface )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( iface );
++    return InterlockedIncrement( &impl->ref_weak );
++}
++
++static ULONG WINAPI weak_reference_Release( IWeakReference *iface )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( iface );
++    ULONG ref = InterlockedDecrement( &impl->ref_weak );
++
++    if (!ref)
++        free( impl );
++    return ref;
++}
++
++static HRESULT WINAPI weak_reference_Resolve( IWeakReference *iface, REFIID iid, IInspectable **out )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( iface );
++    HRESULT hr;
++    LONG ref;
++
++    if (!out) return E_POINTER;
++    *out = NULL;
++    do
++    {
++        if (!(ref = ReadNoFence( &impl->ref_strong )))
++            return S_OK;
++    } while (ref != InterlockedCompareExchange( &impl->ref_strong, ref + 1, ref ));
++
++    hr = IUnknown_QueryInterface( impl->object, iid, (void **)out );
++    IUnknown_Release( impl->object );
++    return hr;
++}
++
++static const struct IWeakReferenceVtbl weak_reference_vtbl =
++{
++    weak_reference_QueryInterface,
++    weak_reference_AddRef,
++    weak_reference_Release,
++    weak_reference_Resolve,
++};
++
++static inline struct weak_reference_source *impl_from_IWeakReferenceSource( IWeakReferenceSource *iface )
++{
++    return CONTAINING_RECORD(iface, struct weak_reference_source, IWeakReferenceSource_iface);
++}
++
++static HRESULT WINAPI weak_reference_source_QueryInterface( IWeakReferenceSource *iface, REFIID iid, void **out )
++{
++    struct weak_reference_source *weak_reference_source = impl_from_IWeakReferenceSource( iface );
++    struct weak_reference *weak_reference = impl_from_IWeakReference( weak_reference_source->weak_reference );
++    return IUnknown_QueryInterface( weak_reference->object, iid, out );
++}
++
++static ULONG WINAPI weak_reference_source_AddRef( IWeakReferenceSource *iface )
++{
++    struct weak_reference_source *weak_reference_source = impl_from_IWeakReferenceSource( iface );
++    struct weak_reference *weak_reference = impl_from_IWeakReference( weak_reference_source->weak_reference );
++    return IUnknown_AddRef( weak_reference->object );
++}
++
++static ULONG WINAPI weak_reference_source_Release( IWeakReferenceSource *iface )
++{
++    struct weak_reference_source *weak_reference_source = impl_from_IWeakReferenceSource( iface );
++    struct weak_reference *weak_reference = impl_from_IWeakReference( weak_reference_source->weak_reference );
++    return IUnknown_Release( weak_reference->object );
++}
++
++static HRESULT WINAPI weak_reference_source_GetWeakReference( IWeakReferenceSource *iface,
++                                                              IWeakReference **weak_reference )
++{
++    struct weak_reference_source *impl = impl_from_IWeakReferenceSource( iface );
++
++    if (!weak_reference) return E_POINTER;
++    *weak_reference = impl->weak_reference;
++    IWeakReference_AddRef( *weak_reference );
++    return S_OK;
++}
++
++static const struct IWeakReferenceSourceVtbl weak_reference_source_vtbl =
++{
++    weak_reference_source_QueryInterface,
++    weak_reference_source_AddRef,
++    weak_reference_source_Release,
++    weak_reference_source_GetWeakReference,
++};
++
++static HRESULT weak_reference_create( IUnknown *object, IWeakReference **out )
++{
++    struct weak_reference *weak_reference;
++
++    if (!(weak_reference = calloc( 1, sizeof(*weak_reference) )))
++        return E_OUTOFMEMORY;
++
++    weak_reference->IWeakReference_iface.lpVtbl = &weak_reference_vtbl;
++    weak_reference->ref_strong = 1;
++    weak_reference->ref_weak = 1;
++    weak_reference->object = object;
++    *out = &weak_reference->IWeakReference_iface;
++    return S_OK;
++}
++
++HRESULT weak_reference_source_init( struct weak_reference_source *source, IUnknown *object )
++{
++    source->IWeakReferenceSource_iface.lpVtbl = &weak_reference_source_vtbl;
++    return weak_reference_create( object, &source->weak_reference );
++}
++
++ULONG weak_reference_strong_add_ref( struct weak_reference_source *source )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( source->weak_reference );
++    return InterlockedIncrement( &impl->ref_strong );
++}
++
++ULONG weak_reference_strong_release( struct weak_reference_source *source )
++{
++    struct weak_reference *impl = impl_from_IWeakReference( source->weak_reference );
++    ULONG ref = InterlockedDecrement( &impl->ref_strong );
++
++    if (!ref)
++        IWeakReference_Release( source->weak_reference );
++    return ref;
++}

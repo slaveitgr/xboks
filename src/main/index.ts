@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { readStoreIdentity } from '../shared/account-identities.js';
 import { scanLibraryProviders } from './library-providers.js';
+import { DesktopApps } from './desktop-apps.js';
 import { applyDesktopSettings, backgroundStartupRequested, batteryPercentage, desktopConfigRoot, desktopSession, inspectDesktopSettings, startDesktopLauncher } from './desktop-settings.js';
 import { RemotePlay } from './remote-play.js';
 import { CloudGaming } from './cloud-gaming.js';
@@ -63,7 +64,7 @@ import { DownloadCleanup } from './download-cleanup.js';
 import { InstallQueue, assertActivityCompatible, assertInstallDestination, canonicalInstallPath, installPathsOverlap } from './install-queue.js';
 import { GameDisplayBlocker } from './game-display.js';
 import { GameShortcuts, shortcutArguments, shortcutInstanceData, shortcutInstanceRequest, type ShortcutDestination } from './game-shortcuts.js';
-import { ShortcutLaunch } from './shortcut-launch.js';
+import { ShortcutLaunch, FullscreenHomeLaunch, fullscreenHomeRequested, fullscreenHomeInstanceData, fullscreenHomeInstanceRequested } from './shortcut-launch.js';
 import { loadShortcutIcon } from './shortcut-icon.js';
 import { AccountProfile } from './account-profile.js';
 import { AccountRefresh, readAccount } from './account-refresh.js';
@@ -216,7 +217,7 @@ function guideIsFocused(): boolean {
   return Boolean(window && !window.isDestroyed() && window.isVisible() && window.isFocused());
 }
 function updateControllerSurface(): void {
-  const next = quitting || shutdownStarted ? 'none' : experienceBridge.switcherVisible && fullscreenExperience.current.active ? 'switcher' : guideIsFocused() ? 'guide' : 'none';
+  const next = quitting || shutdownStarted ? 'none' : experienceBridge.switcherVisible && experienceBridge.canControlSwitcher ? 'switcher' : guideIsFocused() ? 'guide' : 'none';
   navigationSurface = next;
   gameBarController.setSurface(next);
   if (desktopSettingsStatus.gameBarController) desktopSettingsStatus.gameBarController.navigationSurface = next;
@@ -224,6 +225,7 @@ function updateControllerSurface(): void {
 }
 async function toggleDesktopGuide(): Promise<void> {
   if (experienceBridge.switcherVisible) await experienceBridge.switcher('cancel').catch(() => {});
+  if (experienceBridge.switcherVisible) return;
   if (!guideIsVisible() && !demoMode) {
     guideForeground = await experienceBridge.foregroundApp().catch(() => undefined);
     if (launchReady) emitSnapshot();
@@ -501,10 +503,12 @@ let windowOpening: Promise<void> | undefined;
 const pendingRequests: (string | undefined)[] = [];
 const pendingShortcutErrors: unknown[] = [];
 let startupRequest: ReturnType<typeof shortcutArguments> = {};
+let pendingFullscreenHome = false;
 let startupError: Error | undefined;
 let pathMigration: ManagedPathMigration | undefined;
 try {
   startupRequest = shortcutArguments(process.argv.slice(1));
+  pendingFullscreenHome = fullscreenHomeRequested(process.argv.slice(1));
   const defaults = managedPaths();
   const selectedProfile = startupRequest.profile ?? app.getPath('userData');
   const defaultProfiles = [defaults.profile, path.join(path.dirname(defaults.profile), 'xodus-nexus')];
@@ -526,7 +530,8 @@ if (process.platform === 'linux') {
 }
 // Electron's lock is scoped to userData, so independent profiles stay isolated.
 async function claimLauncherInstance(): Promise<boolean> {
-  try { return !startupError && (demoMode || app.requestSingleInstanceLock(shortcutInstanceData(startupRequest, false))); }
+  try { return !startupError && (demoMode || app.requestSingleInstanceLock({ ...shortcutInstanceData(startupRequest, false),
+    ...fullscreenHomeInstanceData(pendingFullscreenHome) })); }
   finally { await pathMigration?.releaseStartupLock?.(); }
 }
 const primaryInstance = await claimLauncherInstance().catch(error => { startupError = error as Error; return false; });
@@ -550,6 +555,11 @@ else if (!demoMode) app.on('second-instance', (_event, _argv, _workingDirectory,
   }
   try {
     const request = shortcutInstanceRequest(additionalData, app.getPath('userData'));
+    if (fullscreenHomeInstanceRequested(additionalData)) {
+      if (request.gameId) throw Error('Fullscreen home cannot be combined with a game request.');
+      receiveFullscreenHomeRequest();
+      return;
+    }
     // A duplicate autostart invocation must not reveal an already running launcher.
     if (!request.gameId && backgroundStartupRequested(_argv, desktopSettingsStatus)) return;
     receiveLaunchRequest(request.gameId);
@@ -563,6 +573,29 @@ const shortcutLaunch = new ShortcutLaunch(
   () => gameOperation?.kind === 'launch' && ['preparing', 'running', 'stopping'].includes(gameOperation.status) ? gameOperation.gameId : undefined,
   (id) => launchGame(id),
 );
+let fullscreenHomeWindow: BrowserWindow | null | undefined;
+const fullscreenHomeLaunch = new FullscreenHomeLaunch({
+  show: async () => { await showLauncher(); fullscreenHomeWindow = mainWindow; },
+  valid: () => Boolean(!demoMode && !quitting && !shutdownStarted && fullscreenHomeWindow &&
+    !fullscreenHomeWindow.isDestroyed() && fullscreenHomeWindow === mainWindow),
+  focused: () => fullscreenHomeWindow?.isFocused() ?? false,
+  active: () => fullscreenExperience.current.active,
+  integration: async () => (await fullscreenExperience.refresh()).available,
+  enter: async () => { await fullscreenExperience.setWindow(true, true); },
+});
+
+async function fullscreenHomeError(error: unknown): Promise<void> {
+  if (quitting || shutdownStarted) return;
+  await showLauncher();
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  await dialog.showMessageBox(mainWindow, { type: 'error', title: 'Unable to enter Linux Gaming Mode',
+    message: error instanceof Error ? error.message : 'The fullscreen home could not be opened.' });
+}
+function receiveFullscreenHomeRequest(): void {
+  if (!launchReady) { pendingFullscreenHome = true; return; }
+  pendingFullscreenHome = false;
+  void fullscreenHomeLaunch.request().catch(fullscreenHomeError);
+}
 
 async function showLauncher(authorized?: () => boolean): Promise<void> {
   let openingTarget = mainWindow;
@@ -1601,7 +1634,8 @@ function registerDemoIpc(catalogMarket: () => string): void {
   ipcMain.handle('logout', () => {});
   ipcMain.handle('catalog-search', (_event, query: string, cursor?: string) => catalog.search(query, catalogMarket(), cursor));
   ipcMain.handle('catalog-featured', () => catalog.featured(catalogMarket()));
-  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
+  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons' | 'deals', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
+  ipcMain.handle('catalog-category', (_event, category: import('../shared/types.js').StoreCategoryKey, cursor?: string) => catalog.category(category, catalogMarket(), cursor));
   ipcMain.handle('catalog-details', (_event, productId: string) => {
     if (typeof productId !== 'string' || !/^[A-Z0-9]{12}$/i.test(productId)) throw Error('Invalid product ID.');
     return catalog.gameDetails(productId.toUpperCase(), catalogMarket());
@@ -1647,6 +1681,25 @@ function registerIpc(): void {
       event.senderFrame && event.senderFrame !== event.sender.mainFrame) throw Error('Invalid launcher window.');
   };
   const demoSystemReason = 'System controls are disabled in demo mode.';
+  const desktopApps = new DesktopApps({helper: app.isPackaged ? path.join(process.resourcesPath, 'desktop', 'apps-client.js')
+    : fileURLToPath(new URL('../../assets/desktop/apps-client.js', import.meta.url))});
+  const desktopAppSender = (event: Electron.IpcMainInvokeEvent, launch = false) => {
+    systemSender(event);
+    const target = mainWindow;
+    if (!target || event.sender !== target.webContents || target.isDestroyed() || shutdownStarted ||
+      !voiceDocumentAllowed(event.sender.getURL(), pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'index.html')).href, process.env.VITE_DEV_SERVER_URL) ||
+      event.senderFrame && !voiceDocumentAllowed(event.senderFrame.url, pathToFileURL(path.join(__dirname, '..', '..', 'dist', 'index.html')).href, process.env.VITE_DEV_SERVER_URL) ||
+      launch && (!target.isVisible() || !target.isFocused())) throw Error('Open desktop applications from the XBOKS window.');
+  };
+  ipcMain.handle('desktop-apps-list', event => {
+    desktopAppSender(event);
+    return demoMode ? {available: false, apps: [], reason: 'Desktop application discovery is disabled in demo mode.'} : desktopApps.list();
+  });
+  ipcMain.handle('desktop-apps-launch', (event, id: unknown) => {
+    desktopAppSender(event, true);
+    if (demoMode) throw Error('Launching desktop applications is disabled in demo mode.');
+    return desktopApps.launch(id, () => { try { desktopAppSender(event, true); return true; } catch { return false; } });
+  });
   ipcMain.handle('window-fullscreen-get', event => { systemSender(event); return mainWindow?.isFullScreen?.() ?? false; });
   ipcMain.handle('window-fullscreen-set', async (event, enabled: unknown) => {
     systemSender(event);
@@ -2012,7 +2065,8 @@ function registerIpc(): void {
   });
   ipcMain.handle('read-backend-diagnostic-log', () => backendDiagnostics.read());
   ipcMain.handle('catalog-featured', () => catalog.featured(catalogMarket()));
-  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
+  ipcMain.handle('catalog-collection', (_event, collection: 'all-pc' | 'toppaid' | 'addons' | 'deals', cursor?: string) => catalog.collection(collection, catalogMarket(), cursor));
+  ipcMain.handle('catalog-category', (_event, category: import('../shared/types.js').StoreCategoryKey, cursor?: string) => catalog.category(category, catalogMarket(), cursor));
   ipcMain.handle('catalog-details', (_event, productId: string) => {
     if (typeof productId !== 'string' || !/^[A-Z0-9]{12}$/i.test(productId)) throw Error('Invalid product ID.');
     return catalog.gameDetails(productId.toUpperCase(), catalogMarket());
@@ -2630,6 +2684,7 @@ app.whenReady().then(async () => {
   launchReady = true;
   try {ensureSettingsTray();} catch {console.warn('The desktop tray is unavailable; XBOKS remains accessible from its launcher.');}
   gameBarController.start();
+  void experienceBridge.request('state').catch(() => {});
   // The resident Game Bar service can win the instance lock at login. The
   // reboot intent belongs to the profile, not whichever startup entry won.
   const startupXboxMode = await xboxModeStartup().consume().catch(() => {
@@ -2639,6 +2694,9 @@ app.whenReady().then(async () => {
     await prepareSystemWallet();
     await refreshAccount(false);
     receiveLaunchRequest(startupRequest.gameId);
+  } else if (pendingFullscreenHome) {
+    pendingFullscreenHome = false;
+    await fullscreenHomeLaunch.request().catch(fullscreenHomeError);
   } else if (startupXboxMode) {
     let startupWindow: BrowserWindow | null | undefined;
     await resumeXboxModeStartup({

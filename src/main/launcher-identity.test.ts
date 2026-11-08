@@ -4,6 +4,7 @@ import { createContext, runInContext } from 'node:vm';
 import ts from 'typescript';
 import { expect, it, vi } from 'vitest';
 import { shortcutArguments } from './game-shortcuts.js';
+import { fullscreenHomeRequested } from './shortcut-launch.js';
 
 const source = readFileSync('src/main/index.ts', 'utf8');
 const document = ts.createSourceFile('index.ts', source, ts.ScriptTarget.Latest, true);
@@ -13,11 +14,12 @@ const selection = document.statements.find(statement => ts.isTryStatement(statem
   && statement.tryBlock.getText(document).includes('startupRequest = shortcutArguments('));
 if (!identity || !selection) throw Error('Launcher identity/profile initialization was not found.');
 const initialization = ts.transpileModule(`${identity.getText(document)}
-let startupRequest = {}, startupError, pathMigration;
+let startupRequest = {}, startupError, pathMigration, pendingFullscreenHome = false;
 ${selection.getText(document)}
-return { startupRequest, startupError, pathMigration };`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+return { startupRequest, startupError, pathMigration, pendingFullscreenHome };`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-it.each([undefined, '--xboks-profile', '--nexus-profile'])('keeps the canonical profile when display metadata is uppercase: %s', async flag => {
+it.each([undefined, '--xboks-profile', '--nexus-profile'].flatMap(flag => [false, true].map(home => ({flag, home}))))
+('keeps the canonical profile when display metadata is uppercase: $flag, fullscreen home=$home', async ({flag, home}) => {
   let name = 'XBOKS';
   let profile: string | undefined;
   const events: string[] = [];
@@ -30,8 +32,8 @@ it.each([undefined, '--xboks-profile', '--nexus-profile'])('keeps the canonical 
       getPath(key: string) { events.push(`get:${key}`); return path.join('/home/test/.config', name); },
       setPath(key: string, value: string) { events.push(`set:${key}`); profile = value; },
     },
-    process: { argv: ['launcher', ...(flag ? [flag, custom] : [])] },
-    path, shortcutArguments, demoMode: false,
+    process: { argv: ['launcher', ...(flag ? [flag, custom] : []), ...(home ? ['--fullscreen-experience'] : [])] },
+    path, shortcutArguments, fullscreenHomeRequested, demoMode: false,
     managedPaths: () => ({ profile: canonical }), migrateManagedPaths,
     console: { warn: vi.fn() },
   });
@@ -42,5 +44,6 @@ it.each([undefined, '--xboks-profile', '--nexus-profile'])('keeps the canonical 
   expect(migrateManagedPaths).toHaveBeenCalledWith({ profile: flag ? custom : canonical,
     explicitProfile: Boolean(flag), retainStartupLock: true });
   expect(value.startupRequest.profile).toBe(flag ? custom : undefined);
+  expect(value.pendingFullscreenHome).toBe(home);
   expect(identity.getStart(document)).toBeLessThan(selection.getStart(document));
 });

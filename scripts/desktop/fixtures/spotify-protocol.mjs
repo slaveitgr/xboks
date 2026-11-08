@@ -32,6 +32,14 @@ try{
  assert.equal(reply.state.track.title,'Track "one" Δ');assert.deepEqual(reply.state.track.artists,['Synthetic artist']);assert.equal(reply.state.positionMs,12345);assert.equal(reply.state.track.durationMs,180000);
  assert.deepEqual(reply.state.capabilities,{playPause:true,next:true,previous:false,seek:true,open:true});
  assert.equal(service.messages.filter(v=>v.event==='called').length,0,'read-only discovery must not change playback');
+ // A requested GetAll remains outstanding while PropertiesChanged schedules a
+ // second read. The reply must contain the requested fresh state, never the
+ // previous shared value from a superseded read.
+ const delayed=service.messages.length;service.send({playback:'Paused',readDelayMs:250,signalDuringRead:true});await service.wait(v=>v.event==='configured',delayed);
+ reply=await request('state');assert.equal(reply.state.playbackStatus,'paused','a signal refresh must not make a requested read reply with stale playback');
+ const resumed=service.messages.length;service.send({playback:'Playing',readDelayMs:0});await service.wait(v=>v.event==='configured',resumed);
+ reply=await request('state');assert.equal(reply.state.playbackStatus,'playing');
+
  reply=await request('control',{action:'previous'});assert.equal(reply.ok,false);assert.equal(reply.error,'unsupported-control');assert.equal(service.messages.filter(v=>v.method==='Previous').length,0);
  reply=await request('control',{action:'play-pause'});assert.equal(reply.ok,true);assert.equal(reply.state.playbackStatus,'paused');await service.wait(v=>v.method==='Pause');
  service.send({canPause:false});await service.wait(v=>v.event==='configured');
@@ -62,5 +70,5 @@ try{
  const terminated=start(helperFile,[],environment);terminated.send({id:1,method:'state'});await terminated.wait(v=>v.id===1);
  terminated.child.kill('SIGTERM');assert.deepEqual(await terminated.exited,{code:0,signal:null});
  assert.equal(fake.messages.filter(v=>v.event==='called').length,0,'other MPRIS players must never receive controls');
- console.log(JSON.stringify({status:'passed',transport:'real-gjs-isolated-dbus',unixSignals:legacyUnixSignals?'legacy-only':'native',sigtermCleanup:true,discoveryReadOnly:true,spotifyOnly:true,capabilityGuards:true,pauseResume:true,absoluteTrackBoundSeek:true,explicitRaise:true,ownerDisappearance:true,permissionDenied:true,hostPlaybackChanged:false}));
+ console.log(JSON.stringify({status:'passed',transport:'real-gjs-isolated-dbus',unixSignals:legacyUnixSignals?'legacy-only':'native',sigtermCleanup:true,discoveryReadOnly:true,overlappingSignalRead:true,spotifyOnly:true,capabilityGuards:true,pauseResume:true,absoluteTrackBoundSeek:true,explicitRaise:true,ownerDisappearance:true,permissionDenied:true,hostPlaybackChanged:false}));
 }finally{for(const child of processes)child.kill('SIGKILL');await rm(desktopRoot,{recursive:true,force:true});}

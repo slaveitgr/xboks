@@ -5,6 +5,31 @@
 - Fix Jurassic World Evolution 3 aborting during app-constrained notification registration at startup.
 - Fix repeated Xbox task-queue termination requests leaving games waiting during world cleanup or shutdown.
 
+## 0.3.31 — development candidate, 2026-11-08
+
+- Reconstruct the 2612 New App Experience desktop dock, Featured Home, account menu, profile summary and Library navigation from pinned shipped resources and selected original-client observations. Preserve account ownership, loading/error states and Back focus. Complete Windows parity remains unverified.
+- Use the six new Settings categories in desktop and Xbox mode. Retain Engine/Proton and download controls under Install & storage, launcher updates and keyring setup under About, and explicit unsaved-change/sign-in guards.
+- Add a real Linux Apps library through visible Gio desktop entries, with bounded icons and exact-ID launch only from the trusted focused launcher. Add account-bound People search and recorded-history presentation without treating installed games as played games.
+- Rebuild Store Browse/Deals and Categories/Wishlist navigation. Deals and all 18 categories read their actual original-service channels with market-bound continuation; product details and nested Back retain loaded pages, scroll and focus. Personalized campaigns, wishlist service and inline commerce remain separate integration work.
+- Isolate Game Pass data by account, market and Engine identity. Add cursor paging, continuation retry, license refresh and retained genre/page state on return from product details. Restore the invoking account-menu action after Help/Feedback, and prevent duplicate or stale sign-out actions.
+- Serialize Spotify desktop discovery and property reads so a signal refresh cannot make a requested read return stale player state. A delayed-read regression reproduces the former race in both supported signal modes.
+- Port two bounded upstream fixes: OSC hyperlink escape removal without dropping surrounding text, and allowlisted Xbox authentication diagnostics without copying credentials or free-form service payloads.
+- Record original runtime observations, anonymous Store service checks and fixture screenshots separately. Original Windows service delivery and physical-controller acceptance remain independent checks.
+
+## 0.3.30 — local candidate, 2026-11-08
+
+- Add a fullscreen Home launch adapter and standalone Linux Gaming Mode configuration for Steam Big Picture, XBOKS or the experimental original Xbox client. Keep startup cover, native mode ownership and emergency desktop restoration separate from UI density.
+- Record the patched Wine-UWP original-client experiment, New App Experience activation and the Linux native Xbox mode bridge. Microsoft packages, account captures, prefixes and raw diagnostics are not distributed with the launcher.
+
+## 0.3.29 — 2026-11-07
+
+- Keep one controller header and full-width canvas across Xbox mode Home, Library, Store, Game Pass, Cloud, profile and the installation queue. Remove the fallback to the old desktop rail and header on non-Home routes.
+- Add Settings V2 categories with nested detail pages in Xbox mode, preserving existing Linux settings, account checks, unsaved-change confirmation and provider-specific Back behavior. The desktop settings layout remains available outside Xbox mode.
+- Match shoulder-button navigation to the visible console page order. Add directional transitions between the shared header and page content without stealing editable controls or nested dialogs.
+- Scale console filters, cards, product actions, social panels, notifications and console selection. Keep search inside the console shell, including Cloud-scoped search, and preserve modal input isolation across mode changes.
+- Hide the previous profile while an account transition is pending.
+- Record five isolated original-client startup probes, including two through the installed managed Proton launcher. CE initialization encountered missing Windows App SDK activation and an unimplemented WinRT call; no functional original Xbox client was demonstrated. This does not change game compatibility or claim universal Proton impossibility.
+
 ## 0.3.28 — 2026-11-06
 
 - Introduce a desktop shell based on the November Xbox PC reference: full-width header, profile and notifications, Home/Library/Game Pass/Store panels, persistent account-bound friends and a separate Queue. Cloud Gaming, Remote Play and Settings remain available through More.

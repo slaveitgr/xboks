@@ -37,6 +37,14 @@ export class ExperienceLease {
         this.forceLeave();
     }
 
+    transfer(previous, sender, authorized) {
+        if (!this.active || this.owner !== previous || !authorized || !/^:\d+\.\d+$/.test(sender ?? ''))
+            throw new Error('not-authorized');
+        this.owner = sender;
+        // Keep the desktop lease intact while the real home client adopts it.
+        this._changed(true);
+    }
+
     ownerVanished(sender) {
         if (this.owner === sender)
             this.forceLeave();

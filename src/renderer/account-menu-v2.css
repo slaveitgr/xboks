@@ -1,0 +1,20 @@
+body:has(.desktop-experience) .shell-account-menu, .shell-account-menu {
+  width: min(400px,calc(100vw - 32px)); max-height: calc(100dvh - 72px); overflow-y: auto;
+  padding: 24px 32px 20px; border: 1px solid #25282a; border-radius: 16px;
+  background: linear-gradient(145deg,#1b1e20f8,#090b0bf8); box-shadow: 0 12px 36px #0008;
+}
+.shell-account-menu .account-menu-summary { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 0 16px 10px; margin-bottom: 6px; background: linear-gradient(90deg,#30333344,transparent); }
+.account-menu-summary > span:last-child { display: grid; gap: 4px; min-width: 0; }
+.account-menu-summary strong { font-size: 16px; line-height: 20px; overflow-wrap: anywhere; }
+.account-menu-gamerpic { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border-radius: 50%; background: #343a39; overflow: hidden; }
+.account-menu-gamerpic img { width: 100%; height: 100%; object-fit: cover; }
+.account-menu-gamerpic .xbox-icon { width: 32px; height: 32px; }
+.account-menu-membership { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.shell-account-menu > button, .shell-account-menu > a { min-height: 48px; gap: 8px; padding: 12px 16px; font-size: 16px; line-height: 20px; border-radius: 8px; }
+.shell-account-menu > button > .xbox-icon, .shell-account-menu > a > .xbox-icon { width: 16px; height: 16px; flex: 0 0 16px; }
+.shell-account-menu .account-menu-presence { display: flex; align-items: center; justify-content: space-between; min-height: 36px; border: 1px solid #323639; border-radius: 8px; padding: 8px 14px; margin-bottom: 4px; }
+.shell-account-menu .account-menu-presence > span { margin-right: auto; }
+.shell-account-menu > hr { margin: 4px 0; border: 0; border-top: 1px solid #383b3b; }
+.account-menu-experience { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 12px 16px; font-size: 16px; }
+.account-menu-experience input { width: 32px; height: 18px; accent-color: #e7e9e8; }
+.console-experience ~ .shell-flyout-backdrop .shell-account-menu { font-size: 20px; }

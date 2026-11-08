@@ -1,0 +1,111 @@
+/* 2612 Settings V2: one route hierarchy, desktop modal and low-density full page. */
+.xbox-settings-backdrop.settings-v2-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: #0008; }
+.xbox-settings-dialog.settings-v2-dialog { --settings-horizontal-margin: 32px; --settings-body: 16px; --settings-caption: 14px; --settings-row-height: 48px; width: 100%; height: 90vh; max-height: 90vh; max-width: 1200px; display: grid; grid-template-columns: 320px minmax(0,1fr); grid-template-rows: minmax(0,1fr); overflow: hidden; border: 1px solid #ffffff16; border-radius: 16px; box-shadow: 0 20px 80px #0006; background: linear-gradient(165deg,#1b1d20fa,#060709fa); font-size: var(--settings-body); }
+.settings-v2-fullscreen.xbox-settings-backdrop { padding: 0; background: #080a0c; }
+.settings-v2-fullscreen .xbox-settings-dialog { --settings-horizontal-margin: 48px; --settings-body: clamp(18px,1.3vw,25px); --settings-caption: clamp(14px,1vw,19px); --settings-row-height: 64px; grid-template-columns: min(375px,28vw) minmax(0,1fr); grid-template-rows: minmax(0,1fr) 56px; height: 100%; max-height: none; max-width: none; border: 0; border-radius: 0; box-shadow: none; }
+.xbox-settings-nav.settings-v2-nav { display: flex; flex-direction: column; gap: 16px; padding: 32px 16px 20px; min-width: 0; min-height: 0; background: #17191b; }
+.settings-v2-profile { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 16px 12px; }
+.settings-v2-profile strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--settings-body); font-weight: 600; }
+.settings-v2-avatar { width: 26px; height: 26px; display: grid; place-items: center; flex-shrink: 0; overflow: hidden; border-radius: 50%; }
+.settings-v2-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.settings-v2-avatar > .xbox-icon { width: 100%; height: 100%; }
+.settings-v2-low .settings-v2-avatar { width: 48px; height: 48px; }
+.settings-v2-dialog .settings-v2-nav [role=tablist] { display: flex; flex-direction: column; gap: 16px; overflow: auto; min-height: 0; padding: 4px; }
+.settings-v2-dialog .settings-v2-nav button { min-height: 40px; height: auto; display: flex; align-items: center; padding: 10px 16px; border: 0; border-radius: 8px; box-shadow: none; color: #d1d3d6; background: transparent; font-size: var(--settings-body); font-weight: 400; line-height: 1.5; cursor: pointer; text-align: left; }
+.settings-v2-dialog .settings-v2-nav button[aria-selected=true] { color: #fff; background: #ffffff14; box-shadow: none; }
+.settings-v2-dialog .settings-v2-nav button:hover { background: #ffffff0c; color: #fff; }
+.settings-v2-dialog .settings-v2-help { margin: auto 4px 0; gap: 12px; flex-shrink: 0; }
+.settings-v2-help > .xbox-icon { width: 22px; height: 22px; }
+.settings-v2-main { display: flex; flex-direction: column; overflow: hidden; min-height: 0; min-width: 0; }
+.settings-v2-titlebar { display: flex; align-items: center; gap: 12px; flex-shrink: 0; min-height: 72px; padding: 16px var(--settings-horizontal-margin); }
+.settings-v2-titlebar h1 { margin: 0; flex: 1; min-width: 0; font-size: 26px; font-weight: 600; line-height: 1.3; }
+.settings-v2-dialog[data-settings-detail=true] .settings-v2-titlebar h1 { font-size: var(--settings-body); font-weight: 400; }
+.settings-v2-dialog .settings-v2-close, .settings-v2-dialog .settings-v2-back { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; padding: 10px; margin: 0; border: 0; border-radius: 8px; color: #fff; background: transparent; cursor: pointer; }
+.settings-v2-dialog .settings-v2-close:hover, .settings-v2-dialog .settings-v2-back:hover { background: #ffffff14; }
+.settings-v2-dialog .settings-v2-back { margin-inline-start: -12px; }
+.settings-v2-dialog .settings-v2-close > .xbox-icon, .settings-v2-dialog .settings-v2-back > .xbox-icon { width: 20px; height: 20px; }
+.xbox-settings-content.settings-v2-content { flex: 1; min-height: 0; overflow: auto; padding: 8px var(--settings-horizontal-margin) 32px; }
+.settings-v2-route-list { display: grid; gap: 8px; }
+.settings-v2-dialog .settings-v2-route { display: flex; align-items: center; gap: 16px; width: 100%; min-height: var(--settings-row-height); padding: 12px 16px; border: 1px solid #ffffff0d; border-radius: 8px; color: #fff; background: #ffffff08; text-align: left; cursor: pointer; }
+.settings-v2-route > span:not(.xbox-icon) { flex: 1; min-width: 0; }
+.settings-v2-route strong { display: block; font-size: var(--settings-body); font-weight: 400; line-height: 1.5; }
+.settings-v2-route small { display: none; }
+.settings-v2-route > .xbox-icon { width: 24px; height: 24px; flex-shrink: 0; }
+.settings-v2-dialog .settings-v2-route:hover { background: #ffffff14; }
+.settings-v2-dialog button:focus-visible, .settings-v2-dialog input:focus-visible, .settings-v2-dialog select:focus-visible, .settings-v2-dialog a:focus-visible, .settings-v2-dialog summary:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+.settings-v2-dialog .original-setting-group { margin: 0 0 16px; padding: 16px; background: #ffffff05; border: 1px solid #ffffff12; border-radius: 8px; }
+.settings-v2-dialog .original-setting-group h2, .settings-v2-dialog .xbox-settings-content h3 { margin: 0 0 16px; padding-bottom: 12px; font-size: var(--settings-body); font-weight: 600; line-height: 1.5; border-color: #ffffff18; }
+.settings-v2-dialog .original-setting-group p, .settings-v2-dialog .xbox-settings-content p { font-size: var(--settings-caption); line-height: 1.5; }
+.settings-v2-dialog .original-setting-check, .settings-v2-dialog .original-setting-switch { min-height: 40px; font-size: var(--settings-body); line-height: 1.5; }
+.settings-v2-dialog .original-setting-switch { padding: 12px 0; background: transparent; }
+.settings-v2-dialog .original-setting-check input { width: 20px; height: 20px; flex-basis: 20px; accent-color: #fff; }
+.settings-v2-dialog .original-setting-control { margin-bottom: 12px; }
+.settings-v2-dialog .xbox-settings-content input:not([type=checkbox]):not([type=range]), .settings-v2-dialog .xbox-settings-content select { min-height: 40px; padding: 8px 12px; font-size: var(--settings-body); background: #202326; border-color: #ffffff30; }
+.settings-v2-dialog .xbox-settings-content button.primary, .settings-v2-dialog .xbox-settings-content button.secondary { min-height: 40px; padding: 8px 16px; font-size: var(--settings-body); }
+.settings-v2-dialog .original-setting-link, .settings-v2-dialog .original-setting-text-button, .settings-v2-dialog .settings-language-field, .settings-v2-dialog .xbox-settings-content .form-grid label { font-size: var(--settings-body); line-height: 1.5; }
+.settings-v2-dialog .original-setting-link { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; }
+.settings-v2-dialog .original-setting-link + .original-setting-link { margin-left: 16px; }
+.settings-v2-dialog .original-account-profile strong { font-size: var(--settings-body); }
+.settings-v2-dialog .original-subscription dd, .settings-v2-dialog .original-subscription dt { font-size: var(--settings-caption); }
+.settings-v2-dialog .settings-reference-provider-card { min-height: 72px; padding: 12px; background: #ffffff08; }
+.settings-v2-dialog .settings-reference-provider-card strong { font-size: var(--settings-body); }
+.settings-v2-dialog .settings-reference-provider-card small { font-size: var(--settings-caption); }
+.settings-v2-dialog .settings-subpage-back { margin: 0 0 16px; font-size: var(--settings-body); }
+.settings-v2-dialog .original-account-session, .settings-v2-dialog .engine-settings-extra { border-color: #ffffff20; }
+.settings-v2-dialog .original-account-session > summary, .settings-v2-dialog .engine-settings-extra > summary, .settings-v2-dialog .settings-nexus-extension > summary { min-height: 40px; padding: 12px 4px; font-size: var(--settings-body); }
+.settings-v2-dialog .settings-v2-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; grid-column: 1 / -1; padding: 10px 48px; background: #0002; color: #d5d9db; font-size: 16px; }
+.settings-v2-dialog kbd { display: inline-grid; place-items: center; min-width: 24px; min-height: 24px; padding: 2px 5px; border: 1px solid currentColor; border-radius: 50%; font: inherit; font-size: 13px; }
+.settings-v2-footer kbd:nth-of-type(2) { margin-left: 20px; }
+.settings-v2-device-list { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.settings-v2-device-list li { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.settings-v2-device-list li > span { display: flex; flex-direction: column; }
+.settings-v2-device-list small { font-size: var(--settings-caption); color: #b6bbc0; }
+@media (max-width: 760px) { .settings-v2-backdrop.xbox-settings-backdrop { padding: 0; } .settings-v2-dialog.xbox-settings-dialog { height: 100%; max-height: none; grid-template-columns: minmax(0,1fr); border-radius: 0; } .settings-v2-dialog[data-settings-detail=false] .settings-v2-main { display: none; } .settings-v2-dialog[data-settings-detail=true] .settings-v2-nav { display: none; } }
+@media (prefers-reduced-motion: reduce) { .settings-v2-dialog * { scroll-behavior: auto; } }
+.settings-v2-breadcrumb { display: flex; align-items: center; gap: 8px; color: #b7bbc0; min-width: 0; }
+.settings-v2-breadcrumb button { padding: 4px 0; border: 0; background: transparent; color: inherit; font-size: var(--settings-body); white-space: nowrap; cursor: pointer; }
+.settings-v2-breadcrumb > .xbox-icon { width: 16px; height: 16px; }
+.settings-v2-game-list { padding-inline-start: 24px; line-height: 1.8; }
+/* Observed desktop Settings at 1641 × 1049: 1200px modal, 272px rail. */
+.settings-v2-desktop .settings-v2-dialog { grid-template-columns: 272px minmax(0,1fr); height: min(895px,85.4vh); }
+.settings-v2-desktop .settings-v2-nav { padding-top: 48px; }
+.settings-v2-desktop .settings-v2-titlebar { min-height: 80px; padding-inline: 48px 24px; }
+.settings-v2-desktop .settings-v2-titlebar h1 { font-size: 28px; }
+.settings-v2-desktop .settings-v2-content { padding-inline: 48px 56px; padding-top: 0; padding-bottom: 40px; }
+.settings-v2-desktop .settings-v2-route { min-height: 70px; border-radius: 12px; background: #ffffff04; padding-inline: 16px; }
+.settings-v2-desktop .settings-v2-route:hover { background: #ffffff0c; }
+.settings-v2-route-list > a.settings-v2-route { text-decoration: none; color: #fff; }
+.settings-v2-account-actions .settings-v2-route > .xbox-icon { width: 18px; height: 18px; }
+@media (max-width: 760px) { .settings-v2-desktop .settings-v2-dialog { grid-template-columns: minmax(0,1fr); height: 100%; } .settings-v2-desktop .settings-v2-content { padding-inline: 24px; } .settings-v2-desktop .settings-v2-titlebar { padding-inline: 24px; } }
+.settings-v2-desktop .settings-v2-nav { gap: 8px; }
+.settings-v2-desktop .settings-v2-profile { padding-bottom: 0; }
+.settings-v2-desktop .settings-v2-profile strong { font-size: 14px; }
+.settings-v2-desktop .settings-v2-nav [role=tablist] { padding: 0; }
+.settings-v2-desktop .settings-v2-nav button { padding-block: 8px; }
+.settings-v2-desktop .settings-v2-nav { padding-bottom: 48px; }
+.settings-v2-desktop .settings-v2-help { margin-inline: 0; gap: 8px; }
+.settings-v2-desktop .settings-v2-help > .xbox-icon { width: 16px; height: 16px; }
+.settings-v2-desktop .settings-v2-dialog { height: 90vh; max-height: calc(90vh - var(--settings-title-safe-area,48px)); }
+.settings-v2-motion { display: grid; gap: 8px; }
+.settings-v2-dialog .settings-v2-motion h3 { margin: 0; border: 0; padding: 0; font-size: var(--settings-caption); }
+.settings-v2-motion label { display: grid; gap: 8px; font-size: var(--settings-caption); }
+.settings-v2-motion select { width: 100%; }
+html[data-simple-motion] *, html[data-simple-motion] *::before, html[data-simple-motion] *::after { scroll-behavior: auto !important; transition-property: opacity,color,background-color,border-color !important; animation-duration: 120ms !important; }
+.settings-v2-apps-section { margin-bottom: 32px; }
+.settings-v2-dialog .settings-v2-apps-section h2 { margin: 0 0 8px; padding: 0; border: 0; font-size: var(--settings-caption); font-weight: 600; }
+.settings-v2-dialog .settings-v2-apps-section > p { margin: 0 0 12px; color: #b6b8bc; }
+.settings-v2-apps-section .original-setting-switch { min-height: 36px; padding: 4px 16px; border-radius: 12px; background: #ffffff08; }
+.settings-v2-apps-section .original-setting-control { margin-bottom: 32px; }
+.settings-v2-provider-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+.settings-v2-provider-card { display: flex; align-items: center; gap: 16px; padding: 0; overflow: hidden; min-width: 0; min-height: 84px; border: 0; border-radius: 0 12px 12px 0; text-align: left; color: #fff; background: #ffffff05; cursor: pointer; }
+.settings-v2-provider-card > .settings-provider-logo { display: grid; place-items: center; flex: 0 0 84px; width: 84px; height: 84px; margin: 0; border-radius: 0; background: #0003; }
+.settings-v2-provider-card > .settings-provider-logo img, .settings-provider-detail .settings-provider-logo img { position: static; inset: auto; width: 48px; height: 48px; padding: 0; background: transparent; object-fit: contain; filter: none; }
+.settings-v2-provider-card > span:last-child { min-width: 0; padding-right: 12px; }
+.settings-v2-provider-card strong { display: block; font-size: var(--settings-caption); font-weight: 600; }
+.settings-v2-provider-card small { display: block; margin-top: 4px; font-size: var(--settings-caption); color: #b6b8bc; }
+.settings-v2-desktop .settings-v2-dialog[data-settings-group=apps][data-settings-detail=false] .settings-v2-titlebar { position: absolute; right: 0; top: 0; min-height: 56px; padding: 16px 16px 0; }
+.settings-v2-desktop .settings-v2-dialog[data-settings-group=apps][data-settings-detail=false] .settings-v2-titlebar h1 { display: none; }
+.settings-v2-desktop .settings-v2-dialog[data-settings-group=apps][data-settings-detail=false] .settings-v2-content { padding-top: 54px; }
+@media (max-width:760px) { .settings-v2-provider-grid { grid-template-columns: minmax(0,1fr); } }
+
+.settings-v2-main { position: relative; }

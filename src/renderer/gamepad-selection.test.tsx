@@ -34,12 +34,14 @@ it('only installed card selectors auto-select in the library, never Play/update/
   expect(html).not.toMatch(/<button\b[^>]*data-gamepad-auto-select[^>]*data-gamepad-play/);
 });
 
-it('includes explicit library header actions without automatic activation', () => {
+it('includes explicit library filter and navigation actions without automatic activation', () => {
   const html = renderToStaticMarkup(<LibraryPage data={demoSnapshot()} toast={() => {}} />);
   const header = html.match(/<header[^>]*data-gamepad-library-header[^>]*>[\s\S]*?<\/header>/)?.[0];
   expect(header).toContain('Check game updates');
-  expect(header).toContain('Import game');
   expect(header).not.toContain('data-gamepad-auto-select');
+  const navigation = html.match(/<div class="library-navigation-row">[\s\S]*?<\/div>/)?.[0];
+  expect(navigation).toMatch(/<button\b[^>]*type="button"[^>]*class="library-add-game"[^>]*aria-label="Import game"/);
+  expect(navigation).not.toContain('data-gamepad-auto-select');
 });
 
 it.each([false, true])('Store cards open details independently of installation support (disabled=%s)', disabled => {

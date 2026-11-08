@@ -25,11 +25,12 @@ export function windowEntries() {
 }
 
 export class XboksSwitcher {
-    constructor({leave, xbox, changed, allowed = () => true}) {
+    constructor({leave, xbox, changed, allowed = () => true, homeLabel = 'Linux Gaming Mode'}) {
         this._leave = leave; this._xbox = xbox; this._changed = changed; this._allowed = allowed;
         this._root = null; this._grab = null; this._theme = null; this._modifierMask = 0; this._signals = []; this._refreshSource = 0; this._clockSource = 0;
         this._windowSignals = new Map(); this._clockLabel = null; this._renderState = null;
         this.selection = new SwitcherSelection();
+        this._homeLabel = homeLabel;
         const locale = GLib.get_language_names?.()[0] ?? 'en';
         this._el = locale.toLowerCase().startsWith('el');
     }
@@ -264,7 +265,7 @@ export class XboksSwitcher {
         } else this._root.add_child(this._place(new St.Label({text: this._text('No open application windows', 'Δεν υπάρχουν ανοιχτά παράθυρα εφαρμογών')}), width * 0.35, height / 2, width * 0.5, 50));
         const bottom = new St.BoxLayout({style_class: 'xboks-mode-bar'});
         bottom.add_child(new St.Widget({x_expand: true}));
-        bottom.add_child(this._modeButton('xbox', this._text('Xbox mode', 'Λειτουργία XBOX'), scale));
+        bottom.add_child(this._modeButton('xbox', this._homeLabel, scale));
         bottom.add_child(this._modeButton('desktop', this._text('Linux desktop', 'Επιφάνεια εργασίας Linux'), scale));
         bottom.add_child(new St.Widget({x_expand: true}));
         this._root.add_child(this._place(bottom, 8 * scale, height - 62 * scale, width - 16 * scale, 54 * scale));

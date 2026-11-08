@@ -32,7 +32,7 @@ The project is in active development and currently provides source; public binar
 | Your games | What XBOKS provides |
 | --- | --- |
 | **Library and Game Pass** | Installed games, imported game folders, account library and available Game Pass entries; search, filters, Play later, and account-scoped recent play. |
-| **Store** | Public PC, Top paid, and Add-ons collections, search, pagination, and product-specific details. Prices and subscription labels come from returned catalog data. |
+| **Store** | Browse/Deals navigation, genuine Deals and 18 category channels, public PC/Top paid/Add-ons collections, search, pagination and exact product details. Prices and subscription labels are shown only when returned by the corresponding catalog. |
 | **Game pages** | Descriptions, screenshots, publisher/categories, available achievements and activity, installation state, and Xbox's Windows handheld classification when supplied. |
 | **Installation queue** | Package confirmation, installation location, progress, supported pause/resume, cancellation choices, and local diagnostics. |
 | **Launch tools** | Per-game arguments and locale; optional GameMode, MangoHud and Gamescope wrappers; controller compatibility options; desktop and Steam shortcuts. Optional tools are installed separately. |
@@ -44,6 +44,28 @@ The project is in active development and currently provides source; public binar
 The default game folder is **`~/Games/Xboks`**; custom locations are preserved. Account tokens use the system keyring. Wallet creation/unlocking is explicit and handled by your wallet provider. Diagnostic logs remain local unless you choose to share them.
 
 ### Game Bar and fullscreen
+
+The **2612 New App Experience reconstruction** adds a responsive desktop dock,
+Featured Home, Installed/Apps/Recently played/My games navigation, account menu,
+profile and six Settings categories in both desktop and Xbox mode. The Apps
+library reads visible Linux desktop entries and launches only the selected app.
+People search, recorded play history and nested Back/focus behavior use their
+actual providers. Store categories and Deals read their original public collection
+services. Personalized Store campaigns, wishlist and all live service behavior
+are not yet reproduced.
+[Implementation and remaining gaps](docs/analysis/xbox2612-new-ui-parity-ledger-2026-11-08.md).
+
+![XBOKS New App Experience reconstruction — labeled fixture data](docs/screenshots/xboks-new-experience-home.png)
+
+*Actual development renderer, synthetic accounts/artwork and isolated service
+fixtures. [Capture provenance](docs/screenshots/new-experience-provenance.json).
+These images do not establish Windows pixel parity or live Xbox service delivery.*
+
+The original Windows client is a separate compatibility experiment. Earlier
+managed Proton probes hit Windows App SDK/WinRT blockers; a later patched
+Wine-UWP candidate displayed **2612.1001.23.0**, completed sign-in and opened its
+New App Experience. This does not establish game installation, streaming or
+unmodified Proton support. [Reproduction and limits](docs/analysis/wine-uwp-client2612-reproduction.md).
 
 The **0.3.28 desktop interface** introduces a full-width header, separate navigation,
 persistent friends/search and a Queue panel. **Xbox mode** opens a dedicated

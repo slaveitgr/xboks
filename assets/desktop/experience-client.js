@@ -12,11 +12,22 @@ const loop = new GLib.MainLoop(null, false);
 const connection = Gio.bus_get_sync(Gio.BusType.SESSION, null);
 const input = new GioUnix.InputStream({fd: 0, close_fd: false});
 const cancellation = new Gio.Cancellable();
-let active = false, owned = false, stopping = false, epoch = 0;
+let active = false, owned = false, canControlSwitcher = false, visible = false;
+let controlEpoch, controlProtocol = null, refreshSerial = 0, appliedRefreshSerial = 0;
+let stopping = false, epoch = 0;
 let available = false, pending = new Uint8Array(), queued = 0, chain = Promise.resolve();
 const output = value => print(JSON.stringify(value));
 let initiallyReady;
 const initialWatch = new Promise(resolve => { initiallyReady = resolve; });
+
+function stateFields() {
+    return {active, owned, canControlSwitcher, visible, ...(controlEpoch === undefined ? {} : {controlEpoch})};
+}
+
+function clearState() {
+    active = false; owned = false; canControlSwitcher = false; visible = false;
+    controlEpoch = undefined; controlProtocol = null;
+}
 
 function remote(method, expected = '()', parameters = null) {
     const generation = epoch;
@@ -35,18 +46,46 @@ function remote(method, expected = '()', parameters = null) {
     });
 }
 
-async function refresh(emit = false) {
-    const state = await remote('GetState', '(bb)');
-    [active, owned] = state;
-    if (emit)
-        output({event: 'state', active, owned});
+async function refresh(event = null, legacyVisible) {
+    const generation = epoch, serial = ++refreshSerial;
+    let snapshot;
+    if (controlProtocol !== false) {
+        try {
+            const [token, nextActive, nextOwned, nextVisible, canControl] = await remote('GetSwitcherControl', '(tbbbb)');
+            if (!Number.isSafeInteger(token) || token < 1 ||
+                [nextActive, nextOwned, nextVisible, canControl].some(value => typeof value !== 'boolean'))
+                throw new Error('invalid-response');
+            snapshot = {active: nextActive, owned: nextOwned, visible: nextVisible, canControlSwitcher: canControl, controlEpoch: token};
+        } catch (error) {
+            if (errorCode(error) !== 'unsupported')
+                throw error;
+        }
+    }
+    if (!snapshot) {
+        const [nextActive, nextOwned] = await remote('GetState', '(bb)');
+        if (typeof nextActive !== 'boolean' || typeof nextOwned !== 'boolean')
+            throw new Error('invalid-response');
+        snapshot = {active: nextActive, owned: nextOwned, canControlSwitcher: false,
+            visible: nextOwned && (legacyVisible ?? visible), controlEpoch: undefined};
+    }
+    // Signals and command replies can trigger overlapping queries. Order them
+    // by query serial, and never let a delayed older control snapshot undo a newer
+    // observation from this service owner.
+    if (generation !== epoch || serial < appliedRefreshSerial ||
+        (controlEpoch !== undefined && snapshot.controlEpoch !== undefined && snapshot.controlEpoch < controlEpoch))
+        return;
+    appliedRefreshSerial = serial;
+    ({active, owned, canControlSwitcher, visible, controlEpoch} = snapshot);
+    controlProtocol = controlEpoch !== undefined;
+    if (event)
+        output({event, ...stateFields()});
 }
 
 function errorCode(error) {
     const message = String(error?.message ?? '');
     if (message.includes('UnknownMethod'))
         return 'unsupported';
-    for (const code of ['not-authorized', 'emergency-unavailable', 'overview-open', 'shell-error', 'busy']) {
+    for (const code of ['not-authorized', 'emergency-unavailable', 'overview-open', 'shell-error', 'busy', 'stale-control', 'unavailable', 'invalid-action']) {
         if (message.endsWith(code))
             return code;
     }
@@ -59,11 +98,14 @@ async function command(line) {
         request = JSON.parse(line);
         if (!request || !Number.isInteger(request.id) || request.id < 1 || request.id > 2147483647 ||
             !['state', 'enter', 'leave', 'foreground', 'focus-guide', 'capabilities', 'switcher'].includes(request.method) ||
-            Object.keys(request).some(key => !['id', 'method', 'action'].includes(key)) ||
-            (request.method === 'switcher' ? !['toggle', 'open', 'next', 'previous', 'accept', 'cancel', 'desktop', 'xbox', 'up', 'down', 'left', 'right', 'close-window'].includes(request.action) : request.action !== undefined))
+            Object.keys(request).some(key => !['id', 'method', 'action', 'controlEpoch'].includes(key)) ||
+            (request.method === 'switcher' ?
+                !['toggle', 'open', 'next', 'previous', 'accept', 'cancel', 'desktop', 'xbox', 'up', 'down', 'left', 'right', 'close-window'].includes(request.action) ||
+                (Object.hasOwn(request, 'controlEpoch') && (!Number.isSafeInteger(request.controlEpoch) || request.controlEpoch < 1)) :
+                request.action !== undefined || Object.hasOwn(request, 'controlEpoch')))
             throw new Error('invalid-command');
     } catch {
-        output({id: Number.isInteger(request?.id) ? request.id : 0, ok: false, active, owned, error: 'invalid-command'});
+        output({id: Number.isInteger(request?.id) ? request.id : 0, ok: false, ...stateFields(), error: 'invalid-command'});
         return;
     }
     try {
@@ -84,12 +126,22 @@ async function command(line) {
             try { [extra.version] = await remote('GetCapabilities', '(u)'); }
             catch (error) { if (errorCode(error) === 'unsupported') extra.version = 1; else throw error; }
         } else if (request.method === 'switcher') {
-            [extra.visible] = await remote('Switch', '(b)', new GLib.Variant('(s)', [request.action]));
+            // The token belongs to the role observed when the parent queued this
+            // action. Never replace it or upgrade an old owner-only command.
+            [extra.visible] = Object.hasOwn(request, 'controlEpoch') ?
+                await remote('ControlSwitcher', '(b)', new GLib.Variant('(st)', [request.action, request.controlEpoch])) :
+                await remote('Switch', '(b)', new GLib.Variant('(s)', [request.action]));
+            if (typeof extra.visible !== 'boolean')
+                throw new Error('invalid-response');
         }
-        await refresh();
-        output({id: request.id, ok: true, active, owned, ...extra});
+        await refresh(null, extra.visible);
+        delete extra.visible;
+        output({id: request.id, ok: true, ...stateFields(), ...extra});
     } catch (error) {
-        output({id: request.id, ok: false, active, owned, error: errorCode(error)});
+        const code = errorCode(error);
+        if (available)
+            await refresh().catch(() => {});
+        output({id: request.id, ok: false, ...stateFields(), error: code});
     }
 }
 
@@ -156,30 +208,35 @@ const nameWatch = Gio.bus_watch_name_on_connection(connection, BUS, Gio.BusNameW
     () => {
         available = true;
         epoch++;
+        clearState();
         initiallyReady();
-        void refresh(true).catch(() => {
-            active = false; owned = false;
-            output({event: 'unavailable', active, owned});
+        const generation = epoch, serial = refreshSerial + 1;
+        void refresh('state').catch(() => {
+            if (generation !== epoch || serial < appliedRefreshSerial)
+                return;
+            clearState();
+            output({event: 'unavailable', ...stateFields()});
         });
     },
     () => {
         available = false;
         epoch++;
         initiallyReady();
-        active = false; owned = false;
-        output({event: 'unavailable', active, owned});
+        clearState();
+        output({event: 'unavailable', ...stateFields()});
     });
 const stateSignal = connection.signal_subscribe(BUS, BUS, 'StateChanged', OBJECT, null, Gio.DBusSignalFlags.NONE,
-    () => void refresh(true).catch(() => {}));
+    () => void refresh('state').catch(() => {}));
 const switcherSignal = connection.signal_subscribe(BUS, BUS, 'SwitcherChanged', OBJECT, null, Gio.DBusSignalFlags.NONE,
     (_bus, _sender, _path, _iface, _signal, parameters) => {
         const [visible] = parameters.deepUnpack();
         if (typeof visible === 'boolean')
-            void refresh().then(() => output({event: 'switcher', active, owned, visible})).catch(() => {});
+            void refresh('switcher', visible).catch(() => {});
     });
 const closed = connection.connect('closed', () => {
-    active = false; owned = false; available = false;
-    output({event: 'unavailable', active, owned});
+    epoch++;
+    clearState(); available = false;
+    output({event: 'unavailable', ...stateFields()});
     void stop();
 });
 // Older GLib typelibs expose Unix signal watches through GLib itself.
